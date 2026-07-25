@@ -18,15 +18,15 @@
 projects:
   - name: My project
     environments:
-      - name: uat
+      - name: staging
         services:
-          # ─── UAT Backend ────────────────────────────────────────────────
+          # ─── Backend ────────────────────────────────────────────────
           - type: web
-            name: ata-lta-erp-api-uat
+            name: ata-lta-erp-api-staging # Replace "staging" with "uat" for uat
             runtime: docker
             plan: free
             repo: https://github.com/jevvii/ata-lta-erp-final-render.git
-            branch: uat
+            branch: staging # Change to uat for uat
             rootDir: backend
             dockerfilePath: Dockerfile
             healthCheckPath: /health
@@ -36,19 +36,19 @@ projects:
               - key: LOG_LEVEL
                 value: info
               - key: FRONTEND_URL
-                value: https://ata-lta-erp-spa-uat.onrender.com
-              - fromGroup: erp-uat-secrets
+                value: https://ata-lta-erp-spa-staging.onrender.com # Replace "staging" with "uat" for uat
+              - fromGroup: erp-staging-secrets
 
-          # ─── UAT Frontend Static Site ──────────────────────────────────
+          # ─── Frontend Static Site ──────────────────────────────────
           # Static sites on Render are free by default; do not set `plan`.
           - type: web
-            name: ata-lta-erp-spa-uat
+            name: ata-lta-erp-spa-staging # Replace "staging" with "uat" for uat
             runtime: static
             repo: https://github.com/jevvii/ata-lta-erp-final-render.git
-            branch: uat
-            rootDir: erp_prototype
-            buildCommand: npm run build
-            staticPublishPath: .
-            envVars:
-              - key: ERP_API_BASE_URL
-                value: https://ata-lta-erp-api-uat.onrender.com/v1
+            branch: staging # Change to uat for uat
+            rootdir: erp_prototype
+            buildcommand: npm run build
+            staticpublishpath: .
+            envvars:
+              - key: erp_api_base_url
+                value: https://ata-lta-erp-api-staging.onrender.com/v1 # Replace "staging" with "uat" for uat
