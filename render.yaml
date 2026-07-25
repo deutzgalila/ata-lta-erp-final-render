@@ -48,9 +48,9 @@ projects:
             region: singapore
             repo: https://github.com/jevvii/ata-lta-erp-final-render.git
             branch: staging # Change to uat for uat
-            rootdir: erp_prototype
-            buildcommand: npm run build
-            staticpublishpath: .
-            envvars:
+            rootDir: erp_prototype
+            buildCommand: npm run build
+            staticPublishPath: .
+            envVars:
               - key: erp_api_base_url
                 value: https://ata-lta-erp-api-staging.onrender.com/v1 # Replace "staging" with "uat" for uat
