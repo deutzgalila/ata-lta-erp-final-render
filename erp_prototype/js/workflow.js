@@ -4086,13 +4086,7 @@ const Workflow = {
     });
   },
 
-  async render() {
-    await Promise.all([
-      WorkflowData.ensure(),
-      this.ensureRetainerTemplates(),
-      this._loadGroundWorkers(),
-    ]);
-    await WorkflowData.loadPendingApprovals();
+  async render(routeId) {
     const container = el('div', { class: 'page' });
     if (this.view === 'list') {
       container.classList.add('operations-list-page');
@@ -4100,130 +4094,220 @@ const Workflow = {
     this._tempTaskMap = buildTaskMap();
 
     if (this.view === 'detail' && this.detailWrId) {
-      let wr = WorkflowData.getWorkRequestById(this.detailWrId);
-      if (!wr) {
-        const pc = WorkflowData.getPendingApprovalByRecordId(this.detailWrId, 'workRequests');
-        if (pc && pc.table === 'workRequests') {
-          wr = { ...pc.proposedData };
-          wr.id = pc.proposedData.id || pc.id;
-          wr.isPendingApproval = true;
-          wr.pendingChangeId = pc.id;
-          wr.submittedBy = pc.submittedBy;
-          wr.status = 'Draft';
-        }
-      }
-      if (!wr || !Auth.canViewWr(wr)) {
-        this.view = 'list';
-        this.detailWrId = null;
-        location.hash = '#operations';
-        return el('div');
-      }
-      // Breadcrumb title bar consistent with the rest of the system
-      const client = window.apiClient.clientCache.getById(wr.clientId);
-      const canEdit = Auth.can('workflow:edit') && !wr.isPendingApproval;
-      const isArchived = wr && wr.status === 'Cancelled';
-
-      // Preload related records so badge/render helpers use the API-backed cache
-      // instead of scanning the local DB on every render.
-      await WorkflowData.loadRelatedForWorkRequest(wr.id);
-      if (wr.tasks) {
-        await Promise.all(wr.tasks.map(t => WorkflowData.loadRelatedForTask(t.id)));
-      }
-
       const titleBar = el('div', { class: 'page-title-bar-v2' });
       const h1 = el('h1', { class: 'breadcrumb-h1' });
       const opLink = el('a', { href: 'javascript:void(0)', class: 'breadcrumb-base', text: 'Operations' });
       opLink.addEventListener('click', () => { location.hash = '#operations'; });
       h1.appendChild(opLink);
       h1.appendChild(el('span', { class: 'breadcrumb-sep', text: ' / ' }));
-      h1.appendChild(document.createTextNode(wr.title || 'Untitled Work Request'));
+      const titleTextNode = document.createTextNode('Loading...');
+      h1.appendChild(titleTextNode);
       titleBar.appendChild(h1);
+      
       const actions = el('div', { class: 'title-bar-actions' });
-      const badges = el('div', { class: 'identity-badges', style: 'margin-right:12px;' });
-      const statusBadgeClass = {
-        'Draft': 'badge-info',
-        'Pre-processing': 'badge-info',
-        'Processing': 'badge-warn',
-        'Billing': 'badge-warn',
-        'Disbursement': 'badge-warn',
-        'Completed': 'badge-success',
-        'Cancelled': 'badge-danger'
-      }[wr.status] || 'badge-info';
-      if (wr.isPendingApproval) {
-        badges.appendChild(el('span', { class: 'badge badge-warn', text: 'Awaiting Approval' }));
-      } else {
-        badges.appendChild(el('span', { class: `badge ${statusBadgeClass}`, text: wr.status }));
-      }
-
-      if (wr?.priority && wr.priority !== 'Normal') {
-        const priorityClass = { 'Urgent': 'badge-danger', 'Priority': 'badge-warn', 'Low Priority': 'badge-info' }[wr.priority] || 'badge-muted';
-        badges.appendChild(el('span', { class: `badge ${priorityClass}`, text: wr.priority }));
-      }
-
-      const finBadge = this.getFinanceBadgeForWr(wr);
-      const docBadge = this.getDocBadgeForWr(wr);
-      if (finBadge) badges.appendChild(finBadge);
-      if (docBadge) badges.appendChild(docBadge);
-      actions.appendChild(badges);
-
-      if (wr.isPendingApproval && (Auth.user.id === wr.submittedBy || Auth.isManagerial())) {
-        const cancelBtn = el('button', {
-          class: 'btn btn-danger btn-sm',
-          html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px; vertical-align:middle;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>Cancel Request',
-          style: 'margin-right: 8px;'
-        });
-        cancelBtn.addEventListener('click', () => {
-          Workflow.showConfirm('Confirm Cancellation', 'Are you sure you want to cancel and withdraw this request?', async () => {
-            const runResult = await this.runBlockingArchiveAction({
-              title: 'Withdrawing Request',
-              message: 'Please wait while the request is being withdrawn...',
-              apiCall: async () => {
-                await PendingChanges.delete(wr.pendingChangeId);
-                return { success: true };
-              },
-              successTitle: 'Request Withdrawn',
-              successMessage: 'The creation request has been successfully cancelled.',
-              errorTitle: 'Failed to Withdraw Request'
-            });
-
-            if (runResult.success) {
-              this.view = 'list';
-              this.detailWrId = null;
-              App.handleRoute();
-            } else {
-              App.handleRoute();
-            }
-          }, 'danger');
-        });
-        actions.appendChild(cancelBtn);
-      }
       const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to Work Requests' });
       backBtn.addEventListener('click', () => { location.hash = '#operations'; });
       actions.appendChild(backBtn);
       titleBar.appendChild(actions);
       container.appendChild(titleBar);
 
-      // Sub-header with WR id and client name
+      // Sub-header placeholder
       const subHeader = el('div', { class: 'detail-sub-header-v2' });
-      subHeader.appendChild(el('div', { class: 'detail-info-item' }, [
+      const shContent = el('div', { style: 'display: flex; gap: 24px;' });
+      shContent.appendChild(el('div', { class: 'detail-info-item' }, [
         el('span', { class: 'detail-info-label', text: 'Work Request' }),
-        el('span', { class: 'detail-info-value font-mono', text: (wr.id || '').toString().toUpperCase() })
+        el('span', { class: 'detail-info-value font-mono', text: this.detailWrId.toUpperCase() })
       ]));
-      subHeader.appendChild(el('div', { class: 'detail-info-item' }, [
+      shContent.appendChild(el('div', { class: 'detail-info-item' }, [
         el('span', { class: 'detail-info-label', text: 'Client' }),
-        el('span', { class: 'detail-info-value', text: client?.name || 'Unknown Client' })
+        el('span', { class: 'detail-info-value', html: Utils.skeletonText('80px') })
       ]));
+      subHeader.appendChild(shContent);
       container.appendChild(subHeader);
-    } else if (this.view === 'list' || this.view === 'templates' || this.view === 'archive') {
+
+      const bodyContainer = el('div');
+      bodyContainer.innerHTML = Utils.getSkeletonForView('operations');
+      container.appendChild(bodyContainer);
+
+      (async () => {
+        try {
+          await Promise.all([
+            WorkflowData.ensure(),
+            this.ensureRetainerTemplates(),
+            this._loadGroundWorkers(),
+          ]);
+          await WorkflowData.loadPendingApprovals();
+          
+          if (routeId !== App._routeId) return;
+
+          let wr = WorkflowData.getWorkRequestById(this.detailWrId);
+          if (!wr) {
+            const pc = WorkflowData.getPendingApprovalByRecordId(this.detailWrId, 'workRequests');
+            if (pc && pc.table === 'workRequests') {
+              wr = { ...pc.proposedData };
+              wr.id = pc.proposedData.id || pc.id;
+              wr.isPendingApproval = true;
+              wr.pendingChangeId = pc.id;
+              wr.submittedBy = pc.submittedBy;
+              wr.status = 'Draft';
+            }
+          }
+          if (!wr || !Auth.canViewWr(wr)) {
+            this.view = 'list';
+            this.detailWrId = null;
+            location.hash = '#operations';
+            return;
+          }
+
+          await WorkflowData.loadRelatedForWorkRequest(wr.id);
+          if (wr.tasks) {
+            await Promise.all(wr.tasks.map(t => WorkflowData.loadRelatedForTask(t.id)));
+          }
+
+          if (routeId !== App._routeId) return;
+
+          const client = window.apiClient.clientCache.getById(wr.clientId);
+          titleTextNode.textContent = wr.title || 'Untitled Work Request';
+          
+          shContent.replaceChildren(
+            el('div', { class: 'detail-info-item' }, [
+              el('span', { class: 'detail-info-label', text: 'Work Request' }),
+              el('span', { class: 'detail-info-value font-mono', text: (wr.id || '').toString().toUpperCase() })
+            ]),
+            el('div', { class: 'detail-info-item' }, [
+              el('span', { class: 'detail-info-label', text: 'Client' }),
+              el('span', { class: 'detail-info-value', text: client?.name || 'Unknown Client' })
+            ])
+          );
+
+          const badges = el('div', { class: 'identity-badges', style: 'margin-right:12px;' });
+          const statusBadgeClass = {
+            'Draft': 'badge-info',
+            'Pre-processing': 'badge-info',
+            'Processing': 'badge-warn',
+            'Billing': 'badge-warn',
+            'Disbursement': 'badge-warn',
+            'Completed': 'badge-success',
+            'Cancelled': 'badge-danger'
+          }[wr.status] || 'badge-info';
+          if (wr.isPendingApproval) {
+            badges.appendChild(el('span', { class: 'badge badge-warn', text: 'Awaiting Approval' }));
+          } else {
+            badges.appendChild(el('span', { class: `badge ${statusBadgeClass}`, text: wr.status }));
+          }
+
+          if (wr?.priority && wr.priority !== 'Normal') {
+            const priorityClass = { 'Urgent': 'badge-danger', 'Priority': 'badge-warn', 'Low Priority': 'badge-info' }[wr.priority] || 'badge-muted';
+            badges.appendChild(el('span', { class: `badge ${priorityClass}`, text: wr.priority }));
+          }
+
+          const finBadge = this.getFinanceBadgeForWr(wr);
+          const docBadge = this.getDocBadgeForWr(wr);
+          if (finBadge) badges.appendChild(finBadge);
+          if (docBadge) badges.appendChild(docBadge);
+          actions.insertBefore(badges, backBtn);
+
+          if (wr.isPendingApproval && (Auth.user.id === wr.submittedBy || Auth.isManagerial())) {
+            const cancelBtn = el('button', {
+              class: 'btn btn-danger btn-sm',
+              html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px; vertical-align:middle;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>Cancel Request',
+              style: 'margin-right: 8px;'
+            });
+            cancelBtn.addEventListener('click', () => {
+              Workflow.showConfirm('Confirm Cancellation', 'Are you sure you want to cancel and withdraw this request?', async () => {
+                const runResult = await this.runBlockingArchiveAction({
+                  title: 'Withdrawing Request',
+                  message: 'Please wait while the request is being withdrawn...',
+                  apiCall: async () => {
+                    await PendingChanges.delete(wr.pendingChangeId);
+                    return { success: true };
+                  },
+                  successTitle: 'Request Withdrawn',
+                  successMessage: 'The creation request has been successfully cancelled.',
+                  errorTitle: 'Failed to Withdraw Request'
+                });
+
+                if (runResult.success) {
+                  this.view = 'list';
+                  this.detailWrId = null;
+                  App.handleRoute();
+                } else {
+                  App.handleRoute();
+                }
+              }, 'danger');
+            });
+            actions.insertBefore(cancelBtn, backBtn);
+          }
+
+          bodyContainer.innerHTML = '';
+          bodyContainer.appendChild(await this.renderDetail());
+          this.updateStickyOffsets();
+        } catch (e) {
+          console.error(e);
+        }
+      })();
+
+      setTimeout(() => this.updateStickyOffsets(), 0);
+      delete this._tempTaskMap;
+      return container;
+    }
+
+    if (this.view === 'list' || this.view === 'templates' || this.view === 'archive') {
       container.classList.add('operations-tab-page');
       const titleBar = el('div', { class: 'page-title-bar-v2' });
       titleBar.appendChild(el('h1', { text: 'Operations' }));
       container.appendChild(titleBar);
-      // Recompute tab counts from the freshly loaded local cache before rendering
-      // the tab navigation so badges never display stale values.
+      
       Workflow._refreshCounts();
-      container.appendChild(this.renderTabNav());
-    } else if (this.view === 'form') {
+      let tabNav = this.renderTabNav();
+      container.appendChild(tabNav);
+
+      const contentContainer = el('div');
+      container.appendChild(contentContainer);
+
+      if (this.view === 'list') {
+        contentContainer.appendChild(this.renderList());
+      } else {
+        contentContainer.innerHTML = Utils.getSkeletonForView('operations');
+      }
+
+      (async () => {
+        try {
+          await Promise.all([
+            WorkflowData.ensure(),
+            this.ensureRetainerTemplates(),
+            this._loadGroundWorkers(),
+          ]);
+          await WorkflowData.loadPendingApprovals();
+
+          if (routeId !== App._routeId) return;
+
+          Workflow._refreshCounts();
+          const freshTabNav = this.renderTabNav();
+          if (tabNav.parentNode) {
+            tabNav.parentNode.replaceChild(freshTabNav, tabNav);
+            tabNav = freshTabNav;
+          }
+
+          if (this.view === 'templates') {
+            contentContainer.innerHTML = '';
+            contentContainer.appendChild(await this.renderTemplates());
+          } else if (this.view === 'archive') {
+            contentContainer.innerHTML = '';
+            contentContainer.appendChild(await this.renderArchive());
+          }
+          this.updateStickyOffsets();
+        } catch (err) {
+          console.error(err);
+        }
+      })();
+
+      setTimeout(() => this.updateStickyOffsets(), 0);
+      delete this._tempTaskMap;
+      return container;
+    }
+
+    if (this.view === 'form') {
       const userViewMode = window.SidePaneInstance ? window.SidePaneInstance.resolveMode({ viewContext: 'work-request-form' }) : 'side-peek';
       if (userViewMode !== 'full-page' && userViewMode !== 'new-tab') {
         const editingId = this.editingId;
@@ -4237,7 +4321,6 @@ const Workflow = {
         return el('div');
       }
 
-      // Full-page work-request form: breadcrumb with view switcher + save/cancel
       container.classList.add('operations-tab-page');
       const isNew = !this.editingId;
       const wr = isNew ? null : WorkflowData.getWorkRequestById(this.editingId);
@@ -4272,7 +4355,6 @@ const Workflow = {
         ]
       }));
     } else if (this.view === 'templateForm') {
-      // Full-page retainer template form: breadcrumb with view switcher + save/cancel
       container.classList.add('operations-tab-page');
       const isNew = !this.templateEditingId;
       const template = isNew ? null : this._getRetainerTemplateById(this.templateEditingId);
@@ -4339,18 +4421,10 @@ const Workflow = {
       }));
     }
 
-    if (this.view === 'list') {
-      container.appendChild(this.renderList());
-    } else if (this.view === 'form') {
+    if (this.view === 'form') {
       container.appendChild(await this.renderForm());
-    } else if (this.view === 'detail') {
-      container.appendChild(await this.renderDetail());
-    } else if (this.view === 'templates') {
-      container.appendChild(await this.renderTemplates());
     } else if (this.view === 'templateForm') {
       container.appendChild(await this.renderTemplateForm({ hideHeader: true }));
-    } else if (this.view === 'archive') {
-      container.appendChild(await this.renderArchive());
     } else if (this.view === 'addTask' && this.addTaskWrId) {
       const form = await this.renderAddTaskForm(this.addTaskWrId, { hideHeader: true });
       if (form) {
@@ -5123,6 +5197,7 @@ const Workflow = {
     const refresh = async () => {
       const gen = ++refreshGeneration;
       while (contentContainer.firstChild) contentContainer.removeChild(contentContainer.firstChild);
+      contentContainer.innerHTML = Utils.getSkeletonForView('operations');
 
       const shouldSkipServerFetch = Workflow._activeSkipGeneration > 0 && Workflow._activeSkipGeneration === Workflow._skipFetchGeneration;
 

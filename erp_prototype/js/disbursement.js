@@ -871,87 +871,109 @@ const Disbursement = {
     }
   },
 
-  async render() {
+  async render(routeId) {
     const container = el('div', { class: 'page' });
 
     if (this.view === 'detail' && this.detailId) {
-      const d = await this.loadDisbursement(this.detailId);
       const titleBar = el('div', { class: 'page-title-bar-v2' });
       const h1 = el('h1', { class: 'breadcrumb-h1' });
       const baseLink = el('a', { href: 'javascript:void(0)', class: 'breadcrumb-base', text: 'Disbursement' });
       baseLink.addEventListener('click', () => { location.hash = '#disbursement'; });
       h1.appendChild(baseLink);
       h1.appendChild(el('span', { class: 'breadcrumb-sep', text: ' / ' }));
-      h1.appendChild(document.createTextNode(d?.description || 'Detail'));
+      const titleTextNode = document.createTextNode(this.detailId);
+      h1.appendChild(titleTextNode);
       titleBar.appendChild(h1);
       
       const actions = el('div', { class: 'title-bar-actions' });
-      if (d) {
-        // Edit button — Admin and Accounting (users with disbursement:edit or create)
-        const canEdit = Auth.can('disbursement:edit') || Auth.can('disbursement:create');
-        const isPendingStatus = ['Draft', 'Submitted', 'Under Review', 'Pending'].includes(d.status);
-        if (canEdit && isPendingStatus) {
-          const editBtn = el('button', { class: 'btn btn-warning btn-sm', text: '✏️ Edit Expense', style: 'margin-right:8px;' });
-          editBtn.addEventListener('click', async () => {
-            this.detailId = d.id;
-            openFormPanel({
-              icon: '💰', title: 'Edit Expense',
-              formContent: await this.renderForm({ existing: d }), formId: 'disbursement-form',
-              viewContext: 'expense-form',
-              fullPageRoute: `#disbursement/form/${d.id}`,
-              actions: [
-                { text: 'Update Expense', class: 'btn btn-primary', type: 'submit', form: 'disbursement-form', testId: 'submit-expense-btn' },
-                { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#disbursement/detail/' + d.id), testId: 'cancel-expense-btn' }
-              ]
-            });
-          });
-          actions.appendChild(editBtn);
-        }
-
-        // Trash button — Admin / Managers
-        if (Auth.can('disbursement:delete') && !d.archived) {
-          const trashBtn = el('button', { class: 'btn btn-danger btn-sm', text: '🗑️ Trash', style: 'margin-right:8px;' });
-          trashBtn.addEventListener('click', () => {
-            this.trashDisbursement(d.id);
-          });
-          actions.appendChild(trashBtn);
-        }
-        if (d.status === 'Draft' && Auth.can('disbursement:create')) {
-          const submitBtn = el('button', { class: 'btn btn-success btn-sm', text: 'Submit Expense', style: 'margin-right:8px;' });
-          submitBtn.addEventListener('click', () => {
-            Workflow.showConfirm('Submit Expense', 'Are you sure you want to submit this expense for approval?', async () => {
-              try {
-                await this._optimisticUpdate(d.id, { status: 'Pending' }, () => window.apiClient.disbursements.submit(d.id), 'Submit Failed');
-              } catch (e) {
-                // Error surfaced by _optimisticUpdate.
-              }
-            }, 'success');
-          });
-          actions.appendChild(submitBtn);
-        }
-        const noLogoLabel = el('label', { style: 'margin-right:12px; font-size:0.8125rem; display:inline-flex; align-items:center; gap:6px; cursor:pointer; color:var(--color-text-muted);' });
-        const noLogoCheckbox = el('input', { type: 'checkbox' });
-        noLogoLabel.appendChild(noLogoCheckbox);
-        noLogoLabel.appendChild(document.createTextNode('No Logo (Generic)'));
-        actions.appendChild(noLogoLabel);
-
-        const genExpBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Generate Expense PDF', style: 'margin-right:8px;' });
-        genExpBtn.addEventListener('click', () => {
-          const noLogo = noLogoCheckbox.checked;
-          this.generateExpensePDF(d, noLogo);
-        });
-        actions.appendChild(genExpBtn);
-
-        const genVouchBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Generate Voucher', style: 'margin-right:8px;' });
-        genVouchBtn.addEventListener('click', () => this.generateVoucher(d));
-        actions.appendChild(genVouchBtn);
-      }
       const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to List' });
       backBtn.addEventListener('click', () => { location.hash = '#disbursement'; });
       actions.appendChild(backBtn);
       titleBar.appendChild(actions);
       container.appendChild(titleBar);
-    } else if (this.view === 'form') {
+
+      const bodyContainer = el('div');
+      bodyContainer.innerHTML = Utils.getSkeletonForView('disbursement');
+      container.appendChild(bodyContainer);
+
+      (async () => {
+        try {
+          const d = await this.loadDisbursement(this.detailId);
+          if (!d) { location.hash = '#disbursement'; return; }
+          await Promise.all([
+            window.apiClient.userCache.ensure(),
+            window.apiClient.clientCache.ensure(),
+            window.apiClient.workRequestCache.ensure(),
+          ]);
+          if (routeId !== App._routeId) return;
+
+          titleTextNode.textContent = d.description || 'Detail';
+
+          const canEdit = Auth.can('disbursement:edit') || Auth.can('disbursement:create');
+          const isPendingStatus = ['Draft', 'Submitted', 'Under Review', 'Pending'].includes(d.status);
+          if (canEdit && isPendingStatus) {
+            const editBtn = el('button', { class: 'btn btn-warning btn-sm', text: '✏️ Edit Expense', style: 'margin-right:8px;' });
+            editBtn.addEventListener('click', async () => {
+              this.detailId = d.id;
+              openFormPanel({
+                icon: '💰', title: 'Edit Expense',
+                formContent: await this.renderForm({ existing: d }), formId: 'disbursement-form',
+                viewContext: 'expense-form',
+                fullPageRoute: `#disbursement/form/${d.id}`,
+                actions: [
+                  { text: 'Update Expense', class: 'btn btn-primary', type: 'submit', form: 'disbursement-form', testId: 'submit-expense-btn' },
+                  { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#disbursement/detail/' + d.id), testId: 'cancel-expense-btn' }
+                ]
+              });
+            });
+            actions.insertBefore(editBtn, backBtn);
+          }
+          if (Auth.can('disbursement:delete') && !d.archived) {
+            const trashBtn = el('button', { class: 'btn btn-danger btn-sm', text: '🗑️ Trash', style: 'margin-right:8px;' });
+            trashBtn.addEventListener('click', () => { this.trashDisbursement(d.id); });
+            actions.insertBefore(trashBtn, backBtn);
+          }
+          if (d.status === 'Draft' && Auth.can('disbursement:create')) {
+            const submitBtn = el('button', { class: 'btn btn-success btn-sm', text: 'Submit Expense', style: 'margin-right:8px;' });
+            submitBtn.addEventListener('click', () => {
+              Workflow.showConfirm('Submit Expense', 'Are you sure you want to submit this expense for approval?', async () => {
+                try {
+                  await this._optimisticUpdate(d.id, { status: 'Pending' }, () => window.apiClient.disbursements.submit(d.id), 'Submit Failed');
+                } catch (e) {}
+              }, 'success');
+            });
+            actions.insertBefore(submitBtn, backBtn);
+          }
+          const noLogoLabel = el('label', { style: 'margin-right:12px; font-size:0.8125rem; display:inline-flex; align-items:center; gap:6px; cursor:pointer; color:var(--color-text-muted);' });
+          const noLogoCheckbox = el('input', { type: 'checkbox' });
+          noLogoLabel.appendChild(noLogoCheckbox);
+          noLogoLabel.appendChild(document.createTextNode('No Logo (Generic)'));
+          actions.insertBefore(noLogoLabel, backBtn);
+
+          const genExpBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Generate Expense PDF', style: 'margin-right:8px;' });
+          genExpBtn.addEventListener('click', () => {
+            const noLogo = noLogoCheckbox.checked;
+            this.generateExpensePDF(d, noLogo);
+          });
+          actions.insertBefore(genExpBtn, backBtn);
+
+          const genVouchBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Generate Voucher', style: 'margin-right:8px;' });
+          genVouchBtn.addEventListener('click', () => this.generateVoucher(d));
+          actions.insertBefore(genVouchBtn, backBtn);
+
+          bodyContainer.innerHTML = '';
+          bodyContainer.appendChild(await this.renderDetail());
+          this.updateStickyOffsets();
+        } catch (e) {
+          console.error(e);
+        }
+      })();
+
+      setTimeout(() => this.updateStickyOffsets(), 0);
+      return container;
+    }
+
+    if (this.view === 'form') {
       container.classList.add('disbursement-tab-page');
       const isNew = !this.detailId;
       const existing = isNew ? null : await this.loadDisbursement(this.detailId);
@@ -1019,26 +1041,62 @@ const Disbursement = {
       titleBar.appendChild(el('h1', { text: 'Disbursement' }));
       container.appendChild(titleBar);
 
-      // Pre-load cached disbursements and rejected archive counts so
-      // renderTabNav can derive badges from local data instead of the API.
-      await this.ensure();
-      await this.ensureTemplates();
-      await this._loadRejectedArchiveCounts();
       this._refreshCounts();
+      let tabNav = this.renderTabNav();
+      container.appendChild(tabNav);
 
-      container.appendChild(this.renderTabNav());
+      const contentContainer = el('div');
+      container.appendChild(contentContainer);
+
+      if (this.view === 'list') {
+        contentContainer.appendChild(await this.renderList());
+      } else {
+        contentContainer.innerHTML = Utils.getSkeletonForView('disbursement');
+      }
+
+      (async () => {
+        try {
+          await this.ensure();
+          await this.ensureTemplates();
+          await this._loadRejectedArchiveCounts();
+
+          if (routeId !== App._routeId) return;
+
+          this._refreshCounts();
+          const freshTabNav = this.renderTabNav();
+          if (tabNav.parentNode) {
+            tabNav.parentNode.replaceChild(freshTabNav, tabNav);
+            tabNav = freshTabNav;
+          }
+
+          if (this.view === 'report') {
+            contentContainer.innerHTML = '';
+            contentContainer.appendChild(await this.renderReport());
+          } else if (this.view === 'templates') {
+            contentContainer.innerHTML = '';
+            contentContainer.appendChild(await this.renderTemplates());
+          } else if (this.view === 'archive') {
+            contentContainer.innerHTML = '';
+            contentContainer.appendChild(await this.renderArchive());
+          }
+          this.updateStickyOffsets();
+        } catch (err) {
+          console.error(err);
+        }
+      })();
+
+      setTimeout(() => this.updateStickyOffsets(), 0);
+      return container;
     }
 
-    if (this.view === 'list') container.appendChild(await this.renderList());
-    else if (this.view === 'form') {
+    if (this.view === 'form') {
       await this._loadPrefilledOpReq();
+      const existing = !this.detailId ? null : await this.loadDisbursement(this.detailId);
       container.appendChild(await this.renderForm({ hideHeader: true, existing }));
+    } else if (this.view === 'templateForm') {
+      const template = !this.templateEditingId ? null : await this.getTemplateById(this.templateEditingId);
+      container.appendChild(await this.renderTemplateForm({ hideHeader: true, template }));
     }
-    else if (this.view === 'detail') container.appendChild(await this.renderDetail());
-    else if (this.view === 'report') container.appendChild(await this.renderReport());
-    else if (this.view === 'templates') container.appendChild(await this.renderTemplates());
-    else if (this.view === 'archive') container.appendChild(await this.renderArchive());
-    else if (this.view === 'templateForm') container.appendChild(await this.renderTemplateForm({ hideHeader: true, template }));
 
     setTimeout(() => this.updateStickyOffsets(), 0);
     return container;
@@ -1420,13 +1478,13 @@ const Disbursement = {
     wrapper.appendChild(listContainer);
 
     const refresh = async () => this.refreshList(listContainer, activeFilters, viewMode, groupBy, groupOptions, stickyContainer);
-    await refresh();
+    refresh();
 
     return wrapper;
   },
 
   async refreshList(container, activeFilters, viewMode, groupBy = 'none', groupOptions = [], toolbarContainer = null) {
-    container.replaceChildren();
+    container.innerHTML = Utils.getSkeletonForView('disbursement');
     const entity = Auth.activeEntity;
     const shouldSkip = this._activeSkipGeneration > 0 && this._activeSkipGeneration === this._skipFetchGeneration;
     const isCached = shouldSkip;

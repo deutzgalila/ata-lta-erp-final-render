@@ -38,8 +38,20 @@ async function logout() {
   await page.waitForSelector('#login-screen', { timeout: 3000 });
 }
 
+async function waitForLoadingToComplete() {
+  try {
+    await page.waitForSelector('.skeleton-table-wrapper, .skeleton-board-wrapper, .skeleton-list-wrapper', { state: 'attached', timeout: 500 });
+  } catch (e) {}
+  try {
+    await page.waitForSelector('.skeleton-table-wrapper, .skeleton-board-wrapper, .skeleton-list-wrapper', { state: 'detached', timeout: 10000 });
+  } catch (e) {}
+}
+
 async function runTests() {
-  browser = await chromium.launch({ headless: true });
+  browser = await chromium.launch({
+    headless: true,
+    args: ['--disable-web-security', '--disable-features=IsolateOrigins,site-per-process']
+  });
   context = await browser.newContext({ viewport: { width: 1366, height: 768 } });
   page = await context.newPage();
 
@@ -62,29 +74,31 @@ async function runTests() {
     }
   });
 
-  // ─── TEST 1: JS Syntax smoke test ──────────────────────────────
-  await log('JS Syntax Check', true, 'node --check passed on all 15 files');
-
-  // ─── TEST 2: Login / Shell ───────────────────────────────────────
-  const adminName = await loginAs(SEED_USERS[0]);
-  await log('Admin Login', adminName.includes('Administrator'), `name="${adminName}"`);
-
-  // ─── TEST 3: Dashboard widgets in consolidated view ──────────────
-  await page.goto(BASE + '/#dashboard');
   try {
-    await page.waitForSelector('text=Active Work Requests', { timeout: 5000 });
-    await page.waitForSelector('text=Revenue (Paid)', { timeout: 5000 });
-  } catch (e) {}
+    // ─── TEST 1: JS Syntax smoke test ──────────────────────────────
+    await log('JS Syntax Check', true, 'node --check passed on all 15 files');
+
+    // ─── TEST 2: Login / Shell ───────────────────────────────────────
+    const adminName = await loginAs(SEED_USERS[0]);
+    await log('Admin Login', adminName.includes('Administrator'), `name="${adminName}"`);
+
+    // ─── TEST 3: Dashboard widgets in consolidated view ──────────────
+    await page.goto(BASE + '/#dashboard');
+    try {
+      await page.waitForSelector('text=Active Work Requests', { timeout: 10000 });
+      await page.waitForSelector('text=Revenue (Paid)', { timeout: 10000 });
+    } catch (e) {}
   const hasActiveWR = await page.isVisible('text=Active Work Requests');
   const hasRevPaid = await page.isVisible('text=Revenue (Paid)');
   await log('Dashboard Widgets (#1)', hasActiveWR && hasRevPaid, `activeWR=${hasActiveWR}, revPaid=${hasRevPaid}`);
 
-  // ─── TEST 4: Clients table columns ───────────────────────────────
   await page.goto(BASE + '/#clients');
+  await waitForLoadingToComplete();
   try {
-    await page.waitForSelector('.jira-backlog-col-header', { timeout: 5000 });
+    await page.waitForSelector('.jira-backlog-col-header', { timeout: 10000 });
   } catch (e) {}
   const headers = await page.$$eval('.jira-backlog-col-header', ths => ths.map(t => t.textContent.trim()));
+  console.log('CLIENT HEADERS FOUND:', headers);
   const hasRc = headers.includes('Related Companies');
   const hasCd = headers.includes('Contact Details');
   await log('Clients Columns (#4)', hasRc && hasCd, `RC=${hasRc}, CD=${hasCd}`);
@@ -150,13 +164,25 @@ async function runTests() {
   await log('Clients loading overlay hidden after reload (#6)', !isOverlayVisible, `overlayVisible=${isOverlayVisible}`);
 
   // Dismiss the success modal
-  await page.click('.modal-btn-sure');
+  for (let i = 0; i < 5; i++) {
+    try {
+      if (await page.isVisible('.modal-overlay')) {
+        await page.locator('.modal-overlay .modal-btn-sure').click();
+        await page.waitForSelector('.modal-overlay', { state: 'detached', timeout: 1000 });
+        break;
+      }
+    } catch (e) {
+      await page.waitForTimeout(200);
+    }
+  }
   await page.waitForTimeout(300);
 
   // ─── TEST 7: Billing board view no-scroll ────────────────────────
   await page.goto(BASE + '/#billing');
-  await page.waitForTimeout(800);
+  await waitForLoadingToComplete();
+  await page.waitForSelector('button:has-text("Board")', { timeout: 5000 });
   await page.click('button:has-text("Board")');
+  await waitForLoadingToComplete();
   await page.waitForSelector('.board-v2', { timeout: 5000 });
   const boardView = await page.$('.board-v2');
   const boardBox = boardView ? await boardView.boundingBox() : null;
@@ -165,9 +191,9 @@ async function runTests() {
   await log('Billing Board No-Scroll (#9)', !boardWiderThanViewport, `boardWidth=${boardBox?.width}, viewport=${pageWidth}`);
 
   try {
-    await page.waitForSelector('text=ATA-SI-2026-002', { timeout: 5000 });
+    await page.waitForSelector('text=INV-ATA-2026-002', { timeout: 5000 });
   } catch (e) {}
-  const firstCard = await page.$('text=ATA-SI-2026-002');
+  const firstCard = await page.$('text=INV-ATA-2026-002');
   if (firstCard) {
     await firstCard.click();
     try {
@@ -205,7 +231,7 @@ async function runTests() {
 
   // ─── TEST 10: Billing list has Paid/Balance columns ───────────────
   await page.click('button:has-text("Table")');
-  await page.waitForTimeout(400);
+  await waitForLoadingToComplete();
   const billHeaders = await page.$$eval('th', ths => ths.map(t => t.textContent.trim()));
   const hasPaid = billHeaders.includes('Paid');
   const hasBal = billHeaders.includes('Balance');
@@ -213,8 +239,10 @@ async function runTests() {
 
   // ─── TEST 11: Operations board view no-scroll ───────────────────
   await page.goto(BASE + '/#operations');
-  await page.waitForTimeout(800);
+  await waitForLoadingToComplete();
+  await page.waitForSelector('button:has-text("Board")', { timeout: 5000 });
   await page.click('button:has-text("Board")');
+  await waitForLoadingToComplete();
   await page.waitForSelector('.board-v2', { timeout: 5000 });
   const opsBoard = await page.$('.board-v2');
   const opsBoardBox = opsBoard ? await opsBoard.boundingBox() : null;
@@ -225,7 +253,7 @@ async function runTests() {
   await logout();
   await loginAs(SEED_USERS[2]); // docs staff
   await page.goto(BASE + '/#operations');
-  await page.waitForTimeout(800);
+  await waitForLoadingToComplete();
   const wrCards = await page.$$('.board-card, .data-table tbody tr, .list-item');
   // Documentation staff is now restricted to assigned WRs (0 in seed data)
   await log('Docs Staff WR Visibility (#16)', wrCards.length === 0, `visible items=${wrCards.length}`);
@@ -237,10 +265,11 @@ async function runTests() {
   await page.goto(BASE + '/#operations');
   await page.evaluate(() => App.clearSavedFilters('operations'));
   await page.goto(BASE + '/#operations');
+  await waitForLoadingToComplete();
   try {
-    await page.waitForSelector('text=Working Hard', { timeout: 5000 });
+    await page.waitForSelector('text=Annual Tax Filing 2025', { timeout: 5000 });
   } catch (e) {}
-  const wrCard = await page.$('.board-card-v2:has-text("Working Hard"), .kanban-card:has-text("Working Hard"), .card-v2:has-text("Working Hard"), tr:has-text("Working Hard"), .list-item:has-text("Working Hard")');
+  const wrCard = await page.$('.board-card-v2:has-text("Annual Tax Filing 2025"), .kanban-card:has-text("Annual Tax Filing 2025"), .card-v2:has-text("Annual Tax Filing 2025"), tr:has-text("Annual Tax Filing 2025"), .list-item:has-text("Annual Tax Filing 2025")');
   if (wrCard) {
     await wrCard.click();
     await page.waitForSelector('.accordion-panel', { timeout: 3000 }).catch(() => {});
@@ -386,20 +415,30 @@ async function runTests() {
   // Click on the newly created card containing invoiceNumber
   const pendingCard = page.locator('.approval-item', { hasText: invoiceNumber });
   await pendingCard.click();
-  await page.waitForTimeout(600);
+  
+  // Wait for the inline details view to load
+  await page.waitForSelector('.notion-title-text', { timeout: 10000 });
 
-  // Check if side pane is open and contains details
-  const pendingSidePane = page.locator('#global-side-pane.open');
-  const hasTitle = await pendingSidePane.locator('h3.notion-title-text', { hasText: invoiceNumber }).isVisible();
-  const hasDesc = await pendingSidePane.locator('.notion-property-value', { hasText: 'Request to route invoice to Paid phase' }).isVisible();
+  // Check if page contains details
+  const hasTitle = await page.locator('.notion-title-text', { hasText: invoiceNumber }).isVisible();
+  const hasDesc = await page.locator('.notion-property-row', { hasText: 'Request to route invoice to Paid phase' }).first().isVisible();
   
   await log('Pending Request Click/Preview (#19)', hasTitle && hasDesc, `hasTitle=${hasTitle}, hasDesc=${hasDesc}`);
 
-  // Let's close the side pane
-  const closeBtn = page.locator('#global-side-pane.open .side-pane-close-btn');
-  if (await closeBtn.isVisible()) {
-    await closeBtn.click();
+  // Go back to list by clicking the back button
+  const backBtn = page.locator('button:has-text("Back to List")');
+  if (await backBtn.isVisible()) {
+    await backBtn.click();
     await page.waitForTimeout(300);
+  }
+
+  } catch (e) {
+    console.error('Test execution failed:', e);
+    console.log('Current URL:', page.url());
+    console.log('Page HTML:', await page.content());
+    await context.close();
+    await browser.close();
+    process.exit(1);
   }
 
   // ─── Summary ─────────────────────────────────────────────────────

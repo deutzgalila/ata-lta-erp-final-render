@@ -124,7 +124,7 @@ SELECT
   '00000000-0000-0000-0000-000000000001',
   'Quarterly VAT return',
   e.id,
-  'scanned',
+  'collected',
   'active',
   51200,
   'application/pdf',
@@ -248,3 +248,20 @@ INSERT INTO transmittal_items (transmittal_id, description, document_type, quant
   ('00000041-0000-0000-0000-000000000001', 'Audited FS 2025', 'SEC', 2, 1),
   ('00000041-0000-0000-0000-000000000001', 'BIR Form 2550Q Q4 2025', 'BIR', 1, 2)
 ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- Tasks (Phase 4)
+-- ============================================================
+
+INSERT INTO tasks (id, work_request_id, title, description, status, assignee_id, assignee_name, display_order)
+VALUES (
+  '00000051-0000-0000-0000-000000000001',
+  '00000001-0000-0000-0000-000000000001',
+  'Draft Returns',
+  'Draft the annual tax returns',
+  'Draft',
+  '00000000-0000-0000-0000-000000000002',
+  'Dev Accounting',
+  1
+)
+ON CONFLICT (id) DO NOTHING;

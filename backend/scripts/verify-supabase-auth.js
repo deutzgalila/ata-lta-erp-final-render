@@ -19,15 +19,16 @@ const { Client } = require('pg');
 
 const emailArg = process.argv[2];
 const passwordArg = process.argv[3];
-const envArg = process.argv[process.argv.length - 1] === 'uat' ? 'uat' : 'local';
+const envArg = process.argv[process.argv.length - 1] === 'uat' ? 'uat' : (process.argv[process.argv.length - 1] === 'staging' ? 'staging' : 'local');
 
 if (!emailArg) {
-  console.error('Usage: node scripts/verify-supabase-auth.js <email> [password] [uat]');
+  console.error('Usage: node scripts/verify-supabase-auth.js <email> [password] [uat|staging]');
   process.exit(1);
 }
 
 const envFiles = {
   local: '.env.development',
+  staging: '.env.staging',
   uat: '.env.uat',
 };
 

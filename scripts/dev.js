@@ -28,6 +28,7 @@ const { spawn } = require('child_process');
 const envArg = process.argv[2] || 'local';
 const isUat = envArg.toLowerCase() === 'uat';
 const isProd = envArg.toLowerCase() === 'prod';
+const isStaging = envArg.toLowerCase() === 'staging';
 
 const ROOT = path.join(__dirname, '..');
 
@@ -53,8 +54,8 @@ function loadEnvFile(filePath) {
 function resolveBackendPort() {
   if (process.env.PORT) return Number(process.env.PORT);
 
-  if (isUat || isProd) {
-    const envFile = isUat ? 'backend/.env.uat' : 'backend/.env.production';
+  if (isUat || isProd || isStaging) {
+    const envFile = isUat ? 'backend/.env.uat' : (isStaging ? 'backend/.env.staging' : 'backend/.env.production');
     const env = loadEnvFile(path.join(ROOT, envFile));
     if (env.PORT) return Number(env.PORT);
   }
@@ -117,12 +118,13 @@ if (isUat || isProd) {
   });
 } else {
   const backendPort = resolveBackendPort();
-  const apiBaseUrl = `http://localhost:${backendPort}/v1`;
-  console.log('Starting full-stack local dev stack...');
-  console.log(`Backend will be available at http://localhost:${backendPort}`);
+  const apiBaseUrl = `http://127.0.0.1:${backendPort}/v1`;
+  console.log(`Starting full-stack ${envArg.toUpperCase()} dev stack...`);
+  console.log(`Backend will be available at http://127.0.0.1:${backendPort}`);
   console.log(`SPA will call API at ${apiBaseUrl}`);
 
-  backend = run('backend', 'npm', ['--prefix', 'backend', 'run', 'dev:local'], { env: process.env });
+  const backendScript = isStaging ? 'start:staging' : 'dev:local';
+  backend = run('backend', 'npm', ['--prefix', 'backend', 'run', backendScript], { env: process.env });
   frontend = run('spa', 'npm', ['--prefix', 'erp_prototype', 'run', 'dev'], {
     env: { ...process.env, ERP_API_BASE_URL: apiBaseUrl },
   });

@@ -18,6 +18,7 @@ const envFiles = {
   local: '.env.development',
   dev: '.env.development',
   development: '.env.development',
+  staging: '.env.staging',
   uat: '.env.uat',
   prod: '.env.production',
   production: '.env.production',
@@ -25,7 +26,7 @@ const envFiles = {
 
 const envFile = envFiles[envName];
 if (!envFile) {
-  console.error(`Unknown environment "${envArg}". Use one of: local, uat, prod`);
+  console.error(`Unknown environment "${envArg}". Use one of: local, staging, uat, prod`);
   process.exit(1);
 }
 
@@ -56,7 +57,7 @@ if (fs.existsSync(envPath)) {
 
 // Ensure NODE_ENV reflects the selected profile unless explicitly overridden.
 if (!process.env.NODE_ENV) {
-  process.env.NODE_ENV = envName === 'uat' ? 'production' : 'development';
+  process.env.NODE_ENV = (envName === 'uat' || envName === 'staging') ? 'production' : 'development';
 }
 
 require('../src/app.js');

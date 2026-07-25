@@ -615,95 +615,111 @@ const Transmittal = {
     return null;
   },
 
-  async render() {
+  async render(routeId) {
     this.listViewMode = App.getPreferredViewMode('transmittals');
     const container = el('div', { class: 'page' });
 
     if (this.view === 'detail' && this.detailId) {
-      const t = await this._getByIdAcrossEntities(this.detailId);
       const titleBar = el('div', { class: 'page-title-bar-v2' });
       const h1 = el('h1', { class: 'breadcrumb-h1' });
       const baseLink = el('a', { href: 'javascript:void(0)', class: 'breadcrumb-base', text: 'Transmittal' });
       baseLink.addEventListener('click', () => { location.hash = '#transmittal'; });
       h1.appendChild(baseLink);
       h1.appendChild(el('span', { class: 'breadcrumb-sep', text: ' / ' }));
-      h1.appendChild(document.createTextNode(t?.trackingNumber || 'Detail'));
+      const titleTextNode = document.createTextNode(this.detailId);
+      h1.appendChild(titleTextNode);
       titleBar.appendChild(h1);
 
       const actions = el('div', { class: 'title-bar-actions' });
-      if (t) {
-        if (Auth.can('transmittal:mark')) {
-          if (t.status === 'Draft') {
-            if (Auth.can('transmittal:edit')) {
-              const editBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Edit', style: 'margin-right:8px;' });
-              editBtn.addEventListener('click', () => { this.showForm(t.id); });
-              actions.appendChild(editBtn);
-            }
-            if (Auth.user?.role === 'Admin' && !t.approved) {
-              const approveBtn = el('button', { class: 'btn btn-success btn-sm', text: 'Approve Draft', style: 'margin-right:8px;' });
-              approveBtn.addEventListener('click', () => {
-                Workflow.showConfirm('Confirm Approval', 'Are you sure you want to approve this transmittal draft?', () => {
-                  this.approveTransmittal(t.id);
-                }, 'success');
-              });
-              actions.appendChild(approveBtn);
-            }
-            const sendBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Mark as Sent', style: 'margin-right:8px;' });
-            sendBtn.addEventListener('click', () => {
-              if (Auth.user?.role !== 'Admin' && !t.approved) {
-                Workflow.showMessage('Approval Required', 'This transmittal draft must be approved by an Admin before it can be marked as sent.', 'warning');
-                return;
-              }
-              Workflow.showConfirm('Confirm Sent', 'Are you sure you want to mark this transmittal as sent?', () => {
-                this._sendTransmittal(t.id);
-              }, 'success');
-            });
-            actions.appendChild(sendBtn);
-          } else if (t.status === 'Sent') {
-            const ackBtn = el('button', { class: 'btn btn-success btn-sm', text: 'Acknowledge Receipt', style: 'margin-right:8px;' });
-            ackBtn.addEventListener('click', () => {
-              this.showAcknowledgeDialog(t.id);
-            });
-            actions.appendChild(ackBtn);
-          }
-        }
-
-        if (Auth.user?.role === 'Admin') {
-          if (!t.archived) {
-            const archiveBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Archive', style: 'margin-right:8px;' });
-            archiveBtn.addEventListener('click', () => { this.archiveTransmittal(t.id); });
-            actions.appendChild(archiveBtn);
-          } else {
-            const unarchiveBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Unarchive', style: 'margin-right:8px;' });
-            unarchiveBtn.addEventListener('click', () => { this.unarchiveTransmittal(t.id); });
-            actions.appendChild(unarchiveBtn);
-          }
-        }
-
-        const printBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Print Transmittal', style: 'margin-right:8px;' });
-        printBtn.addEventListener('click', () => this.openPrintLetter(t));
-        actions.appendChild(printBtn);
-      }
       const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to List' });
       backBtn.addEventListener('click', () => { location.hash = '#transmittal'; });
       actions.appendChild(backBtn);
       titleBar.appendChild(actions);
       container.appendChild(titleBar);
-    } else if (this.view === 'form') {
+
+      const bodyContainer = el('div');
+      bodyContainer.innerHTML = Utils.getSkeletonForView('transmittals');
+      container.appendChild(bodyContainer);
+
+      (async () => {
+        try {
+          const t = await this._getByIdAcrossEntities(this.detailId);
+          if (routeId !== App._routeId) return;
+
+          if (t) {
+            titleTextNode.textContent = t.trackingNumber || this.detailId;
+
+            if (Auth.can('transmittal:mark')) {
+              if (t.status === 'Draft') {
+                if (Auth.can('transmittal:edit')) {
+                  const editBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Edit', style: 'margin-right:8px;' });
+                  editBtn.addEventListener('click', () => { this.showForm(t.id); });
+                  actions.insertBefore(editBtn, backBtn);
+                }
+                if (Auth.user?.role === 'Admin' && !t.approved) {
+                  const approveBtn = el('button', { class: 'btn btn-success btn-sm', text: 'Approve Draft', style: 'margin-right:8px;' });
+                  approveBtn.addEventListener('click', () => {
+                    Workflow.showConfirm('Confirm Approval', 'Are you sure you want to approve this transmittal draft?', () => {
+                      this.approveTransmittal(t.id);
+                    }, 'success');
+                  });
+                  actions.insertBefore(approveBtn, backBtn);
+                }
+                const sendBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Mark as Sent', style: 'margin-right:8px;' });
+                sendBtn.addEventListener('click', () => {
+                  if (Auth.user?.role !== 'Admin' && !t.approved) {
+                    Workflow.showMessage('Approval Required', 'This transmittal draft must be approved by an Admin before it can be marked as sent.', 'warning');
+                    return;
+                  }
+                  Workflow.showConfirm('Confirm Sent', 'Are you sure you want to mark this transmittal as sent?', () => {
+                    this._sendTransmittal(t.id);
+                  }, 'success');
+                });
+                actions.insertBefore(sendBtn, backBtn);
+              } else if (t.status === 'Sent') {
+                const ackBtn = el('button', { class: 'btn btn-success btn-sm', text: 'Acknowledge Receipt', style: 'margin-right:8px;' });
+                ackBtn.addEventListener('click', () => {
+                  this.showAcknowledgeDialog(t.id);
+                });
+                actions.insertBefore(ackBtn, backBtn);
+              }
+            }
+
+            if (Auth.user?.role === 'Admin') {
+              if (!t.archived) {
+                const archiveBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Archive', style: 'margin-right:8px;' });
+                archiveBtn.addEventListener('click', () => { this.archiveTransmittal(t.id); });
+                actions.insertBefore(archiveBtn, backBtn);
+              } else {
+                const unarchiveBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Unarchive', style: 'margin-right:8px;' });
+                unarchiveBtn.addEventListener('click', () => { this.unarchiveTransmittal(t.id); });
+                actions.insertBefore(unarchiveBtn, backBtn);
+              }
+            }
+
+            const printBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Print Transmittal', style: 'margin-right:8px;' });
+            printBtn.addEventListener('click', () => this.openPrintLetter(t));
+            actions.insertBefore(printBtn, backBtn);
+          }
+
+          bodyContainer.innerHTML = '';
+          bodyContainer.appendChild(await this.renderDetail());
+          this.updateStickyOffsets();
+        } catch (e) {
+          console.error(e);
+        }
+      })();
+
+      setTimeout(() => this.updateStickyOffsets(), 0);
+      return container;
+    }
+
+    if (this.view === 'form') {
       container.classList.add('transmittal-tab-page');
       if (!Auth.can('transmittal:create')) {
         this.view = 'list';
       } else {
         const isNew = !this.detailId;
-        let existing = null;
-        if (!isNew) {
-          try {
-            const res = await window.apiClient.transmittals.get(this.detailId);
-            existing = this.normalizeTransmittal(res.data);
-          } catch (e) {
-            console.error('Failed to load transmittal for form', e);
-          }
-        }
         const fullPageRoute = isNew ? '#transmittal/form/new' : `#transmittal/form/${this.detailId}`;
         const viewSwitcher = buildFormViewSwitcher({
           currentMode: PaneMode.FULL_PAGE,
@@ -725,7 +741,7 @@ const Transmittal = {
         container.appendChild(buildFormBreadcrumb({
           baseLabel: 'Transmittal',
           baseHash: '#transmittal',
-          currentText: isNew ? 'New Transmittal' : (existing?.trackingNumber || 'Edit Transmittal'),
+          currentText: isNew ? 'New Transmittal' : 'Edit Transmittal',
           viewSwitcher,
           actions: [
             { text: isNew ? 'Create Transmittal' : 'Save Changes', class: 'btn btn-primary btn-sm', type: 'submit', form: 'transmittal-form' },
@@ -739,17 +755,50 @@ const Transmittal = {
       titleBar.appendChild(el('h1', { text: 'Transmittal' }));
       container.appendChild(titleBar);
 
-      await this.ensure();
-      await this._loadRejectedArchiveCounts();
       this._refreshCounts();
+      let tabNav = this.renderTabNav();
+      container.appendChild(tabNav);
 
-      container.appendChild(this.renderTabNav());
+      const contentContainer = el('div');
+      container.appendChild(contentContainer);
+
+      if (this.view === 'list') {
+        contentContainer.appendChild(await this.renderList());
+      } else {
+        contentContainer.innerHTML = Utils.getSkeletonForView('transmittals');
+      }
+
+      (async () => {
+        try {
+          await this.ensure();
+          await this._loadRejectedArchiveCounts();
+
+          if (routeId !== App._routeId) return;
+
+          this._refreshCounts();
+          const freshTabNav = this.renderTabNav();
+          if (tabNav.parentNode) {
+            tabNav.parentNode.replaceChild(freshTabNav, tabNav);
+            tabNav = freshTabNav;
+          }
+
+          if (this.view === 'archive') {
+            contentContainer.innerHTML = '';
+            contentContainer.appendChild(await this.renderArchive());
+          }
+          this.updateStickyOffsets();
+        } catch (err) {
+          console.error(err);
+        }
+      })();
+
+      setTimeout(() => this.updateStickyOffsets(), 0);
+      return container;
     }
 
-    if (this.view === 'list') container.appendChild(await this.renderList());
-    else if (this.view === 'form') container.appendChild(await this.renderForm({ hideHeader: true }));
-    else if (this.view === 'detail') container.appendChild(await this.renderDetail());
-    else if (this.view === 'archive') container.appendChild(await this.renderArchive());
+    if (this.view === 'form') {
+      container.appendChild(await this.renderForm({ hideHeader: true }));
+    }
 
     setTimeout(() => this.updateStickyOffsets(), 0);
     return container;
@@ -1126,6 +1175,7 @@ const Transmittal = {
     wrapper.appendChild(listContainer);
 
     const updateFilters = async () => {
+      listContainer.innerHTML = Utils.getSkeletonForView('transmittals');
       try {
         let items;
         const shouldSkip = this._activeSkipGeneration > 0 && this._activeSkipGeneration === this._skipFetchGeneration;
@@ -1140,7 +1190,7 @@ const Transmittal = {
         listContainer.appendChild(renderEmptyState('Unable to load transmittals', e.message, { variant: 'zero-state' }));
       }
     };
-    await updateFilters();
+    updateFilters();
 
     return wrapper;
   },

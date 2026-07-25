@@ -2061,6 +2061,101 @@ function skeletonAvatar() {
   return '<span class="skeleton skeleton-avatar"></span>';
 }
 
+function renderTableSkeleton() {
+  return `
+    <div class="skeleton-table-wrapper" style="width: 100%; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); overflow: hidden; margin-top: 16px; padding: 8px;">
+      <div class="skeleton-table-header" style="display: flex; background: var(--color-bg-muted); border-bottom: 1px solid var(--color-border); padding: 12px 16px; border-radius: var(--radius-sm);">
+        <div style="flex: 2; margin-right: 16px;">${skeletonText('40%')}</div>
+        <div style="flex: 1; margin-right: 16px;">${skeletonText('30%')}</div>
+        <div style="flex: 1; margin-right: 16px;">${skeletonText('30%')}</div>
+        <div style="flex: 1; margin-right: 16px;">${skeletonText('35%')}</div>
+        <div style="flex: 1;">${skeletonText('25%')}</div>
+      </div>
+      <div class="skeleton-table-body" style="padding: 0 16px;">
+        ${Array.from({ length: 8 }).map(() => `
+          <div class="skeleton-table-row" style="display: flex; align-items: center; border-bottom: 1px solid var(--color-border); padding: 16px 0;">
+            <div style="flex: 2; margin-right: 16px;">${skeletonText('70%')}</div>
+            <div style="flex: 1; margin-right: 16px;">${skeletonText('50%')}</div>
+            <div style="flex: 1; margin-right: 16px;">${skeletonText('40%')}</div>
+            <div style="flex: 1; margin-right: 16px;">${skeletonText('60%')}</div>
+            <div style="flex: 1;">${skeletonText('30%')}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderBoardSkeleton() {
+  return `
+    <div class="skeleton-board-wrapper" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; width: 100%; margin-top: 16px;">
+      ${Array.from({ length: 3 }).map((_, colIndex) => `
+        <div class="skeleton-board-column" style="background: var(--color-bg-muted); border-radius: var(--radius-md); padding: 16px; border: 1px dashed var(--color-border); min-height: 400px;">
+          <div style="margin-bottom: 16px;">${skeletonText('50%')}</div>
+          ${Array.from({ length: colIndex === 0 ? 3 : colIndex === 1 ? 2 : 1 }).map(() => `
+            <div class="skeleton-board-card" style="background: var(--color-surface); border-radius: var(--radius-sm); padding: 16px; box-shadow: var(--shadow-sm); margin-bottom: 12px; border: 1px solid var(--color-border);">
+              <div style="margin-bottom: 12px;">${skeletonText('90%')}</div>
+              <div style="margin-bottom: 12px;">${skeletonText('60%')}</div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px;">
+                ${skeletonAvatar()}
+                <span style="width: 50px;">${skeletonText('100%')}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function renderListSkeleton() {
+  return `
+    <div class="skeleton-list-wrapper" style="display: flex; flex-direction: column; gap: 12px; width: 100%; margin-top: 16px;">
+      ${Array.from({ length: 6 }).map(() => `
+        <div class="skeleton-list-item" style="display: flex; align-items: center; background: var(--color-surface); border-radius: var(--radius-md); padding: 16px; border: 1px solid var(--color-border); box-shadow: var(--shadow-sm);">
+          <div style="margin-right: 16px;">${skeletonAvatar()}</div>
+          <div style="flex: 1;">
+            <div style="margin-bottom: 8px;">${skeletonText('30%')}</div>
+            <div>${skeletonText('60%')}</div>
+          </div>
+          <div style="width: 80px;">${skeletonText('40%')}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function getSkeletonForView(moduleName) {
+  let viewMode = 'list';
+  if (typeof App !== 'undefined' && typeof App.getPreferredViewMode === 'function') {
+    viewMode = App.getPreferredViewMode(moduleName) || 'list';
+  }
+  if (viewMode === 'board') return renderBoardSkeleton();
+  if (viewMode === 'table') return renderTableSkeleton();
+  return renderListSkeleton();
+}
+
+function renderMockToolbar(moduleName) {
+  let viewMode = 'list';
+  if (typeof App !== 'undefined' && typeof App.getPreferredViewMode === 'function') {
+    viewMode = App.getPreferredViewMode(moduleName) || 'list';
+  }
+  return `
+    <div class="toolbar-sticky-container" style="margin-bottom: 16px; pointer-events: none;">
+      <div class="filters-bar" style="display: flex; justify-content: space-between; align-items: center; background: var(--color-surface); padding: 12px 16px; border: 1px solid var(--color-border); border-radius: var(--radius-md);">
+        <div style="display: flex; align-items: center; gap: 12px; width: 100%; max-width: 320px;">
+          <span class="skeleton" style="width: 100%; height: 36px; border-radius: var(--radius-sm);"></span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn btn-secondary btn-sm ${viewMode === 'table' ? 'active' : ''}">Table</button>
+          <button class="btn btn-secondary btn-sm ${viewMode === 'board' ? 'active' : ''}">Board</button>
+          <button class="btn btn-secondary btn-sm ${viewMode === 'list' ? 'active' : ''}">List</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderRouteSkeleton(routeName) {
   const base = (routeName || '').split('/')[0].replace('#', '');
   const isDetail = routeName.includes('/detail/');
@@ -2068,9 +2163,9 @@ function renderRouteSkeleton(routeName) {
 
   if (isForm) {
     return `
-      <div class="route-loading-overlay">
+      <div class="route-loading-overlay" style="position: relative;">
         <div class="route-skeleton-pane">
-          ${skeletonText('40%')}
+          <div style="margin-bottom: 24px;">${skeletonText('40%')}</div>
           ${skeletonRow(8)}
         </div>
       </div>`;
@@ -2078,30 +2173,61 @@ function renderRouteSkeleton(routeName) {
 
   if (isDetail) {
     return `
-      <div class="route-loading-overlay">
+      <div class="route-loading-overlay" style="position: relative;">
         <div class="route-skeleton-pane">
-          ${skeletonText('35%')}
+          <div style="margin-bottom: 24px;">${skeletonText('35%')}</div>
           ${skeletonCard()}
           ${skeletonRow(6)}
         </div>
       </div>`;
   }
 
-  // Dashboard defaults to a card grid; everything else uses a list skeleton.
-  if (base === 'dashboard') {
+  const moduleHeaders = {
+    operations: { title: 'Operations', tabs: ['Work Requests', 'Retainer Templates', 'Archive'] },
+    clients: { title: 'Clients', tabs: ['Active Clients', 'Archive'] },
+    billing: { title: 'Billing', tabs: ['Invoices', 'Retainer Templates', 'Aging Report', 'Archive'] },
+    disbursement: { title: 'Disbursement', tabs: ['Disbursements', 'Retainer Templates', 'Monthly Report', 'Archive'] },
+    transmittal: { title: 'Transmittal', tabs: ['Transmittals', 'Archive'] },
+    admin: { title: 'Admin', tabs: ['Users', 'Audit Logs', 'Pending Approvals'] },
+    reports: { title: 'Reports', tabs: ['Analytics', 'Daily', 'Weekly', 'Monthly'] }
+  };
+
+  const info = moduleHeaders[base];
+  if (info) {
     return `
-      <div class="route-loading-overlay">
-        <div class="route-skeleton-pane">
-          ${skeletonText('25%')}
-          <div class="route-skeleton-grid">${skeletonCard()}${skeletonCard()}${skeletonCard()}${skeletonCard()}</div>
-          ${skeletonRow(4)}
+      <div class="page-title-bar-v2">
+        <h1>${info.title}</h1>
+      </div>
+      <div class="module-tab-nav" style="margin-bottom: 16px;">
+        <div class="tab-links-container" style="display: flex; gap: 16px; border-bottom: 1px solid var(--color-border); padding-bottom: 8px;">
+          ${info.tabs.map((tab, idx) => `
+            <span class="tab-link-item ${idx === 0 ? 'active' : ''}" style="color: var(--color-text-muted); cursor: pointer; padding-bottom: 8px; font-weight: 500;">
+              ${tab}
+            </span>
+          `).join('')}
         </div>
-      </div>`;
+      </div>
+      ${renderMockToolbar(base)}
+      <div class="page-content-section">
+        ${getSkeletonForView(base)}
+      </div>
+    `;
   }
 
-  // Default list skeleton for clients, operations, billing, disbursement, etc.
+  if (base === 'dashboard') {
+    return `
+      <div class="page-title-bar-v2">
+        <h1>Dashboard</h1>
+      </div>
+      <div class="page-content-section" style="margin-top: 16px;">
+        <div class="route-skeleton-grid">${skeletonCard()}${skeletonCard()}${skeletonCard()}${skeletonCard()}</div>
+        ${skeletonRow(4)}
+      </div>
+    `;
+  }
+
   return `
-    <div class="route-loading-overlay">
+    <div class="route-loading-overlay" style="position: relative;">
       <div class="route-skeleton-pane">
         <div class="route-skeleton-header">${skeletonText('30%')}</div>
         ${skeletonRow(10)}
@@ -2137,6 +2263,10 @@ window.Utils = {
   skeletonText,
   skeletonAvatar,
   renderRouteSkeleton,
+  renderTableSkeleton,
+  renderBoardSkeleton,
+  renderListSkeleton,
+  getSkeletonForView,
   nextInvoiceNumber,
   generateTrackingNumber
 };

@@ -441,7 +441,7 @@ const Clients = {
     })).filter(rc => rc.relatedClientId);
   },
 
-  async render() {
+  async render(routeId) {
     if (!this.activeTab) this.activeTab = 'active';
     const container = el('div', { class: 'page clients-tab-page' });
 
@@ -509,13 +509,11 @@ const Clients = {
     const titleBar = el('div', { class: 'page-title-bar-v2' });
     titleBar.appendChild(el('h1', { text: 'Clients' }));
     container.appendChild(titleBar);
-    // Ensure cache is fresh for the active entity and load rejected counts, then
-    // recompute tab counts synchronously from the local cache before rendering the
-    // tab navigation.
-    await ClientsData.ensure();
-    await this._loadRejectedArchiveCounts();
+
+    // Refresh counts from whatever cache exists first and render tabNav synchronously
     this._refreshCounts();
-    container.appendChild(this.renderTabNav());
+    let tabNav = this.renderTabNav();
+    container.appendChild(tabNav);
 
     // Toolbar (Sticky Container)
     const stickyContainer = el('div', { class: 'toolbar-sticky-container' });
@@ -550,27 +548,60 @@ const Clients = {
     const content = el('div', { class: 'page-content-section' });
 
     const listContainer = el('div', { class: 'list-container' + (this.activeTab === 'archived' ? ' hidden' : '') });
-    content.appendChild(listContainer);
-    if (this.activeTab === 'active') {
-      await this.renderList(listContainer, '');
-    }
-
     const archiveContainer = el('div', { class: 'archive-container' + (this.activeTab === 'active' ? ' hidden' : '') });
+    content.appendChild(listContainer);
     content.appendChild(archiveContainer);
-    if (this.activeTab === 'archived') {
-      archiveContainer.appendChild(await this.renderArchive(''));
+    container.appendChild(content);
+
+    // Render skeleton based on the user's preferred view
+    const currentSkeleton = Utils.getSkeletonForView('clients');
+    if (this.activeTab === 'active') {
+      listContainer.innerHTML = currentSkeleton;
+    } else {
+      archiveContainer.innerHTML = currentSkeleton;
     }
 
-    container.appendChild(content);
+    // Load data asynchronously in the background
+    (async () => {
+      try {
+        await ClientsData.ensure();
+        await this._loadRejectedArchiveCounts();
+
+        if (routeId !== App._routeId) return;
+
+        this._refreshCounts();
+
+        // Update tab navigation with actual badge counts
+        const freshTabNav = this.renderTabNav();
+        if (tabNav.parentNode) {
+          tabNav.parentNode.replaceChild(freshTabNav, tabNav);
+          tabNav = freshTabNav;
+        }
+
+        // Render actual list
+        if (this.activeTab === 'active') {
+          listContainer.innerHTML = '';
+          await this.renderList(listContainer, search.value.trim());
+        } else {
+          archiveContainer.innerHTML = '';
+          archiveContainer.appendChild(await this.renderArchive(search.value.trim()));
+        }
+        this.updateStickyOffsets();
+      } catch (err) {
+        console.error('Clients background load failed:', err);
+      }
+    })();
 
     search.addEventListener('input', debounce(async () => {
       const q = search.value.trim();
       if (this.activeTab === 'active') {
+        listContainer.innerHTML = Utils.getSkeletonForView('clients');
         this.renderList(listContainer, q);
       } else {
         this._archivePage = 1;
         this.clearNode(archiveContainer);
-        archiveContainer.appendChild(await this.renderArchive(q));
+        archiveContainer.innerHTML = Utils.getSkeletonForView('clients');
+        archiveContainer.replaceChildren(await this.renderArchive(q));
       }
     }, 200));
 

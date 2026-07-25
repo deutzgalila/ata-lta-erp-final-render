@@ -630,52 +630,76 @@ const Billing = {
     return rejected;
   },
 
-  async render() {
+  async render(routeId) {
     const container = el('div', { class: 'page' });
     if (!this._isEntityFresh()) this.invalidateCache();
 
-    const needsInvoice = (this.view === 'detail' || this.view === 'form') && this.detailId;
-    if (needsInvoice && (!this._detailCache[this.detailId] || !this._detailCache[this.detailId].isFullDetail)) {
-      this._fetchInvoiceAndRerender(this.detailId);
-      container.appendChild(el('div', { class: 'loading-skeleton', style: 'padding: 24px;', text: 'Loading invoice...' }));
-      return container;
-    }
-
     if (this.view === 'detail' && this.detailId) {
-      const inv = this.getInvoiceById(this.detailId);
       const titleBar = el('div', { class: 'page-title-bar-v2' });
       const h1 = el('h1', { class: 'breadcrumb-h1' });
       const baseLink = el('a', { href: 'javascript:void(0)', class: 'breadcrumb-base', text: 'Billing' });
       baseLink.addEventListener('click', () => { location.hash = '#billing'; });
       h1.appendChild(baseLink);
       h1.appendChild(el('span', { class: 'breadcrumb-sep', text: ' / ' }));
-      h1.appendChild(document.createTextNode(inv?.invoiceNumber || 'Detail'));
+      const titleTextNode = document.createTextNode(this.detailId);
+      h1.appendChild(titleTextNode);
       titleBar.appendChild(h1);
 
       const actions = el('div', { class: 'title-bar-actions' });
-      if (inv && inv.status !== 'Draft' && inv.status !== 'Pending') {
-        const noLogoLabel = el('label', { style: 'margin-right:12px; font-size:0.8125rem; display:inline-flex; align-items:center; gap:6px; cursor:pointer; color:var(--color-text-muted);' });
-        const noLogoCheckbox = el('input', { type: 'checkbox', id: 'print-no-logo' });
-        noLogoLabel.appendChild(noLogoCheckbox);
-        noLogoLabel.appendChild(document.createTextNode('No Logo (Generic)'));
-        actions.appendChild(noLogoLabel);
-
-        const genInvBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Print Invoice', style: 'margin-right:8px;' });
-        genInvBtn.addEventListener('click', () => {
-          const noLogo = noLogoCheckbox.checked;
-          this.generateInvoice(inv, noLogo);
-        });
-        actions.appendChild(genInvBtn);
-        const genVouchBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Print Voucher (No Header)', style: 'margin-right:8px;' });
-        genVouchBtn.addEventListener('click', () => this.generateVoucher(inv));
-        actions.appendChild(genVouchBtn);
-      }
       const backBtn = el('button', { class: 'btn btn-secondary btn-sm', text: '← Back to Invoices' });
       backBtn.addEventListener('click', () => { location.hash = '#billing'; });
       actions.appendChild(backBtn);
       titleBar.appendChild(actions);
       container.appendChild(titleBar);
-    } else if (this.view === 'form') {
+
+      const bodyContainer = el('div');
+      bodyContainer.innerHTML = Utils.getSkeletonForView('billing');
+      container.appendChild(bodyContainer);
+
+      (async () => {
+        try {
+          if (!this._detailCache[this.detailId] || !this._detailCache[this.detailId].isFullDetail) {
+            const res = await window.apiClient.invoices.get(this.detailId);
+            this._detailCache[this.detailId] = this.normalizeInvoice(res.data);
+            this._detailCache[this.detailId].isFullDetail = true;
+          }
+          if (routeId !== App._routeId) return;
+
+          const inv = this.getInvoiceById(this.detailId);
+          titleTextNode.textContent = inv?.invoiceNumber || this.detailId;
+
+          if (inv && inv.status !== 'Draft' && inv.status !== 'Pending') {
+            const noLogoLabel = el('label', { style: 'margin-right:12px; font-size:0.8125rem; display:inline-flex; align-items:center; gap:6px; cursor:pointer; color:var(--color-text-muted);' });
+            const noLogoCheckbox = el('input', { type: 'checkbox', id: 'print-no-logo' });
+            noLogoLabel.appendChild(noLogoCheckbox);
+            noLogoLabel.appendChild(document.createTextNode('No Logo (Generic)'));
+            actions.insertBefore(noLogoLabel, backBtn);
+
+            const genInvBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Print Invoice', style: 'margin-right:8px;' });
+            genInvBtn.addEventListener('click', () => {
+              const noLogo = noLogoCheckbox.checked;
+              this.generateInvoice(inv, noLogo);
+            });
+            actions.insertBefore(genInvBtn, backBtn);
+            
+            const genVouchBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Print Voucher (No Header)', style: 'margin-right:8px;' });
+            genVouchBtn.addEventListener('click', () => this.generateVoucher(inv));
+            actions.insertBefore(genVouchBtn, backBtn);
+          }
+
+          bodyContainer.innerHTML = '';
+          bodyContainer.appendChild(this.renderDetail());
+          this.updateStickyOffsets();
+        } catch (e) {
+          console.error(e);
+        }
+      })();
+
+      setTimeout(() => this.updateStickyOffsets(), 0);
+      return container;
+    }
+
+    if (this.view === 'form') {
       const userViewMode = window.SidePaneInstance ? window.SidePaneInstance.resolveMode({ viewContext: 'invoice-form' }) : 'side-peek';
       if (userViewMode !== 'full-page' && userViewMode !== 'new-tab') {
         const detailId = this.detailId;
@@ -722,17 +746,18 @@ const Billing = {
     } else if (this.view === 'templateForm') {
       container.classList.add('billing-tab-page');
       const isNew = !this.templateEditingId;
-      const template = isNew ? null : await this.getTemplateById(this.templateEditingId);
       const fullPageRoute = isNew ? '#billing/templateForm/new' : `#billing/templateForm/${this.templateEditingId}`;
       const viewSwitcher = buildFormViewSwitcher({
         currentMode: PaneMode.FULL_PAGE,
         viewContext: 'billing-template-form',
         onSidePeek: async () => {
           await closeFormPanelAndRoute('#billing');
+          const template = isNew ? null : await this.getTemplateById(this.templateEditingId);
           this.showTemplateForm(template, PaneMode.SIDE_PEEK);
         },
         onCenterPeek: async () => {
           await closeFormPanelAndRoute('#billing');
+          const template = isNew ? null : await this.getTemplateById(this.templateEditingId);
           this.showTemplateForm(template, PaneMode.CENTER_PEEK);
         },
         onNewTab: () => {
@@ -742,7 +767,7 @@ const Billing = {
       container.appendChild(buildFormBreadcrumb({
         baseLabel: 'Billing',
         baseHash: '#billing',
-        currentText: isNew ? 'New Billing Template' : (template?.name || 'Edit Template'),
+        currentText: isNew ? 'New Billing Template' : 'Edit Template',
         viewSwitcher,
         actions: [
           { text: 'Save Template', class: 'btn btn-primary btn-sm', type: 'submit', form: 'billing-tpl-form' },
@@ -756,36 +781,66 @@ const Billing = {
         location.hash = '#billing';
       }
       container.classList.add('billing-tab-page');
-      // Tab views: list, templates, aging, archive
       const titleBar = el('div', { class: 'page-title-bar-v2' });
       titleBar.appendChild(el('h1', { text: 'Billing' }));
       container.appendChild(titleBar);
 
-      // Ensure cache is fresh for the active entity, then recompute tab counts
-      // synchronously from the local cache before rendering the tab nav.
-      await this.ensure();
-      await this.ensureTemplates();
-      await this.loadCounts();
-      await this.loadRejectedCount();
       this._refreshCounts();
-      // Tab navigation (counts are derived from the local cache; no /counts API call).
-      container.appendChild(this.renderTabNav());
+      let tabNav = this.renderTabNav();
+      container.appendChild(tabNav);
+
+      const contentContainer = el('div');
+      container.appendChild(contentContainer);
+
+      if (this.view === 'list') {
+        contentContainer.appendChild(await this.renderList());
+      } else {
+        contentContainer.innerHTML = Utils.getSkeletonForView('billing');
+      }
+
+      (async () => {
+        try {
+          await this.ensure();
+          await this.ensureTemplates();
+          await this.loadCounts();
+          await this.loadRejectedCount();
+
+          if (routeId !== App._routeId) return;
+
+          this._refreshCounts();
+          const freshTabNav = this.renderTabNav();
+          if (tabNav.parentNode) {
+            tabNav.parentNode.replaceChild(freshTabNav, tabNav);
+            tabNav = freshTabNav;
+          }
+
+          if (this.view === 'aging') {
+            contentContainer.innerHTML = '';
+            contentContainer.appendChild(await this.renderAging());
+          } else if (this.view === 'templates') {
+            contentContainer.innerHTML = '';
+            contentContainer.appendChild(await this.renderTemplates());
+          } else if (this.view === 'archive') {
+            contentContainer.innerHTML = '';
+            contentContainer.appendChild(await this.renderArchive());
+          }
+          this.updateStickyOffsets();
+        } catch (err) {
+          console.error(err);
+        }
+      })();
+
+      setTimeout(() => this.updateStickyOffsets(), 0);
+      return container;
     }
 
-    if (this.view === 'list') container.appendChild(await this.renderList());
-    else if (this.view === 'form') {
+    if (this.view === 'form') {
       await this._loadPrefilledOpReq();
       container.appendChild(await this.renderForm(this.detailId));
+    } else if (this.view === 'templateForm') {
+      const template = !this.templateEditingId ? null : await this.getTemplateById(this.templateEditingId);
+      container.appendChild(await this.renderTemplateForm({ hideHeader: true, template }));
     }
-    else if (this.view === 'detail') container.appendChild(this.renderDetail());
-    else if (this.view === 'aging') {
-      const agingContainer = el('div');
-      container.appendChild(agingContainer);
-      this.renderAging().then(el => agingContainer.appendChild(el));
-    }
-    else if (this.view === 'templates') container.appendChild(await this.renderTemplates());
-    else if (this.view === 'archive') container.appendChild(await this.renderArchive());
-    else if (this.view === 'templateForm') container.appendChild(await this.renderTemplateForm({ hideHeader: true, template }));
 
     setTimeout(() => this.updateStickyOffsets(), 0);
     return container;
@@ -1343,7 +1398,7 @@ const Billing = {
     let currentPage = this.currentListPage || 1;
 
     const refresh = async () => {
-      contentContainer.replaceChildren();
+      contentContainer.innerHTML = Utils.getSkeletonForView('billing');
 
       // Ensure the in-memory cache is loaded for the active entity. If it is
       // already warm (including during an optimistic skip), this returns immediately.

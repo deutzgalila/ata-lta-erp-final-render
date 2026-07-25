@@ -88,10 +88,8 @@ const Dashboard = {
   },
 
   async render(routeId) {
-    if (!this._dataCache) {
-      // Show a module-level skeleton immediately while warming the cache in the
-      // background. App.handleRoute() will commit the skeleton, then re-render
-      // with real data once the first fetch completes.
+    const active = (Auth.activeEntity || '').toUpperCase();
+    if (!this.hasCachedData(active)) {
       this.ensureData(routeId).then(() => {
         if (routeId === App._routeId && (location.hash || '#dashboard').startsWith('#dashboard')) {
           App.handleRoute();
@@ -99,7 +97,6 @@ const Dashboard = {
       }).catch(() => {});
       return this.renderSkeleton();
     }
-    await this.ensureData(routeId);
     if (routeId && routeId !== App._routeId) {
       return document.createDocumentFragment();
     }

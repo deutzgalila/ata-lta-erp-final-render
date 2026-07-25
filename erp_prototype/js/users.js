@@ -509,7 +509,7 @@ const Users = {
     }
   },
 
-  async render() {
+  async render(routeId) {
     const container = el('div', { class: 'page admin-tab-page' });
 
     const isAdmin = Auth.user.role === 'Admin';
@@ -520,9 +520,6 @@ const Users = {
     const isManager = hasManagement || Auth.isManagerial();
     const hasAccounting = departments.includes('Accounting') || Auth.user?.role === 'Accounting';
 
-    // Initialize view state dynamically to prevent view state bleed-through.
-    // Respect URL-driven admin subviews (e.g. #admin/myRequests/:id) so direct
-    // links and full-page detail routes are not overwritten on first render.
     if (this.lastUserId !== Auth.user.id) {
       this.lastUserId = Auth.user.id;
       const urlAdminView = ((location.hash || '').match(/^#admin\/([^/?]+)/) || [])[1] || null;
@@ -550,8 +547,6 @@ const Users = {
 
     if (canManageUsers) {
       const validAdminViews = ['users', 'audit', 'pending'];
-      // Preserve URL-driven detail views (e.g. #admin/myRequests/:id) even if the
-      // view isn't in the standard admin tab list.
       const isUrlDrivenDetail = this.sidePeekId &&
         (location.hash || '').startsWith(`#admin/${this.view}/`);
       if (!validAdminViews.includes(this.view) && !isUrlDrivenDetail) this.view = 'users';
@@ -567,14 +562,9 @@ const Users = {
       }
     }
 
-    // Full-page user form is triggered by the URL itself (#admin/users/form/new or .../:id).
-    // Side-peek/center-peek launch from the list view without touching the hash, so this
-    // branch only runs for full-page/new-tab navigation.
     const isUserFullPage = this.view === 'users' && this.editingId &&
       (location.hash || '').includes('/users/form/');
 
-    // Default pending/request detail views to side-peek unless the user has set a
-    // different default for the relevant view context.
     const viewMode = window.SidePaneInstance
       ? window.SidePaneInstance.resolveMode({
           viewContext: (this.view === 'myRequests') ? 'request-detail' : 'pending-detail'
@@ -582,7 +572,6 @@ const Users = {
       : PaneMode.SIDE_PEEK;
     const isFullPage = (viewMode === PaneMode.FULL_PAGE || viewMode === PaneMode.NEW_TAB) && this.sidePeekId;
 
-    // Full-page forms render their own breadcrumb header; list/tab views keep the main title.
     if (!isUserFullPage && !isFullPage) {
       const titleBar = el('div', { class: 'page-title-bar-v2' });
       const h1 = el('h1', { class: 'page-title-h1', text: isAdmin ? 'Admin' : 'My Submissions' });
@@ -808,29 +797,49 @@ const Users = {
       }
     }
 
-    // Internal Admin tabs use the same module-tab-link style as other pages
-    await this.loadCounts();
-    container.appendChild(this.renderTabNav());
+    let tabNav = this.renderTabNav();
+    container.appendChild(tabNav);
 
-    if (this.view === 'users' && canManageUsers) {
-      container.appendChild(this.renderUsersSection());
-    } else if (this.view === 'audit' && canManageUsers) {
-      container.appendChild(await this.renderAuditSection());
-    } else if (this.view === 'pending' && (canManageUsers || isManager || hasAccounting)) {
-      container.appendChild(await this.renderPendingSection());
-    } else if (this.view === 'myPending' && !canManageUsers) {
-      container.appendChild(this.renderMyPendingSection());
-    } else if (this.view === 'myRequests' && !canManageUsers) {
-      container.appendChild(this.renderMyRequestsSection());
-    } else if (!canManageUsers) {
-      if (this.view === 'myRequests') {
-        container.appendChild(this.renderMyRequestsSection());
-      } else if (this.view === 'pending' && (isManager || hasAccounting)) {
-        container.appendChild(await this.renderPendingSection());
-      } else {
-        container.appendChild(this.renderMyPendingSection());
+    const contentContainer = el('div');
+    container.appendChild(contentContainer);
+
+    contentContainer.innerHTML = Utils.getSkeletonForView('admin');
+
+    (async () => {
+      try {
+        await this.loadCounts();
+        if (routeId !== App._routeId) return;
+
+        const freshTabNav = this.renderTabNav();
+        if (tabNav.parentNode) {
+          tabNav.parentNode.replaceChild(freshTabNav, tabNav);
+          tabNav = freshTabNav;
+        }
+
+        contentContainer.innerHTML = '';
+        if (this.view === 'users' && canManageUsers) {
+          contentContainer.appendChild(this.renderUsersSection());
+        } else if (this.view === 'audit' && canManageUsers) {
+          contentContainer.appendChild(await this.renderAuditSection());
+        } else if (this.view === 'pending' && (canManageUsers || isManager || hasAccounting)) {
+          contentContainer.appendChild(await this.renderPendingSection());
+        } else if (this.view === 'myPending' && !canManageUsers) {
+          contentContainer.appendChild(this.renderMyPendingSection());
+        } else if (this.view === 'myRequests' && !canManageUsers) {
+          contentContainer.appendChild(this.renderMyRequestsSection());
+        } else if (!canManageUsers) {
+          if (this.view === 'myRequests') {
+            contentContainer.appendChild(this.renderMyRequestsSection());
+          } else if (this.view === 'pending' && (isManager || hasAccounting)) {
+            contentContainer.appendChild(await this.renderPendingSection());
+          } else {
+            contentContainer.appendChild(this.renderMyPendingSection());
+          }
+        }
+      } catch (err) {
+        console.error(err);
       }
-    }
+    })();
 
     return container;
   },
@@ -1278,6 +1287,7 @@ const Users = {
 
   async renderUserList(container) {
     this.clearNode(container);
+    container.innerHTML = Utils.getSkeletonForView('admin');
     const shouldSkip = this._activeSkipGeneration > 0 && this._activeSkipGeneration === this._skipFetchGeneration;
     if (!shouldSkip) {
       await this.loadUsers();
@@ -1922,6 +1932,7 @@ const Users = {
 
   async refreshAuditLog(container, activeFilters, searchQuery, sortOrder, currentPage = 1, onPageChange = null) {
     this.clearNode(container);
+    container.innerHTML = Utils.getSkeletonForView('admin');
 
     let allLogs = [];
     try {
@@ -4110,6 +4121,7 @@ const Users = {
 
   async refreshMyRequestsList(container, activeFilters, viewMode, searchQuery) {
     while (container.firstChild) container.removeChild(container.firstChild);
+    container.innerHTML = Utils.getSkeletonForView('admin');
 
     let requests = [];
     const hasItems = await (async () => {
