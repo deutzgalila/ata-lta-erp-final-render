@@ -249,7 +249,18 @@ async function run() {
     const files = fs
       .readdirSync(migrationsDir)
       .filter((f) => f.endsWith('.js') || f.endsWith('.sql'))
-      .sort((a, b) => migrationKey(a) - migrationKey(b));
+      .sort((a, b) => {
+        const keyA = migrationKey(a);
+        const keyB = migrationKey(b);
+        if (keyA !== keyB) return keyA - keyB;
+
+        // Tie-breaker: fewer prefix digits first (e.g., "020" has 3 digits, "000020" has 6)
+        const lenA = (a.match(/^(\d+)/)?.[1] || '').length;
+        const lenB = (b.match(/^(\d+)/)?.[1] || '').length;
+        if (lenA !== lenB) return lenA - lenB;
+
+        return a.localeCompare(b);
+      });
 
     console.log(`\nFound ${files.length} migration files. Applying in order...\n`);
 
