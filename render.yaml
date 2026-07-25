@@ -45,7 +45,6 @@ projects:
           - type: web
             name: ata-lta-erp-spa-staging # Replace "staging" with "uat" for uat
             runtime: static
-            region: singapore
             repo: https://github.com/jevvii/ata-lta-erp-final-render.git
             branch: staging # Change to uat for uat
             rootDir: erp_prototype
