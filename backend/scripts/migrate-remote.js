@@ -31,6 +31,7 @@ const envFiles = {
   local: '.env.development',
   dev: '.env.development',
   development: '.env.development',
+  staging: '.env.staging',
   uat: '.env.uat',
   prod: '.env.production',
   production: '.env.production',
@@ -38,7 +39,7 @@ const envFiles = {
 
 const envFile = envFiles[envName];
 if (!envFile) {
-  console.error(`Unknown environment "${envArg}". Use one of: local, uat, prod`);
+  console.error(`Unknown environment "${envArg}". Use one of: local, staging, uat, prod`);
   process.exit(1);
 }
 

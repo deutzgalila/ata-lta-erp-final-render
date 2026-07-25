@@ -23,6 +23,7 @@
     "migrate:down": "node-pg-migrate down",
     "migrate:create": "node-pg-migrate create",
     "migrate:remote": "node scripts/migrate-remote.js",
+    "migrate:remote:staging": "node scripts/migrate-remote.js staging",
     "migrate:remote:uat": "node scripts/migrate-remote.js uat",
     "create-bucket": "node scripts/create-storage-bucket.js",
     "create-bucket:uat": "node scripts/create-storage-bucket.js uat",
