@@ -582,7 +582,14 @@ const Users = {
     const isFullPage = (viewMode === PaneMode.FULL_PAGE || viewMode === PaneMode.NEW_TAB) && this.sidePeekId;
     this._isRenderingFullPage = isFullPage;
 
-    if (this.container && !isUserFullPage && !isFullPage) {
+    const wasFullPage = this._containerWasFullPage;
+    if (isUserFullPage || isFullPage) {
+      this._containerWasFullPage = true;
+    } else {
+      this._containerWasFullPage = false;
+    }
+
+    if (this.container && !wasFullPage && !isUserFullPage && !isFullPage) {
       const tabNav = this.container.querySelector('.module-tab-nav');
       if (tabNav) {
         const freshTabNav = this.renderTabNav();
