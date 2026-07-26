@@ -5276,6 +5276,7 @@ const Workflow = {
   },
 
   refreshTable(container, wrs, hasActiveFilters = false) {
+    Utils.clearSkeleton(container);
     const canEdit = Auth.can('workflow:edit');
     const canApprove = Auth.can('workflow:approve');
     if (wrs.length === 0) {
@@ -5481,6 +5482,7 @@ const Workflow = {
   },
 
   refreshBoard(container, wrs, groupBy = 'none', hasActiveFilters = false, toolbarContainer = null) {
+    Utils.clearSkeleton(container);
     if (wrs.length === 0) {
       const entity = Auth.activeEntity;
       const allWrs = WorkflowData.getWorkRequestsWhere(r => {
@@ -6020,6 +6022,7 @@ const Workflow = {
   },
 
   refreshListCompact(container, wrs, hasActiveFilters = false) {
+    Utils.clearSkeleton(container);
     const canEdit = Auth.can('workflow:edit');
     const canApprove = Auth.can('workflow:approve');
     if (wrs.length === 0) {

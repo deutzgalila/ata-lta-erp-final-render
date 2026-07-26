@@ -745,7 +745,6 @@ const Clients = {
   },
 
   async renderList(container, query) {
-    this.clearNode(container);
     const ensurePromises = [
       window.apiClient.userCache.ensure(),
       window.apiClient.clientCache.ensure(),
@@ -756,6 +755,7 @@ const Clients = {
       ensurePromises.push(ClientsData.ensure());
     }
     await Promise.all(ensurePromises);
+    this.clearNode(container);
     const clients = this.getFilteredClients(query);
 
     if (clients.length === 0) {

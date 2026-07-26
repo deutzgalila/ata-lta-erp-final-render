@@ -1570,6 +1570,8 @@ const Disbursement = {
 
     const hasActiveFilters = Object.values(activeFilters).some(s => s && s.size > 0) || !!this.searchQuery;
 
+    Utils.clearSkeleton(container);
+
     if (items.length === 0) {
       if (hasActiveFilters && hasItems) {
         container.appendChild(renderFilterEmptyState(

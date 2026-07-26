@@ -1589,6 +1589,7 @@ const Billing = {
   },
 
   refreshTable(container, invoices) {
+    Utils.clearSkeleton(container);
     if (invoices.length === 0) {
       container.appendChild(renderEmptyState('No invoices found', null, { variant: 'zero-state' }));
       return;
@@ -1751,6 +1752,7 @@ const Billing = {
   },
 
   refreshBoard(container, invoices, groupBy = 'none', groupOptions = [], toolbarContainer = null) {
+    Utils.clearSkeleton(container);
     const canEdit = Auth.can('billing:edit');
     const self = this;
     toolbarContainer?.classList.remove('grouped-board-active');
@@ -2132,6 +2134,7 @@ const Billing = {
   },
 
   refreshListCompact(container, invoices) {
+    Utils.clearSkeleton(container);
     if (invoices.length === 0) {
       container.appendChild(renderEmptyState('No invoices found', null, { variant: 'zero-state' }));
       return;

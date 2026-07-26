@@ -1187,7 +1187,7 @@ const Transmittal = {
         this.refreshList(listContainer, items, activeFilters, this.listViewMode || 'table', groupBy, groupOptions, stickyContainer);
       } catch (e) {
         console.error('Failed to refresh transmittal list', e);
-        listContainer.appendChild(renderEmptyState('Unable to load transmittals', e.message, { variant: 'zero-state' }));
+        listContainer.replaceChildren(renderEmptyState('Unable to load transmittals', e.message, { variant: 'zero-state' }));
       }
     };
     updateFilters();

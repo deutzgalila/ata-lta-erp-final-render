@@ -2252,6 +2252,12 @@ function hideGoogleLoader(cardElement) {
   if (loader) loader.remove();
 }
 
+function clearSkeleton(container) {
+  if (!container) return;
+  const skeletons = container.querySelectorAll('.skeleton-table-wrapper, .skeleton-board-wrapper, .skeleton-list-wrapper');
+  skeletons.forEach(s => s.remove());
+}
+
 window.showGoogleLoader = showGoogleLoader;
 window.hideGoogleLoader = hideGoogleLoader;
 
@@ -2267,6 +2273,7 @@ window.Utils = {
   renderBoardSkeleton,
   renderListSkeleton,
   getSkeletonForView,
+  clearSkeleton,
   nextInvoiceNumber,
   generateTrackingNumber
 };

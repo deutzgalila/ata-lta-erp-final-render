@@ -1295,6 +1295,8 @@ const Users = {
     const users = this.users;
     const isAdmin = Auth.user.role === 'Admin';
 
+    Utils.clearSkeleton(container);
+
     if (users.length === 0) {
       container.appendChild(renderEmptyStateV2({
         variant: 'zero-state',
@@ -1947,10 +1949,12 @@ const Users = {
       }
     } catch (err) {
       console.error('[Users.refreshAuditLog] failed to load audit log', err);
+      Utils.clearSkeleton(container);
       container.appendChild(renderEmptyState('Unable to load audit log', null, { variant: 'zero-state' }));
       return;
     }
 
+    Utils.clearSkeleton(container);
     const hasLogs = allLogs.length > 0;
 
     // Create a chronological map of logs to determine their creation order sequence number.
@@ -4191,6 +4195,8 @@ const Users = {
     requests.sort((a, b) => new Date(b.requestedAt || '') - new Date(a.requestedAt || ''));
 
     const hasActiveFilters = Object.values(activeFilters).some(s => s && s.size > 0) || !!searchQuery;
+
+    Utils.clearSkeleton(container);
 
     if (requests.length === 0) {
       if (hasActiveFilters && hasItems) {
