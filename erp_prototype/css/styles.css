@@ -17086,6 +17086,9 @@ table.data-table th.dt-cell--right {
   gap: 12px;
   color: var(--color-text-muted);
   font-family: var(--font-sans);
+  min-height: 60vh;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .simple-spinner {
