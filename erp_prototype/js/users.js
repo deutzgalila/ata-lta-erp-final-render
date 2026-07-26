@@ -583,7 +583,7 @@ const Users = {
     this._isRenderingFullPage = isFullPage;
 
     if (this.container && !isUserFullPage && !isFullPage) {
-      const tabNav = this.container.querySelector('.tab-nav');
+      const tabNav = this.container.querySelector('.module-tab-nav');
       if (tabNav) {
         const freshTabNav = this.renderTabNav();
         tabNav.parentNode.replaceChild(freshTabNav, tabNav);
@@ -597,7 +597,7 @@ const Users = {
             if (routeId !== App._routeId) return;
 
             const freshTabNav = this.renderTabNav();
-            const currentTabNav = this.container.querySelector('.tab-nav');
+            const currentTabNav = this.container.querySelector('.module-tab-nav');
             if (currentTabNav && currentTabNav.parentNode) {
               currentTabNav.parentNode.replaceChild(freshTabNav, currentTabNav);
             }
