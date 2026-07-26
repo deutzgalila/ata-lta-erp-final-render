@@ -1598,6 +1598,7 @@ const Clients = {
 
     const isNew = !this.editingId || this.editingId === 'new';
     const isAdmin = Auth.user?.role === 'Admin';
+    const isApproved = true;
     if (!isAdmin) {
       Workflow.showMessage('Access Denied', 'Only admin accounts can create or edit clients.', 'danger');
       return;
