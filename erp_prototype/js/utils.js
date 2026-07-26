@@ -2173,12 +2173,9 @@ function renderRouteSkeleton(routeName) {
 
   if (isDetail) {
     return `
-      <div class="route-loading-overlay" style="position: relative;">
-        <div class="route-skeleton-pane">
-          <div style="margin-bottom: 24px;">${skeletonText('35%')}</div>
-          ${skeletonCard()}
-          ${skeletonRow(6)}
-        </div>
+      <div class="simple-spinner-container" style="min-height: 300px; height: 100%;">
+        <div class="simple-spinner"></div>
+        <div class="simple-spinner-text">Loading details...</div>
       </div>`;
   }
 

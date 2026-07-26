@@ -509,6 +509,11 @@ const Users = {
     }
   },
 
+  cleanup() {
+    this.container = null;
+    this._datesResolved = false;
+  },
+
   hasCachedData() {
     const now = Date.now();
     const cacheAge = now - (this._pendingPreloadTs || 0);
@@ -516,8 +521,6 @@ const Users = {
   },
 
   async render(routeId) {
-    const container = el('div', { class: 'page admin-tab-page' });
-
     const isAdmin = Auth.user.role === 'Admin';
     const canManageUsers = isAdmin;
     const departments = Auth.user?.departments || [];
@@ -578,6 +581,63 @@ const Users = {
       : PaneMode.SIDE_PEEK;
     const isFullPage = (viewMode === PaneMode.FULL_PAGE || viewMode === PaneMode.NEW_TAB) && this.sidePeekId;
     this._isRenderingFullPage = isFullPage;
+
+    if (this.container && !isUserFullPage && !isFullPage) {
+      const tabNav = this.container.querySelector('.tab-nav');
+      if (tabNav) {
+        const freshTabNav = this.renderTabNav();
+        tabNav.parentNode.replaceChild(freshTabNav, tabNav);
+      }
+
+      const contentContainer = this.container.querySelector('.admin-content-container') || this.container.children[1];
+      if (contentContainer) {
+        (async () => {
+          try {
+            await this.loadCounts();
+            if (routeId !== App._routeId) return;
+
+            const freshTabNav = this.renderTabNav();
+            const currentTabNav = this.container.querySelector('.tab-nav');
+            if (currentTabNav && currentTabNav.parentNode) {
+              currentTabNav.parentNode.replaceChild(freshTabNav, currentTabNav);
+            }
+
+            let newSec = null;
+            if (this.view === 'users' && canManageUsers) {
+              newSec = this.renderUsersSection();
+            } else if (this.view === 'audit' && canManageUsers) {
+              newSec = await this.renderAuditSection();
+            } else if (this.view === 'pending' && (canManageUsers || isManager || hasAccounting)) {
+              newSec = await this.renderPendingSection();
+            } else if (this.view === 'myPending' && !canManageUsers) {
+              newSec = this.renderMyPendingSection();
+            } else if (this.view === 'myRequests' && !canManageUsers) {
+              newSec = this.renderMyRequestsSection();
+            } else if (!canManageUsers) {
+              if (this.view === 'myRequests') {
+                newSec = this.renderMyRequestsSection();
+              } else if (this.view === 'pending' && (isManager || hasAccounting)) {
+                newSec = await this.renderPendingSection();
+              } else {
+                newSec = this.renderMyPendingSection();
+              }
+            }
+
+            if (newSec) {
+              contentContainer.replaceChildren(newSec);
+            } else {
+              contentContainer.innerHTML = '';
+            }
+          } catch (err) {
+            console.error(err);
+          }
+        })();
+      }
+      return this.container;
+    }
+
+    const container = el('div', { class: 'page admin-tab-page' });
+    this.container = container;
 
     if (!isUserFullPage && !isFullPage) {
       const titleBar = el('div', { class: 'page-title-bar-v2' });
@@ -807,7 +867,7 @@ const Users = {
     let tabNav = this.renderTabNav();
     container.appendChild(tabNav);
  
-    const contentContainer = el('div');
+    const contentContainer = el('div', { class: 'admin-content-container' });
     container.appendChild(contentContainer);
  
     const hasCache = this.hasCachedData();
