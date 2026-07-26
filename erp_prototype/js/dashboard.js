@@ -178,36 +178,128 @@ const Dashboard = {
   renderSkeleton() {
     const container = el('div', { class: 'page animate-fade-in' });
 
-    // Header skeleton
-    const header = el('div', { class: 'dashboard-welcome-banner' });
-    const headerLeft = el('div', { class: 'welcome-info' });
-    headerLeft.appendChild(el('div', { class: 'skeleton-text', style: 'width: 280px; height: 28px; margin-bottom: 10px;' }));
-    headerLeft.appendChild(el('div', { class: 'skeleton-text', style: 'width: 420px; height: 16px;' }));
-    header.appendChild(headerLeft);
-    container.appendChild(header);
+    // 1. Premium welcome header banner (fully rendered statically using cache/Auth)
+    container.appendChild(this.renderWelcomeHeader(Auth.activeEntity === 'ALL' ? 'Firm Overview' : Auth.activeEntity + ' Overview'));
 
-    // KPI strip skeleton
+    // 2. KPI strip skeleton
     const kpiStrip = el('div', { class: 'kpi-strip' });
-    for (let i = 0; i < 4; i++) {
-      const card = el('div', { class: 'premium-kpi-card', style: '--card-accent: var(--color-text-muted);' });
-      card.appendChild(el('div', { class: 'skeleton-text', style: 'width: 80px; height: 12px; margin-bottom: 12px;' }));
-      card.appendChild(el('div', { class: 'skeleton-text', style: 'width: 120px; height: 32px;' }));
+    const isConsolidated = Auth.activeEntity === 'ALL';
+    const isAta = Auth.activeEntity === 'ATA';
+    const accent = isAta ? '#2563eb' : '#10b981';
+
+    const kpiConfigs = isConsolidated
+      ? [
+          { label: 'ATA Revenue', type: 'ata', color: '#2563eb' },
+          { label: 'LTA Revenue', type: 'lta', color: '#10b981' },
+          { label: 'Total Outstanding', type: 'outstanding', color: '#f59e0b' },
+          { label: 'Overdue Tasks', type: 'tasks', color: '#ef4444' }
+        ]
+      : [
+          { label: 'Active Work Requests', type: 'active', color: '#8b5cf6' },
+          { label: 'Revenue (Paid)', type: isAta ? 'ata' : 'lta', color: accent },
+          { label: 'Outstanding', type: 'outstanding', color: '#f59e0b' },
+          { label: 'Overdue Tasks', type: 'tasks', color: '#ef4444' }
+        ];
+
+    kpiConfigs.forEach(cfg => {
+      const card = el('div', { class: 'premium-kpi-card', style: `--card-accent: ${cfg.color};` });
+      const top = el('div', { class: 'kpi-top' });
+
+      let iconChar = '∑';
+      let iconStyle = '';
+      if (cfg.type === 'ata') {
+        iconChar = 'A';
+        iconStyle = 'background: rgba(37, 99, 235, 0.1); color: var(--color-primary);';
+      } else if (cfg.type === 'lta') {
+        iconChar = 'L';
+        iconStyle = 'background: rgba(16, 185, 129, 0.1); color: var(--color-lta);';
+      } else if (cfg.type === 'outstanding') {
+        iconChar = '💸';
+        iconStyle = 'background: rgba(245, 158, 11, 0.1); color: var(--color-warning);';
+      } else if (cfg.type === 'tasks') {
+        iconChar = '📋';
+        iconStyle = 'background: rgba(239, 68, 68, 0.1); color: var(--color-danger);';
+      } else if (cfg.type === 'active') {
+        iconChar = '⚡';
+        iconStyle = 'background: rgba(139, 92, 246, 0.1); color: #8b5cf6;';
+      }
+
+      const iconWrap = el('div', { class: 'kpi-icon-wrap', style: iconStyle, text: iconChar });
+      top.appendChild(iconWrap);
+      top.appendChild(el('span', { class: 'skeleton-text', style: 'width: 48px; height: 18px; border-radius: var(--radius-sm);' }));
+      card.appendChild(top);
+
+      const main = el('div', { class: 'kpi-main' });
+      main.appendChild(el('span', { class: 'kpi-title', text: cfg.label }));
+      main.appendChild(el('div', { class: 'skeleton-text', style: 'width: 120px; height: 28px; margin-top: 8px;' }));
+      card.appendChild(main);
+
       kpiStrip.appendChild(card);
-    }
+    });
     container.appendChild(kpiStrip);
 
-    // Calendar skeleton
+    // 3. Central Calendar Bento Card
     const bento = el('div', { class: 'bento-grid' });
     const calendarCard = el('div', { class: 'bento-item bento-full dashboard-calendar-card' });
-    calendarCard.style.minHeight = '420px';
-    calendarCard.appendChild(el('div', { class: 'skeleton-text', style: 'width: 200px; height: 20px; margin-bottom: 16px;' }));
-    const grid = el('div', { class: 'calendar-grid', style: 'display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px;' });
-    for (let i = 0; i < 35; i++) {
-      grid.appendChild(el('div', { class: 'calendar-cell skeleton-cell', style: 'min-height: 72px;' }));
+
+    // Left Calendar Main View
+    const mainView = el('div', { class: 'calendar-main-view' });
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const now = new Date();
+    const headerText = `${months[now.getMonth()]} ${now.getFullYear()}`;
+
+    const calendarHeader = el('div', { class: 'calendar-header' });
+    const cHeaderLeft = el('div', { class: 'calendar-header-left' });
+    cHeaderLeft.appendChild(el('h3', { class: 'calendar-month-year', text: headerText }));
+    cHeaderLeft.appendChild(el('button', { class: 'calendar-today-btn', text: 'Today' }));
+    
+    const navs = el('div', { class: 'calendar-nav-arrows' });
+    navs.appendChild(el('button', { class: 'calendar-arrow-btn', text: '‹' }));
+    navs.appendChild(el('button', { class: 'calendar-arrow-btn', text: '›' }));
+    cHeaderLeft.appendChild(navs);
+    calendarHeader.appendChild(cHeaderLeft);
+
+    const cHeaderRight = el('div', { class: 'calendar-header-right' });
+    const viewToggle = el('div', { class: 'calendar-view-toggle' });
+    ['Day', 'Week', 'Month', 'Timeline'].forEach(v => {
+      viewToggle.appendChild(el('button', { class: `view-btn ${v === 'Week' ? 'active' : ''}`, text: v }));
+    });
+    cHeaderRight.appendChild(viewToggle);
+    calendarHeader.appendChild(cHeaderRight);
+    mainView.appendChild(calendarHeader);
+
+    const grid = el('div', { class: 'calendar-week-grid' });
+    for (let i = 0; i < 28; i++) {
+      grid.appendChild(el('div', { class: 'skeleton-cell', style: 'min-height: 72px;' }));
     }
-    calendarCard.appendChild(grid);
+    mainView.appendChild(grid);
+    calendarCard.appendChild(mainView);
+
+    // Right Sidebar
+    const sidebar = el('div', { class: 'calendar-sidebar' });
+    sidebar.appendChild(el('h3', { class: 'sidebar-title', text: 'Daily Schedule' }));
+    sidebar.appendChild(el('div', { class: 'skeleton-text', style: 'width: 100%; height: 60px; border-radius: var(--radius-sm); margin-bottom: 12px;' }));
+    sidebar.appendChild(el('div', { class: 'skeleton-text', style: 'width: 100%; height: 60px; border-radius: var(--radius-sm); margin-bottom: 12px;' }));
+    calendarCard.appendChild(sidebar);
+
     bento.appendChild(calendarCard);
     container.appendChild(bento);
+
+    // 4. Comparison Table (for consolidated view)
+    if (isConsolidated) {
+      const tableSection = el('div', { class: 'bento-item bento-full', style: 'padding: 24px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); margin-top: 20px;' });
+      tableSection.appendChild(el('h3', { style: 'font-size: 16px; font-weight: 600; margin-bottom: 16px;', text: 'Entity Comparison' }));
+      
+      const skeletonTable = el('div', { class: 'skeleton-table-wrapper', style: 'margin: 0; border: none; padding: 0;' });
+      skeletonTable.appendChild(el('div', { class: 'skeleton-table-header', style: 'height: 40px; margin-bottom: 8px;' }));
+      const body = el('div', { class: 'skeleton-table-body' });
+      for (let i = 0; i < 2; i++) {
+        body.appendChild(el('div', { class: 'skeleton-table-row', style: 'height: 48px; margin-bottom: 8px;' }));
+      }
+      skeletonTable.appendChild(body);
+      tableSection.appendChild(skeletonTable);
+      container.appendChild(tableSection);
+    }
 
     return container;
   },
