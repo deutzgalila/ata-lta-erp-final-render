@@ -115,8 +115,33 @@ const Reports = {
     return isAbortError(e);
   },
 
+  async ensureReportDates() {
+    if (this.dailyDate && this.weeklyDate && this.monthlyMonth) return;
+
+    try {
+      const wrRes = await window.apiClient.workRequests.list({ limit: 1 });
+      const latestWr = wrRes.data?.[0];
+      const latestDateStr = (latestWr && (latestWr.created_at || latestWr.createdAt)) 
+        ? (latestWr.created_at || latestWr.createdAt).slice(0, 10) 
+        : null;
+
+      if (latestDateStr) {
+        if (!this.dailyDate) this.dailyDate = latestDateStr;
+        if (!this.weeklyDate) this.weeklyDate = latestDateStr;
+        if (!this.monthlyMonth) this.monthlyMonth = latestDateStr.slice(0, 7);
+      }
+    } catch (e) {
+      console.warn('Failed to resolve latest activity date for reports. Defaulting to today.', e);
+    }
+
+    const today = manilaToday();
+    if (!this.dailyDate) this.dailyDate = today;
+    if (!this.weeklyDate) this.weeklyDate = today;
+    if (!this.monthlyMonth) this.monthlyMonth = today.slice(0, 7);
+  },
+
   renderMiniStat(label, value, color) {
-    const card = el('div', { class: 'report-mini-stat', style: `padding: var(--spacing-md); background: var(--color-surface); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); border-left: 4px solid var(--color-${color});` });
+    const card = el('div', { class: 'report-mini-stat', style: `border-left: 4px solid var(--color-${color});` });
     card.appendChild(el('div', { text: label, style: 'font-size: 0.75rem; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.05em;' }));
     card.appendChild(el('div', { text: String(value), style: 'font-size: 1.5rem; font-weight: 700; color: var(--color-text); margin-top: 4px;' }));
     return card;
@@ -131,7 +156,7 @@ const Reports = {
       wrap.appendChild(renderEmptyState('No items', null, { variant: 'compact' }));
       return wrap;
     }
-    const table = el('table', { class: 'report-table' });
+    const table = el('table', { class: 'data-table' });
     table.appendChild(el('thead', {}, [
       el('tr', {}, headers.map(h => el('th', typeof h === 'string' ? { text: h } : h)))
     ]));
@@ -145,7 +170,7 @@ const Reports = {
   },
 
   renderStatusBreakdown(title, byStatus) {
-    const wrap = el('div', { class: 'report-card', style: 'padding: var(--spacing-md);' });
+    const wrap = el('div', { class: 'report-card', style: 'padding: var(--spacing-md); height: auto; overflow: visible;' });
     if (title) wrap.appendChild(el('h3', { text: title, style: 'margin-bottom: var(--spacing-sm); font-size: 1rem;' }));
     if (!byStatus || Object.keys(byStatus).length === 0) {
       wrap.appendChild(el('div', { text: 'No status data available', style: 'color: var(--color-text-muted); font-size: 0.8125rem;' }));
@@ -154,7 +179,7 @@ const Reports = {
     const list = el('div');
     Object.entries(byStatus).forEach(([status, count]) => {
       list.appendChild(el('div', {
-        style: 'display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--color-border); font-size: 0.8125rem;'
+        style: 'display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--color-border); font-size: 0.8125rem;'
       }, [
         el('span', { text: status }),
         el('span', { text: String(count), style: 'font-weight: 600;' })
@@ -164,12 +189,58 @@ const Reports = {
     return wrap;
   },
 
-  renderLoadingState(container) {
+  renderLoadingState(container, tab) {
     this.clearNode(container);
-    container.appendChild(el('div', {
-      class: 'empty-state-v2',
-      html: '<div style="color:var(--color-text-muted);font-size:0.875rem;">Loading report…</div>'
-    }));
+    const wrapper = el('div', { class: 'animate-fade-in' });
+
+    if (tab === 'analytics') {
+      const statsGrid = el('div', { class: 'report-stats-grid', style: 'display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--spacing-md); margin-bottom: var(--spacing-lg);' });
+      for (let i = 0; i < 6; i++) {
+        const card = el('div', { class: 'report-mini-stat', style: 'min-height: 80px;' });
+        card.appendChild(el('div', { class: 'skeleton-text', style: 'width: 60px; height: 12px; margin-bottom: 8px;' }));
+        card.appendChild(el('div', { class: 'skeleton-text', style: 'width: 80px; height: 24px;' }));
+        statsGrid.appendChild(card);
+      }
+      wrapper.appendChild(statsGrid);
+
+      const bento = el('div', { class: 'bento-grid' });
+      for (let i = 0; i < 4; i++) {
+        const bentoItem = el('div', { class: 'bento-item bento-half report-card', style: 'min-height: 240px;' });
+        bentoItem.appendChild(el('div', { class: 'skeleton-text', style: 'width: 140px; height: 18px; margin-bottom: 16px;' }));
+        bentoItem.appendChild(el('div', { class: 'skeleton-text', style: 'width: 100%; height: 12px; margin-bottom: 8px;' }));
+        bentoItem.appendChild(el('div', { class: 'skeleton-text', style: 'width: 90%; height: 12px; margin-bottom: 8px;' }));
+        bentoItem.appendChild(el('div', { class: 'skeleton-text', style: 'width: 95%; height: 12px; margin-bottom: 8px;' }));
+        bento.appendChild(bentoItem);
+      }
+      wrapper.appendChild(bento);
+    } else {
+      const statsGrid = el('div', { class: 'report-stats-grid', style: 'display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--spacing-md); margin-bottom: var(--spacing-lg);' });
+      const statsCount = tab === 'monthly' ? 5 : 9;
+      for (let i = 0; i < statsCount; i++) {
+        const card = el('div', { class: 'report-mini-stat', style: 'min-height: 80px;' });
+        card.appendChild(el('div', { class: 'skeleton-text', style: 'width: 70px; height: 12px; margin-bottom: 8px;' }));
+        card.appendChild(el('div', { class: 'skeleton-text', style: 'width: 90px; height: 24px;' }));
+        statsGrid.appendChild(card);
+      }
+      wrapper.appendChild(statsGrid);
+
+      const tablesCount = tab === 'monthly' ? 3 : 5;
+      for (let i = 0; i < tablesCount; i++) {
+        const tableSec = el('div', { style: 'margin-bottom: 32px; padding: 24px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); box-shadow: var(--shadow-sm);' });
+        tableSec.appendChild(el('div', { class: 'skeleton-text', style: 'width: 160px; height: 16px; margin-bottom: 16px;' }));
+        const skeletonTable = el('div', { class: 'skeleton-table-wrapper', style: 'margin: 0; border: none; padding: 0;' });
+        skeletonTable.appendChild(el('div', { class: 'skeleton-table-header', style: 'height: 36px; margin-bottom: 8px;' }));
+        const body = el('div', { class: 'skeleton-table-body' });
+        for (let j = 0; j < 2; j++) {
+          body.appendChild(el('div', { class: 'skeleton-table-row', style: 'height: 40px; margin-bottom: 8px;' }));
+        }
+        skeletonTable.appendChild(body);
+        tableSec.appendChild(skeletonTable);
+        wrapper.appendChild(tableSec);
+      }
+    }
+
+    container.appendChild(wrapper);
   },
 
   renderErrorState(container, message) {
@@ -186,7 +257,7 @@ const Reports = {
     wrapper.appendChild(content);
 
     const refresh = async () => {
-      this.renderLoadingState(content);
+      this.renderLoadingState(content, 'analytics');
       try {
         const res = await window.apiClient.reports.analytics();
         const a = res.data || {};
@@ -291,8 +362,10 @@ const Reports = {
     wrapper.appendChild(reportContent);
 
     const refresh = async () => {
-      this.renderLoadingState(reportContent);
+      this.renderLoadingState(reportContent, 'daily');
       try {
+        await this.ensureReportDates();
+        dateInput.value = this.dailyDate;
         await Promise.all([
           window.apiClient.userCache.ensure(),
           window.apiClient.clientCache.ensure()
@@ -405,8 +478,10 @@ const Reports = {
     wrapper.appendChild(reportContent);
 
     const refresh = async () => {
-      this.renderLoadingState(reportContent);
+      this.renderLoadingState(reportContent, 'weekly');
       try {
+        await this.ensureReportDates();
+        weekInput.value = this.weeklyDate;
         await Promise.all([
           window.apiClient.userCache.ensure(),
           window.apiClient.clientCache.ensure()
@@ -526,8 +601,10 @@ const Reports = {
     wrapper.appendChild(reportContent);
 
     const refresh = async () => {
-      this.renderLoadingState(reportContent);
+      this.renderLoadingState(reportContent, 'monthly');
       try {
+        await this.ensureReportDates();
+        monthInput.value = this.monthlyMonth;
         await Promise.all([
           window.apiClient.userCache.ensure(),
           window.apiClient.clientCache.ensure()

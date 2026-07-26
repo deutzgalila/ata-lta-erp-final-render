@@ -25,6 +25,15 @@
   --color-danger: #ef4444;
   --color-success: #10b981;
   --color-warning: #fbbf24;
+  --color-blue: #3b82f6;
+  --color-indigo: #6366f1;
+  --color-teal: #14b8a6;
+  --color-orange: #f97316;
+  --color-purple: #a855f7;
+  --color-green: #22c55e;
+  --color-yellow: #eab308;
+  --color-cyan: #06b6d4;
+  --color-red: #ef4444;
   --font-sans: "Poppins", "Inter", system-ui, -apple-system, sans-serif;
   --transition-loading: 0.25s;
   --delay-loading: 0.25s;
@@ -2792,6 +2801,22 @@ tbody tr:hover {
   margin: var(--spacing-md) 0 var(--spacing-sm);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.report-mini-stat {
+  padding: var(--spacing-md);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+}
+
+.report-mini-stat:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
 /* CSS Bar Chart */
