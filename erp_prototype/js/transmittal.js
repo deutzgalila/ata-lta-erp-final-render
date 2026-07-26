@@ -638,7 +638,11 @@ const Transmittal = {
       container.appendChild(titleBar);
 
       const bodyContainer = el('div');
-      bodyContainer.innerHTML = Utils.getSkeletonForView('transmittals');
+      bodyContainer.innerHTML = `
+        <div class="simple-spinner-container" style="min-height: 250px;">
+          <div class="simple-spinner"></div>
+          <div class="simple-spinner-text">Loading details...</div>
+        </div>`;
       container.appendChild(bodyContainer);
 
       (async () => {
