@@ -116,7 +116,7 @@ const Reports = {
   },
 
   async ensureReportDates() {
-    if (this.dailyDate && this.weeklyDate && this.monthlyMonth) return;
+    if (this._datesResolved) return;
 
     try {
       const wrRes = await window.apiClient.workRequests.list({ limit: 1 });
@@ -126,9 +126,9 @@ const Reports = {
         : null;
 
       if (latestDateStr) {
-        if (!this.dailyDate) this.dailyDate = latestDateStr;
-        if (!this.weeklyDate) this.weeklyDate = latestDateStr;
-        if (!this.monthlyMonth) this.monthlyMonth = latestDateStr.slice(0, 7);
+        this.dailyDate = latestDateStr;
+        this.weeklyDate = latestDateStr;
+        this.monthlyMonth = latestDateStr.slice(0, 7);
       }
     } catch (e) {
       console.warn('Failed to resolve latest activity date for reports. Defaulting to today.', e);
@@ -138,6 +138,8 @@ const Reports = {
     if (!this.dailyDate) this.dailyDate = today;
     if (!this.weeklyDate) this.weeklyDate = today;
     if (!this.monthlyMonth) this.monthlyMonth = today.slice(0, 7);
+
+    this._datesResolved = true;
   },
 
   renderMiniStat(label, value, color) {
