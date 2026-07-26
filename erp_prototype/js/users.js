@@ -509,6 +509,12 @@ const Users = {
     }
   },
 
+  hasCachedData() {
+    const now = Date.now();
+    const cacheAge = now - (this._pendingPreloadTs || 0);
+    return cacheAge < 15 * 1000 && Array.isArray(this._cachedMyPending);
+  },
+
   async render(routeId) {
     const container = el('div', { class: 'page admin-tab-page' });
 
@@ -571,6 +577,7 @@ const Users = {
         })
       : PaneMode.SIDE_PEEK;
     const isFullPage = (viewMode === PaneMode.FULL_PAGE || viewMode === PaneMode.NEW_TAB) && this.sidePeekId;
+    this._isRenderingFullPage = isFullPage;
 
     if (!isUserFullPage && !isFullPage) {
       const titleBar = el('div', { class: 'page-title-bar-v2' });
@@ -799,48 +806,57 @@ const Users = {
 
     let tabNav = this.renderTabNav();
     container.appendChild(tabNav);
-
+ 
     const contentContainer = el('div');
     container.appendChild(contentContainer);
-
-    contentContainer.innerHTML = Utils.getSkeletonForView('admin');
-
+ 
+    const hasCache = this.hasCachedData();
+    if (!hasCache) {
+      contentContainer.innerHTML = Utils.getSkeletonForView('admin');
+    }
+ 
     (async () => {
       try {
         await this.loadCounts();
         if (routeId !== App._routeId) return;
-
+ 
         const freshTabNav = this.renderTabNav();
         if (tabNav.parentNode) {
           tabNav.parentNode.replaceChild(freshTabNav, tabNav);
           tabNav = freshTabNav;
         }
-
-        contentContainer.innerHTML = '';
+ 
+        let newSec = null;
         if (this.view === 'users' && canManageUsers) {
-          contentContainer.appendChild(this.renderUsersSection());
+          newSec = this.renderUsersSection();
         } else if (this.view === 'audit' && canManageUsers) {
-          contentContainer.appendChild(await this.renderAuditSection());
+          newSec = await this.renderAuditSection();
         } else if (this.view === 'pending' && (canManageUsers || isManager || hasAccounting)) {
-          contentContainer.appendChild(await this.renderPendingSection());
+          newSec = await this.renderPendingSection();
         } else if (this.view === 'myPending' && !canManageUsers) {
-          contentContainer.appendChild(this.renderMyPendingSection());
+          newSec = this.renderMyPendingSection();
         } else if (this.view === 'myRequests' && !canManageUsers) {
-          contentContainer.appendChild(this.renderMyRequestsSection());
+          newSec = this.renderMyRequestsSection();
         } else if (!canManageUsers) {
           if (this.view === 'myRequests') {
-            contentContainer.appendChild(this.renderMyRequestsSection());
+            newSec = this.renderMyRequestsSection();
           } else if (this.view === 'pending' && (isManager || hasAccounting)) {
-            contentContainer.appendChild(await this.renderPendingSection());
+            newSec = await this.renderPendingSection();
           } else {
-            contentContainer.appendChild(this.renderMyPendingSection());
+            newSec = this.renderMyPendingSection();
           }
+        }
+ 
+        if (newSec) {
+          contentContainer.replaceChildren(newSec);
+        } else {
+          contentContainer.innerHTML = '';
         }
       } catch (err) {
         console.error(err);
       }
     })();
-
+ 
     return container;
   },
 
@@ -932,6 +948,9 @@ const Users = {
   },
 
   async init() {
+    if (this._isRenderingFullPage) {
+      return;
+    }
     if (this.editingId) {
       const userViewMode = window.SidePaneInstance ? window.SidePaneInstance.resolveMode({ viewContext: 'user-form' }) : 'side-peek';
       // Direct URL / new-tab full-page routes carry the form path in the hash.
@@ -1014,9 +1033,11 @@ const Users = {
         if (footer) {
           footer.remove();
           window.SidePaneInstance._lastFooter = footer;
+          window.SidePaneInstance._lastContent = content;
           window.SidePaneInstance.body.replaceChildren(content);
           window.SidePaneInstance.pane.appendChild(footer);
         } else {
+          window.SidePaneInstance._lastContent = content;
           window.SidePaneInstance.body.replaceChildren(content);
         }
       }
