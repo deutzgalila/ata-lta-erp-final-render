@@ -653,22 +653,22 @@ const Transmittal = {
           if (t) {
             titleTextNode.textContent = t.trackingNumber || this.detailId;
 
-            if (Auth.can('transmittal:mark')) {
-              if (t.status === 'Draft') {
-                if (Auth.can('transmittal:edit')) {
-                  const editBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Edit', style: 'margin-right:8px;' });
-                  editBtn.addEventListener('click', () => { this.showForm(t.id); });
-                  actions.insertBefore(editBtn, backBtn);
-                }
-                if (Auth.user?.role === 'Admin' && !t.approved) {
-                  const approveBtn = el('button', { class: 'btn btn-success btn-sm', text: 'Approve Draft', style: 'margin-right:8px;' });
-                  approveBtn.addEventListener('click', () => {
-                    Workflow.showConfirm('Confirm Approval', 'Are you sure you want to approve this transmittal draft?', () => {
-                      this.approveTransmittal(t.id);
-                    }, 'success');
-                  });
-                  actions.insertBefore(approveBtn, backBtn);
-                }
+            if (t.status === 'Draft') {
+              if (this.canEditTransmittal(t)) {
+                const editBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Edit', style: 'margin-right:8px;' });
+                editBtn.addEventListener('click', () => { this.showForm(t.id); });
+                actions.insertBefore(editBtn, backBtn);
+              }
+              if (Auth.can('transmittal:approve') && !t.approved) {
+                const approveBtn = el('button', { class: 'btn btn-success btn-sm', text: 'Approve Draft', style: 'margin-right:8px;' });
+                approveBtn.addEventListener('click', () => {
+                  Workflow.showConfirm('Confirm Approval', 'Are you sure you want to approve this transmittal draft?', () => {
+                    this.approveTransmittal(t.id);
+                  }, 'success');
+                });
+                actions.insertBefore(approveBtn, backBtn);
+              }
+              if (this.showMarkAsSent(t)) {
                 const sendBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Mark as Sent', style: 'margin-right:8px;' });
                 sendBtn.addEventListener('click', () => {
                   if (Auth.user?.role !== 'Admin' && !t.approved) {
@@ -680,17 +680,17 @@ const Transmittal = {
                   }, 'success');
                 });
                 actions.insertBefore(sendBtn, backBtn);
-              } else if (t.status === 'Sent') {
-                const ackBtn = el('button', { class: 'btn btn-success btn-sm', text: 'Acknowledge Receipt', style: 'margin-right:8px;' });
-                ackBtn.addEventListener('click', () => {
-                  this.showAcknowledgeDialog(t.id);
-                });
-                actions.insertBefore(ackBtn, backBtn);
               }
+            } else if (t.status === 'Sent' && Auth.can('transmittal:mark')) {
+              const ackBtn = el('button', { class: 'btn btn-success btn-sm', text: 'Acknowledge Receipt', style: 'margin-right:8px;' });
+              ackBtn.addEventListener('click', () => {
+                this.showAcknowledgeDialog(t.id);
+              });
+              actions.insertBefore(ackBtn, backBtn);
             }
 
             if (Auth.user?.role === 'Admin') {
-              if (!t.archived) {
+              if (!t.archived && (t.status !== 'Draft' || !Auth.can('transmittal:approve'))) {
                 const archiveBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Archive', style: 'margin-right:8px;' });
                 archiveBtn.addEventListener('click', () => { this.archiveTransmittal(t.id); });
                 actions.insertBefore(archiveBtn, backBtn);
@@ -1317,8 +1317,7 @@ const Transmittal = {
         });
         wrapper.appendChild(approveBtn);
       }
-      const canMark = Auth.can('transmittal:mark');
-      if (canMark && t.status === 'Draft' && !t.pendingChangeId) {
+      if (this.showMarkAsSent(t)) {
         const sendBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Mark Sent', style: 'margin-left:4px;' });
         sendBtn.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -1332,15 +1331,17 @@ const Transmittal = {
         });
         wrapper.appendChild(sendBtn);
       }
-      if (canMark && t.status === 'Sent') {
+      if (Auth.can('transmittal:mark') && t.status === 'Sent') {
         const ackBtn = el('button', { class: 'btn btn-success btn-sm', text: 'Acknowledge', style: 'margin-left:4px;' });
         ackBtn.addEventListener('click', (e) => { e.stopPropagation(); self.showAcknowledgeDialog(t.id); });
         wrapper.appendChild(ackBtn);
       }
       if (!t.archived && Auth.user?.role === 'Admin') {
-        const archiveBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Archive', style: 'margin-left:4px;' });
-        archiveBtn.addEventListener('click', (e) => { e.stopPropagation(); self.archiveTransmittal(t.id); });
-        wrapper.appendChild(archiveBtn);
+        if (t.status !== 'Draft' || !Auth.can('transmittal:approve')) {
+          const archiveBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Archive', style: 'margin-left:4px;' });
+          archiveBtn.addEventListener('click', (e) => { e.stopPropagation(); self.archiveTransmittal(t.id); });
+          wrapper.appendChild(archiveBtn);
+        }
       }
       return wrapper;
     };
@@ -1521,7 +1522,7 @@ const Transmittal = {
           )
         });
       }
-      if (canMark && t.status === 'Draft' && !t.pendingChangeId) {
+      if (self.showMarkAsSent(t)) {
         menu.push({
           label: 'Mark as Sent',
           className: 'primary',
@@ -1549,11 +1550,13 @@ const Transmittal = {
         });
       }
       if (!t.archived && Auth.user?.role === 'Admin') {
-        menu.push({
-          label: 'Archive',
-          icon: ArchivePage.icons.archive || '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>',
-          onClick: () => self.archiveTransmittal(t.id)
-        });
+        if (t.status !== 'Draft' || !Auth.can('transmittal:approve')) {
+          menu.push({
+            label: 'Archive',
+            icon: ArchivePage.icons.archive || '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>',
+            onClick: () => self.archiveTransmittal(t.id)
+          });
+        }
       }
       return menu;
     };
@@ -1727,7 +1730,7 @@ const Transmittal = {
         });
         actionWrap.appendChild(approveBtn);
       }
-      if (canMark && t.status === 'Draft' && !t.pendingChangeId) {
+      if (this.showMarkAsSent(t)) {
         const sendBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Mark Sent' });
         sendBtn.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -1747,9 +1750,11 @@ const Transmittal = {
         actionWrap.appendChild(ackBtn);
       }
       if (!t.archived && Auth.user?.role === 'Admin') {
-        const archiveBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Archive' });
-        archiveBtn.addEventListener('click', (e) => { e.stopPropagation(); self.archiveTransmittal(t.id); });
-        actionWrap.appendChild(archiveBtn);
+        if (t.status !== 'Draft' || !Auth.can('transmittal:approve')) {
+          const archiveBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Archive' });
+          archiveBtn.addEventListener('click', (e) => { e.stopPropagation(); self.archiveTransmittal(t.id); });
+          actionWrap.appendChild(archiveBtn);
+        }
       }
       item.appendChild(actionWrap);
       list.appendChild(item);
@@ -1758,7 +1763,21 @@ const Transmittal = {
   },
 
   canEditTransmittal(t) {
+    if (Auth.can('transmittal:approve')) return false;
     return Auth.can('transmittal:edit') && t.status === 'Draft';
+  },
+
+  showMarkAsSent(t) {
+    if (t.status !== 'Draft') return false;
+    if (t.pendingChangeId) return false;
+    if (Auth.can('transmittal:approve')) return true;
+    return Auth.can('transmittal:mark') && t.createdBy === Auth.user?.id;
+  },
+
+  nextTrackingNumber(entity) {
+    return (typeof Utils !== 'undefined' && typeof Utils.nextTrackingNumber === 'function')
+      ? Utils.nextTrackingNumber(entity)
+      : Promise.resolve(entity + '-TX-' + new Date().getFullYear() + '-001');
   },
 
   async showForm(txId = null, mode = null) {
@@ -1865,8 +1884,13 @@ const Transmittal = {
     const tnInput = el('input', { type: 'text', name: 'trackingNumber', class: 'notion-prop-input', readonly: true, value: existing ? existing.trackingNumber : '' });
     tnInput.style.flex = '1';
     tnWrap.appendChild(tnInput);
+    if (!existing) {
+      this.nextTrackingNumber(entity === 'ALL' ? (Auth.user.entities[0] || 'ATA') : entity).then(n => { tnInput.value = n; }).catch(() => {});
+    }
     const genBtn = el('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: 'Generate' });
-    genBtn.addEventListener('click', () => { tnInput.value = this.generateTrackingNumber(entity === 'ALL' ? (Auth.user.entities[0] || 'ATA') : entity); });
+    genBtn.addEventListener('click', () => {
+      this.nextTrackingNumber(entity === 'ALL' ? (Auth.user.entities[0] || 'ATA') : entity).then(n => { tnInput.value = n; }).catch(() => {});
+    });
     tnWrap.appendChild(genBtn);
     tnGroup.appendChild(tnWrap);
     propsGrid.appendChild(tnGroup);
@@ -1962,7 +1986,7 @@ const Transmittal = {
 
     const typeSel = el('select', { class: 'item-doc-type notion-line-item-type', required: true });
     typeSel.appendChild(el('option', { value: '', text: '— Type —' }));
-    ['Original Scan', 'Generated Copy', 'Government Receipt', 'Final Deliverable', 'Other'].forEach(t => {
+    ['Original Copy', 'Photocopy', 'Generated Copy', 'Others'].forEach(t => {
       const opt = el('option', { value: t, text: t });
       if (documentType === t) opt.selected = true;
       typeSel.appendChild(opt);
@@ -2015,7 +2039,7 @@ const Transmittal = {
     const payload = {
       workRequestId: data.workRequestId,
       clientId: data.clientId,
-      trackingNumber: data.trackingNumber || this.generateTrackingNumber(recordEntity),
+      trackingNumber: data.trackingNumber || await this.nextTrackingNumber(recordEntity),
       items,
       notes: data.notes || null
     };

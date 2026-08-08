@@ -3476,12 +3476,14 @@ const Workflow = {
     // ---------- Tracking Number (auto-generated, read-only) ----------
     const tnGroup = el('div', { class: 'form-group' });
     tnGroup.appendChild(el('label', { text: 'Tracking Number' }));
-    tnGroup.appendChild(el('input', {
+    const tnInput = el('input', {
       type: 'text', name: 'trackingNumber',
-      value: Utils.generateTrackingNumber(entity),
+      value: '',
       readonly: true,
       style: 'background: #f1f5f9; cursor: default;'
-    }));
+    });
+    Utils.nextTrackingNumber(entity).then(n => { tnInput.value = n; }).catch(() => {});
+    tnGroup.appendChild(tnInput);
     form.appendChild(tnGroup);
 
     // ---------- Itemized Document List ----------
@@ -3493,7 +3495,7 @@ const Workflow = {
     const colHeaders = el('div', { class: 'line-item-row', style: 'margin-bottom: 4px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;' });
     colHeaders.appendChild(el('span', { text: 'Document Type', class: 'item-type', style: headerLabelStyle }));
     colHeaders.appendChild(el('span', { text: 'Description', class: 'item-desc', style: headerLabelStyle }));
-    colHeaders.appendChild(el('span', { class: 'btn btn-sm', style: 'visibility: hidden;', text: '×' }));
+    colHeaders.appendChild(el('span', { style: 'width: 32px;' })); // spacer
     itemsSection.appendChild(colHeaders);
 
     const itemsList = el('div', { id: 'modal-transmittal-item-rows' });
@@ -3503,7 +3505,7 @@ const Workflow = {
       const row = el('div', { class: 'line-item-row' });
 
       const typeSel = el('select', { class: 'item-type' });
-      ['Original Scan', 'Generated Copy', 'Government Receipt', 'Final Deliverable', 'Other'].forEach(t => {
+      ['Original Copy', 'Photocopy', 'Generated Copy', 'Others'].forEach(t => {
         const opt = el('option', { value: t, text: t });
         if (item?.documentType === t) opt.selected = true;
         typeSel.appendChild(opt);
@@ -3587,7 +3589,7 @@ const Workflow = {
       const record = {
         workRequestId: data.workRequestId,
         clientId: data.clientId,
-        trackingNumber: data.trackingNumber || Utils.generateTrackingNumber(entity),
+        trackingNumber: data.trackingNumber || await Utils.nextTrackingNumber(entity),
         status: 'Draft',
         items,
         notes: data.notes || '',

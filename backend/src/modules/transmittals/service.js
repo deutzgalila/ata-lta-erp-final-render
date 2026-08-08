@@ -19,13 +19,16 @@ const AppError = require('../../lib/AppError');
  * @returns {Promise<{ data: object[], count: number }>}
  */
 const listTransmittals = async ({ entityId, filters = {} }) => {
-  const { status, clientId, search, archived, page = 1, limit = 50 } = filters;
+  const { status, clientId, search, archived, includeDeleted, page = 1, limit = 50 } = filters;
   const isArchived = archived === true || archived === 'true';
 
   let query = supabaseAdmin
     .from('transmittals')
-    .select('*, clients(name)', { count: 'exact' })
-    .is('deleted_at', null);
+    .select('*, clients(name)', { count: 'exact' });
+
+  if (includeDeleted !== true && includeDeleted !== 'true') {
+    query = query.is('deleted_at', null);
+  }
 
   if (entityId && entityId !== 'ALL') {
     query = query.eq('entity_id', entityId);
@@ -296,7 +299,7 @@ const updateTransmittal = async ({ entityId, id, userId, data }) => {
     });
   }
 
-  return updated;
+  return attachItems(updated);
 };
 
 /**
@@ -328,6 +331,9 @@ const approveTransmittal = async ({ entityId, id, userId }) => {
 
   const updates = {
     approved: true,
+    status: 'Sent',
+    sent_at: new Date().toISOString(),
+    sent_by: userId,
     updated_by: userId,
     updated_at: new Date().toISOString(),
   };
@@ -352,12 +358,21 @@ const approveTransmittal = async ({ entityId, id, userId }) => {
     action: 'transmittal.approve',
     table: 'transmittals',
     recordId: id,
-    entity: entityId,
+    entity: existing.entity_code || 'ATA',
     userId,
     details: { trackingNumber: existing.tracking_number },
   });
 
-  return updated;
+  await auditService.log({
+    action: 'transmittal.send',
+    table: 'transmittals',
+    recordId: id,
+    entity: existing.entity_code || 'ATA',
+    userId,
+    details: { trackingNumber: existing.tracking_number },
+  });
+
+  return attachItems(updated);
 };
 
 const sendTransmittal = async ({ entityId, id, userId, boardOrder }) => {
@@ -402,6 +417,9 @@ const sendTransmittal = async ({ entityId, id, userId, boardOrder }) => {
     updated_by: userId,
     updated_at: new Date().toISOString(),
   };
+  if (isUserAdmin) {
+    updates.approved = true;
+  }
   if (boardOrder !== undefined) updates.board_order = boardOrder;
 
   const { data: updated, error } = await supabaseAdmin
@@ -424,12 +442,12 @@ const sendTransmittal = async ({ entityId, id, userId, boardOrder }) => {
     action: 'transmittal.send',
     table: 'transmittals',
     recordId: id,
-    entity: entityId,
+    entity: existing.entity_code || 'ATA',
     userId,
     details: { trackingNumber: existing.tracking_number },
   });
 
-  return updated;
+  return attachItems(updated);
 };
 
 /**
@@ -480,12 +498,12 @@ const acknowledgeTransmittal = async ({ entityId, id, userId, boardOrder }) => {
     action: 'transmittal.acknowledge',
     table: 'transmittals',
     recordId: id,
-    entity: entityId,
+    entity: existing.entity_code || 'ATA',
     userId,
     details: { trackingNumber: existing.tracking_number },
   });
 
-  return updated;
+  return attachItems(updated);
 };
 
 /**
@@ -521,7 +539,7 @@ const deleteTransmittal = async ({ entityId, id, userId }) => {
     action: 'transmittal.delete',
     table: 'transmittals',
     recordId: id,
-    entity: entityId,
+    entity: existing.entity_code || 'ATA',
     userId,
     details: { trackingNumber: existing.tracking_number },
   });
@@ -550,12 +568,12 @@ const archiveTransmittal = async ({ entityId, id, userId }) => {
     action: 'transmittal.archive',
     table: 'transmittals',
     recordId: id,
-    entity: entityId,
+    entity: existing.entity_code || 'ATA',
     userId,
     details: { trackingNumber: existing.tracking_number },
   });
 
-  return updated;
+  return attachItems(updated);
 };
 
 const unarchiveTransmittal = async ({ entityId, id, userId }) => {
@@ -580,12 +598,22 @@ const unarchiveTransmittal = async ({ entityId, id, userId }) => {
     action: 'transmittal.unarchive',
     table: 'transmittals',
     recordId: id,
-    entity: entityId,
+    entity: existing.entity_code || 'ATA',
     userId,
     details: { trackingNumber: existing.tracking_number },
   });
 
-  return updated;
+  return attachItems(updated);
+};
+
+const attachItems = async (transmittal) => {
+  if (!transmittal) return transmittal;
+  const { data: items } = await supabaseAdmin
+    .from('transmittal_items')
+    .select('*')
+    .eq('transmittal_id', transmittal.id)
+    .order('sort_order', { ascending: true });
+  return { ...transmittal, items: items || [] };
 };
 
 module.exports = {

@@ -882,7 +882,7 @@ const getWorkRequestRelated = async ({ id, entityId }) => {
     return { invoices: [], disbursements: [], transmittals: [], documents: [] };
   }
 
-  const relatedEntityId = entityId && entityId !== 'ALL' ? entityId : wr.entity_id;
+  const relatedEntityId = wr.entity_id;
 
   const [{ data: invoices }, { data: disbursements }, { data: transmittals }, { data: documents }] =
     await Promise.all([
