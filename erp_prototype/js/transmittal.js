@@ -314,6 +314,7 @@ const Transmittal = {
       errorTitle: 'Send Failed'
     });
     if (runResult.success) {
+      this._invalidateWorkRequestRelated(t?.workRequestId);
       this._invalidateCountsAndSidebar();
     } else if (snapshot) {
       this._updateCachedItem(id, snapshot);
@@ -339,6 +340,7 @@ const Transmittal = {
       errorTitle: 'Approval Failed'
     });
     if (runResult.success) {
+      this._invalidateWorkRequestRelated(t?.workRequestId);
       this._invalidateCountsAndSidebar();
     } else if (snapshot) {
       this._updateCachedItem(id, snapshot);
@@ -368,11 +370,18 @@ const Transmittal = {
       errorTitle: 'Acknowledge Failed'
     });
     if (runResult.success) {
+      this._invalidateWorkRequestRelated(t?.workRequestId);
       this._invalidateCountsAndSidebar();
     } else if (snapshot) {
       this._updateCachedItem(id, snapshot);
     }
     App.handleRoute();
+  },
+
+  _invalidateWorkRequestRelated(workRequestId) {
+    if (workRequestId && typeof WorkflowData !== 'undefined' && typeof WorkflowData.invalidateRelatedForWorkRequest === 'function') {
+      WorkflowData.invalidateRelatedForWorkRequest(workRequestId);
+    }
   },
 
   async _optimisticUpdate(id, patch, apiCall, errorTitle = 'Error') {
@@ -2153,6 +2162,7 @@ const Transmittal = {
             this._items = [savedTransmittal];
             this._entity = this._getActiveEntity();
           }
+          this._invalidateWorkRequestRelated(savedTransmittal.workRequestId);
         }
         if (typeof Dashboard !== 'undefined' && typeof Dashboard.invalidateCache === 'function') {
           Dashboard.invalidateCache();
@@ -2389,17 +2399,21 @@ const Transmittal = {
 
     (t.items || []).forEach(item => {
       if (usedRows < totalRows) {
-        rows.push({ text: (item.documentType || '').toUpperCase(), isEmpty: false });
-        usedRows++;
-      }
-      if (usedRows < totalRows) {
-        rows.push({ text: (item.description || '').toUpperCase(), isEmpty: false });
+        rows.push({
+          category: (item.documentType || '').toUpperCase(),
+          document: (item.description || '').toUpperCase(),
+          isEmpty: false
+        });
         usedRows++;
       }
     });
 
     while (usedRows < totalRows) {
-      rows.push({ text: '', isEmpty: true });
+      rows.push({
+        category: '',
+        document: '',
+        isEmpty: true
+      });
       usedRows++;
     }
 
@@ -2471,15 +2485,36 @@ const Transmittal = {
         width: 100%;
         border-collapse: collapse;
       }
+      .preview-table-header-cell {
+        border-bottom: 2px solid #000;
+        padding: 6px 10px;
+        font-weight: bold;
+        text-align: left;
+        font-size: 10pt;
+      }
+      .preview-category-header-cell {
+        width: 35%;
+        border-right: 2px solid #000;
+      }
+      .preview-document-header-cell {
+        width: 65%;
+      }
       .preview-doc-row {
         height: 22px;
       }
       .preview-doc-cell {
         border-bottom: 1px solid #000;
-        text-align: center;
-        font-weight: bold;
-        padding: 2px 4px;
+        padding: 4px 10px;
         font-size: 10pt;
+        text-align: left;
+      }
+      .preview-category-cell {
+        font-weight: bold;
+        border-right: 1px solid #000;
+        width: 35%;
+      }
+      .preview-document-cell {
+        width: 65%;
       }
       .preview-document-table tr:last-child .preview-doc-cell {
         border-bottom: none;
@@ -2571,20 +2606,9 @@ const Transmittal = {
     r2.appendChild(tdDate);
     headerTable.appendChild(r2);
 
-    // Row 3: FROM & TO
+    // Row 3: TO only
     const r3 = el('tr');
-    const tdFrom = el('td', { style: 'width: 55%; line-height: 1.4;' }, [
-      el('strong', { text: 'FROM:' }),
-      document.createTextNode(' '),
-      el('strong', { text: fromEntity }),
-      el('br'),
-      document.createTextNode('RM 307 Republic Supermarket Bldg,'),
-      el('br'),
-      document.createTextNode('Soler St., cor. F.Torres St.,'),
-      el('br'),
-      document.createTextNode('Sta. Cruz, Manila')
-    ]);
-    const tdTo = el('td', { style: 'width: 45%;' }, [
+    const tdTo = el('td', { colspan: '2', style: 'width: 100%;' }, [
       el('div', { style: 'display: flex; gap: 8px; align-items: flex-start;' }, [
         el('strong', { text: 'TO:', style: 'margin-top: 3px;' }),
         el('div', { style: 'flex: 1; display: flex; flex-direction: column;' }, [
@@ -2595,7 +2619,6 @@ const Transmittal = {
         ])
       ])
     ]);
-    r3.appendChild(tdFrom);
     r3.appendChild(tdTo);
     headerTable.appendChild(r3);
 
@@ -2606,11 +2629,21 @@ const Transmittal = {
     docBox.appendChild(el('div', { class: 'preview-document-title', text: 'Received the following documents and/or records:' }));
 
     const docTable = el('table', { class: 'preview-document-table' });
+    const thead = el('thead');
+    const thr = el('tr', { class: 'preview-header-row' });
+    thr.appendChild(el('th', { class: 'preview-table-header-cell preview-category-header-cell', text: 'CATEGORY' }));
+    thr.appendChild(el('th', { class: 'preview-table-header-cell preview-document-header-cell', text: 'DOCUMENT' }));
+    thead.appendChild(thr);
+    docTable.appendChild(thead);
+
+    const tbody = el('tbody');
     rows.forEach(r => {
       const tr = el('tr', { class: 'preview-doc-row' });
-      tr.appendChild(el('td', { class: 'preview-doc-cell', html: r.isEmpty ? '&nbsp;' : r.text }));
-      docTable.appendChild(tr);
+      tr.appendChild(el('td', { class: 'preview-doc-cell preview-category-cell', html: r.isEmpty ? '&nbsp;' : r.category }));
+      tr.appendChild(el('td', { class: 'preview-doc-cell preview-document-cell', html: r.isEmpty ? '&nbsp;' : r.document }));
+      tbody.appendChild(tr);
     });
+    docTable.appendChild(tbody);
     docBox.appendChild(docTable);
 
     // RECEIVED STAMP (if acknowledged)
@@ -2700,17 +2733,23 @@ const Transmittal = {
 
     (t.items || []).forEach(item => {
       if (usedRows < totalRows) {
-        rowsHtml += `<tr class="doc-row"><td class="doc-cell">${(item.documentType || '').toUpperCase()}</td></tr>`;
-        usedRows++;
-      }
-      if (usedRows < totalRows) {
-        rowsHtml += `<tr class="doc-row"><td class="doc-cell">${(item.description || '').toUpperCase()}</td></tr>`;
+        rowsHtml += `
+          <tr class="doc-row">
+            <td class="doc-cell category-cell">${(item.documentType || '').toUpperCase()}</td>
+            <td class="doc-cell document-cell">${(item.description || '').toUpperCase()}</td>
+          </tr>
+        `;
         usedRows++;
       }
     });
 
     while (usedRows < totalRows) {
-      rowsHtml += `<tr class="doc-row"><td class="doc-cell">&nbsp;</td></tr>`;
+      rowsHtml += `
+        <tr class="doc-row">
+          <td class="doc-cell category-cell">&nbsp;</td>
+          <td class="doc-cell document-cell">&nbsp;</td>
+        </tr>
+      `;
       usedRows++;
     }
 
@@ -2834,15 +2873,36 @@ const Transmittal = {
         width: 100%;
         border-collapse: collapse;
       }
+      .table-header-cell {
+        border-bottom: 2px solid #000;
+        padding: 6px 10px;
+        font-weight: bold;
+        text-align: left;
+        font-size: 10pt;
+      }
+      .category-header-cell {
+        width: 35%;
+        border-right: 2px solid #000;
+      }
+      .document-header-cell {
+        width: 65%;
+      }
       .doc-row {
         height: 22px;
       }
       .doc-cell {
         border-bottom: 1px solid #000;
-        text-align: center;
-        font-weight: bold;
-        padding: 2px 4px;
+        padding: 4px 10px;
         font-size: 10pt;
+        text-align: left;
+      }
+      .category-cell {
+        font-weight: bold;
+        border-right: 1px solid #000;
+        width: 35%;
+      }
+      .document-cell {
+        width: 65%;
       }
       .document-table tr:last-child .doc-cell {
         border-bottom: none;
@@ -2928,13 +2988,7 @@ const Transmittal = {
             </td>
           </tr>
           <tr>
-            <td class="from-cell">
-              <strong>FROM:</strong> <strong>${fromEntity}</strong><br>
-              RM 307 Republic Supermarket Bldg,<br>
-              Soler St., cor. F.Torres St.,<br>
-              Sta. Cruz, Manila
-            </td>
-            <td class="to-cell">
+            <td colspan="2" class="to-cell" style="width: 100%;">
               <div style="display: flex; gap: 8px; align-items: flex-start;">
                 <strong style="margin-top: 3px;">TO:</strong>
                 <div style="flex: 1; display: flex; flex-direction: column;">
@@ -2951,7 +3005,15 @@ const Transmittal = {
         <div class="document-box">
           <div class="document-title">Received the following documents and/or records:</div>
           <table class="document-table">
-            ${rowsHtml}
+            <thead>
+              <tr class="header-row">
+                <th class="table-header-cell category-header-cell">CATEGORY</th>
+                <th class="table-header-cell document-header-cell">DOCUMENT</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
           </table>
           ${stampHtml}
         </div>
@@ -3002,6 +3064,7 @@ const Transmittal = {
               }
             },
             onAfterConfirm: async () => {
+              this._invalidateWorkRequestRelated(item.workRequestId);
               if (typeof window.apiClient?.transmittals?.invalidateCounts === 'function') {
                 window.apiClient.transmittals.invalidateCounts();
               }
@@ -3115,6 +3178,7 @@ const Transmittal = {
               }
             },
             onAfterConfirm: async () => {
+              this._invalidateWorkRequestRelated(item.workRequestId);
               if (typeof window.apiClient?.transmittals?.invalidateCounts === 'function') {
                 window.apiClient.transmittals.invalidateCounts();
               }
