@@ -2950,10 +2950,11 @@ const Workflow = {
    * pre-populated from the given work request.
    */
   async openGenerateBillingModal(wr, preselectedTask) {
-    const entity = Auth.activeEntity;
+    const entity = wr.entity || Auth.activeEntity;
+    const recordEntity = (entity === 'ALL' || !entity) ? (wr.entity || Auth.user.entities[0] || 'ATA') : entity;
     const client = window.apiClient.clientCache.getById(wr.clientId);
     const tasks = WorkflowData.getTasksWhere(t => t.workRequestId === wr.id);
-    const invoiceNumber = await Utils.nextInvoiceNumber(entity);
+    const invoiceNumber = await Utils.nextInvoiceNumber(recordEntity);
 
     const wrapper = el('div', { style: 'display: flex; flex-direction: column; gap: 16px;' });
     const form = el('form', { id: 'gen-billing-form', class: 'form-stacked' });
@@ -3135,7 +3136,7 @@ const Workflow = {
         clientId: data.clientId,
         workRequestId: data.workRequestId || null,
         linkedTaskId: data.linkedTaskId || null,
-        entity: entity,
+        entity: recordEntity,
         issueDate: data.issueDate,
         dueDate: data.dueDate,
         lineItems,
@@ -3149,26 +3150,25 @@ const Workflow = {
         updatedAt: new Date().toISOString()
       };
 
-      try {
-        const res = await window.apiClient.invoices.create(record);
-        const created = res?.data || record;
-        WorkflowData.invalidateRelatedForWorkRequest(created.workRequestId || data.workRequestId);
-      } catch (e) {
-        console.error('Failed to create invoice', e);
-        this.showMessage('Error', 'Failed to create invoice: ' + (e.message || 'Unknown error'), 'danger');
-        return;
-      }
-
       overlay.remove();
 
-      this.showMessage(
-        'Invoice Created',
-        'Invoice ' + record.invoiceNumber + ' has been created successfully and linked to "' + wr.title + '".',
-        'success'
-      );
-
-      // Refresh WR detail
-      App.handleRoute();
+      await this.runBlockingArchiveAction({
+        title: 'Creating Invoice',
+        message: 'Please wait while the invoice is being saved...',
+        apiCall: async () => {
+          return await window.apiClient.invoices.create(record);
+        },
+        successTitle: 'Invoice Created',
+        successMessage: 'Invoice ' + record.invoiceNumber + ' has been created successfully and linked to "' + wr.title + '".',
+        errorTitle: 'Failed to Create Invoice',
+        onSuccess: async (res) => {
+          const created = res?.data || record;
+          WorkflowData.invalidateRelatedForWorkRequest(created.workRequestId || data.workRequestId);
+        },
+        onAfterConfirm: async () => {
+          App.handleRoute();
+        }
+      });
     });
   },
 
@@ -3177,7 +3177,8 @@ const Workflow = {
    * pre-populated from the given work request.
    */
   async openGenerateDisbursementModal(wr, preselectedTask) {
-    const entity = Auth.activeEntity;
+    const entity = wr.entity || Auth.activeEntity;
+    const recordEntity = (entity === 'ALL' || !entity) ? (wr.entity || Auth.user.entities[0] || 'ATA') : entity;
     const client = window.apiClient.clientCache.getById(wr.clientId);
     const tasks = WorkflowData.getTasksWhere(t => t.workRequestId === wr.id);
     let availableInvoices = [];
@@ -3409,7 +3410,7 @@ const Workflow = {
         linkedInvoiceId: data.linkedInvoiceId || null,
         linkedWorkRequestId: data.linkedWorkRequestId || null,
         linkedTaskId: data.linkedTaskId || null,
-        entity: entity,
+        entity: recordEntity,
         employeeId: Auth.user.id,
         requestedBy: Auth.user.id,
         status: 'Submitted',
@@ -3419,26 +3420,25 @@ const Workflow = {
         receiptFilename: receiptFilename
       };
 
-      try {
-        const res = await window.apiClient.disbursements.create(record);
-        const created = res?.data || record;
-        WorkflowData.invalidateRelatedForWorkRequest(created.linkedWorkRequestId || data.linkedWorkRequestId);
-      } catch (e) {
-        console.error('Failed to create disbursement', e);
-        this.showMessage('Error', 'Failed to create disbursement: ' + (e.message || 'Unknown error'), 'danger');
-        return;
-      }
-
       overlay.remove();
 
-      this.showMessage(
-        'Expense Filed',
-        'Disbursement for ' + data.category + ' (₱' + amount.toLocaleString('en-US', { minimumFractionDigits: 2 }) + ') has been submitted and linked to "' + wr.title + '".',
-        'success'
-      );
-
-      // Refresh WR detail
-      App.handleRoute();
+      await this.runBlockingArchiveAction({
+        title: 'Filing Expense',
+        message: 'Please wait while the disbursement is being saved...',
+        apiCall: async () => {
+          return await window.apiClient.disbursements.create(record);
+        },
+        successTitle: 'Expense Filed',
+        successMessage: 'Disbursement for ' + data.category + ' (₱' + amount.toLocaleString('en-US', { minimumFractionDigits: 2 }) + ') has been submitted and linked to "' + wr.title + '".',
+        errorTitle: 'Failed to File Expense',
+        onSuccess: async (res) => {
+          const created = res?.data || record;
+          WorkflowData.invalidateRelatedForWorkRequest(created.linkedWorkRequestId || data.linkedWorkRequestId);
+        },
+        onAfterConfirm: async () => {
+          App.handleRoute();
+        }
+      });
     });
   },
 
@@ -3447,7 +3447,8 @@ const Workflow = {
    * pre-populated from the given work request.
    */
   async openGenerateTransmittalModal(wr, preselectedTask = null, prefilledRequestId = null) {
-    const entity = Auth.activeEntity;
+    const entity = wr.entity || Auth.activeEntity;
+    const recordEntity = (entity === 'ALL' || !entity) ? (wr.entity || Auth.user.entities[0] || 'ATA') : entity;
     const client = window.apiClient.clientCache.getById(wr.clientId);
 
     let opReq = null;
@@ -3499,7 +3500,7 @@ const Workflow = {
       readonly: true,
       style: 'background: #f1f5f9; cursor: default;'
     });
-    Utils.nextTrackingNumber(entity).then(n => { tnInput.value = n; }).catch(() => {});
+    Utils.nextTrackingNumber(recordEntity).then(n => { tnInput.value = n; }).catch(() => {});
     tnGroup.appendChild(tnInput);
     form.appendChild(tnGroup);
 
@@ -3606,52 +3607,50 @@ const Workflow = {
       const record = {
         workRequestId: data.workRequestId,
         clientId: data.clientId,
-        trackingNumber: data.trackingNumber || await Utils.nextTrackingNumber(entity),
+        trackingNumber: data.trackingNumber || await Utils.nextTrackingNumber(recordEntity),
         status: 'Draft',
         items,
         notes: data.notes || '',
-        entity,
+        entity: recordEntity,
         createdAt: new Date().toISOString(),
         createdBy: Auth.user.id
       };
 
-      let createdTransmittal;
-      try {
-        const res = await window.apiClient.transmittals.create(record);
-        createdTransmittal = res?.data || record;
-      } catch (e) {
-        console.error('Failed to create transmittal', e);
-        this.showMessage('Error', 'Failed to create transmittal: ' + (e.message || 'Unknown error'), 'danger');
-        return;
-      }
-
-      // Fulfill pending operations request if any
-      const reqId = prefilledRequestId || (opReq ? opReq.id : null);
-      if (reqId) {
-        try {
-          await window.apiClient.operationsRequests.update(reqId, {
-            status: 'fulfilled',
-            fulfilledBy: Auth.user.id,
-            fulfilledAt: new Date().toISOString(),
-            linkedRecordId: createdTransmittal.id
-          });
-        } catch (e) {
-          console.error('Failed to fulfill operations request', e);
-        }
-      }
-
-      WorkflowData.invalidateRelatedForWorkRequest(data.workRequestId);
-
       overlay.remove();
 
-      this.showMessage(
-        'Transmittal Created',
-        'Transmittal ' + record.trackingNumber + ' has been created and linked to "' + wr.title + '".',
-        'success'
-      );
+      await this.runBlockingArchiveAction({
+        title: 'Creating Transmittal',
+        message: 'Please wait while the transmittal is being saved...',
+        apiCall: async () => {
+          const res = await window.apiClient.transmittals.create(record);
+          const createdTransmittal = res?.data || record;
 
-      // Refresh WR detail
-      App.handleRoute();
+          // Fulfill pending operations request if any
+          const reqId = prefilledRequestId || (opReq ? opReq.id : null);
+          if (reqId) {
+            try {
+              await window.apiClient.operationsRequests.update(reqId, {
+                status: 'fulfilled',
+                fulfilledBy: Auth.user.id,
+                fulfilledAt: new Date().toISOString(),
+                linkedRecordId: createdTransmittal.id
+              });
+            } catch (e) {
+              console.error('Failed to fulfill operations request', e);
+            }
+          }
+          return res;
+        },
+        successTitle: 'Transmittal Created',
+        successMessage: 'Transmittal ' + record.trackingNumber + ' has been created and linked to "' + wr.title + '".',
+        errorTitle: 'Failed to Create Transmittal',
+        onSuccess: async (res) => {
+          WorkflowData.invalidateRelatedForWorkRequest(data.workRequestId);
+        },
+        onAfterConfirm: async () => {
+          App.handleRoute();
+        }
+      });
     });
   },
 

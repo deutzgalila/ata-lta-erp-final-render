@@ -82,7 +82,40 @@
   const request = async (path, options = {}) => {
     const url = `${API_BASE_URL}${path}`;
     const token = getToken();
-    const entity = getActiveEntity();
+    
+    let activeEntityHeader = getActiveEntity();
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(options.method || 'GET')) {
+      let payloadEntity = null;
+      if (options.headers && options.headers['X-Active-Entity']) {
+        payloadEntity = options.headers['X-Active-Entity'];
+      }
+      if (!payloadEntity && options.body) {
+        try {
+          const parsed = typeof options.body === 'string' ? JSON.parse(options.body) : options.body;
+          if (parsed) {
+            payloadEntity = parsed.entity || parsed.entity_code || parsed.entityId;
+            if (!payloadEntity) {
+              const wrId = parsed.workRequestId || parsed.work_request_id || parsed.linkedWorkRequestId || parsed.linked_work_request_id;
+              if (wrId && window.apiClient && window.apiClient.workRequestCache && typeof window.apiClient.workRequestCache.getById === 'function') {
+                const wr = window.apiClient.workRequestCache.getById(wrId);
+                if (wr && wr.entity) {
+                  payloadEntity = wr.entity;
+                }
+              }
+              if (!payloadEntity && wrId && typeof WorkflowData !== 'undefined' && typeof WorkflowData.getWorkRequestById === 'function') {
+                const wr = WorkflowData.getWorkRequestById(wrId);
+                if (wr && wr.entity) {
+                  payloadEntity = wr.entity;
+                }
+              }
+            }
+          }
+        } catch (e) {}
+      }
+      if (payloadEntity && payloadEntity !== 'ALL') {
+        activeEntityHeader = payloadEntity;
+      }
+    }
 
     const { __controller, signal: callerSignal, ...restOptions } = options;
 
@@ -94,8 +127,8 @@
     if (token) {
       headers.Authorization = `Bearer ${token}`;
     }
-    if (entity && !headers['X-Active-Entity']) {
-      headers['X-Active-Entity'] = entity;
+    if (activeEntityHeader && !headers['X-Active-Entity']) {
+      headers['X-Active-Entity'] = activeEntityHeader;
     }
 
     let signal;
@@ -213,11 +246,11 @@
     return promise;
   };
 
-  const post = (path, body) => request(path, { method: 'POST', body: JSON.stringify(body) });
+  const post = (path, body, options = {}) => request(path, { ...options, method: 'POST', body: JSON.stringify(body) });
   const put = (path, body, options = {}) =>
     request(path, { ...options, method: 'PUT', body: JSON.stringify(body) });
-  const patch = (path, body) => request(path, { method: 'PATCH', body: JSON.stringify(body) });
-  const del = (path) => request(path, { method: 'DELETE' });
+  const patch = (path, body, options = {}) => request(path, { ...options, method: 'PATCH', body: JSON.stringify(body) });
+  const del = (path, options = {}) => request(path, { ...options, method: 'DELETE' });
 
   // Lightweight 30-second cache for tab-badge count endpoints.
   const countCache = new Map();
