@@ -316,11 +316,16 @@ const Billing = {
       }
       // Also patch the operations module cache so the work-request detail/board
       // reflects the new invoice link without a full reload.
-      if (typeof WorkflowData !== 'undefined' && WorkflowData.getWorkRequestById) {
-        const wfWr = WorkflowData.getWorkRequestById(record.workRequestId);
-        if (wfWr) {
-          if (!Array.isArray(wfWr.linkedInvoiceIds)) wfWr.linkedInvoiceIds = [];
-          if (!wfWr.linkedInvoiceIds.includes(record.id)) wfWr.linkedInvoiceIds.push(record.id);
+      if (typeof WorkflowData !== 'undefined') {
+        if (typeof WorkflowData.getWorkRequestById === 'function') {
+          const wfWr = WorkflowData.getWorkRequestById(record.workRequestId);
+          if (wfWr) {
+            if (!Array.isArray(wfWr.linkedInvoiceIds)) wfWr.linkedInvoiceIds = [];
+            if (!wfWr.linkedInvoiceIds.includes(record.id)) wfWr.linkedInvoiceIds.push(record.id);
+          }
+        }
+        if (typeof WorkflowData.invalidateRelatedForWorkRequest === 'function') {
+          WorkflowData.invalidateRelatedForWorkRequest(record.workRequestId);
         }
       }
     }

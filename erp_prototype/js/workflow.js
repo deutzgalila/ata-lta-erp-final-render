@@ -881,6 +881,7 @@ const WorkflowData = {
   _relatedByTask: new Map(),
   _relatedLoading: new Map(),
   _relatedTaskLoading: new Map(),
+  _relatedNeedsFresh: new Set(),
 
   _emptyWrRelated() {
     return { invoices: [], disbursements: [], transmittals: [], documents: [] };
@@ -983,9 +984,16 @@ const WorkflowData = {
 
   async loadRelatedForWorkRequest(id) {
     if (!id || this._isTempId(id)) return this._emptyWrRelated();
+    const needsFresh = this._relatedNeedsFresh && this._relatedNeedsFresh.has(id);
+    if (needsFresh) {
+      this._relatedByWr.delete(id);
+      this._relatedLoading.delete(id);
+      this._relatedNeedsFresh.delete(id);
+    }
     if (this._relatedByWr.has(id)) return this._relatedByWr.get(id);
     if (this._relatedLoading.has(id)) return this._relatedLoading.get(id);
-    const promise = window.apiClient.workRequests.getRelated(id)
+    const params = needsFresh ? { _t: Date.now() } : undefined;
+    const promise = window.apiClient.workRequests.getRelated(id, params)
       .then(res => {
         const data = res?.data || {};
         const normalized = {
@@ -1089,6 +1097,12 @@ const WorkflowData = {
   invalidateRelatedForWorkRequest(id) {
     this._relatedByWr.delete(id);
     this._relatedLoading.delete(id);
+    if (id) {
+      if (!this._relatedNeedsFresh) {
+        this._relatedNeedsFresh = new Set();
+      }
+      this._relatedNeedsFresh.add(id);
+    }
   },
 
   invalidateRelatedForTask(id) {
@@ -1101,6 +1115,9 @@ const WorkflowData = {
     this._relatedByTask.clear();
     this._relatedLoading.clear();
     this._relatedTaskLoading.clear();
+    if (this._relatedNeedsFresh) {
+      this._relatedNeedsFresh.clear();
+    }
   }
 };
 

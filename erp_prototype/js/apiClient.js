@@ -258,6 +258,50 @@
     return `${path}?entityId=${encodeURIComponent(entity)}`;
   };
 
+  const extractWrId = (obj) => {
+    if (!obj) return null;
+    return obj.workRequestId || obj.work_request_id || obj.linkedWorkRequestId || obj.linked_work_request_id;
+  };
+
+  const invalidateWrRelated = (wrId) => {
+    if (wrId && typeof WorkflowData !== 'undefined' && typeof WorkflowData.invalidateRelatedForWorkRequest === 'function') {
+      WorkflowData.invalidateRelatedForWorkRequest(wrId);
+    }
+  };
+
+  const handleMutationInvalidation = (res, inputData, type, id) => {
+    try {
+      let wrId = extractWrId(res?.data);
+      if (!wrId) {
+        wrId = extractWrId(inputData);
+      }
+      if (!wrId && id) {
+        if (type === 'invoice' && typeof Billing !== 'undefined' && typeof Billing.getInvoiceById === 'function') {
+          const inv = Billing.getInvoiceById(id);
+          wrId = extractWrId(inv);
+        } else if (type === 'disbursement' && typeof Disbursement !== 'undefined' && typeof Disbursement._getItem === 'function') {
+          const disb = Disbursement._getItem(id);
+          wrId = extractWrId(disb);
+        } else if (type === 'transmittal' && typeof Transmittal !== 'undefined') {
+          const trans = (Transmittal._items || []).find(t => t.id === id) || (Transmittal._detailCache && Transmittal._detailCache[id]);
+          wrId = extractWrId(trans);
+        }
+      }
+      if (wrId) {
+        invalidateWrRelated(wrId);
+      }
+    } catch (e) {
+      console.error('[apiClient] Error during cache invalidation:', e);
+    }
+  };
+
+  const withWrInvalidation = (promise, inputData, type, id) => {
+    return promise.then((res) => {
+      handleMutationInvalidation(res, inputData, type, id);
+      return res;
+    });
+  };
+
   // Resource-specific API helpers (stubs for now)
   window.apiClient = {
     get,
@@ -493,7 +537,10 @@
       archive: (id) => post(`/work-requests/${id}/archive`).then((res) => { invalidateCountCache('workRequests.counts'); return res; }),
       unarchive: (id) => post(`/work-requests/${id}/unarchive`).then((res) => { invalidateCountCache('workRequests.counts'); return res; }),
       remove: (id) => del(`/work-requests/${id}`).then((res) => { invalidateCountCache('workRequests.counts'); return res; }),
-      getRelated: (id) => get(`/work-requests/${id}/related`),
+      getRelated: (id, params) => {
+        const q = params ? new URLSearchParams(params).toString() : '';
+        return get(`/work-requests/${id}/related${q ? '?' + q : ''}`);
+      },
       getTask: (wrId, taskId, queryParams = {}) => {
         const query = new URLSearchParams(queryParams).toString();
         const path = `/work-requests/${wrId}/tasks/${taskId}` + (query ? `?${query}` : '');
@@ -554,13 +601,13 @@
         { data: { active: 0, archived: 0, rejected: 0, templates: 0 } }
       ),
       invalidateCounts: () => invalidateCountCache('invoices.counts'),
-      create: (data) => post('/invoices', data).then((res) => { invalidateCountCache('invoices.counts'); return res; }),
+      create: (data) => withWrInvalidation(post('/invoices', data).then((res) => { invalidateCountCache('invoices.counts'); return res; }), data, 'invoice'),
       get: (id) => get(`/invoices/${id}`),
-      update: (id, data) => put(`/invoices/${id}`, data).then((res) => { invalidateCountCache('invoices.counts'); return res; }),
-      archive: (id) => post(`/invoices/${id}/archive`).then((res) => { invalidateCountCache('invoices.counts'); return res; }),
-      unarchive: (id) => post(`/invoices/${id}/unarchive`).then((res) => { invalidateCountCache('invoices.counts'); return res; }),
-      remove: (id) => del(`/invoices/${id}`).then((res) => { invalidateCountCache('invoices.counts'); return res; }),
-      recordPayment: (id, data) => post(`/invoices/${id}/payments`, data).then((res) => { invalidateCountCache('invoices.counts'); return res; }),
+      update: (id, data) => withWrInvalidation(put(`/invoices/${id}`, data).then((res) => { invalidateCountCache('invoices.counts'); return res; }), data, 'invoice', id),
+      archive: (id) => withWrInvalidation(post(`/invoices/${id}/archive`).then((res) => { invalidateCountCache('invoices.counts'); return res; }), null, 'invoice', id),
+      unarchive: (id) => withWrInvalidation(post(`/invoices/${id}/unarchive`).then((res) => { invalidateCountCache('invoices.counts'); return res; }), null, 'invoice', id),
+      remove: (id) => withWrInvalidation(del(`/invoices/${id}`).then((res) => { invalidateCountCache('invoices.counts'); return res; }), null, 'invoice', id),
+      recordPayment: (id, data) => withWrInvalidation(post(`/invoices/${id}/payments`, data).then((res) => { invalidateCountCache('invoices.counts'); return res; }), data, 'invoice', id),
       pdf: (id) => get(`/invoices/${id}/pdf`),
       voucher: (id) => get(`/invoices/${id}/voucher`),
       listTemplates: () => get('/invoices/templates'),
@@ -582,18 +629,18 @@
         { data: { active: 0, archived: 0, rejected: 0 } }
       ),
       invalidateCounts: () => invalidateCountCache('disbursements.counts'),
-      create: (data) => post('/disbursements', data).then((res) => { invalidateCountCache('disbursements.counts'); return res; }),
+      create: (data) => withWrInvalidation(post('/disbursements', data).then((res) => { invalidateCountCache('disbursements.counts'); return res; }), data, 'disbursement'),
       get: (id) => get(`/disbursements/${id}`),
-      update: (id, data) => put(`/disbursements/${id}`, data).then((res) => { invalidateCountCache('disbursements.counts'); return res; }),
-      archive: (id) => post(`/disbursements/${id}/archive`).then((res) => { invalidateCountCache('disbursements.counts'); return res; }),
-      unarchive: (id) => post(`/disbursements/${id}/unarchive`).then((res) => { invalidateCountCache('disbursements.counts'); return res; }),
-      remove: (id) => del(`/disbursements/${id}`).then((res) => { invalidateCountCache('disbursements.counts'); return res; }),
-      delete: (id) => del(`/disbursements/${id}`).then((res) => { invalidateCountCache('disbursements.counts'); return res; }),
-      submit: (id) => post(`/disbursements/${id}/submit`).then((res) => { invalidateCountCache('disbursements.counts'); return res; }),
-      approve: (id) => post(`/disbursements/${id}/approve`).then((res) => { invalidateCountCache('disbursements.counts'); return res; }),
-      release: (id) => post(`/disbursements/${id}/release`).then((res) => { invalidateCountCache('disbursements.counts'); return res; }),
-      fund: (id) => post(`/disbursements/${id}/fund`).then((res) => { invalidateCountCache('disbursements.counts'); return res; }),
-      reject: (id, data) => post(`/disbursements/${id}/reject`, data).then((res) => { invalidateCountCache('disbursements.counts'); return res; }),
+      update: (id, data) => withWrInvalidation(put(`/disbursements/${id}`, data).then((res) => { invalidateCountCache('disbursements.counts'); return res; }), data, 'disbursement', id),
+      archive: (id) => withWrInvalidation(post(`/disbursements/${id}/archive`).then((res) => { invalidateCountCache('disbursements.counts'); return res; }), null, 'disbursement', id),
+      unarchive: (id) => withWrInvalidation(post(`/disbursements/${id}/unarchive`).then((res) => { invalidateCountCache('disbursements.counts'); return res; }), null, 'disbursement', id),
+      remove: (id) => withWrInvalidation(del(`/disbursements/${id}`).then((res) => { invalidateCountCache('disbursements.counts'); return res; }), null, 'disbursement', id),
+      delete: (id) => withWrInvalidation(del(`/disbursements/${id}`).then((res) => { invalidateCountCache('disbursements.counts'); return res; }), null, 'disbursement', id),
+      submit: (id) => withWrInvalidation(post(`/disbursements/${id}/submit`).then((res) => { invalidateCountCache('disbursements.counts'); return res; }), null, 'disbursement', id),
+      approve: (id) => withWrInvalidation(post(`/disbursements/${id}/approve`).then((res) => { invalidateCountCache('disbursements.counts'); return res; }), null, 'disbursement', id),
+      release: (id) => withWrInvalidation(post(`/disbursements/${id}/release`).then((res) => { invalidateCountCache('disbursements.counts'); return res; }), null, 'disbursement', id),
+      fund: (id) => withWrInvalidation(post(`/disbursements/${id}/fund`).then((res) => { invalidateCountCache('disbursements.counts'); return res; }), null, 'disbursement', id),
+      reject: (id, data) => withWrInvalidation(post(`/disbursements/${id}/reject`, data).then((res) => { invalidateCountCache('disbursements.counts'); return res; }), data, 'disbursement', id),
       listTemplates: () => get('/disbursements/templates'),
       createTemplate: (data) => post('/disbursements/templates', data),
       updateTemplate: (id, data) => put(`/disbursements/templates/${id}`, data),
@@ -613,15 +660,15 @@
         { data: { active: 0, archived: 0, total: 0 } }
       ),
       invalidateCounts: () => invalidateCountCache('transmittals.counts'),
-      create: (data) => post('/transmittals', data).then((res) => { invalidateCountCache('transmittals.counts'); return res; }),
+      create: (data) => withWrInvalidation(post('/transmittals', data).then((res) => { invalidateCountCache('transmittals.counts'); return res; }), data, 'transmittal'),
       get: (id) => get(`/transmittals/${id}`),
-      update: (id, data) => put(`/transmittals/${id}`, data).then((res) => { invalidateCountCache('transmittals.counts'); return res; }),
-      send: (id, data) => post(`/transmittals/${id}/send`, data).then((res) => { invalidateCountCache('transmittals.counts'); return res; }),
-      approve: (id) => post(`/transmittals/${id}/approve`).then((res) => { invalidateCountCache('transmittals.counts'); return res; }),
-      acknowledge: (id, data) => post(`/transmittals/${id}/acknowledge`, data).then((res) => { invalidateCountCache('transmittals.counts'); return res; }),
-      archive: (id) => post(`/transmittals/${id}/archive`).then((res) => { invalidateCountCache('transmittals.counts'); return res; }),
-      unarchive: (id) => post(`/transmittals/${id}/unarchive`).then((res) => { invalidateCountCache('transmittals.counts'); return res; }),
-      remove: (id) => del(`/transmittals/${id}`).then((res) => { invalidateCountCache('transmittals.counts'); return res; }),
+      update: (id, data) => withWrInvalidation(put(`/transmittals/${id}`, data).then((res) => { invalidateCountCache('transmittals.counts'); return res; }), data, 'transmittal', id),
+      send: (id, data) => withWrInvalidation(post(`/transmittals/${id}/send`, data).then((res) => { invalidateCountCache('transmittals.counts'); return res; }), data, 'transmittal', id),
+      approve: (id) => withWrInvalidation(post(`/transmittals/${id}/approve`).then((res) => { invalidateCountCache('transmittals.counts'); return res; }), null, 'transmittal', id),
+      acknowledge: (id, data) => withWrInvalidation(post(`/transmittals/${id}/acknowledge`, data).then((res) => { invalidateCountCache('transmittals.counts'); return res; }), data, 'transmittal', id),
+      archive: (id) => withWrInvalidation(post(`/transmittals/${id}/archive`).then((res) => { invalidateCountCache('transmittals.counts'); return res; }), null, 'transmittal', id),
+      unarchive: (id) => withWrInvalidation(post(`/transmittals/${id}/unarchive`).then((res) => { invalidateCountCache('transmittals.counts'); return res; }), null, 'transmittal', id),
+      remove: (id) => withWrInvalidation(del(`/transmittals/${id}`).then((res) => { invalidateCountCache('transmittals.counts'); return res; }), null, 'transmittal', id),
     },
 
     reports: {
