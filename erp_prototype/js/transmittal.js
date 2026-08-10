@@ -544,7 +544,7 @@ const Transmittal = {
       receivedByName: t.received_by_name || t.receivedByName || '',
       boardOrder: t.board_order || t.boardOrder,
       pendingChangeId: t.pending_change_id || t.pendingChangeId,
-      items: (t.items || []).map(i => this.normalizeTransmittalItem(i))
+      items: (t.items || t.transmittal_items || t.transmittalItems || []).map(i => this.normalizeTransmittalItem(i))
     };
   },
 
@@ -602,12 +602,14 @@ const Transmittal = {
     if (!id) return null;
     if (this._items) {
       const cached = this._items.find(t => t.id === id);
-      if (cached) return cached;
+      if (cached && Array.isArray(cached.items) && cached.items.length > 0) return cached;
     }
     if (Auth.activeEntity !== 'ALL') {
       try {
         const res = await window.apiClient.transmittals.get(id);
-        return res.data ? this.normalizeTransmittal(res.data) : null;
+        const trans = res.data ? this.normalizeTransmittal(res.data) : null;
+        if (trans) this._replaceInCache(id, trans);
+        return trans;
       } catch (e) {
         return null;
       }
@@ -616,7 +618,11 @@ const Transmittal = {
     for (const code of codes) {
       try {
         const res = await this._callWithEntity(code, () => window.apiClient.transmittals.get(id));
-        if (res.data) return this.normalizeTransmittal(res.data, code);
+        if (res.data) {
+          const trans = this.normalizeTransmittal(res.data, code);
+          if (trans) this._replaceInCache(id, trans);
+          return trans;
+        }
       } catch (e) {
         // not found in this entity; continue
       }
@@ -1889,19 +1895,18 @@ const Transmittal = {
     // Tracking Number
     const tnGroup = el('div', { class: 'notion-prop' });
     tnGroup.appendChild(el('label', { html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h3M4 17v3h3M20 7V4h-3M20 17v3h-3M9 9h6v6H9z"/></svg> Tracking Number' }));
-    const tnWrap = el('div', { class: 'notion-input-with-btn' });
-    const tnInput = el('input', { type: 'text', name: 'trackingNumber', class: 'notion-prop-input', readonly: true, value: existing ? existing.trackingNumber : '' });
-    tnInput.style.flex = '1';
-    tnWrap.appendChild(tnInput);
+    const tnInput = el('input', {
+      type: 'text',
+      name: 'trackingNumber',
+      class: 'notion-prop-input',
+      readonly: true,
+      value: existing ? existing.trackingNumber : '',
+      style: 'background: #f1f5f9; cursor: not-allowed; color: #64748b;'
+    });
     if (!existing) {
       this.nextTrackingNumber(entity === 'ALL' ? (Auth.user.entities[0] || 'ATA') : entity).then(n => { tnInput.value = n; }).catch(() => {});
     }
-    const genBtn = el('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: 'Generate' });
-    genBtn.addEventListener('click', () => {
-      this.nextTrackingNumber(entity === 'ALL' ? (Auth.user.entities[0] || 'ATA') : entity).then(n => { tnInput.value = n; }).catch(() => {});
-    });
-    tnWrap.appendChild(genBtn);
-    tnGroup.appendChild(tnWrap);
+    tnGroup.appendChild(tnInput);
     propsGrid.appendChild(tnGroup);
 
     form.appendChild(propsGrid);
@@ -2898,7 +2903,7 @@ const Transmittal = {
       }
       .category-cell {
         font-weight: bold;
-        border-right: 1px solid #000;
+        border-right: 2px solid #000;
         width: 35%;
       }
       .document-cell {

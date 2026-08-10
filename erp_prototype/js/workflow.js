@@ -3498,7 +3498,7 @@ const Workflow = {
       type: 'text', name: 'trackingNumber',
       value: '',
       readonly: true,
-      style: 'background: #f1f5f9; cursor: default;'
+      style: 'background: #f1f5f9; cursor: not-allowed; color: #64748b;'
     });
     Utils.nextTrackingNumber(recordEntity).then(n => { tnInput.value = n; }).catch(() => {});
     tnGroup.appendChild(tnInput);

@@ -902,7 +902,7 @@ const getWorkRequestRelated = async ({ id, entityId }) => {
         .order('created_at', { ascending: false }),
       supabaseAdmin
         .from('transmittals')
-        .select('*, clients(name)')
+        .select('*, clients(name), transmittal_items(*)')
         .eq('entity_id', relatedEntityId)
         .eq('work_request_id', id)
         .is('deleted_at', null)
@@ -916,10 +916,18 @@ const getWorkRequestRelated = async ({ id, entityId }) => {
         .order('created_at', { ascending: false }),
     ]);
 
+  const mappedTransmittals = (transmittals || []).map(t => {
+    const { transmittal_items, ...rest } = t;
+    return {
+      ...rest,
+      items: transmittal_items || [],
+    };
+  });
+
   return {
     invoices: invoices || [],
     disbursements: disbursements || [],
-    transmittals: transmittals || [],
+    transmittals: mappedTransmittals,
     documents: documents || [],
   };
 };
