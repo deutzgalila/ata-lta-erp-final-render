@@ -392,6 +392,14 @@ const Transmittal = {
     this._invalidateCountsAndSidebar();
     if (record?.workRequestId) {
       this._invalidateWorkRequestRelated(record.workRequestId);
+      // If the user is currently viewing the linked work request, refresh it
+      // in place so the related section shows the new/updated transmittal
+      // without requiring another navigation.
+      if (typeof window !== 'undefined' && window.location?.hash?.includes(record.workRequestId)) {
+        if (typeof App !== 'undefined' && typeof App.handleRoute === 'function') {
+          App.handleRoute();
+        }
+      }
     }
   },
 

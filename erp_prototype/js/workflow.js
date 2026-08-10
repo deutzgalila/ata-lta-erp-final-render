@@ -1011,9 +1011,9 @@ const WorkflowData = {
         if (this._isAbortError(err)) {
           return this._relatedByWr.get(id) || this._emptyWrRelated();
         }
-        const fallback = this._emptyWrRelated();
-        this._relatedByWr.set(id, fallback);
-        return fallback;
+        // Do not cache an empty fallback on failure; leave any existing data in
+        // place and let the next caller retry.
+        return this._emptyWrRelated();
       })
       .finally(() => {
         this._relatedLoading.delete(id);
@@ -1052,9 +1052,7 @@ const WorkflowData = {
         if (this._isAbortError(err)) {
           return this._relatedByTask.get(id) || this._emptyTaskRelated();
         }
-        const fallback = this._emptyTaskRelated();
-        this._relatedByTask.set(id, fallback);
-        return fallback;
+        return this._emptyTaskRelated();
       })
       .finally(() => {
         this._relatedTaskLoading.delete(id);
@@ -1066,11 +1064,11 @@ const WorkflowData = {
   getRelatedForWorkRequest(id) {
     if (!id || this._isTempId(id)) return this._emptyWrRelated();
     if (this._relatedByWr.has(id)) return this._relatedByWr.get(id);
-    // Cold fallback: empty cache, then refresh from the backend asynchronously.
-    const fallback = this._emptyWrRelated();
-    this._relatedByWr.set(id, fallback);
+    // Cold fallback: do NOT cache the empty fallback so a subsequent load
+    // (e.g. after the route finishes awaiting the network) always replaces it
+    // with real data.
     this.loadRelatedForWorkRequest(id).catch(() => {});
-    return fallback;
+    return this._emptyWrRelated();
   },
 
   getRelatedForTask(id) {
@@ -1089,11 +1087,9 @@ const WorkflowData = {
         return filtered;
       }
     }
-    // Cold fallback: empty cache, then refresh from the backend asynchronously.
-    const fallback = this._emptyTaskRelated();
-    this._relatedByTask.set(id, fallback);
+    // Cold fallback: do NOT cache the empty fallback.
     this.loadRelatedForTask(id).catch(() => {});
-    return fallback;
+    return this._emptyTaskRelated();
   },
 
   invalidateRelatedForWorkRequest(id) {
