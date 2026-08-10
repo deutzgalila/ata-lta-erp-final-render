@@ -10145,17 +10145,6 @@ const Workflow = {
           editTaskHeaderBtn.addEventListener('click', (e) => { e.stopPropagation(); this.showEditTaskModal(t.id, () => App.handleRoute()); });
         }
 
-        finActions.forEach(act => {
-          const btn = el('button', {
-            class: 'btn btn-secondary btn-xs',
-            html: `${act.toolbarIconHtml} ${act.title}`
-          });
-          if (!disableIfPending(btn, wr)) {
-            btn.addEventListener('click', (e) => { e.stopPropagation(); act.handler(); });
-          }
-          detailToolbar.appendChild(btn);
-        });
-
         detailToolbar.appendChild(editTaskHeaderBtn);
 
         // Attached Documents Section
@@ -10442,7 +10431,24 @@ const Workflow = {
 
     // Invoices Column
     const invCol = el('div', { class: 'financial-card' });
-    invCol.appendChild(el('h4', { text: '📄 Invoices / Billings' }));
+    const invHeader = el('div', { class: 'detail-section-title', style: 'margin-bottom: 8px;' });
+    invHeader.appendChild(el('h4', { text: '📄 Invoices / Billings', style: 'margin:0;' }));
+    invCol.appendChild(invHeader);
+
+    if (!isArchived && Auth.can('billing:edit')) {
+      const addInvBtn = el('button', { class: 'btn btn-primary btn-xs btn-add-inline', text: '+ Generate Billing' });
+      if (!disableIfPending(addInvBtn, wr)) {
+        addInvBtn.addEventListener('click', (e) => { e.stopPropagation(); this.openGenerateBillingModal(wr, null); });
+      }
+      invHeader.appendChild(addInvBtn);
+    } else if (!isArchived && Auth.can('billing:request')) {
+      const reqInvBtn = el('button', { class: 'btn btn-secondary btn-xs btn-add-inline', text: '+ Request Billing' });
+      if (!disableIfPending(reqInvBtn, wr)) {
+        reqInvBtn.addEventListener('click', (e) => { e.stopPropagation(); this.submitOperationsRequest('billing', wr); });
+      }
+      invHeader.appendChild(reqInvBtn);
+    }
+
     if (invoices.length === 0) {
       invCol.appendChild(renderEmptyStateV2({
         variant: 'card-empty',
@@ -10494,7 +10500,24 @@ const Workflow = {
 
     // Disbursements Column
     const disbCol = el('div', { class: 'financial-card' });
-    disbCol.appendChild(el('h4', { text: '💸 Expenses / Disbursements' }));
+    const disbHeader = el('div', { class: 'detail-section-title', style: 'margin-bottom: 8px;' });
+    disbHeader.appendChild(el('h4', { text: '💸 Expenses / Disbursements', style: 'margin:0;' }));
+    disbCol.appendChild(disbHeader);
+
+    if (!isArchived && Auth.can('disbursement:create')) {
+      const addDisbBtn = el('button', { class: 'btn btn-primary btn-xs btn-add-inline', text: '+ Generate Disbursement' });
+      if (!disableIfPending(addDisbBtn, wr)) {
+        addDisbBtn.addEventListener('click', (e) => { e.stopPropagation(); this.openGenerateDisbursementModal(wr, null); });
+      }
+      disbHeader.appendChild(addDisbBtn);
+    } else if (!isArchived && Auth.can('disbursement:request')) {
+      const reqDisbBtn = el('button', { class: 'btn btn-secondary btn-xs btn-add-inline', text: '+ Request Disbursement' });
+      if (!disableIfPending(reqDisbBtn, wr)) {
+        reqDisbBtn.addEventListener('click', (e) => { e.stopPropagation(); this.submitOperationsRequest('disbursement', wr); });
+      }
+      disbHeader.appendChild(reqDisbBtn);
+    }
+
     if (disbursements.length === 0) {
       disbCol.appendChild(renderEmptyStateV2({
         variant: 'card-empty',
@@ -10536,7 +10559,24 @@ const Workflow = {
 
     // Transmittals Column
     const transCol = el('div', { class: 'financial-card' });
-    transCol.appendChild(el('h4', { text: '📦 Transmittals' }));
+    const transHeader = el('div', { class: 'detail-section-title', style: 'margin-bottom: 8px;' });
+    transHeader.appendChild(el('h4', { text: '📦 Transmittals', style: 'margin:0;' }));
+    transCol.appendChild(transHeader);
+
+    if (!isArchived && Auth.can('transmittal:create')) {
+      const addTransBtn = el('button', { class: 'btn btn-primary btn-xs btn-add-inline', text: '+ Generate Transmittal' });
+      if (!disableIfPending(addTransBtn, wr)) {
+        addTransBtn.addEventListener('click', (e) => { e.stopPropagation(); this.openGenerateTransmittalModal(wr, null); });
+      }
+      transHeader.appendChild(addTransBtn);
+    } else if (!isArchived && Auth.can('transmittal:request')) {
+      const reqTransBtn = el('button', { class: 'btn btn-secondary btn-xs btn-add-inline', text: '+ Request Transmittal' });
+      if (!disableIfPending(reqTransBtn, wr)) {
+        reqTransBtn.addEventListener('click', (e) => { e.stopPropagation(); this.submitOperationsRequest('transmittal', wr); });
+      }
+      transHeader.appendChild(reqTransBtn);
+    }
+
     if (transmittals.length === 0) {
       transCol.appendChild(renderEmptyStateV2({
         variant: 'card-empty',
