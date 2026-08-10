@@ -314,8 +314,7 @@ const Transmittal = {
       errorTitle: 'Send Failed'
     });
     if (runResult.success) {
-      this._invalidateWorkRequestRelated(t?.workRequestId);
-      this._invalidateCountsAndSidebar();
+      this._refreshAfterMutation(t);
     } else if (snapshot) {
       this._updateCachedItem(id, snapshot);
     }
@@ -340,8 +339,7 @@ const Transmittal = {
       errorTitle: 'Approval Failed'
     });
     if (runResult.success) {
-      this._invalidateWorkRequestRelated(t?.workRequestId);
-      this._invalidateCountsAndSidebar();
+      this._refreshAfterMutation(t);
     } else if (snapshot) {
       this._updateCachedItem(id, snapshot);
     }
@@ -370,8 +368,7 @@ const Transmittal = {
       errorTitle: 'Acknowledge Failed'
     });
     if (runResult.success) {
-      this._invalidateWorkRequestRelated(t?.workRequestId);
-      this._invalidateCountsAndSidebar();
+      this._refreshAfterMutation(t);
     } else if (snapshot) {
       this._updateCachedItem(id, snapshot);
     }
@@ -381,6 +378,20 @@ const Transmittal = {
   _invalidateWorkRequestRelated(workRequestId) {
     if (workRequestId && typeof WorkflowData !== 'undefined' && typeof WorkflowData.invalidateRelatedForWorkRequest === 'function') {
       WorkflowData.invalidateRelatedForWorkRequest(workRequestId);
+    }
+  },
+
+  /**
+   * Central post-mutation cache refresh. Marks the module cache as needing a
+   * fresh server fetch, invalidates backend-derived counts/sidebar badges, and
+   * clears the parent work-request related cache so concurrent users always see
+   * the latest linked records.
+   */
+  _refreshAfterMutation(record) {
+    this._needsFreshFetch = true;
+    this._invalidateCountsAndSidebar();
+    if (record?.workRequestId) {
+      this._invalidateWorkRequestRelated(record.workRequestId);
     }
   },
 
@@ -424,13 +435,8 @@ const Transmittal = {
         }
         this._updateCachedItem(id, norm);
       }
+      this._refreshAfterMutation((this._items || []).find(t => t.id === id));
       this._clearActiveSkipGeneration(gen);
-      if (typeof window.apiClient?.transmittals?.invalidateCounts === 'function') {
-        window.apiClient.transmittals.invalidateCounts();
-      }
-      if (typeof App !== 'undefined' && typeof App.updateSidebarNotifications === 'function') {
-        App.updateSidebarNotifications().catch(() => {});
-      }
       App.handleRoute();
       return res;
     } catch (e) {
@@ -474,17 +480,8 @@ const Transmittal = {
 
     try {
       const res = await apiCall();
+      this._refreshAfterMutation(originalItem);
       this._clearActiveSkipGeneration(gen);
-      if (typeof window.apiClient?.transmittals?.invalidateCounts === 'function') {
-        window.apiClient.transmittals.invalidateCounts();
-      }
-      if (typeof Dashboard !== 'undefined') {
-        if (typeof Dashboard._dataCache !== 'undefined') Dashboard._dataCache = null;
-        if (typeof Dashboard.invalidateCache === 'function') Dashboard.invalidateCache();
-      }
-      if (typeof App !== 'undefined' && typeof App.updateSidebarNotifications === 'function') {
-        App.updateSidebarNotifications().catch(() => {});
-      }
       App.handleRoute();
       return res;
     } catch (e) {
@@ -1621,7 +1618,7 @@ const Transmittal = {
             errorTitle: 'Update Failed'
           }).then(runResult => {
             if (runResult.success) {
-              self._invalidateCountsAndSidebar();
+              self._refreshAfterMutation(item);
             } else if (snapshot) {
               self._updateCachedItem(item.id, snapshot);
             }
@@ -1672,7 +1669,7 @@ const Transmittal = {
             errorTitle: isSend ? 'Send Failed' : 'Acknowledge Failed'
           });
           if (runResult.success) {
-            self._invalidateCountsAndSidebar();
+            self._refreshAfterMutation(item);
           } else if (snapshot) {
             self._updateCachedItem(item.id, snapshot);
           }
@@ -2108,12 +2105,7 @@ const Transmittal = {
             savedTransmittal = this.normalizeTransmittal(res?.data);
             if (savedTransmittal) {
               this._replaceInCache(localId, savedTransmittal);
-            }
-            if (typeof Dashboard !== 'undefined' && typeof Dashboard.invalidateCache === 'function') {
-              Dashboard.invalidateCache();
-            }
-            if (savedTransmittal?.workRequestId && typeof WorkflowData !== 'undefined' && typeof WorkflowData.invalidateRelatedForWorkRequest === 'function') {
-              WorkflowData.invalidateRelatedForWorkRequest(savedTransmittal.workRequestId);
+              this._refreshAfterMutation(savedTransmittal);
             }
 
             // Fulfill pending operations request if any.
@@ -2167,10 +2159,7 @@ const Transmittal = {
             this._items = [savedTransmittal];
             this._entity = this._getActiveEntity();
           }
-          this._invalidateWorkRequestRelated(savedTransmittal.workRequestId);
-        }
-        if (typeof Dashboard !== 'undefined' && typeof Dashboard.invalidateCache === 'function') {
-          Dashboard.invalidateCache();
+          this._refreshAfterMutation(savedTransmittal);
         }
       } catch (e) {
         Workflow.showMessage('Update Transmittal', e.message || 'Unable to update transmittal.', 'error');
@@ -3069,11 +3058,7 @@ const Transmittal = {
               }
             },
             onAfterConfirm: async () => {
-              this._invalidateWorkRequestRelated(item.workRequestId);
-              if (typeof window.apiClient?.transmittals?.invalidateCounts === 'function') {
-                window.apiClient.transmittals.invalidateCounts();
-              }
-              App.updateSidebarNotifications().catch(() => {});
+              this._refreshAfterMutation(item);
               if ((this.view === 'detail' && this.detailId === id) || (this.view === 'form' && this.detailId === id)) {
                 location.hash = '#transmittal';
                 return;
@@ -3137,10 +3122,9 @@ const Transmittal = {
               : `${eligible.length} transmittal(s) archived.`,
             errorTitle: 'Archive Failed',
             onAfterConfirm: async () => {
-              if (typeof window.apiClient?.transmittals?.invalidateCounts === 'function') {
-                window.apiClient.transmittals.invalidateCounts();
+              for (const t of eligible) {
+                this._refreshAfterMutation(t);
               }
-              App.updateSidebarNotifications().catch(() => {});
               if (ids.includes(this.detailId) && (this.view === 'detail' || this.view === 'form')) {
                 location.hash = '#transmittal';
                 return;
@@ -3183,11 +3167,7 @@ const Transmittal = {
               }
             },
             onAfterConfirm: async () => {
-              this._invalidateWorkRequestRelated(item.workRequestId);
-              if (typeof window.apiClient?.transmittals?.invalidateCounts === 'function') {
-                window.apiClient.transmittals.invalidateCounts();
-              }
-              App.updateSidebarNotifications().catch(() => {});
+              this._refreshAfterMutation(item);
               if ((this.view === 'detail' && this.detailId === id) || (this.view === 'form' && this.detailId === id)) {
                 location.hash = '#transmittal';
                 return;
@@ -3256,10 +3236,9 @@ const Transmittal = {
               : `${eligible.length} transmittal(s) restored.`,
             errorTitle: 'Restore Failed',
             onAfterConfirm: async () => {
-              if (typeof window.apiClient?.transmittals?.invalidateCounts === 'function') {
-                window.apiClient.transmittals.invalidateCounts();
+              for (const t of eligible) {
+                this._refreshAfterMutation(t);
               }
-              App.updateSidebarNotifications().catch(() => {});
               if (ids.includes(this.detailId) && (this.view === 'detail' || this.view === 'form')) {
                 location.hash = '#transmittal';
                 return;
@@ -3402,10 +3381,7 @@ const Transmittal = {
                         }
                       },
                       onAfterConfirm: async () => {
-                        if (typeof window.apiClient?.transmittals?.invalidateCounts === 'function') {
-                          window.apiClient.transmittals.invalidateCounts();
-                        }
-                        App.updateSidebarNotifications().catch(() => {});
+                        self._refreshAfterMutation(t);
                         if ((self.view === 'detail' && self.detailId === t.id) || (self.view === 'form' && self.detailId === t.id)) {
                           location.hash = '#transmittal';
                           return;

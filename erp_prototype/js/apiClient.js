@@ -617,7 +617,10 @@
     },
 
     tasks: {
-      getRelated: (id) => get(`/tasks/${id}/related`),
+      getRelated: (id, params) => {
+        const q = params ? new URLSearchParams(params).toString() : '';
+        return get(`/tasks/${id}/related${q ? '?' + q : ''}`);
+      },
     },
 
     invoices: {

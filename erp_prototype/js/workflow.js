@@ -992,7 +992,9 @@ const WorkflowData = {
     }
     if (this._relatedByWr.has(id)) return this._relatedByWr.get(id);
     if (this._relatedLoading.has(id)) return this._relatedLoading.get(id);
-    const params = needsFresh ? { _t: Date.now() } : undefined;
+    // Always cache-bust network fetches so a hard refresh never reuses a
+    // browser/service-worker response from before a mutation.
+    const params = { _t: Date.now() };
     const promise = window.apiClient.workRequests.getRelated(id, params)
       .then(res => {
         const data = res?.data || {};
@@ -1037,7 +1039,7 @@ const WorkflowData = {
         return filtered;
       }
       // No parent WR available; fall back to the task endpoint.
-      const res = await window.apiClient.tasks.getRelated(id);
+      const res = await window.apiClient.tasks.getRelated(id, { _t: Date.now() });
       const data = res?.data || {};
       const normalized = {
         invoices: (data.invoices || []).map(inv => this._normalizeRelatedInvoice(inv)),

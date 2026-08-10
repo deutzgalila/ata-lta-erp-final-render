@@ -60,6 +60,34 @@ describe('/v1/transmittals', () => {
     expect(res.body.data.approved).toBe(false);
   });
 
+  it('includes transmittal items in the list response', async () => {
+    const token = registerUser({
+      email: 'doc2@ata-lta.ph',
+      name: 'Doc Staff Two',
+      role: 'Documentation',
+      entities: ['ATA'],
+    });
+
+    const createRes = await request(app)
+      .post('/v1/transmittals')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .send(validTransmittal)
+      .expect(201);
+
+    const listRes = await request(app)
+      .get('/v1/transmittals')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+
+    const row = (listRes.body.data || []).find(t => t.id === createRes.body.data.id);
+    expect(row).toBeDefined();
+    expect(Array.isArray(row.items)).toBe(true);
+    expect(row.items.length).toBe(validTransmittal.items.length);
+    expect(row.items[0].description).toBe(validTransmittal.items[0].description);
+  });
+
   it('blocks a non-admin user from approving a transmittal', async () => {
     const token = registerUser({
       email: 'doc@ata-lta.ph',

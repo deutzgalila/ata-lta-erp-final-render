@@ -70,9 +70,26 @@ const listTransmittals = async ({ entityId, filters = {} }) => {
     : { data: [] };
   const entityCodeMap = new Map((entitiesData || []).map((e) => [e.id, e.code]));
 
+  const ids = rows.map((row) => row.id);
+  const { data: allItems } = ids.length
+    ? await supabaseAdmin
+        .from('transmittal_items')
+        .select('*')
+        .in('transmittal_id', ids)
+        .order('sort_order', { ascending: true })
+    : { data: [] };
+
+  const itemsByTransmittal = new Map();
+  for (const item of allItems || []) {
+    const list = itemsByTransmittal.get(item.transmittal_id) || [];
+    list.push(item);
+    itemsByTransmittal.set(item.transmittal_id, list);
+  }
+
   const mapped = rows.map((row) => ({
     ...row,
     entity_code: entityCodeMap.get(row.entity_id) || row.entity_id,
+    items: itemsByTransmittal.get(row.id) || [],
   }));
 
   return { data: mapped, count: count || 0 };
