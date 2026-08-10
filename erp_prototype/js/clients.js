@@ -817,6 +817,7 @@ const Clients = {
     // Client columns headers
     headerRow.appendChild(el('th', { class: 'jira-backlog-col-header', text: 'Entity', style: 'width: 80px;' }));
     headerRow.appendChild(el('th', { class: 'jira-backlog-col-header', text: 'Retainer', style: 'width: 80px;' }));
+    headerRow.appendChild(el('th', { class: 'jira-backlog-col-header', text: 'Retainer Fee', style: 'width: 110px;' }));
     headerRow.appendChild(el('th', { class: 'jira-backlog-col-header', text: 'TIN', style: 'width: 140px;' }));
     headerRow.appendChild(el('th', { class: 'jira-backlog-col-header', text: 'RDO Code', style: 'width: 90px;' }));
     headerRow.appendChild(el('th', { class: 'jira-backlog-col-header', text: 'Point of Contact', style: 'width: 160px;' }));
@@ -976,6 +977,10 @@ const Clients = {
       }
       tr.appendChild(tdRetainer);
 
+      // 4a. Retainer Fee
+      const tdRetainerFee = el('td', { text: (isRetainer && client.retainerFee != null) ? formatPHP(client.retainerFee) : '—', style: 'text-align: right;' });
+      tr.appendChild(tdRetainerFee);
+
       // 5. TIN
       const tdTin = el('td', { text: client.tin || '—' });
       tr.appendChild(tdTin);
@@ -1083,7 +1088,7 @@ const Clients = {
 
       // Accordion Row
       const accordionRow = el('tr', { class: 'jira-accordion-tr hidden' });
-      const accordionTd = el('td', { colspan: isAdmin ? '12' : '10', class: 'jira-accordion-td' });
+      const accordionTd = el('td', { colspan: isAdmin ? '13' : '11', class: 'jira-accordion-td' });
       accordionRow.appendChild(accordionTd);
       tbody.appendChild(accordionRow);
 
@@ -1108,6 +1113,10 @@ const Clients = {
       addGridRow('RDO Code', client.rdoCode);
       addGridRow('Entity', client.entity);
       addGridRow('Business Address', client.address);
+      addGridRow('Retainer status', isRetainer ? 'Yes' : 'No');
+      if (isRetainer) {
+        addGridRow('Retainer\'s Fee', client.retainerFee != null ? formatPHP(client.retainerFee) : '—');
+      }
 
       const relCos = (client.relatedCompanies || []).map(rc => {
         const rcClient = window.apiClient.clientCache.getById(rc.clientId);
@@ -1359,6 +1368,22 @@ const Clients = {
     retainerProp.appendChild(retainerLabel);
     propsGrid.appendChild(retainerProp);
 
+    const feeProp = el('div', { class: 'notion-prop', style: (client && (client.retainer || client.isRetainer)) ? '' : 'display: none;' });
+    feeProp.appendChild(el('label', { html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Retainer\'s Fee (PHP)' }));
+    const feeInput = el('input', { type: 'number', step: '0.01', min: '0', name: 'retainerFee', class: 'notion-prop-input', placeholder: 'e.g. 5000.00', value: client && client.retainerFee != null ? client.retainerFee : '' });
+    feeProp.appendChild(feeInput);
+    propsGrid.appendChild(feeProp);
+
+    retainerCb.addEventListener('change', () => {
+      if (retainerCb.checked) {
+        feeProp.style.display = '';
+        feeInput.focus();
+      } else {
+        feeProp.style.display = 'none';
+        feeInput.value = '';
+      }
+    });
+
     form.appendChild(propsGrid);
 
     // Address free-form
@@ -1582,6 +1607,16 @@ const Clients = {
 
     const contactPerson = (data.contactPerson || '').trim();
 
+    const retainer = !!form.querySelector('input[name="retainer"]:checked');
+    if (retainer) {
+      const feeField = form.querySelector('input[name="retainerFee"]');
+      const parsedFee = parseFloat(feeField.value);
+      if (!feeField.value || isNaN(parsedFee) || parsedFee < 0) {
+        showFieldError(feeField, 'Retainer\'s Fee is required and must be a non-negative number.');
+        return;
+      }
+    }
+
     const record = {
       name: data.name.trim(),
       tin: data.tin.trim(),
@@ -1589,7 +1624,8 @@ const Clients = {
       address: data.address ? data.address.trim() : '',
       tradeName: data.tradeName ? data.tradeName.trim() : '',
       entity: data.entity || (Auth.activeEntity !== 'ALL' ? Auth.activeEntity : 'ATA'),
-      retainer: !!form.querySelector('input[name="retainer"]:checked'),
+      retainer,
+      retainerFee: retainer ? parseFloat(form.querySelector('input[name="retainerFee"]')?.value || '0') : null,
       contactDetails,
       relatedCompanies: this.toApiRelatedCompanies(relatedCompanies),
       contactUserId: null,
