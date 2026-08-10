@@ -1178,11 +1178,20 @@ const Clients = {
     container.appendChild(footer);
 
     if (isAdmin) {
+      const footerLeftContainer = el('div', { style: 'display: flex; gap: 8px;' });
       const footerLeft = el('button', { class: 'jira-footer-create-btn', html: '<span style="font-size:14px; font-weight:bold;">+</span> Create' });
       footerLeft.addEventListener('click', () => {
         this.showForm();
       });
-      footer.appendChild(footerLeft);
+      footerLeftContainer.appendChild(footerLeft);
+
+      const importBtn = el('button', { class: 'jira-footer-create-btn', html: '<span style="font-size:14px; font-weight:bold;">📥</span> Import' });
+      importBtn.addEventListener('click', () => {
+        this.showImportModal();
+      });
+      footerLeftContainer.appendChild(importBtn);
+
+      footer.appendChild(footerLeftContainer);
     } else {
       footer.appendChild(el('div'));
     }
@@ -2236,5 +2245,368 @@ const Clients = {
         }
       ]
     });
+  },
+
+  showImportModal() {
+    if (Auth.user?.role !== 'Admin') {
+      Workflow.showMessage('Access Denied', 'Only admin accounts can import clients.', 'danger');
+      return;
+    }
+
+    const wrapper = el('div', { style: 'display: flex; flex-direction: column; gap: 16px; min-width: 450px;' });
+
+    // Step 1: Info and download template link
+    const infoText = el('p', { 
+      style: 'font-size: 13px; color: var(--color-text-muted); line-height: 1.5;', 
+      text: 'Select a CSV file to import multiple clients at once. Please download the template to ensure your headers match the system requirements.' 
+    });
+    wrapper.appendChild(infoText);
+
+    const downloadBtn = el('button', { 
+      type: 'button', 
+      class: 'btn btn-outline-primary btn-sm', 
+      style: 'align-self: flex-start; margin-bottom: 8px;', 
+      html: '📥 Download CSV Template' 
+    });
+    downloadBtn.addEventListener('click', () => {
+      const headers = ["Name", "TIN", "Entity", "On Retainer", "Retainer's Fee", "RDO Code", "Trade Name", "Business Address", "Point of Contact"];
+      const rows = [
+        ["Acme Corp", "123-456-789-00001", "ATA", "yes", "5000.00", "034A", "Acme DBA", "123 Makati Ave, Makati City", "John Doe"],
+        ["Beta Link Co", "987-654-321-00002", "LTA", "no", "", "040", "", "456 Ortigas St, Pasig City", "Jane Smith"]
+      ];
+      const csvContent = [headers.join(','), ...rows.map(r => r.map(val => `"${val.replace(/"/g, '""')}"`).join(','))].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", "clients_import_template.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    });
+    wrapper.appendChild(downloadBtn);
+
+    // Drop zone & file input
+    const fileInput = el('input', { type: 'file', accept: '.csv,text/csv,text/plain', style: 'display: none;' });
+    const dropZone = el('div', { 
+      class: 'import-drop-zone',
+      style: 'border: 2px dashed var(--color-border); border-radius: 12px; padding: 24px; text-align: center; cursor: pointer; background: var(--color-bg); transition: border-color 0.2s, background 0.2s; font-size: 13px; color: var(--color-text-muted);',
+      html: '📁 Click to browse or drag & drop CSV file here' 
+    });
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = 'var(--color-primary)';
+      dropZone.style.background = 'var(--color-surface)';
+    });
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.style.borderColor = 'var(--color-border)';
+      dropZone.style.background = 'var(--color-bg)';
+    });
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.style.borderColor = 'var(--color-border)';
+      dropZone.style.background = 'var(--color-bg)';
+      if (e.dataTransfer.files.length > 0) {
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length > 0) {
+        handleFile(fileInput.files[0]);
+      }
+    });
+
+    wrapper.appendChild(dropZone);
+    wrapper.appendChild(fileInput);
+
+    // Feedback and actions container
+    const feedbackContainer = el('div', { style: 'margin-top: 12px; display: none;' });
+    wrapper.appendChild(feedbackContainer);
+
+    const overlay = Workflow.showModal('Import Clients in Bulk', wrapper);
+
+    // Dynamic file handling
+    const self = this;
+    function handleFile(file) {
+      dropZone.style.display = 'none';
+      downloadBtn.style.display = 'none';
+      infoText.style.display = 'none';
+      feedbackContainer.style.display = 'block';
+      feedbackContainer.replaceChildren(el('div', { style: 'font-size: 13px; color: var(--color-text-muted);', text: 'Reading and validating file...' }));
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const text = e.target.result;
+          const rows = self.parseCSV(text);
+          if (rows.length <= 1) {
+            showErrorState('The uploaded file is empty or missing data rows.');
+            return;
+          }
+
+          // Parse and match headers
+          const headerRow = rows[0].map(h => h.trim().toLowerCase());
+          const nameIdx = headerRow.indexOf('name');
+          const tinIdx = headerRow.indexOf('tin');
+          const entityIdx = headerRow.indexOf('entity');
+          const retainerIdx = headerRow.indexOf('on retainer');
+          const feeIdx = headerRow.indexOf("retainer's fee");
+          const rdoIdx = headerRow.indexOf('rdo code');
+          const tradeIdx = headerRow.indexOf('trade name');
+          const addrIdx = headerRow.indexOf('business address');
+          const pocIdx = headerRow.indexOf('point of contact');
+
+          if (nameIdx === -1 || tinIdx === -1 || entityIdx === -1 || retainerIdx === -1) {
+            showErrorState('Required headers missing. Please ensure your file includes: Name, TIN, Entity, and On Retainer.');
+            return;
+          }
+
+          const validatedRecords = [];
+          const errors = [];
+
+          const dataRows = rows.slice(1);
+          dataRows.forEach((row, idx) => {
+            const rowNum = idx + 2;
+            if (row.length === 0 || (row.length === 1 && row[0].trim() === '')) return;
+
+            const name = row[nameIdx]?.trim() || '';
+            const tin = row[tinIdx]?.trim() || '';
+            const entity = row[entityIdx]?.trim().toUpperCase() || '';
+            const retainerRaw = row[retainerIdx]?.trim().toLowerCase() || '';
+            const feeRaw = feeIdx !== -1 ? row[feeIdx]?.trim() : '';
+            const rdoCode = rdoIdx !== -1 ? row[rdoIdx]?.trim().toUpperCase() : '';
+            const tradeName = tradeIdx !== -1 ? row[tradeIdx]?.trim() : '';
+            const address = addrIdx !== -1 ? row[addrIdx]?.trim() : '';
+            const contactPerson = pocIdx !== -1 ? row[pocIdx]?.trim() : '';
+
+            const rowErrors = [];
+
+            if (!name) {
+              rowErrors.push('Name is required');
+            } else if (name.length > 255) {
+              rowErrors.push('Name must be less than 255 characters');
+            }
+
+            if (!tin) {
+              rowErrors.push('TIN is required');
+            } else if (!/^\d{3}-\d{3}-\d{3}-\d{5}$/.test(tin)) {
+              rowErrors.push('TIN must be in format XXX-XXX-XXX-XXXXX');
+            }
+
+            if (!entity) {
+              rowErrors.push('Entity is required');
+            } else if (entity !== 'ATA' && entity !== 'LTA') {
+              rowErrors.push('Entity must be either ATA or LTA');
+            }
+
+            const retainer = ['yes', 'true', '1', 'on'].includes(retainerRaw);
+            let retainerFee = null;
+            if (retainer) {
+              if (!feeRaw) {
+                rowErrors.push("Retainer's Fee is required when On Retainer is checked");
+              } else {
+                const fee = parseFloat(feeRaw);
+                if (isNaN(fee) || fee < 0) {
+                  rowErrors.push("Retainer's Fee must be a non-negative number");
+                } else {
+                  retainerFee = fee;
+                }
+              }
+            }
+
+            if (rdoCode && !/^[A-Z0-9]{1,4}$/.test(rdoCode)) {
+              rowErrors.push('RDO Code must be up to 4 alphanumeric characters');
+            }
+
+            if (rowErrors.length > 0) {
+              errors.push({ rowNum, name: name || `Row ${rowNum}`, messages: rowErrors });
+            } else {
+              validatedRecords.push({
+                rowNum,
+                record: {
+                  name,
+                  tin,
+                  rdoCode,
+                  address,
+                  tradeName,
+                  entity,
+                  retainer,
+                  retainerFee,
+                  contactDetails: [],
+                  relatedCompanies: [],
+                  contactUserId: null,
+                  contactPerson: contactPerson || null
+                }
+              });
+            }
+          });
+
+          renderValidationResults(validatedRecords, errors);
+        } catch (err) {
+          console.error(err);
+          showErrorState('An error occurred while parsing the CSV file: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function showErrorState(msg) {
+      feedbackContainer.replaceChildren(el('div', { class: 'alert alert-danger', style: 'font-size: 13px;', text: msg }));
+      const closeBtn = el('button', { class: 'btn btn-secondary btn-sm', style: 'margin-top: 12px;', text: 'Close' });
+      closeBtn.addEventListener('click', () => overlay.remove());
+      feedbackContainer.appendChild(closeBtn);
+    }
+
+    function renderValidationResults(records, errors) {
+      feedbackContainer.replaceChildren();
+
+      const summary = el('div', { style: 'font-size: 14px; margin-bottom: 12px;' });
+      summary.appendChild(el('strong', { text: `Validation Complete: ` }));
+      summary.appendChild(document.createTextNode(`${records.length} records valid, `));
+      const errSpan = el('span', { style: errors.length > 0 ? 'color: var(--color-danger); font-weight: bold;' : '', text: `${errors.length} records have errors` });
+      summary.appendChild(errSpan);
+      feedbackContainer.appendChild(summary);
+
+      if (errors.length > 0) {
+        const errorList = el('div', { 
+          style: 'max-height: 200px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 8px; padding: 8px; background: var(--color-surface); margin-bottom: 12px;' 
+        });
+        errors.forEach(err => {
+          const item = el('div', { style: 'font-size: 12px; color: var(--color-danger); margin-bottom: 6px; border-bottom: 1px solid var(--color-border); padding-bottom: 4px;' });
+          item.appendChild(el('strong', { text: `Row ${err.rowNum} (${err.name}): ` }));
+          item.appendChild(document.createTextNode(err.messages.join('; ')));
+          errorList.appendChild(item);
+        });
+        feedbackContainer.appendChild(errorList);
+      }
+
+      const actions = el('div', { style: 'display: flex; gap: 8px; justify-content: flex-end;' });
+      const cancelBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Cancel' });
+      cancelBtn.addEventListener('click', () => overlay.remove());
+      actions.appendChild(cancelBtn);
+
+      if (records.length > 0) {
+        const importBtn = el('button', { class: 'btn btn-primary btn-sm', text: `Import ${records.length} Clients` });
+        importBtn.addEventListener('click', () => startImport(records));
+        actions.appendChild(importBtn);
+      }
+
+      feedbackContainer.appendChild(actions);
+    }
+
+    async function startImport(records) {
+      feedbackContainer.replaceChildren();
+
+      const progressWrapper = el('div', { style: 'text-align: center; padding: 12px;' });
+      const progressLabel = el('div', { style: 'font-size: 13px; font-weight: 500; margin-bottom: 8px;', text: `Importing 0 of ${records.length} clients...` });
+      progressWrapper.appendChild(progressLabel);
+
+      const progressOuter = el('div', { style: 'width: 100%; height: 8px; background: var(--color-border); border-radius: 4px; overflow: hidden; margin-bottom: 12px;' });
+      const progressInner = el('div', { style: 'width: 0%; height: 100%; background: var(--color-primary); transition: width 0.2s;' });
+      progressOuter.appendChild(progressInner);
+      progressWrapper.appendChild(progressOuter);
+
+      feedbackContainer.appendChild(progressWrapper);
+
+      const results = [];
+      let successCount = 0;
+      let failCount = 0;
+
+      for (let i = 0; i < records.length; i++) {
+        const { record, rowNum } = records[i];
+        progressLabel.textContent = `Importing ${i + 1} of ${records.length} clients (Row ${rowNum}: ${record.name})...`;
+        progressInner.style.width = `${((i + 1) / records.length) * 100}%`;
+
+        try {
+          await window.apiClient.clients.create(record);
+          results.push({ rowNum, name: record.name, success: true });
+          successCount++;
+        } catch (err) {
+          results.push({ rowNum, name: record.name, success: false, error: err.message || 'Server error' });
+          failCount++;
+        }
+      }
+
+      showImportResults(results, successCount, failCount);
+    }
+
+    function showImportResults(results, successCount, failCount) {
+      feedbackContainer.replaceChildren();
+
+      const title = el('h4', { style: 'font-size: 15px; margin-bottom: 8px; font-weight: 600;', text: 'Import Results' });
+      feedbackContainer.appendChild(title);
+
+      const summary = el('div', { style: 'font-size: 13px; margin-bottom: 12px;' });
+      summary.appendChild(el('strong', { text: `Successfully Imported: ` }));
+      summary.appendChild(el('span', { style: 'color: var(--color-success); font-weight: bold;', text: `${successCount} ` }));
+      summary.appendChild(el('strong', { text: `| Failed: ` }));
+      summary.appendChild(el('span', { style: failCount > 0 ? 'color: var(--color-danger); font-weight: bold;' : '', text: `${failCount}` }));
+      feedbackContainer.appendChild(summary);
+
+      if (results.length > 0) {
+        const resultsList = el('div', { 
+          style: 'max-height: 200px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 8px; padding: 8px; background: var(--color-surface); margin-bottom: 12px;' 
+        });
+        results.forEach(res => {
+          const item = el('div', { style: 'font-size: 12px; margin-bottom: 6px; display: flex; justify-content: space-between; border-bottom: 1px solid var(--color-border); padding-bottom: 4px;' });
+          const nameSpan = el('span', {}, [el('strong', { text: `Row ${res.rowNum}: ` }), res.name]);
+          const statusSpan = el('span', { 
+            style: res.success ? 'color: var(--color-success); font-weight: 500;' : 'color: var(--color-danger); font-weight: 500;',
+            text: res.success ? '✓ Saved' : `✗ Failed: ${res.error}`
+          });
+          item.appendChild(nameSpan);
+          item.appendChild(statusSpan);
+          resultsList.appendChild(item);
+        });
+        feedbackContainer.appendChild(resultsList);
+      }
+
+      const finishBtn = el('button', { class: 'btn btn-primary btn-sm', style: 'float: right;', text: 'Finish & Reload' });
+      finishBtn.addEventListener('click', async () => {
+        overlay.remove();
+        await triggerSyncReload('#clients', { 
+          title: 'Bulk Import Complete', 
+          message: `${successCount} clients successfully imported.`, 
+          type: successCount > 0 ? 'success' : 'warning' 
+        });
+      });
+      feedbackContainer.appendChild(finishBtn);
+    }
+  },
+
+  parseCSV(text) {
+    const lines = [];
+    let row = [""];
+    let inQuotes = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      const next = text[i+1];
+      if (c === '"') {
+        if (inQuotes && next === '"') {
+          row[row.length - 1] += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (c === ',' && !inQuotes) {
+        row.push('');
+      } else if ((c === '\r' || c === '\n') && !inQuotes) {
+        if (c === '\r' && next === '\n') {
+          i++;
+        }
+        lines.push(row);
+        row = [''];
+      } else {
+        row[row.length - 1] += c;
+      }
+    }
+    if (row.length > 1 || row[0] !== '') {
+      lines.push(row);
+    }
+    return lines;
   }
 };
