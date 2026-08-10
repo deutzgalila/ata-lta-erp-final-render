@@ -1369,7 +1369,7 @@ const Clients = {
     propsGrid.appendChild(retainerProp);
 
     const feeProp = el('div', { class: 'notion-prop', style: (client && (client.retainer || client.isRetainer)) ? '' : 'display: none;' });
-    feeProp.appendChild(el('label', { html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Retainer\'s Fee (PHP)' }));
+    feeProp.appendChild(el('label', { html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 18V6h4a4 4 0 0 1 4 4 4 4 0 0 1-4 4H8"/><line x1="6" y1="9" x2="14" y2="9"/><line x1="6" y1="11" x2="14" y2="11"/></svg> Retainer\'s Fee (PHP)' }));
     const feeInput = el('input', { type: 'number', step: '0.01', min: '0', name: 'retainerFee', class: 'notion-prop-input', placeholder: 'e.g. 5000.00', value: client && client.retainerFee != null ? client.retainerFee : '' });
     feeProp.appendChild(feeInput);
     propsGrid.appendChild(feeProp);
