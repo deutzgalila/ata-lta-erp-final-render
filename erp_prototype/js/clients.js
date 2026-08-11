@@ -1130,10 +1130,16 @@ const Clients = {
       const leftGrid = el('div', { class: 'jira-details-grid' });
       leftSec.appendChild(leftGrid);
 
-      // Helper to add grid row
+      // Helper to add grid row — accepts a string or DOM Node as value.
       const addGridRow = (label, val) => {
         leftGrid.appendChild(el('div', { class: 'jira-details-lbl', text: label }));
-        leftGrid.appendChild(el('div', { class: 'jira-details-val', text: val || '—' }));
+        const valEl = el('div', { class: 'jira-details-val' });
+        if (val instanceof Node) {
+          valEl.appendChild(val);
+        } else {
+          valEl.textContent = val || '—';
+        }
+        leftGrid.appendChild(valEl);
       };
 
       addGridRow('Trade Name', client.tradeName);
@@ -1153,15 +1159,7 @@ const Clients = {
       addGridRow('Related Companies', relCos);
 
       // Contact Details — use the shared helper for consistent rendering
-      const cdDetailEl = buildContactDetailsList(client.contactDetails);
-      leftGrid.appendChild(el('div', { class: 'jira-details-lbl', text: 'Contact Details' }));
-      const cdValDiv = el('div', { class: 'jira-details-val' });
-      if (cdDetailEl) {
-        cdValDiv.appendChild(cdDetailEl);
-      } else {
-        cdValDiv.textContent = '—';
-      }
-      leftGrid.appendChild(cdValDiv);
+      addGridRow('Contact Details', buildContactDetailsList(client.contactDetails) || '—');
 
       detailsContainer.appendChild(leftSec);
 
