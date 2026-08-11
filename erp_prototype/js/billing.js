@@ -3460,7 +3460,8 @@ const Billing = {
     return container;
   },
 
-  generateInvoice(inv, noLogo = false, { showTypePrefix = false } = {}) {
+  generateInvoice(inv, noLogo = false, opts) {
+    const { showTypePrefix = false } = opts || {};
     const client = window.apiClient.clientCache.getById(inv.clientId);
     const entity = inv.entity || 'ATA';
     const w = window.open('', '_blank');
