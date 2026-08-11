@@ -1741,10 +1741,10 @@ const Workflow = {
   },
 
   getDefaultPeriodValue(itemVal) {
-    if (itemVal !== undefined) {
-      return itemVal || '';
+    if (itemVal === undefined || itemVal === null || itemVal === '') {
+      return `FY ${new Date().getFullYear()}`;
     }
-    return `FY ${new Date().getFullYear()}`;
+    return itemVal;
   },
 
   createPeriodInput(itemVal, styleStr, onChange) {
@@ -1757,7 +1757,7 @@ const Workflow = {
       maxlength: '100'
     });
     inputEl.addEventListener('input', () => {
-      const sanitized = inputEl.value.replace(/[^a-zA-Z0-9\s]/g, '').slice(0, 100);
+      const sanitized = inputEl.value.replace(/[^a-zA-Z0-9\s/\-]/g, '').slice(0, 100);
       if (inputEl.value !== sanitized) {
         inputEl.value = sanitized;
       }
