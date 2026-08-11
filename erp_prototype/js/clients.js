@@ -441,6 +441,7 @@ const Clients = {
     })).filter(rc => rc.relatedClientId);
   },
 
+
   async render(routeId) {
     if (!this.activeTab) this.activeTab = 'active';
     const container = el('div', { class: 'page clients-tab-page' });
@@ -991,7 +992,7 @@ const Clients = {
 
       // 7. Point of Contact
       const tdAssignee = el('td');
-      const pocUser = client.contactUserId ? window.apiClient.userCache.getById(client.contactUserId) : null;
+      const pocUser = client.contactUserId ? window.apiClient?.userCache?.getById?.(client.contactUserId) : null;
       if (pocUser) {
         const avatarCell = el('div', { class: 'jira-avatar-cell' });
         const initials = getInitials(pocUser.name);
@@ -1367,7 +1368,8 @@ const Clients = {
     const pocSelect = el('select', { name: 'contactUserId', class: 'notion-prop-select' });
     pocSelect.appendChild(el('option', { value: '', text: '-- Select Point of Contact --' }));
 
-    const users = window.apiClient?.userCache?._users || [];
+    const users = window.apiClient?.userCache?.getAll?.() || [];
+    const matchedUserByName = (client && !client.contactUserId && client.contactPerson) ? (window.apiClient?.userCache?.getByName?.(client.contactPerson) || null) : null;
     let userMatched = false;
 
     users.forEach(u => {
@@ -1376,7 +1378,7 @@ const Clients = {
       if (client && client.contactUserId && client.contactUserId === u.id) {
         opt.selected = true;
         userMatched = true;
-      } else if (client && !client.contactUserId && client.contactPerson && u.name.trim().toLowerCase() === client.contactPerson.trim().toLowerCase()) {
+      } else if (matchedUserByName && matchedUserByName.id === u.id) {
         opt.selected = true;
         userMatched = true;
       }
@@ -1648,7 +1650,7 @@ const Clients = {
         contactPerson = selectedPocVal.replace('custom:', '').trim();
       } else {
         contactUserId = selectedPocVal;
-        const pocUser = window.apiClient.userCache.getById(selectedPocVal);
+        const pocUser = window.apiClient?.userCache?.getById?.(selectedPocVal) || null;
         contactPerson = pocUser ? pocUser.name : null;
       }
     }
@@ -2174,7 +2176,7 @@ const Clients = {
     const canEdit = Auth.user?.role === 'Admin';
 
     const buildItem = (c, category) => {
-      const pocUser = window.apiClient.userCache.getById(c.contactUserId);
+      const pocUser = c.contactUserId ? window.apiClient?.userCache?.getById?.(c.contactUserId) : null;
       return {
         id: c.id,
         category,
@@ -2418,8 +2420,7 @@ const Clients = {
             const tradeName = tradeIdx !== -1 ? row[tradeIdx]?.trim() : '';
             const address = addrIdx !== -1 ? row[addrIdx]?.trim() : '';
             const contactPerson = pocIdx !== -1 ? row[pocIdx]?.trim() : '';
-            const users = window.apiClient?.userCache?._users || [];
-            const matchedUser = contactPerson ? users.find(u => u.name && u.name.trim().toLowerCase() === contactPerson.trim().toLowerCase()) : null;
+            const matchedUser = window.apiClient?.userCache?.getByName?.(contactPerson) || null;
 
             const rowErrors = [];
 
