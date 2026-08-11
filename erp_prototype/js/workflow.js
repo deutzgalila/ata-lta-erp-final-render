@@ -1788,7 +1788,7 @@ const Workflow = {
       assigneeId: overrides.assigneeId || null,
       assigneeName: overrides.assigneeName || null,
       dependsOn: overrides.dependsOn || null,
-      periodYear: isDoc ? this.getDefaultPeriodValue(overrides.periodYear) : null,
+      periodYear: isDoc ? this.getDefaultPeriodValue(overrides.periodYear) : (overrides.periodYear || null),
       timeLogs: overrides.timeLogs || []
     };
   },
@@ -2868,7 +2868,6 @@ const Workflow = {
         const id = (typeof item === 'object' && item && item.id) ? item.id : generateUUID();
 
         const category = typeof item === 'object' && item ? (item.category || this.ChecklistCategory.SUBTASK) : this.ChecklistCategory.SUBTASK;
-        const isDoc = category === this.ChecklistCategory.DOCUMENT;
 
         return {
           id: id,
@@ -2878,7 +2877,7 @@ const Workflow = {
           assigneeId: typeof item === 'object' && item ? item.assigneeId || null : null,
           assigneeName: typeof item === 'object' && item ? item.assigneeName || null : null,
           dependsOn: typeof item === 'object' && item ? item.dependsOn || null : null,
-          periodYear: isDoc ? ((typeof item === 'object' && item && 'periodYear' in item) ? (item.periodYear || null) : null) : null,
+          periodYear: (typeof item === 'object' && item && 'periodYear' in item) ? (item.periodYear || null) : null,
           timeLogs: typeof item === 'object' && item ? item.timeLogs || [] : []
         };
       });
