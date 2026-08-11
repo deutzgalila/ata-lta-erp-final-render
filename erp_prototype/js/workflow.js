@@ -1804,7 +1804,7 @@ const Workflow = {
     });
   },
 
-  async confirmDeleteChecklistItem(task, normalizedChecklist, idx, item, onConfirmChange) {
+  async confirmDeleteChecklistItem(task, item, onConfirmChange) {
     if (!item.timeLogs || item.timeLogs.length === 0) {
       const tObj = WorkflowData.getTaskById(task.id) || task;
       tObj.checklist = (tObj.checklist || []).filter(c => c.id !== item.id);
@@ -6596,7 +6596,7 @@ const Workflow = {
             if (!disableIfPending(delBtn, wr)) {
               delBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
-                await this.confirmDeleteChecklistItem(task, normalizedChecklist, idx, item, async () => {
+                await this.confirmDeleteChecklistItem(task, item, async () => {
                   this.showTaskSidePane(taskId, triggerElement);
                   App.handleRoute();
                 });
@@ -10031,7 +10031,7 @@ const Workflow = {
                 delBtn.title = 'Delete checklist item';
                 delBtn.addEventListener('click', async (e) => {
                   e.stopPropagation();
-                  await this.confirmDeleteChecklistItem(t, normalizedChecklist, idx, item, async () => {
+                  await this.confirmDeleteChecklistItem(t, item, async () => {
                     await renderChecklist();
                     populatePrereqSelect();
                     App.handleRoute();
