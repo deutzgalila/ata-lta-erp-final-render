@@ -3951,7 +3951,9 @@ const Billing = {
       if (qty > 1) {
         descStr += ` (Qty: ${qty} x ${formatPHP(unit)})`;
       }
-
+      // Note: li.type (e.g. "Professional Fee", "Government Fee") is intentionally
+      // omitted here — the internal billing detail view already shows type in its own
+      // column, so prepending it to the print/PDF description would be redundant.
 
       if (noLogo || entity === 'ATA') {
         return `
