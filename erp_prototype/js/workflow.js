@@ -1770,10 +1770,27 @@ const Workflow = {
     return inputEl;
   },
 
+  createChecklistItemData(overrides = {}) {
+    return {
+      id: overrides.id || generateUUID(),
+      text: overrides.text || '',
+      category: overrides.category || 'subtask',
+      completed: overrides.completed || false,
+      assigneeId: overrides.assigneeId || null,
+      assigneeName: overrides.assigneeName || null,
+      dependsOn: overrides.dependsOn || null,
+      periodYear: this.getDefaultPeriodValue(overrides.periodYear),
+      timeLogs: overrides.timeLogs || []
+    };
+  },
+
   initInlineEdit(textWrap, currentText, onSave, onCancel) {
     const span = textWrap.querySelector('span');
     if (!span) return;
     const input = el('input', { type: 'text', value: currentText, class: 'form-control inline-edit-input' });
+    // Hide the category badge during editing
+    const badge = textWrap.querySelector('.checklist-category-badge');
+    if (badge) badge.style.display = 'none';
     textWrap.replaceChild(input, span);
     input.focus();
     
@@ -1781,6 +1798,7 @@ const Workflow = {
     const saveChange = () => {
       if (finished) return;
       finished = true;
+      if (badge) badge.style.display = '';
       const val = input.value.trim();
       if (val && val !== currentText) {
         onSave(val);
@@ -1795,6 +1813,7 @@ const Workflow = {
         saveChange();
       } else if (e.key === 'Escape') {
         finished = true;
+        if (badge) badge.style.display = '';
         if (onCancel) onCancel();
       }
     });
@@ -6802,7 +6821,7 @@ const Workflow = {
             const val = newItemInput.value.trim();
             if (!val) return;
             const prereqId = selectedPrereqId || null;
-            normalizedChecklist.push({ id: generateUUID(), text: val, category: categorySel.value || 'subtask', completed: false, assigneeId: null, assigneeName: null, dependsOn: prereqId, periodYear: periodSel.value, timeLogs: [] });
+            normalizedChecklist.push(this.createChecklistItemData({ text: val, category: categorySel.value, dependsOn: prereqId, periodYear: periodSel.value }));
             WorkflowData.updateTask(task.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
             this.showTaskSidePane(taskId, triggerElement);
             App.handleRoute();
@@ -10234,7 +10253,7 @@ const Workflow = {
               const val = newItemInput.value.trim();
               if (!val) return;
               const prereqId = selectedPrereqId || null;
-              normalizedChecklist.push({ id: generateUUID(), text: val, category: categorySel.value || 'subtask', completed: false, assigneeId: null, assigneeName: null, dependsOn: prereqId, periodYear: periodSel.value, timeLogs: [] });
+              normalizedChecklist.push(this.createChecklistItemData({ text: val, category: categorySel.value, dependsOn: prereqId, periodYear: periodSel.value }));
               WorkflowData.updateTask(t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
               newItemInput.value = '';
               selectedPrereqId = null;
@@ -12706,7 +12725,7 @@ const Workflow = {
     const addChecklistItem = async () => {
       const val = checklistInput.value.trim();
       if (!val) return;
-      checklistItems.push({ id: generateUUID(), text: val, category: checklistCategorySel.value || 'subtask', assigneeId: null, assigneeName: null, dependsOn: null, periodYear: checklistPeriodSel.value, timeLogs: [] });
+      checklistItems.push(this.createChecklistItemData({ text: val, category: checklistCategorySel.value, periodYear: checklistPeriodSel.value }));
       checklistFromTemplate = false;
       checklistInput.value = '';
       await renderChecklist();
@@ -12726,17 +12745,11 @@ const Workflow = {
         titleInput.value = tmpl.title;
         checklistItems = tmpl.defaultChecklist.map(item => {
           const isObj = typeof item === 'object' && item && item.text;
-          const templatePeriod = isObj ? item.periodYear : null;
-          return {
-            id: generateUUID(),
+          return this.createChecklistItemData({
             text: isObj ? item.text : item,
-            category: isObj ? (item.category || 'subtask') : 'subtask',
-            assigneeId: null,
-            assigneeName: null,
-            dependsOn: null,
-            periodYear: this.getDefaultPeriodValue(templatePeriod),
-            timeLogs: []
-          };
+            category: isObj ? item.category : undefined,
+            periodYear: isObj ? item.periodYear : undefined
+          });
         });
         coAssignees = (tmpl.coAssignees || []).slice();
         checklistFromTemplate = true;
@@ -12955,17 +12968,7 @@ const Workflow = {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         predecessors,
-        checklist: checklistItems.map(item => ({
-          id: item.id || generateUUID(),
-          text: item.text,
-          category: item.category || 'subtask',
-          completed: false,
-          assigneeId: item.assigneeId || null,
-          assigneeName: item.assigneeName || null,
-          dependsOn: item.dependsOn || null,
-          periodYear: item.periodYear || null,
-          timeLogs: []
-        })),
+        checklist: checklistItems.map(item => this.createChecklistItemData(item)),
         timeLogs: [],
         taskDocuments: [],
         comments: []
