@@ -1797,9 +1797,11 @@ const Workflow = {
     const span = textWrap.querySelector('span');
     if (!span) return;
     const input = el('input', { type: 'text', value: currentText, class: 'form-control inline-edit-input' });
-    // Hide the category badge during editing
+    // Hide the category badge and period badge during editing
     const badge = textWrap.querySelector('.checklist-category-badge');
+    const periodBadge = textWrap.querySelector('.checklist-period-badge');
     if (badge) badge.style.display = 'none';
+    if (periodBadge) periodBadge.style.display = 'none';
     textWrap.replaceChild(input, span);
     input.focus();
     
@@ -1808,6 +1810,7 @@ const Workflow = {
       if (finished) return;
       finished = true;
       if (badge) badge.style.display = '';
+      if (periodBadge) periodBadge.style.display = '';
       const val = input.value.trim();
       if (val && val !== currentText) {
         onSave(val);
@@ -1823,6 +1826,7 @@ const Workflow = {
       } else if (e.key === 'Escape') {
         finished = true;
         if (badge) badge.style.display = '';
+        if (periodBadge) periodBadge.style.display = '';
         if (onCancel) onCancel();
       }
     });
@@ -6585,11 +6589,19 @@ const Workflow = {
             const textValue = blocked ? ('🔒 Waiting for: ' + (item.dependsOn === '*' ? 'All Task (*)' : (prereq ? prereq.text : 'Unknown'))) : item.text;
             const textWrap = el('div', { class: 'checklist-text' });
             textWrap.appendChild(el('span', { text: textValue, class: classNames(this.getCompletedClass(item)), title: textValue }));
+            const isDoc = this.isDocumentCategory(item);
             const categoryBadge = el('span', {
-              text: this.isDocumentCategory(item) ? 'Doc' : 'Sub-task',
-              class: 'checklist-category-badge'
+              text: isDoc ? '📄Doc' : 'Sub-task',
+              class: classNames('checklist-category-badge', isDoc && 'badge-doc')
             });
             textWrap.appendChild(categoryBadge);
+            if (isDoc && item.periodYear) {
+              const periodBadge = el('span', {
+                text: '📅' + item.periodYear,
+                class: 'checklist-period-badge'
+              });
+              textWrap.appendChild(periodBadge);
+            }
 
             const topRow = el('div', { class: 'checklist-item-top-row' });
             topRow.appendChild(cb);
@@ -6846,6 +6858,14 @@ const Workflow = {
         addChecklistRow.appendChild(categorySel);
         addChecklistRow.appendChild(predWrapper);
         addChecklistRow.appendChild(addItemBtn);
+
+        // Show/hide period input based on category selection
+        const togglePeriodVisibility = () => {
+          periodSel.style.display = categorySel.value === this.ChecklistCategory.DOCUMENT ? '' : 'none';
+        };
+        togglePeriodVisibility();
+        categorySel.addEventListener('change', togglePeriodVisibility);
+
         cont.appendChild(addChecklistRow);
       }
 
@@ -10021,11 +10041,19 @@ const Workflow = {
               
               const textWrap = el('div', { class: 'checklist-text' });
               textWrap.appendChild(el('span', { text: textValue, class: classNames(this.getCompletedClass(item)), title: textValue }));
+              const isDoc = this.isDocumentCategory(item);
               const categoryBadge = el('span', {
-                text: this.isDocumentCategory(item) ? 'Doc' : 'Sub-task',
-                class: 'checklist-category-badge'
+                text: isDoc ? '📄Doc' : 'Sub-task',
+                class: classNames('checklist-category-badge', isDoc && 'badge-doc')
               });
               textWrap.appendChild(categoryBadge);
+              if (isDoc && item.periodYear) {
+                const periodBadge = el('span', {
+                  text: '📅' + item.periodYear,
+                  class: 'checklist-period-badge'
+                });
+                textWrap.appendChild(periodBadge);
+              }
 
               const topRow = el('div', { class: 'checklist-item-top-row' });
               topRow.appendChild(cb);
@@ -10282,6 +10310,14 @@ const Workflow = {
           addChecklistRow.appendChild(categorySel);
           addChecklistRow.appendChild(predWrapper);
           addChecklistRow.appendChild(addItemBtn);
+
+          // Show/hide period input based on category selection
+          const togglePeriodVisibility = () => {
+            periodSel.style.display = categorySel.value === this.ChecklistCategory.DOCUMENT ? '' : 'none';
+          };
+          togglePeriodVisibility();
+          categorySel.addEventListener('change', togglePeriodVisibility);
+
           checklistSection.appendChild(addChecklistRow);
         }
         leftPane.appendChild(checklistSection);
@@ -12630,6 +12666,14 @@ const Workflow = {
     checklistBuilder.appendChild(checklistPeriodSel);
     checklistBuilder.appendChild(checklistCategorySel);
     checklistBuilder.appendChild(addChecklistBtn);
+
+    // Show/hide period input based on category selection
+    const toggleAddFormPeriod = () => {
+      checklistPeriodSel.style.display = checklistCategorySel.value === this.ChecklistCategory.DOCUMENT ? '' : 'none';
+    };
+    toggleAddFormPeriod();
+    checklistCategorySel.addEventListener('change', toggleAddFormPeriod);
+
     checklistContainer.appendChild(checklistBuilder);
     checklistGroup.appendChild(checklistContainer);
     form.appendChild(checklistGroup);
@@ -12649,9 +12693,10 @@ const Workflow = {
         const textValue = item.text;
         const textWrap = el('div', { class: 'checklist-text', style: 'display:flex; align-items:center; gap:4px; flex:1; min-width:0;' });
         textWrap.appendChild(el('span', { text: textValue, style: 'font-size:0.9rem; font-weight:500;' }));
+        const isDoc = this.isDocumentCategory(item);
         const categoryBadge = el('span', {
-          text: this.isDocumentCategory(item) ? 'Doc' : 'Sub-task',
-          class: 'checklist-category-badge'
+          text: isDoc ? '📄Doc' : 'Sub-task',
+          class: classNames('checklist-category-badge', isDoc && 'badge-doc')
         });
         textWrap.appendChild(categoryBadge);
 
