@@ -1741,30 +1741,57 @@ const Clients = {
       return;
     }
 
-    try {
-      await window.apiClient.clients.update(this.editingId, record);
-      // Patch the shared cache in place rather than wiping it, so dropdowns stay populated.
-      if (window.apiClient?.clientCache && Array.isArray(window.apiClient.clientCache._clients)) {
-        const idx = window.apiClient.clientCache._clients.findIndex(c => c.id === this.editingId);
-        if (idx >= 0) {
-          window.apiClient.clientCache._clients[idx] = { ...window.apiClient.clientCache._clients[idx], ...record, id: this.editingId };
+    await Workflow.runBlockingArchiveAction({
+      title: 'Updating Client',
+      message: `Please wait while client "${record.name}" is being updated...`,
+      apiCall: () => window.apiClient.clients.update(this.editingId, record),
+      successTitle: 'Client Updated',
+      successMessage: `Client "${record.name}" has been successfully updated.`,
+      errorTitle: 'Failed to Update Client',
+      onSuccess: async (res) => {
+        if (res && res.data) {
+          const serverClient = this.normalizeClient(res.data);
+          if (ClientsData && Array.isArray(ClientsData._clients)) {
+            const idx = ClientsData._clients.findIndex(c => c.id === serverClient.id);
+            if (idx >= 0) {
+              ClientsData._clients[idx] = serverClient;
+            }
+          }
+          if (window.apiClient?.clientCache) {
+            if (!Array.isArray(window.apiClient.clientCache._clients)) {
+              window.apiClient.clientCache._clients = [serverClient];
+            } else {
+              const idx = window.apiClient.clientCache._clients.findIndex(c => c.id === serverClient.id);
+              if (idx >= 0) window.apiClient.clientCache._clients[idx] = serverClient;
+              else window.apiClient.clientCache._clients.push(serverClient);
+            }
+            window.apiClient.clientCache._loadedAt = Date.now();
+          }
+          if (typeof window.apiClient?.clients?.invalidateCounts === 'function') {
+            window.apiClient.clients.invalidateCounts();
+          }
+          if (typeof App !== 'undefined' && typeof App.updateSidebarNotifications === 'function') {
+            App.updateSidebarNotifications().catch(() => {});
+          }
+          if (typeof Dashboard !== 'undefined') {
+            if (typeof Dashboard.invalidateCache === 'function') Dashboard.invalidateCache();
+            else if (Dashboard._dataCache) Dashboard._dataCache = null;
+          }
         }
+        this.editingId = null;
+        const targetRoute = isResubmitting ? '#admin' : '#clients';
+        await closeFormPanelAndRoute(targetRoute);
+      },
+      onAfterConfirm: async () => {
+        const targetRoute = isResubmitting ? '#admin' : '#clients';
+        const msgConfig = {
+          title: 'Client Updated',
+          message: `Client "${record.name}" has been successfully updated.`,
+          type: 'success'
+        };
+        await triggerSyncReload(targetRoute, msgConfig);
       }
-      this.invalidateCache();
-    } catch (e) {
-      Workflow.showMessage('Save Client', e.message || 'Unable to save client.', 'error');
-      return;
-    }
-
-    const msgConfig = {
-      title: isNew ? 'Client Created' : 'Client Updated',
-      message: isApproved 
-        ? `Client ${record.name} has been successfully ${isNew ? 'created' : 'updated'}.` 
-        : `Client ${record.name} ${isNew ? 'creation' : 'update'} request has been submitted for Admin approval.`,
-      type: 'success'
-    };
-    const targetRoute = isResubmitting ? '#admin' : '#clients';
-    closeFormPanelAndRoute(targetRoute, msgConfig);
+    });
   },
 
   async archiveClientDirectly(clientId) {
