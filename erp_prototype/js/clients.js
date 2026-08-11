@@ -441,13 +441,6 @@ const Clients = {
     })).filter(rc => rc.relatedClientId);
   },
 
-  /**
-   * Find user in userCache by case-insensitive name.
-   */
-  findUserByName(personName) {
-    if (!personName) return null;
-    return window.apiClient?.userCache?.getByName?.(personName) || null;
-  },
 
   async render(routeId) {
     if (!this.activeTab) this.activeTab = 'active';
@@ -1376,7 +1369,7 @@ const Clients = {
     pocSelect.appendChild(el('option', { value: '', text: '-- Select Point of Contact --' }));
 
     const users = window.apiClient?.userCache?.getAll?.() || [];
-    const matchedUserByName = (client && !client.contactUserId && client.contactPerson) ? Clients.findUserByName(client.contactPerson) : null;
+    const matchedUserByName = (client && !client.contactUserId && client.contactPerson) ? (window.apiClient?.userCache?.getByName?.(client.contactPerson) || null) : null;
     let userMatched = false;
 
     users.forEach(u => {
@@ -2427,7 +2420,7 @@ const Clients = {
             const tradeName = tradeIdx !== -1 ? row[tradeIdx]?.trim() : '';
             const address = addrIdx !== -1 ? row[addrIdx]?.trim() : '';
             const contactPerson = pocIdx !== -1 ? row[pocIdx]?.trim() : '';
-            const matchedUser = Clients.findUserByName(contactPerson);
+            const matchedUser = window.apiClient?.userCache?.getByName?.(contactPerson) || null;
 
             const rowErrors = [];
 
