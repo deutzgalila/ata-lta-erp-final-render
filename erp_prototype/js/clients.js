@@ -441,6 +441,16 @@ const Clients = {
     })).filter(rc => rc.relatedClientId);
   },
 
+  /**
+   * Find user in userCache by case-insensitive name.
+   */
+  findUserByName(personName) {
+    if (!personName) return null;
+    const users = window.apiClient?.userCache?._users || [];
+    const target = personName.trim().toLowerCase();
+    return users.find(u => u && u.name && u.name.trim().toLowerCase() === target) || null;
+  },
+
   async render(routeId) {
     if (!this.activeTab) this.activeTab = 'active';
     const container = el('div', { class: 'page clients-tab-page' });
@@ -991,7 +1001,7 @@ const Clients = {
 
       // 7. Point of Contact
       const tdAssignee = el('td');
-      const pocUser = client.contactUserId ? window.apiClient.userCache.getById(client.contactUserId) : null;
+      const pocUser = client.contactUserId ? window.apiClient?.userCache?.getById?.(client.contactUserId) : null;
       if (pocUser) {
         const avatarCell = el('div', { class: 'jira-avatar-cell' });
         const initials = getInitials(pocUser.name);
@@ -1376,7 +1386,7 @@ const Clients = {
       if (client && client.contactUserId && client.contactUserId === u.id) {
         opt.selected = true;
         userMatched = true;
-      } else if (client && !client.contactUserId && client.contactPerson && u.name.trim().toLowerCase() === client.contactPerson.trim().toLowerCase()) {
+      } else if (client && !client.contactUserId && client.contactPerson && this.findUserByName(client.contactPerson)?.id === u.id) {
         opt.selected = true;
         userMatched = true;
       }
@@ -1648,7 +1658,7 @@ const Clients = {
         contactPerson = selectedPocVal.replace('custom:', '').trim();
       } else {
         contactUserId = selectedPocVal;
-        const pocUser = window.apiClient.userCache.getById(selectedPocVal);
+        const pocUser = window.apiClient?.userCache?.getById?.(selectedPocVal) || null;
         contactPerson = pocUser ? pocUser.name : null;
       }
     }
@@ -2174,7 +2184,7 @@ const Clients = {
     const canEdit = Auth.user?.role === 'Admin';
 
     const buildItem = (c, category) => {
-      const pocUser = window.apiClient.userCache.getById(c.contactUserId);
+      const pocUser = c.contactUserId ? window.apiClient?.userCache?.getById?.(c.contactUserId) : null;
       return {
         id: c.id,
         category,
@@ -2418,8 +2428,7 @@ const Clients = {
             const tradeName = tradeIdx !== -1 ? row[tradeIdx]?.trim() : '';
             const address = addrIdx !== -1 ? row[addrIdx]?.trim() : '';
             const contactPerson = pocIdx !== -1 ? row[pocIdx]?.trim() : '';
-            const users = window.apiClient?.userCache?._users || [];
-            const matchedUser = contactPerson ? users.find(u => u.name && u.name.trim().toLowerCase() === contactPerson.trim().toLowerCase()) : null;
+            const matchedUser = this.findUserByName(contactPerson);
 
             const rowErrors = [];
 
