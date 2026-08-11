@@ -6629,17 +6629,19 @@ const Workflow = {
             const bottomLeft = el('div', { class: 'checklist-item-bottom-left' });
             const bottomRight = el('div', { class: 'checklist-item-bottom-right' });
 
-            const periodSel = this.createPeriodInput(
-              item.periodYear,
-              null,
-              (val) => {
-                item.periodYear = val;
-                WorkflowData.updateTask(task.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
-                this.showTaskSidePane(taskId, triggerElement);
-                App.handleRoute();
-              }
-            );
-            bottomLeft.appendChild(periodSel);
+            if (item.category === 'document') {
+              const periodSel = this.createPeriodInput(
+                item.periodYear,
+                null,
+                (val) => {
+                  item.periodYear = val;
+                  WorkflowData.updateTask(task.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+                  this.showTaskSidePane(taskId, triggerElement);
+                  App.handleRoute();
+                }
+              );
+              bottomLeft.appendChild(periodSel);
+            }
 
             if (allowAssignChecklist) {
               const assigneeDropdown = await this.createGroundWorkerDropdown({
@@ -10065,17 +10067,19 @@ const Workflow = {
               const bottomLeft = el('div', { class: 'checklist-item-bottom-left' });
               const bottomRight = el('div', { class: 'checklist-item-bottom-right' });
 
-              const periodSel = this.createPeriodInput(
-                item.periodYear,
-                null,
-                async (val) => {
-                  item.periodYear = val;
-                  WorkflowData.updateTask(t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
-                  await renderChecklist();
-                  App.handleRoute();
-                }
-              );
-              bottomLeft.appendChild(periodSel);
+              if (item.category === 'document') {
+                const periodSel = this.createPeriodInput(
+                  item.periodYear,
+                  null,
+                  async (val) => {
+                    item.periodYear = val;
+                    WorkflowData.updateTask(t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+                    await renderChecklist();
+                    App.handleRoute();
+                  }
+                );
+                bottomLeft.appendChild(periodSel);
+              }
 
               if (allowAssignChecklist) {
                 const assigneeDropdown = await this.createGroundWorkerDropdown({
@@ -12679,14 +12683,16 @@ const Workflow = {
 
         const bottomRow = el('div', { class: 'checklist-item-bottom-row-compact' });
         
-        const periodSel = this.createPeriodInput(
-          item.periodYear,
-          null,
-          (val) => {
-            item.periodYear = val;
-          }
-        );
-        bottomRow.appendChild(periodSel);
+        if (item.category === 'document') {
+          const periodSel = this.createPeriodInput(
+            item.periodYear,
+            null,
+            (val) => {
+              item.periodYear = val;
+            }
+          );
+          bottomRow.appendChild(periodSel);
+        }
 
         const prereqSelect = el('select', { class: 'form-select', style: 'font-size:0.8125rem; max-width:140px; height: 28px; padding: 2px 6px;' });
         prereqSelect.appendChild(el('option', { value: '', text: '— None —' }));
