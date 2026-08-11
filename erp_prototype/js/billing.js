@@ -3951,9 +3951,7 @@ const Billing = {
       if (qty > 1) {
         descStr += ` (Qty: ${qty} x ${formatPHP(unit)})`;
       }
-      if (li.type) {
-        descStr = `[${escapeHtml(li.type)}] ${descStr}`;
-      }
+
 
       if (noLogo || entity === 'ATA') {
         return `
