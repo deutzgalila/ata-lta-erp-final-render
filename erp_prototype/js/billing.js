@@ -3460,7 +3460,8 @@ const Billing = {
     return container;
   },
 
-  generateInvoice(inv, noLogo = false) {
+  generateInvoice(inv, noLogo = false, opts) {
+    const { showTypePrefix = false } = opts || {};
     const client = window.apiClient.clientCache.getById(inv.clientId);
     const entity = inv.entity || 'ATA';
     const w = window.open('', '_blank');
@@ -3951,7 +3952,11 @@ const Billing = {
       if (qty > 1) {
         descStr += ` (Qty: ${qty} x ${formatPHP(unit)})`;
       }
-      if (li.type) {
+      // Optionally prepend the line item type (e.g. "[Professional Fee]") to the
+      // description. Disabled by default because the internal billing detail view
+      // already shows type in its own column, making the prefix redundant on the
+      // printed statement. Callers can pass { showTypePrefix: true } if they need it.
+      if (showTypePrefix && li.type) {
         descStr = `[${escapeHtml(li.type)}] ${descStr}`;
       }
 
