@@ -40,6 +40,28 @@ function getUserColor(userId) {
 }
 
 /**
+ * Build a DOM element displaying a list of contact detail entries.
+ * Shared between the client table and the detail panel for consistency.
+ * @param {Array} contactDetails - Array of {type, value, label} objects.
+ * @returns {HTMLElement|null} A .cd-list element, or null when the list is empty.
+ */
+function buildContactDetailsList(contactDetails) {
+  const items = contactDetails || [];
+  if (items.length === 0) return null;
+  const wrapper = el('div', { class: 'cd-list' });
+  items.forEach(cd => {
+    const entry = el('div', { class: 'cd-entry' });
+    if (cd.label) {
+      entry.appendChild(el('div', { class: 'cd-entry-name', text: cd.label }));
+    }
+    const typeLabel = cd.type ? cd.type.charAt(0).toUpperCase() + cd.type.slice(1) : '';
+    entry.appendChild(el('div', { class: 'cd-entry-value', text: (typeLabel ? typeLabel + ': ' : '') + (cd.value || '') }));
+    wrapper.appendChild(entry);
+  });
+  return wrapper;
+}
+
+/**
  * API-backed, entity-tagged data layer for the Clients module.
  * Mirrors WorkflowData: cache is keyed to Auth.activeEntity, supports
  * optimistic local mutations with rollback on API failure.
@@ -1038,19 +1060,9 @@ const Clients = {
 
       // 11. Contact Details
       const tdCd = el('td');
-      const cdItems = client.contactDetails || [];
-      if (cdItems.length > 0) {
-        const cdWrapper = el('div', { style: 'display: flex; flex-direction: column; gap: 4px;' });
-        cdItems.forEach(cd => {
-          const cdEntry = el('div', { style: 'line-height: 1.35;' });
-          if (cd.label) {
-            cdEntry.appendChild(el('div', { text: cd.label, style: 'font-weight: 500;' }));
-          }
-          const typeLabel = cd.type ? cd.type.charAt(0).toUpperCase() + cd.type.slice(1) : '';
-          cdEntry.appendChild(el('div', { text: (typeLabel ? typeLabel + ': ' : '') + (cd.value || ''), style: 'font-size: 12px; color: var(--color-text-muted);' }));
-          cdWrapper.appendChild(cdEntry);
-        });
-        tdCd.appendChild(cdWrapper);
+      const cdEl = buildContactDetailsList(client.contactDetails);
+      if (cdEl) {
+        tdCd.appendChild(cdEl);
       } else {
         tdCd.textContent = '—';
       }
@@ -1140,8 +1152,16 @@ const Clients = {
       }).join(', ');
       addGridRow('Related Companies', relCos);
 
-      const contactDets = (client.contactDetails || []).map(cd => (cd.label ? cd.label + ' — ' : '') + cd.type + ': ' + cd.value).join(', ');
-      addGridRow('Contact Details', contactDets);
+      // Contact Details — use the shared helper for consistent rendering
+      const cdDetailEl = buildContactDetailsList(client.contactDetails);
+      leftGrid.appendChild(el('div', { class: 'jira-details-lbl', text: 'Contact Details' }));
+      const cdValDiv = el('div', { class: 'jira-details-val' });
+      if (cdDetailEl) {
+        cdValDiv.appendChild(cdDetailEl);
+      } else {
+        cdValDiv.textContent = '—';
+      }
+      leftGrid.appendChild(cdValDiv);
 
       detailsContainer.appendChild(leftSec);
 
