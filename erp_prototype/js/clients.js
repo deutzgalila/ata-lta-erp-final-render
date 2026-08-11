@@ -1364,8 +1364,32 @@ const Clients = {
 
     const pocProp = el('div', { class: 'notion-prop' });
     pocProp.appendChild(el('label', { html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Point of Contact' }));
-    const pocInput = el('input', { type: 'text', name: 'contactPerson', class: 'notion-prop-input', placeholder: 'Enter name of client POC', value: client ? (client.contactPerson || '') : '' });
-    pocProp.appendChild(pocInput);
+    const pocSelect = el('select', { name: 'contactUserId', class: 'notion-prop-select' });
+    pocSelect.appendChild(el('option', { value: '', text: '-- Select Point of Contact --' }));
+
+    const users = window.apiClient?.userCache?._users || [];
+    let userMatched = false;
+
+    users.forEach(u => {
+      if (!u || !u.id || !u.name) return;
+      const opt = el('option', { value: u.id, text: u.name });
+      if (client && client.contactUserId && client.contactUserId === u.id) {
+        opt.selected = true;
+        userMatched = true;
+      } else if (client && !client.contactUserId && client.contactPerson && u.name.trim().toLowerCase() === client.contactPerson.trim().toLowerCase()) {
+        opt.selected = true;
+        userMatched = true;
+      }
+      pocSelect.appendChild(opt);
+    });
+
+    if (client && client.contactPerson && !userMatched) {
+      const legacyOpt = el('option', { value: 'custom:' + client.contactPerson, text: client.contactPerson + ' (Custom)' });
+      legacyOpt.selected = true;
+      pocSelect.appendChild(legacyOpt);
+    }
+
+    pocProp.appendChild(pocSelect);
     propsGrid.appendChild(pocProp);
 
     const retainerProp = el('div', { class: 'notion-prop notion-prop-checkbox' });
@@ -1614,7 +1638,20 @@ const Clients = {
       });
     }
 
-    const contactPerson = (data.contactPerson || '').trim();
+    const selectedPocVal = (data.contactUserId || '').trim();
+    let contactUserId = null;
+    let contactPerson = null;
+
+    if (selectedPocVal) {
+      if (selectedPocVal.startsWith('custom:')) {
+        contactUserId = null;
+        contactPerson = selectedPocVal.replace('custom:', '').trim();
+      } else {
+        contactUserId = selectedPocVal;
+        const pocUser = window.apiClient.userCache.getById(selectedPocVal);
+        contactPerson = pocUser ? pocUser.name : null;
+      }
+    }
 
     const retainer = !!form.querySelector('input[name="retainer"]:checked');
     if (retainer) {
@@ -1637,8 +1674,8 @@ const Clients = {
       retainerFee: retainer ? parseFloat(form.querySelector('input[name="retainerFee"]')?.value || '0') : null,
       contactDetails,
       relatedCompanies: this.toApiRelatedCompanies(relatedCompanies),
-      contactUserId: null,
-      contactPerson: contactPerson || null
+      contactUserId,
+      contactPerson
     };
 
     const isNew = !this.editingId || this.editingId === 'new';
@@ -2381,6 +2418,8 @@ const Clients = {
             const tradeName = tradeIdx !== -1 ? row[tradeIdx]?.trim() : '';
             const address = addrIdx !== -1 ? row[addrIdx]?.trim() : '';
             const contactPerson = pocIdx !== -1 ? row[pocIdx]?.trim() : '';
+            const users = window.apiClient?.userCache?._users || [];
+            const matchedUser = contactPerson ? users.find(u => u.name && u.name.trim().toLowerCase() === contactPerson.trim().toLowerCase()) : null;
 
             const rowErrors = [];
 
@@ -2437,7 +2476,7 @@ const Clients = {
                   retainerFee,
                   contactDetails: [],
                   relatedCompanies: [],
-                  contactUserId: null,
+                  contactUserId: matchedUser ? matchedUser.id : null,
                   contactPerson: contactPerson || null
                 }
               });
