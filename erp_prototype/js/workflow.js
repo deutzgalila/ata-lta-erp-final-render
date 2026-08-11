@@ -1136,6 +1136,13 @@ function buildTaskMap() {
 }
 
 const Workflow = {
+  ChecklistCategory: Object.freeze({
+    SUBTASK: 'subtask',
+    DOCUMENT: 'document'
+  }),
+  isDocumentCategory(item) {
+    return item && item.category === this.ChecklistCategory.DOCUMENT;
+  },
   editingId: null,
   disableForApproval(element, title = 'Under approval') {
     disableForApproval(element, title);
@@ -1771,15 +1778,17 @@ const Workflow = {
   },
 
   createChecklistItemData(overrides = {}) {
+    const category = overrides.category || this.ChecklistCategory.SUBTASK;
+    const isDoc = category === this.ChecklistCategory.DOCUMENT;
     return {
       id: overrides.id || generateUUID(),
       text: overrides.text || '',
-      category: overrides.category || 'subtask',
+      category: category,
       completed: overrides.completed || false,
       assigneeId: overrides.assigneeId || null,
       assigneeName: overrides.assigneeName || null,
       dependsOn: overrides.dependsOn || null,
-      periodYear: this.getDefaultPeriodValue(overrides.periodYear),
+      periodYear: isDoc ? this.getDefaultPeriodValue(overrides.periodYear) : (overrides.periodYear || null),
       timeLogs: overrides.timeLogs || []
     };
   },
@@ -2858,10 +2867,12 @@ const Workflow = {
         const text = typeof item === 'string' ? item : (item.text || '');
         const id = (typeof item === 'object' && item && item.id) ? item.id : generateUUID();
 
+        const category = typeof item === 'object' && item ? (item.category || this.ChecklistCategory.SUBTASK) : this.ChecklistCategory.SUBTASK;
+
         return {
           id: id,
           text: text,
-          category: typeof item === 'object' && item ? (item.category || 'subtask') : 'subtask',
+          category: category,
           completed: typeof item === 'object' && item ? !!item.completed : false,
           assigneeId: typeof item === 'object' && item ? item.assigneeId || null : null,
           assigneeName: typeof item === 'object' && item ? item.assigneeName || null : null,
@@ -5716,8 +5727,8 @@ const Workflow = {
       }[wr.priority] || { label: wr.priority || 'Priority', cls: 'card-v2-priority-normal' };
 
       const allChecklistItems = tasks.flatMap(t => t.checklist || []);
-      const documentItems = allChecklistItems.filter(c => c.category === 'document');
-      const subtaskItems = allChecklistItems.filter(c => c.category === 'subtask');
+      const documentItems = allChecklistItems.filter(c => this.isDocumentCategory(c));
+      const subtaskItems = allChecklistItems.filter(c => c.category === this.ChecklistCategory.SUBTASK);
       const completedDocs = documentItems.filter(c => c.completed).length;
       const completedSubtasks = subtaskItems.filter(c => c.completed).length;
 
@@ -6541,7 +6552,7 @@ const Workflow = {
     paneContent.appendChild(descSection);
 
     const [checklistHeaderToggle, checklistContentToggle] = createCollapsibleSection('Sub-tasks / Requirements Checklist', true, async (cont) => {
-      const listContainer = el('div', { class: 'details-content-list' });
+      const listContainer = el('div', { class: 'details-content-list checklist-items-container' });
       let populatePrereqSelect = () => {};
       
       const normalizedChecklist = task.checklist || [];
@@ -6575,7 +6586,7 @@ const Workflow = {
             const textWrap = el('div', { class: 'checklist-text' });
             textWrap.appendChild(el('span', { text: textValue, class: classNames(this.getCompletedClass(item)), title: textValue }));
             const categoryBadge = el('span', {
-              text: item.category === 'document' ? 'Doc' : 'Sub-task',
+              text: this.isDocumentCategory(item) ? 'Doc' : 'Sub-task',
               class: 'checklist-category-badge'
             });
             textWrap.appendChild(categoryBadge);
@@ -6629,17 +6640,19 @@ const Workflow = {
             const bottomLeft = el('div', { class: 'checklist-item-bottom-left' });
             const bottomRight = el('div', { class: 'checklist-item-bottom-right' });
 
-            const periodSel = this.createPeriodInput(
-              item.periodYear,
-              null,
-              (val) => {
-                item.periodYear = val;
-                WorkflowData.updateTask(task.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
-                this.showTaskSidePane(taskId, triggerElement);
-                App.handleRoute();
-              }
-            );
-            bottomLeft.appendChild(periodSel);
+            if (this.isDocumentCategory(item)) {
+              const periodSel = this.createPeriodInput(
+                item.periodYear,
+                null,
+                (val) => {
+                  item.periodYear = val;
+                  WorkflowData.updateTask(task.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+                  this.showTaskSidePane(taskId, triggerElement);
+                  App.handleRoute();
+                }
+              );
+              bottomLeft.appendChild(periodSel);
+            }
 
             if (allowAssignChecklist) {
               const assigneeDropdown = await this.createGroundWorkerDropdown({
@@ -9978,7 +9991,7 @@ const Workflow = {
         checklistHeader.appendChild(el('span', { text: 'Requirements Checklist' }));
         checklistSection.appendChild(checklistHeader);
 
-        const checklistList = el('div', { class: 'details-content-list' });
+        const checklistList = el('div', { class: 'details-content-list checklist-items-container' });
         let populatePrereqSelect = () => {};
         const allowAssignChecklist = !wr || wr.status === 'Draft' || wr.status === 'Pre-processing';
         const allowAddRequirements = allowAssignChecklist;
@@ -10009,7 +10022,7 @@ const Workflow = {
               const textWrap = el('div', { class: 'checklist-text' });
               textWrap.appendChild(el('span', { text: textValue, class: classNames(this.getCompletedClass(item)), title: textValue }));
               const categoryBadge = el('span', {
-                text: item.category === 'document' ? 'Doc' : 'Sub-task',
+                text: this.isDocumentCategory(item) ? 'Doc' : 'Sub-task',
                 class: 'checklist-category-badge'
               });
               textWrap.appendChild(categoryBadge);
@@ -10065,17 +10078,19 @@ const Workflow = {
               const bottomLeft = el('div', { class: 'checklist-item-bottom-left' });
               const bottomRight = el('div', { class: 'checklist-item-bottom-right' });
 
-              const periodSel = this.createPeriodInput(
-                item.periodYear,
-                null,
-                async (val) => {
-                  item.periodYear = val;
-                  WorkflowData.updateTask(t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
-                  await renderChecklist();
-                  App.handleRoute();
-                }
-              );
-              bottomLeft.appendChild(periodSel);
+              if (this.isDocumentCategory(item)) {
+                const periodSel = this.createPeriodInput(
+                  item.periodYear,
+                  null,
+                  async (val) => {
+                    item.periodYear = val;
+                    WorkflowData.updateTask(t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+                    await renderChecklist();
+                    App.handleRoute();
+                  }
+                );
+                bottomLeft.appendChild(periodSel);
+              }
 
               if (allowAssignChecklist) {
                 const assigneeDropdown = await this.createGroundWorkerDropdown({
@@ -12635,7 +12650,7 @@ const Workflow = {
         const textWrap = el('div', { class: 'checklist-text', style: 'display:flex; align-items:center; gap:4px; flex:1; min-width:0;' });
         textWrap.appendChild(el('span', { text: textValue, style: 'font-size:0.9rem; font-weight:500;' }));
         const categoryBadge = el('span', {
-          text: item.category === 'document' ? 'Doc' : 'Sub-task',
+          text: this.isDocumentCategory(item) ? 'Doc' : 'Sub-task',
           class: 'checklist-category-badge'
         });
         textWrap.appendChild(categoryBadge);
@@ -12679,14 +12694,16 @@ const Workflow = {
 
         const bottomRow = el('div', { class: 'checklist-item-bottom-row-compact' });
         
-        const periodSel = this.createPeriodInput(
-          item.periodYear,
-          null,
-          (val) => {
-            item.periodYear = val;
-          }
-        );
-        bottomRow.appendChild(periodSel);
+        if (this.isDocumentCategory(item)) {
+          const periodSel = this.createPeriodInput(
+            item.periodYear,
+            null,
+            (val) => {
+              item.periodYear = val;
+            }
+          );
+          bottomRow.appendChild(periodSel);
+        }
 
         const prereqSelect = el('select', { class: 'form-select', style: 'font-size:0.8125rem; max-width:140px; height: 28px; padding: 2px 6px;' });
         prereqSelect.appendChild(el('option', { value: '', text: '— None —' }));
@@ -13202,9 +13219,10 @@ const Workflow = {
       for (const [idx, item] of checklistItems.entries()) {
         const row = el('div', { style: 'display:flex; align-items:center; gap:8px; padding:6px 8px; background:#f8fafc; border:1px solid #e2e8f0; border-radius: 12px;' });
         row.appendChild(el('span', { text: item.text, style: 'flex:1; font-size:0.85rem;' }));
+        const isDocument = this.isDocumentCategory(item);
         const categoryBadge = el('span', {
-          text: item.category === 'document' ? 'Document' : 'Sub-task',
-          style: 'font-size:0.7rem; padding:2px 6px; border-radius: 12px; background:' + (item.category === 'document' ? '#dbeafe' : '#f3f4f6') + '; color:' + (item.category === 'document' ? '#1e40af' : '#4b5563') + '; font-weight:600;'
+          text: isDocument ? 'Document' : 'Sub-task',
+          style: 'font-size:0.7rem; padding:2px 6px; border-radius: 12px; background:' + (isDocument ? '#dbeafe' : '#f3f4f6') + '; color:' + (isDocument ? '#1e40af' : '#4b5563') + '; font-weight:600;'
         });
         row.appendChild(categoryBadge);
 

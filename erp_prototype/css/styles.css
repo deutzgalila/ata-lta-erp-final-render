@@ -17141,11 +17141,17 @@ table.data-table th.dt-cell--right {
   width: 100%;
 }
 
+.checklist-item-top-row .checklist-text {
+  flex: 1;
+  min-width: 0;
+}
+
 .checklist-item-edit-actions {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-left: auto;
+  flex-shrink: 0;
 }
 
 .checklist-item-bottom-row {
@@ -17199,6 +17205,3 @@ table.data-table th.dt-cell--right {
   gap: 8px;
   align-items: center;
 }
-
-
-
