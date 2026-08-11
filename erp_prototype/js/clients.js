@@ -40,6 +40,28 @@ function getUserColor(userId) {
 }
 
 /**
+ * Build a DOM element displaying a list of contact detail entries.
+ * Shared between the client table and the detail panel for consistency.
+ * @param {Array} contactDetails - Array of {type, value, label} objects.
+ * @returns {HTMLElement|null} A .cd-list element, or null when the list is empty.
+ */
+function buildContactDetailsList(contactDetails) {
+  const items = contactDetails || [];
+  if (items.length === 0) return null;
+  const wrapper = el('div', { class: 'cd-list' });
+  items.forEach(cd => {
+    const entry = el('div', { class: 'cd-entry' });
+    if (cd.label) {
+      entry.appendChild(el('div', { class: 'cd-entry-name', text: cd.label }));
+    }
+    const typeLabel = cd.type ? cd.type.charAt(0).toUpperCase() + cd.type.slice(1) : '';
+    entry.appendChild(el('div', { class: 'cd-entry-value', text: (typeLabel ? typeLabel + ': ' : '') + (cd.value || '') }));
+    wrapper.appendChild(entry);
+  });
+  return wrapper;
+}
+
+/**
  * API-backed, entity-tagged data layer for the Clients module.
  * Mirrors WorkflowData: cache is keyed to Auth.activeEntity, supports
  * optimistic local mutations with rollback on API failure.
@@ -1037,8 +1059,13 @@ const Clients = {
       tr.appendChild(tdRc);
 
       // 11. Contact Details
-      const cdList = (client.contactDetails || []).map(cd => cd.type + ': ' + cd.value).join(', ') || '—';
-      const tdCd = el('td', { text: cdList });
+      const tdCd = el('td');
+      const cdEl = buildContactDetailsList(client.contactDetails);
+      if (cdEl) {
+        tdCd.appendChild(cdEl);
+      } else {
+        tdCd.textContent = '—';
+      }
       tr.appendChild(tdCd);
 
       // Actions column (Edit and Archive actions - only for admins)
@@ -1103,10 +1130,16 @@ const Clients = {
       const leftGrid = el('div', { class: 'jira-details-grid' });
       leftSec.appendChild(leftGrid);
 
-      // Helper to add grid row
+      // Helper to add grid row — accepts a string or DOM Node as value.
       const addGridRow = (label, val) => {
         leftGrid.appendChild(el('div', { class: 'jira-details-lbl', text: label }));
-        leftGrid.appendChild(el('div', { class: 'jira-details-val', text: val || '—' }));
+        const valEl = el('div', { class: 'jira-details-val' });
+        if (val instanceof Node) {
+          valEl.appendChild(val);
+        } else {
+          valEl.textContent = val || '—';
+        }
+        leftGrid.appendChild(valEl);
       };
 
       addGridRow('Trade Name', client.tradeName);
@@ -1125,8 +1158,8 @@ const Clients = {
       }).join(', ');
       addGridRow('Related Companies', relCos);
 
-      const contactDets = (client.contactDetails || []).map(cd => cd.type + ': ' + cd.value + (cd.label ? ` (${cd.label})` : '')).join(', ');
-      addGridRow('Contact Details', contactDets);
+      // Contact Details — use the shared helper for consistent rendering
+      addGridRow('Contact Details', buildContactDetailsList(client.contactDetails) || '—');
 
       detailsContainer.appendChild(leftSec);
 
@@ -1500,7 +1533,7 @@ const Clients = {
     typeSel.addEventListener('change', updatePlaceholder);
     updatePlaceholder();
 
-    const labelInput = el('input', { type: 'text', class: 'notion-line-item-desc', style: 'flex: 0 0 140px;', placeholder: 'Label', name: 'cd-label-' + idx, value: data ? (data.label || '') : '' });
+    const labelInput = el('input', { type: 'text', class: 'notion-line-item-desc', style: 'flex: 0 0 140px;', placeholder: 'Contact Name', name: 'cd-label-' + idx, value: data ? (data.label || '') : '' });
     const removeBtn = el('button', {
       type: 'button',
       class: 'notion-line-item-remove',
@@ -1602,7 +1635,7 @@ const Clients = {
 
         if (value || label) {
           if (!label) {
-            showFieldError(labelInput, 'Label is required.');
+            showFieldError(labelInput, 'Contact Name is required.');
             hasContactError = true;
           }
           if (!value) {
