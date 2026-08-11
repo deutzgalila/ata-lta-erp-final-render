@@ -1730,12 +1730,19 @@ const Clients = {
         },
         onAfterConfirm: async () => {
           const targetRoute = isResubmitting ? '#admin' : '#clients';
-          const msgConfig = {
-            title: 'Client Created',
-            message: `Client "${record.name}" has been successfully created.`,
-            type: 'success'
-          };
-          await triggerSyncReload(targetRoute, msgConfig);
+          // Use a lightweight re-render instead of triggerSyncReload.
+          // onSuccess already populated the in-memory caches with fresh server data;
+          // triggerSyncReload would invalidate those caches and re-fetch via GET,
+          // which may return stale data from the browser's HTTP cache (max-age=30).
+          const appRef = (typeof window !== 'undefined' && window.App) || (typeof App !== 'undefined' ? App : null);
+          if (appRef && typeof appRef.handleRoute === 'function') {
+            if (location.hash !== targetRoute) {
+              appRef._suppressHashChange = true;
+              location.hash = targetRoute;
+            }
+            await appRef.handleRoute();
+          }
+          showToast('Client Created', `Client "${record.name}" has been successfully created.`, 'success');
         }
       });
       return;
@@ -1784,12 +1791,19 @@ const Clients = {
       },
       onAfterConfirm: async () => {
         const targetRoute = isResubmitting ? '#admin' : '#clients';
-        const msgConfig = {
-          title: 'Client Updated',
-          message: `Client "${record.name}" has been successfully updated.`,
-          type: 'success'
-        };
-        await triggerSyncReload(targetRoute, msgConfig);
+        // Use a lightweight re-render instead of triggerSyncReload.
+        // onSuccess already populated the in-memory caches with fresh server data;
+        // triggerSyncReload would invalidate those caches and re-fetch via GET,
+        // which may return stale data from the browser's HTTP cache (max-age=30).
+        const appRef = (typeof window !== 'undefined' && window.App) || (typeof App !== 'undefined' ? App : null);
+        if (appRef && typeof appRef.handleRoute === 'function') {
+          if (location.hash !== targetRoute) {
+            appRef._suppressHashChange = true;
+            location.hash = targetRoute;
+          }
+          await appRef.handleRoute();
+        }
+        showToast('Client Updated', `Client "${record.name}" has been successfully updated.`, 'success');
       }
     });
   },
