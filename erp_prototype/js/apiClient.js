@@ -399,7 +399,7 @@
         return this._promise;
       },
       getAll() {
-        return this._users || [];
+        return [...(this._users || [])];
       },
       getById(id) {
         if (!id || !this._users) return null;

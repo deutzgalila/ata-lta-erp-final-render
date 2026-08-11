@@ -1376,7 +1376,7 @@ const Clients = {
     pocSelect.appendChild(el('option', { value: '', text: '-- Select Point of Contact --' }));
 
     const users = window.apiClient?.userCache?.getAll?.() || [];
-    const matchedUserByName = (client && !client.contactUserId && client.contactPerson) ? this.findUserByName(client.contactPerson) : null;
+    const matchedUserByName = (client && !client.contactUserId && client.contactPerson) ? Clients.findUserByName(client.contactPerson) : null;
     let userMatched = false;
 
     users.forEach(u => {
@@ -2427,7 +2427,7 @@ const Clients = {
             const tradeName = tradeIdx !== -1 ? row[tradeIdx]?.trim() : '';
             const address = addrIdx !== -1 ? row[addrIdx]?.trim() : '';
             const contactPerson = pocIdx !== -1 ? row[pocIdx]?.trim() : '';
-            const matchedUser = this.findUserByName(contactPerson);
+            const matchedUser = Clients.findUserByName(contactPerson);
 
             const rowErrors = [];
 
