@@ -1136,10 +1136,10 @@ function buildTaskMap() {
 }
 
 const Workflow = {
-  ChecklistCategory: {
+  ChecklistCategory: Object.freeze({
     SUBTASK: 'subtask',
     DOCUMENT: 'document'
-  },
+  }),
   isDocumentCategory(item) {
     return item && item.category === this.ChecklistCategory.DOCUMENT;
   },
@@ -1778,15 +1778,17 @@ const Workflow = {
   },
 
   createChecklistItemData(overrides = {}) {
+    const category = overrides.category || this.ChecklistCategory.SUBTASK;
+    const isDoc = category === this.ChecklistCategory.DOCUMENT;
     return {
       id: overrides.id || generateUUID(),
       text: overrides.text || '',
-      category: overrides.category || this.ChecklistCategory.SUBTASK,
+      category: category,
       completed: overrides.completed || false,
       assigneeId: overrides.assigneeId || null,
       assigneeName: overrides.assigneeName || null,
       dependsOn: overrides.dependsOn || null,
-      periodYear: this.getDefaultPeriodValue(overrides.periodYear),
+      periodYear: isDoc ? this.getDefaultPeriodValue(overrides.periodYear) : null,
       timeLogs: overrides.timeLogs || []
     };
   },
@@ -2865,15 +2867,18 @@ const Workflow = {
         const text = typeof item === 'string' ? item : (item.text || '');
         const id = (typeof item === 'object' && item && item.id) ? item.id : generateUUID();
 
+        const category = typeof item === 'object' && item ? (item.category || this.ChecklistCategory.SUBTASK) : this.ChecklistCategory.SUBTASK;
+        const isDoc = category === this.ChecklistCategory.DOCUMENT;
+
         return {
           id: id,
           text: text,
-          category: typeof item === 'object' && item ? (item.category || 'subtask') : 'subtask',
+          category: category,
           completed: typeof item === 'object' && item ? !!item.completed : false,
           assigneeId: typeof item === 'object' && item ? item.assigneeId || null : null,
           assigneeName: typeof item === 'object' && item ? item.assigneeName || null : null,
           dependsOn: typeof item === 'object' && item ? item.dependsOn || null : null,
-          periodYear: (typeof item === 'object' && item && 'periodYear' in item) ? (item.periodYear || null) : null,
+          periodYear: isDoc ? ((typeof item === 'object' && item && 'periodYear' in item) ? (item.periodYear || null) : null) : null,
           timeLogs: typeof item === 'object' && item ? item.timeLogs || [] : []
         };
       });
@@ -13215,9 +13220,10 @@ const Workflow = {
       for (const [idx, item] of checklistItems.entries()) {
         const row = el('div', { style: 'display:flex; align-items:center; gap:8px; padding:6px 8px; background:#f8fafc; border:1px solid #e2e8f0; border-radius: 12px;' });
         row.appendChild(el('span', { text: item.text, style: 'flex:1; font-size:0.85rem;' }));
+        const isDocument = this.isDocumentCategory(item);
         const categoryBadge = el('span', {
-          text: this.isDocumentCategory(item) ? 'Document' : 'Sub-task',
-          style: 'font-size:0.7rem; padding:2px 6px; border-radius: 12px; background:' + (this.isDocumentCategory(item) ? '#dbeafe' : '#f3f4f6') + '; color:' + (this.isDocumentCategory(item) ? '#1e40af' : '#4b5563') + '; font-weight:600;'
+          text: isDocument ? 'Document' : 'Sub-task',
+          style: 'font-size:0.7rem; padding:2px 6px; border-radius: 12px; background:' + (isDocument ? '#dbeafe' : '#f3f4f6') + '; color:' + (isDocument ? '#1e40af' : '#4b5563') + '; font-weight:600;'
         });
         row.appendChild(categoryBadge);
 
