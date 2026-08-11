@@ -1742,7 +1742,6 @@ const Clients = {
             }
             await appRef.handleRoute();
           }
-          showToast('Client Created', `Client "${record.name}" has been successfully created.`, 'success');
         }
       });
       return;
@@ -1803,7 +1802,6 @@ const Clients = {
           }
           await appRef.handleRoute();
         }
-        showToast('Client Updated', `Client "${record.name}" has been successfully updated.`, 'success');
       }
     });
   },
