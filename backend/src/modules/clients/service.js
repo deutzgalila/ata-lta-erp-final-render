@@ -379,7 +379,7 @@ const updateClient = async ({ id, entityId, data, updatedBy }) => {
     rdo_code: data.rdoCode ?? existing.rdoCode,
     address: data.address ?? existing.address,
     trade_name: data.tradeName ?? existing.tradeName,
-    contact_user_id: data.contactUserId ?? existing.contactUserId,
+    contact_user_id: data.contactUserId !== undefined ? data.contactUserId : existing.contactUserId,
     contact_person: data.contactPerson !== undefined ? data.contactPerson : existing.contactPerson,
     retainer: data.retainer ?? existing.retainer,
     retainer_fee: (data.retainer ?? existing.retainer) ? (data.retainerFee !== undefined ? data.retainerFee : existing.retainerFee) : null,
