@@ -446,9 +446,7 @@ const Clients = {
    */
   findUserByName(personName) {
     if (!personName) return null;
-    const users = window.apiClient?.userCache?._users || [];
-    const target = personName.trim().toLowerCase();
-    return users.find(u => u && u.name && u.name.trim().toLowerCase() === target) || null;
+    return window.apiClient?.userCache?.getByName?.(personName) || null;
   },
 
   async render(routeId) {
@@ -1377,7 +1375,8 @@ const Clients = {
     const pocSelect = el('select', { name: 'contactUserId', class: 'notion-prop-select' });
     pocSelect.appendChild(el('option', { value: '', text: '-- Select Point of Contact --' }));
 
-    const users = window.apiClient?.userCache?._users || [];
+    const users = window.apiClient?.userCache?.getAll?.() || [];
+    const matchedUserByName = (client && !client.contactUserId && client.contactPerson) ? this.findUserByName(client.contactPerson) : null;
     let userMatched = false;
 
     users.forEach(u => {
@@ -1386,7 +1385,7 @@ const Clients = {
       if (client && client.contactUserId && client.contactUserId === u.id) {
         opt.selected = true;
         userMatched = true;
-      } else if (client && !client.contactUserId && client.contactPerson && this.findUserByName(client.contactPerson)?.id === u.id) {
+      } else if (matchedUserByName && matchedUserByName.id === u.id) {
         opt.selected = true;
         userMatched = true;
       }

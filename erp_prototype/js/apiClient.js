@@ -398,13 +398,17 @@
         });
         return this._promise;
       },
+      getAll() {
+        return this._users || [];
+      },
       getById(id) {
         if (!id || !this._users) return null;
         return this._users.find(u => u.id === id) || null;
       },
       getByName(name) {
         if (!name || !this._users) return null;
-        return this._users.find(u => u.name === name) || null;
+        const target = name.trim().toLowerCase();
+        return this._users.find(u => u && u.name && u.name.trim().toLowerCase() === target) || null;
       },
       invalidate() {
         this._users = null;
