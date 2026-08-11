@@ -406,9 +406,9 @@
         return this._users.find(u => u.id === id) || null;
       },
       getByName(name) {
-        if (!name || !this._users) return null;
+        if (!name || typeof name !== 'string' || !this._users) return null;
         const target = name.trim().toLowerCase();
-        return this._users.find(u => u && u.name && u.name.trim().toLowerCase() === target) || null;
+        return this._users.find(u => u && typeof u.name === 'string' && u.name.trim().toLowerCase() === target) || null;
       },
       invalidate() {
         this._users = null;
