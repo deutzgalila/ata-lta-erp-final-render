@@ -608,25 +608,63 @@ const WorkflowData = {
     return normalizedWr;
   },
 
-  async createTask(record) {
-    const localId = record && record.id;
-    const wrId = record.workRequestId;
-    const payload = { ...record };
+  /**
+   * Sanitizes a task payload before sending it to the backend.
+   * Strips frontend-only extensions, converts special-case values,
+   * and ensures the payload conforms to the backend Zod schema.
+   *
+   * Centralises this logic so it can be shared by createTask, updateTask,
+   * and any future code paths that need to send task data to the API.
+   */
+  _sanitizeTaskPayload(payload) {
+    // --- Task-level fields ---
     delete payload.id;
     delete payload.workRequestId;
     delete payload.createdAt;
     delete payload.updatedAt;
-    // The backend task schema treats assignee fields as optional strings; null is rejected.
-    if (payload.assigneeId == null) delete payload.assigneeId;
-    if (payload.assigneeName == null) delete payload.assigneeName;
+    // Frontend-only extensions the backend does not recognise.
+    delete payload.comments;
+    delete payload.taskDocuments;
+    delete payload.boardOrder;
+    delete payload.priority;
+    delete payload.assignedTo;
+    // coAssignees stores names (strings) on the frontend but the schema
+    // expects UUIDs.  It is managed separately, so remove it.
+    delete payload.coAssignees;
+    // timeLogs are managed through the dedicated addTimeLogs endpoint.
+    // Sending them here would cause the backend to delete-then-reinsert
+    // stale cached copies, losing IDs and potentially duplicating data.
+    delete payload.timeLogs;
+
+    // --- Checklist item fields ---
     if (Array.isArray(payload.checklist)) {
       payload.checklist = payload.checklist.map(item => {
         const clean = { ...item };
+        delete clean.coAssignees;
+        delete clean.timeLogs;
+        // The frontend uses '*' as a special dependsOn value meaning
+        // "depends on all other items".  The backend schema requires a
+        // valid UUID, so convert it to null.
+        if (clean.dependsOn === '*') clean.dependsOn = null;
+        // Null assignee fields are rejected by the Zod schema (optional
+        // but not nullable), so strip them when absent.
         if (clean.assigneeId == null) delete clean.assigneeId;
         if (clean.assigneeName == null) delete clean.assigneeName;
         return clean;
       });
     }
+
+    return payload;
+  },
+
+  async createTask(record) {
+    const localId = record && record.id;
+    const wrId = record.workRequestId;
+    const payload = { ...record };
+    // The backend task schema treats assignee fields as optional strings; null is rejected.
+    if (payload.assigneeId == null) delete payload.assigneeId;
+    if (payload.assigneeName == null) delete payload.assigneeName;
+    this._sanitizeTaskPayload(payload);
     const res = await window.apiClient.workRequests.createTask(wrId, payload);
     const created = this.normalizeTask(res.data);
     if (!Array.isArray(this._tasks)) this._tasks = [];
@@ -786,40 +824,7 @@ const WorkflowData = {
     if (existing) Object.assign(existing, changes);
     try {
       const payload = { ...updated };
-      delete payload.id;
-      delete payload.workRequestId;
-      delete payload.createdAt;
-      delete payload.updatedAt;
-      // Strip frontend-only extensions the backend does not recognise so they
-      // don't trigger Zod validation errors or unintended data loss.
-      delete payload.comments;
-      delete payload.taskDocuments;
-      delete payload.boardOrder;
-      delete payload.priority;
-      delete payload.assignedTo;
-      if (Array.isArray(payload.checklist)) {
-        payload.checklist = payload.checklist.map(item => {
-          const clean = { ...item };
-          // Strip frontend-only extensions from checklist items
-          delete clean.coAssignees;
-          // Remove timeLogs from the checklist payload so the backend does
-          // not delete existing time logs.  Time logs are managed separately
-          // through the dedicated addTimeLogs endpoint.
-          delete clean.timeLogs;
-          // The frontend uses '*' as a special dependsOn value meaning
-          // "depends on all other items".  The backend schema requires a
-          // valid UUID, so convert '*' to null to avoid Zod validation
-          // failure which would silently abort the entire update.
-          if (clean.dependsOn === '*') clean.dependsOn = null;
-          return clean;
-        });
-      }
-      // Don't send coAssignees (frontend-only) to backend
-      delete payload.coAssignees;
-      // Don't send timeLogs — they are managed by the dedicated addTimeLogs
-      // endpoint.  Sending them here would cause the backend to delete all
-      // existing task-level time logs and re-insert stale cached copies.
-      delete payload.timeLogs;
+      this._sanitizeTaskPayload(payload);
       const res = await window.apiClient.workRequests.updateTask(wrId, id, payload);
       const normalized = this.normalizeTask(res.data);
       if (existing) {
@@ -12632,24 +12637,22 @@ const Workflow = {
           const newLogIds = updatedIds.filter(id => !existingIds.includes(id));
 
           // Wait for logs to be listable, but don't block UI update on timeout
-          let finalServerTask = serverTask;
           if (newLogIds.length > 0) {
             submitBtn.textContent = 'Syncing...';
             try {
               await this._waitUntilTimeLogsListable(wrId, taskId, newLogIds);
-              const finalRes = await window.apiClient.workRequests.getTask(wrId, taskId, { _t: Date.now() });
-              finalServerTask = finalRes?.data || serverTask;
             } catch (waitErr) {
               console.warn('Time log sync wait timed out, using initial response', waitErr);
-              // Fall through — use serverTask as finalServerTask
             }
-          } else {
-            // No new IDs detected, fetch fresh anyway
-            try {
-              const finalRes = await window.apiClient.workRequests.getTask(wrId, taskId, { _t: Date.now() });
-              finalServerTask = finalRes?.data || serverTask;
-            } catch (_e) { /* use serverTask */ }
           }
+
+          // Always attempt a fresh fetch after saving (and optional sync wait).
+          // Falls back to the initial addTimeLogs response if the fetch fails.
+          let finalServerTask = serverTask;
+          try {
+            const finalRes = await window.apiClient.workRequests.getTask(wrId, taskId, { _t: Date.now() });
+            finalServerTask = finalRes?.data || serverTask;
+          } catch (_e) { /* use serverTask */ }
 
           const normalized = WorkflowData.normalizeTask(finalServerTask);
           if (existing) {
