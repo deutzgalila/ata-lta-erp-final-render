@@ -14,7 +14,7 @@ const transmittalsService = require('../transmittals/service');
 const { computePermissions } = require('../../middleware/rbac');
 const { hasPermission } = require('../../lib/permissions');
 
-const ALLOWED_DEPARTMENTS = ['Management', 'Accounting', 'Operations', 'Documentation'];
+const ALLOWED_DEPARTMENTS = ['Management', 'Accounting', 'Operations', 'Documentation', 'HR'];
 
 const toApiUser = (row, departments = []) => ({
   id: row.id,

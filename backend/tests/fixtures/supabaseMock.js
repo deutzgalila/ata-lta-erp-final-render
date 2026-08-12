@@ -51,7 +51,7 @@ const seedDefaults = () => {
   mockTables.entities.set('ent-ata', { id: 'ent-ata', code: 'ATA', name: 'ATA Accounting Firm' });
   mockTables.entities.set('ent-lta', { id: 'ent-lta', code: 'LTA', name: 'LTA Accounting Firm' });
 
-  const depts = ['Management', 'Accounting', 'Operations', 'Documentation'];
+  const depts = ['Management', 'Accounting', 'Operations', 'Documentation', 'HR'];
   depts.forEach((name, idx) => {
     const id = `dept-${idx + 1}`;
     mockTables.departments.set(id, { id, name });
