@@ -281,7 +281,8 @@ const tableQuery = (table) => {
           );
           if (dup) {
             builder._insertError = {
-              message: 'duplicate key value violates unique constraint "invoices_entity_id_invoice_number_key"',
+              message:
+                'duplicate key value violates unique constraint "invoices_entity_id_invoice_number_key"',
               code: '23505',
             };
             return builder;
@@ -290,7 +291,8 @@ const tableQuery = (table) => {
         if (table === 'disbursements' && stored.disbursement_number) {
           const dup = Array.from(rows.values()).find(
             (r) =>
-              r.entity_id === stored.entity_id && r.disbursement_number === stored.disbursement_number
+              r.entity_id === stored.entity_id &&
+              r.disbursement_number === stored.disbursement_number
           );
           if (dup) {
             builder._insertError = {
@@ -369,7 +371,9 @@ const rpcImpl = {
     const row = mockTables.disbursements.get(params.p_id);
     if (!row) return { data: [], error: null };
     if (row.entity_id !== params.p_entity_id) return { data: [], error: null };
-    const fromStatuses = Array.isArray(params.p_from_statuses) ? params.p_from_statuses : [params.p_from_statuses];
+    const fromStatuses = Array.isArray(params.p_from_statuses)
+      ? params.p_from_statuses
+      : [params.p_from_statuses];
     if (!fromStatuses.includes(row.status)) return { data: [], error: null };
 
     const now = nowIso();

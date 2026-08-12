@@ -18,13 +18,11 @@ const AppError = require('../../lib/AppError');
  * @param {object} [params.filters]
  * @returns {Promise<{ data: object[], count: number }>}
  */
-const listTransmittals = async ({ entityId, filters = {} }) => {
+const listTransmittals = async ({ entityId, filters = {}, user }) => {
   const { status, clientId, search, archived, includeDeleted, page = 1, limit = 50 } = filters;
   const isArchived = archived === true || archived === 'true';
 
-  let query = supabaseAdmin
-    .from('transmittals')
-    .select('*, clients(name)', { count: 'exact' });
+  let query = supabaseAdmin.from('transmittals').select('*, clients(name)', { count: 'exact' });
 
   if (includeDeleted !== true && includeDeleted !== 'true') {
     query = query.is('deleted_at', null);
@@ -46,6 +44,16 @@ const listTransmittals = async ({ entityId, filters = {} }) => {
     query = query.or(
       `tracking_number.ilike.%${search}%,notes.ilike.%${search}%,recipient_name.ilike.%${search}%`
     );
+  }
+
+  const isAdmin = user?.role === 'Admin';
+  if (!isAdmin) {
+    const { getUserConcernedWorkRequestIds } = require('../../lib/userScope');
+    const concernedWrIds = await getUserConcernedWorkRequestIds(user);
+    if (concernedWrIds.length === 0) {
+      return { data: [], count: 0 };
+    }
+    query = query.in('work_request_id', concernedWrIds);
   }
 
   const offset = (page - 1) * limit;
@@ -101,7 +109,7 @@ const listTransmittals = async ({ entityId, filters = {} }) => {
  * @param {string} params.entityId
  * @returns {Promise<{ active: number, archived: number, total: number }>}
  */
-const countTransmittals = async ({ entityId }) => {
+const countTransmittals = async ({ entityId, user }) => {
   let query = supabaseAdmin
     .from('transmittals')
     .select('*', { count: 'exact' })
@@ -109,6 +117,16 @@ const countTransmittals = async ({ entityId }) => {
 
   if (entityId && entityId !== 'ALL') {
     query = query.eq('entity_id', entityId);
+  }
+
+  const isAdmin = user?.role === 'Admin';
+  if (!isAdmin) {
+    const { getUserConcernedWorkRequestIds } = require('../../lib/userScope');
+    const concernedWrIds = await getUserConcernedWorkRequestIds(user);
+    if (concernedWrIds.length === 0) {
+      return { active: 0, archived: 0, total: 0 };
+    }
+    query = query.in('work_request_id', concernedWrIds);
   }
 
   const { data, error, count } = await query;
@@ -122,9 +140,7 @@ const countTransmittals = async ({ entityId }) => {
   }
 
   const rows = data || [];
-  const active = rows.filter(
-    (t) => t.status !== 'Cancelled' && !t.archived
-  ).length;
+  const active = rows.filter((t) => t.status !== 'Cancelled' && !t.archived).length;
   const archived = rows.filter((t) => t.archived === true || t.status === 'Cancelled').length;
 
   return { active, archived, total: count || rows.length };
@@ -214,7 +230,7 @@ const createTransmittal = async ({ entityId, userId, data }) => {
  * @param {string} params.id
  * @returns {Promise<object>}
  */
-const getTransmittalById = async ({ entityId, id }) => {
+const getTransmittalById = async ({ entityId, id, user }) => {
   const { data: transmittal, error } = await supabaseAdmin
     .from('transmittals')
     .select('*, clients(name, address, tin)')
@@ -229,6 +245,21 @@ const getTransmittalById = async ({ entityId, id }) => {
       title: 'Not Found',
       detail: `Transmittal ${id} not found`,
     });
+  }
+
+  if (user) {
+    const isAdmin = user.role === 'Admin';
+    if (!isAdmin) {
+      const { getUserConcernedWorkRequestIds } = require('../../lib/userScope');
+      const concernedWrIds = await getUserConcernedWorkRequestIds(user);
+      if (!transmittal.work_request_id || !concernedWrIds.includes(transmittal.work_request_id)) {
+        throw new AppError({
+          statusCode: 403,
+          title: 'Forbidden',
+          detail: 'You do not have permission to view this transmittal.',
+        });
+      }
+    }
   }
 
   const { data: items } = await supabaseAdmin
