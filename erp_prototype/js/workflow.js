@@ -12779,6 +12779,9 @@ const Workflow = {
     checklistGroup.appendChild(checklistContainer);
     form.appendChild(checklistGroup);
 
+    // Track which checklist items are in edit mode within this modal
+    const modalEditingIds = new Set();
+
     const renderChecklist = async () => {
       const existingList = checklistContainer.querySelector('.checklist-items-list');
       if (existingList) existingList.remove();
@@ -12786,6 +12789,7 @@ const Workflow = {
 
       const list = el('div', { class: 'checklist-items-list', style: 'display:flex; flex-direction:column; gap:8px; margin-top:8px;' });
       for (const [idx, item] of checklistItems.entries()) {
+        if (!item.id) item.id = generateUUID();
         const row = el('div', { class: classNames('checklist-item-builder-row', 'checklist-item-flex') });
         
         const cb = el('input', { type: 'checkbox' });
@@ -12800,6 +12804,13 @@ const Workflow = {
           class: classNames('checklist-category-badge', isDoc && 'badge-doc')
         });
         textWrap.appendChild(categoryBadge);
+        if (isDoc && item.periodYear) {
+          const periodBadge = el('span', {
+            text: '📅' + item.periodYear,
+            class: 'checklist-period-badge'
+          });
+          textWrap.appendChild(periodBadge);
+        }
 
         const topRow = el('div', { class: 'checklist-item-top-row' });
         topRow.appendChild(cb);
@@ -12807,30 +12818,32 @@ const Workflow = {
 
         const topActions = el('div', { class: 'checklist-item-edit-actions' });
 
+        const isItemEditing = modalEditingIds.has(item.id);
+
         const editBtn = el('button', {
           type: 'button',
           class: 'action-btn',
           style: 'border-color:transparent; padding: 2px 4px; display:flex; align-items:center; background:transparent;',
-          html: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #6366f1;"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>',
-          title: 'Edit checklist item'
+          html: isItemEditing
+            ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #22c55e;"><polyline points="20 6 9 17 4 12"></polyline></svg>'
+            : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #6366f1;"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>',
+          title: isItemEditing ? 'Done editing' : 'Edit checklist item'
         });
-        editBtn.addEventListener('click', (e) => {
+        editBtn.addEventListener('click', async (e) => {
           e.stopPropagation();
-          this.initInlineEdit(textWrap, item.text,
-            async (newVal) => {
-              item.text = newVal;
-              await renderChecklist();
-            },
-            async () => {
-              await renderChecklist();
-            }
-          );
+          if (isItemEditing) {
+            modalEditingIds.delete(item.id);
+          } else {
+            modalEditingIds.add(item.id);
+          }
+          await renderChecklist();
         });
         topActions.appendChild(editBtn);
 
         const delBtn = el('button', { type: 'button', class: 'btn btn-danger btn-sm', text: '×', style: 'padding:2px 6px; font-size:12px; line-height:1;' });
         delBtn.addEventListener('click', async () => {
           checklistItems.splice(idx, 1);
+          modalEditingIds.delete(item.id);
           checklistFromTemplate = false;
           await renderChecklist();
         });
@@ -12838,47 +12851,77 @@ const Workflow = {
         topRow.appendChild(topActions);
         row.appendChild(topRow);
 
-        const bottomRow = el('div', { class: 'checklist-item-bottom-row-compact' });
-        
-        if (this.isDocumentCategory(item)) {
-          const periodSel = this.createPeriodInput(
-            item.periodYear,
-            null,
-            (val) => {
-              item.periodYear = val;
-            }
-          );
-          bottomRow.appendChild(periodSel);
-        }
+        const bottomRow = el('div', { class: 'checklist-item-bottom-row' });
+        const bottomLeft = el('div', { class: 'checklist-item-bottom-left' });
+        const bottomRight = el('div', { class: 'checklist-item-bottom-right' });
 
-        const prereqSelect = el('select', { class: 'form-select', style: 'font-size:0.8125rem; max-width:140px; height: 28px; padding: 2px 6px;' });
-        prereqSelect.appendChild(el('option', { value: '', text: '— None —' }));
-        prereqSelect.appendChild(el('option', { value: '*', text: 'All Task (*)' }));
-        checklistItems.slice(0, idx).forEach((prev, pIdx) => {
-          if (!prev.id) prev.id = generateUUID();
-          prereqSelect.appendChild(el('option', { value: prev.id, text: `${pIdx + 1}. ${prev.text}` }));
-        });
-        if (checklistItems.length <= 1) {
-          prereqSelect.disabled = true;
-        }
-        prereqSelect.value = item.dependsOn || '';
-        prereqSelect.addEventListener('change', () => {
-          item.dependsOn = prereqSelect.value || null;
-        });
-        bottomRow.appendChild(prereqSelect);
-
-        const assigneeDropdown = await this.createGroundWorkerDropdown({
-          selectedGroundWorkerName: item.assigneeName,
-          placeholder: 'Assign...',
-          maxWidth: '140px',
-          className: 'modal-checklist-assignee',
-          onChange: ({ assigneeId, assigneeName }) => {
-            item.assigneeId = assigneeId || null;
-            item.assigneeName = assigneeName || null;
+        if (isItemEditing) {
+          // --- EDIT MODE: Show editable fields ---
+          if (this.isDocumentCategory(item)) {
+            const periodSel = this.createPeriodInput(
+              item.periodYear,
+              null,
+              async (val) => {
+                item.periodYear = val;
+                await renderChecklist();
+              }
+            );
+            bottomLeft.appendChild(periodSel);
           }
-        });
-        bottomRow.appendChild(assigneeDropdown);
 
+          const prereqSelect = el('select', { class: 'form-select', style: 'font-size:0.8125rem; max-width:140px; height: 28px; padding: 2px 6px;' });
+          prereqSelect.appendChild(el('option', { value: '', text: '— None —' }));
+          prereqSelect.appendChild(el('option', { value: '*', text: 'All Task (*)' }));
+          checklistItems.slice(0, idx).forEach((prev, pIdx) => {
+            if (!prev.id) prev.id = generateUUID();
+            prereqSelect.appendChild(el('option', { value: prev.id, text: `${pIdx + 1}. ${prev.text}` }));
+          });
+          if (checklistItems.length <= 1) {
+            prereqSelect.disabled = true;
+          }
+          prereqSelect.value = item.dependsOn || '';
+          prereqSelect.addEventListener('change', () => {
+            item.dependsOn = prereqSelect.value || null;
+          });
+          bottomLeft.appendChild(prereqSelect);
+
+          const assigneeDropdown = await this.createGroundWorkerDropdown({
+            selectedGroundWorkerName: item.assigneeName,
+            placeholder: 'Assign...',
+            maxWidth: '140px',
+            className: 'modal-checklist-assignee',
+            onChange: async ({ assigneeId, assigneeName }) => {
+              item.assigneeId = assigneeId || null;
+              item.assigneeName = assigneeName || null;
+              await renderChecklist();
+            }
+          });
+          bottomLeft.appendChild(assigneeDropdown);
+        } else {
+          // --- READ-ONLY MODE: Show non-editable display ---
+          if (this.isDocumentCategory(item) && item.periodYear) {
+            const periodLabel = el('span', {
+              text: item.periodYear,
+              class: 'checklist-period-readonly',
+              style: 'font-size: 0.8125rem; color: var(--color-text-muted); padding: 2px 6px; background: var(--color-bg-subtle, rgba(127,127,127,0.08)); border-radius: 4px;'
+            });
+            bottomLeft.appendChild(periodLabel);
+          }
+
+          // Show assignee name as read-only
+          if (item.assigneeName) {
+            const assigneeWrap = this.renderAssigneeAvatarsList([item.assigneeName]);
+            bottomLeft.appendChild(assigneeWrap);
+          } else {
+            bottomLeft.appendChild(el('span', { text: 'Unassigned', style: 'font-size: 0.75rem; color: var(--color-text-muted);' }));
+          }
+        }
+
+        const timePill = el('span', { class: 'hours-pill', text: '0h' });
+        bottomRight.appendChild(timePill);
+
+        bottomRow.appendChild(bottomLeft);
+        bottomRow.appendChild(bottomRight);
         row.appendChild(bottomRow);
         list.appendChild(row);
       }
