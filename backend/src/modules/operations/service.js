@@ -840,24 +840,33 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user }
 
   if (data.checklist !== undefined) {
     await upsertChecklist(taskId, data.checklist);
-    const checklistTimeLogs = [];
-    data.checklist.forEach((item) => {
-      if (Array.isArray(item.timeLogs)) {
-        item.timeLogs.forEach((log) => {
-          checklistTimeLogs.push({
-            ...log,
-            checklistItemId: item.id,
+    // Only delete and re-insert checklist time logs when at least one
+    // checklist item explicitly provides a timeLogs array.  This prevents
+    // accidental data loss when the frontend sends a checklist update that
+    // is purely metadata (assignee, text, periodYear, etc.).
+    const hasExplicitTimeLogs = data.checklist.some(
+      (item) => Array.isArray(item.timeLogs) && item.timeLogs.length > 0
+    );
+    if (hasExplicitTimeLogs) {
+      const checklistTimeLogs = [];
+      data.checklist.forEach((item) => {
+        if (Array.isArray(item.timeLogs)) {
+          item.timeLogs.forEach((log) => {
+            checklistTimeLogs.push({
+              ...log,
+              checklistItemId: item.id,
+            });
           });
-        });
+        }
+      });
+      await supabaseAdmin
+        .from('task_time_logs')
+        .delete()
+        .eq('task_id', taskId)
+        .not('checklist_item_id', 'is', null);
+      if (checklistTimeLogs.length) {
+        await upsertTimeLogs(taskId, checklistTimeLogs, false);
       }
-    });
-    await supabaseAdmin
-      .from('task_time_logs')
-      .delete()
-      .eq('task_id', taskId)
-      .not('checklist_item_id', 'is', null);
-    if (checklistTimeLogs.length) {
-      await upsertTimeLogs(taskId, checklistTimeLogs, false);
     }
   }
   if (data.timeLogs !== undefined) {
