@@ -146,6 +146,7 @@ const WorkflowData = {
         dependsOn: Array.isArray(item.dependsOn)
           ? (item.dependsOn[0] || null)
           : (item.dependsOn || null),
+        periodYear: item.periodYear || null,
         timeLogs: item.timeLogs || []
       }))
     };
@@ -789,6 +790,27 @@ const WorkflowData = {
       delete payload.workRequestId;
       delete payload.createdAt;
       delete payload.updatedAt;
+      // Strip frontend-only extensions the backend does not recognise so they
+      // don't trigger Zod validation errors or unintended data loss.
+      delete payload.comments;
+      delete payload.taskDocuments;
+      delete payload.boardOrder;
+      delete payload.priority;
+      delete payload.assignedTo;
+      if (Array.isArray(payload.checklist)) {
+        payload.checklist = payload.checklist.map(item => {
+          const clean = { ...item };
+          // Strip frontend-only extensions from checklist items
+          delete clean.coAssignees;
+          // Remove timeLogs from the checklist payload so the backend does
+          // not delete existing time logs.  Time logs are managed separately
+          // through the dedicated addTimeLogs endpoint.
+          delete clean.timeLogs;
+          return clean;
+        });
+      }
+      // Don't send coAssignees (frontend-only) to backend
+      delete payload.coAssignees;
       const res = await window.apiClient.workRequests.updateTask(wrId, id, payload);
       const normalized = this.normalizeTask(res.data);
       if (existing) {
@@ -6561,6 +6583,9 @@ const Workflow = {
       
       const normalizedChecklist = task.checklist || [];
 
+      // Persist side-pane edit-mode state across re-renders (showTaskSidePane re-creates the DOM)
+      if (!this._sidePaneEditingIds) this._sidePaneEditingIds = new Set();
+
       const renderChecklist = async () => {
         listContainer.innerHTML = '';
         if (normalizedChecklist.length === 0) {
@@ -6609,27 +6634,26 @@ const Workflow = {
 
             const topActions = el('div', { class: 'checklist-item-edit-actions' });
 
+            const isItemEditing = this._sidePaneEditingIds.has(item.id);
+
             const editBtn = el('button', {
               type: 'button',
               class: 'action-btn',
               style: 'border-color:transparent; padding: 2px 4px; display:flex; align-items:center;',
-              html: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #6366f1;"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>',
-              title: 'Edit checklist item'
+              html: isItemEditing
+                ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #22c55e;"><polyline points="20 6 9 17 4 12"></polyline></svg>'
+                : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #6366f1;"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>',
+              title: isItemEditing ? 'Done editing' : 'Edit checklist item'
             });
             if (!disableIfPending(editBtn, wr)) {
               editBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                this.initInlineEdit(textWrap, item.text,
-                  (newVal) => {
-                    item.text = newVal;
-                    WorkflowData.updateTask(task.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
-                    this.showTaskSidePane(taskId, triggerElement);
-                    App.handleRoute();
-                  },
-                  () => {
-                    this.showTaskSidePane(taskId, triggerElement);
-                  }
-                );
+                if (isItemEditing) {
+                  this._sidePaneEditingIds.delete(item.id);
+                } else {
+                  this._sidePaneEditingIds.add(item.id);
+                }
+                this.showTaskSidePane(taskId, triggerElement);
               });
             }
             topActions.appendChild(editBtn);
@@ -6638,6 +6662,7 @@ const Workflow = {
             if (!disableIfPending(delBtn, wr)) {
               delBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
+                this._sidePaneEditingIds.delete(item.id);
                 await this.confirmDeleteChecklistItem(task, item, async () => {
                   this.showTaskSidePane(taskId, triggerElement);
                   App.handleRoute();
@@ -6652,55 +6677,79 @@ const Workflow = {
             const bottomLeft = el('div', { class: 'checklist-item-bottom-left' });
             const bottomRight = el('div', { class: 'checklist-item-bottom-right' });
 
-            if (this.isDocumentCategory(item)) {
-              const periodSel = this.createPeriodInput(
-                item.periodYear,
-                null,
-                (val) => {
-                  item.periodYear = val;
-                  WorkflowData.updateTask(task.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
-                  this.showTaskSidePane(taskId, triggerElement);
-                  App.handleRoute();
-                }
-              );
-              bottomLeft.appendChild(periodSel);
-            }
-
-            if (allowAssignChecklist) {
-              const assigneeDropdown = await this.createGroundWorkerDropdown({
-                selectedGroundWorkerName: item.assigneeName,
-                placeholder: 'Assign...',
-                className: 'checklist-assignee-dropdown',
-                priorityNames: getTaskAllAssigneeNames(task),
-                onChange: ({ assigneeId, assigneeName }) => {
-                  item.assigneeName = assigneeName || null;
-                  item.assigneeId = assigneeId || null;
-                  WorkflowData.updateTask(task.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
-                  this.showTaskSidePane(taskId, triggerElement);
-                  App.handleRoute();
-                }
-              });
-              if (isPendingWr(wr)) {
-                const input = assigneeDropdown.querySelector('input');
-                if (input) disableForApproval(input);
-                disableForApproval(assigneeDropdown);
+            if (isItemEditing) {
+              // --- EDIT MODE: Show editable fields ---
+              if (this.isDocumentCategory(item)) {
+                const periodSel = this.createPeriodInput(
+                  item.periodYear,
+                  null,
+                  (val) => {
+                    item.periodYear = val;
+                    WorkflowData.updateTask(task.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+                    this.showTaskSidePane(taskId, triggerElement);
+                  }
+                );
+                bottomLeft.appendChild(periodSel);
               }
-              bottomLeft.appendChild(assigneeDropdown);
 
-              const coAssigneePicker = await this.renderChecklistCoAssigneePicker(
-                task,
-                item,
-                { primaryName: item.assigneeName || '', className: 'inline-coassignee-dropdown' },
-                !isArchived,
-                true,
-                () => {
-                  WorkflowData.updateTask(task.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
-                  this.showTaskSidePane(taskId, triggerElement);
-                  App.handleRoute();
+              if (allowAssignChecklist) {
+                const assigneeDropdown = await this.createGroundWorkerDropdown({
+                  selectedGroundWorkerName: item.assigneeName,
+                  placeholder: 'Assign...',
+                  className: 'checklist-assignee-dropdown',
+                  priorityNames: getTaskAllAssigneeNames(task),
+                  onChange: ({ assigneeId, assigneeName }) => {
+                    item.assigneeName = assigneeName || null;
+                    item.assigneeId = assigneeId || null;
+                    WorkflowData.updateTask(task.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+                    this.showTaskSidePane(taskId, triggerElement);
+                  }
+                });
+                if (isPendingWr(wr)) {
+                  const input = assigneeDropdown.querySelector('input');
+                  if (input) disableForApproval(input);
+                  disableForApproval(assigneeDropdown);
                 }
-              );
-              bottomLeft.appendChild(coAssigneePicker);
+                bottomLeft.appendChild(assigneeDropdown);
+
+                const coAssigneePicker = await this.renderChecklistCoAssigneePicker(
+                  task,
+                  item,
+                  { primaryName: item.assigneeName || '', className: 'inline-coassignee-dropdown' },
+                  !isArchived,
+                  true,
+                  () => {
+                    WorkflowData.updateTask(task.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+                    this.showTaskSidePane(taskId, triggerElement);
+                  }
+                );
+                bottomLeft.appendChild(coAssigneePicker);
+              }
+
+              const itemHours = getChecklistItemTotalHours(item);
+              const timePill = el('span', { class: 'hours-pill', text: itemHours + 'h' });
+              bottomRight.appendChild(timePill);
+
+              const logBtn = el('button', { type: 'button', class: 'btn btn-secondary btn-xs', text: 'Log' });
+              if (!disableIfPending(logBtn, wr)) {
+                logBtn.addEventListener('click', (e) => {
+                  e.stopPropagation();
+                  this.showAddTimeLogModal(task.id, item.id);
+                });
+              }
+              bottomRight.appendChild(logBtn);
             } else {
+              // --- READ-ONLY MODE: Show non-editable display ---
+              if (this.isDocumentCategory(item) && item.periodYear) {
+                const periodLabel = el('span', {
+                  text: item.periodYear,
+                  class: 'checklist-period-readonly',
+                  style: 'font-size: 0.8125rem; color: var(--color-text-muted); padding: 2px 6px; background: var(--color-bg-subtle, rgba(127,127,127,0.08)); border-radius: 4px;'
+                });
+                bottomLeft.appendChild(periodLabel);
+              }
+
+              // Show assignee names as read-only avatars
               const itemAssigneeNames = [];
               if (item.assigneeName) {
                 itemAssigneeNames.push(item.assigneeName);
@@ -6712,22 +6761,17 @@ const Workflow = {
                   }
                 });
               }
-              const assigneeWrap = this.renderAssigneeAvatarsList(itemAssigneeNames);
-              bottomLeft.appendChild(assigneeWrap);
-            }
+              if (itemAssigneeNames.length > 0) {
+                const assigneeWrap = this.renderAssigneeAvatarsList(itemAssigneeNames);
+                bottomLeft.appendChild(assigneeWrap);
+              } else {
+                bottomLeft.appendChild(el('span', { text: 'Unassigned', style: 'font-size: 0.75rem; color: var(--color-text-muted);' }));
+              }
 
-            const itemHours = getChecklistItemTotalHours(item);
-            const timePill = el('span', { class: 'hours-pill', text: itemHours + 'h' });
-            bottomRight.appendChild(timePill);
-
-            const logBtn = el('button', { type: 'button', class: 'btn btn-secondary btn-xs', text: 'Log' });
-            if (!disableIfPending(logBtn, wr)) {
-              logBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.showAddTimeLogModal(task.id, item.id);
-              });
+              const itemHours = getChecklistItemTotalHours(item);
+              const timePill = el('span', { class: 'hours-pill', text: itemHours + 'h' });
+              bottomRight.appendChild(timePill);
             }
-            bottomRight.appendChild(logBtn);
 
             bottomRow.appendChild(bottomLeft);
             bottomRow.appendChild(bottomRight);
@@ -8256,9 +8300,10 @@ const Workflow = {
           const remove = el('span', { class: 'co-assignee-chip-remove', text: '×' });
           remove.addEventListener('click', () => {
             const updated = coAssignees.filter((_, i) => i !== idx);
+            t.coAssignees = updated;
             WorkflowData.updateTask(t.id, { coAssignees: updated, updatedAt: new Date().toISOString() });
+            renderChips();
             if (onChange) onChange();
-            App.handleRoute();
           });
           chip.appendChild(remove);
         }
@@ -8280,10 +8325,11 @@ const Workflow = {
           if (name === primaryName) { this.clearDropdown(addDropdown); return; }
           await this._addGroundWorker(name);
           const updated = [...coAssignees, name];
+          t.coAssignees = updated;
           WorkflowData.updateTask(t.id, { coAssignees: updated, updatedAt: new Date().toISOString() });
           this.clearDropdown(addDropdown);
+          renderChips();
           if (onChange) onChange();
-          App.handleRoute();
         }
       });
       wrap.appendChild(addDropdown);
@@ -9614,7 +9660,14 @@ const Workflow = {
                 status: assigneeName ? 'Assigned' : 'Draft',
                 updatedAt: new Date().toISOString()
               });
-              App.handleRoute();
+              // Update status dropdown inline instead of full page re-render
+              const statusDropdown = rowEl.querySelector('.status-select');
+              if (statusDropdown) {
+                const newStatus = assigneeName ? 'Assigned' : 'Draft';
+                statusDropdown.value = newStatus;
+                const sColors = { 'Completed': '#22c55e', 'In Progress': '#f59e0b', 'Draft': '#94a3b8', 'For Review': '#3b82f6', 'Assigned': '#3b82f6', 'Cancelled': '#ef4444' };
+                statusDropdown.style.color = sColors[newStatus] || 'var(--fg)';
+              }
             }
           });
 
@@ -10017,6 +10070,9 @@ const Workflow = {
         const allowAddRequirements = allowAssignChecklist;
         const normalizedChecklist = t.checklist || [];
 
+        // Track which checklist items are in edit mode
+        const editingItemIds = new Set();
+
         const renderChecklist = async () => {
           checklistList.innerHTML = '';
           if (normalizedChecklist.length === 0) {
@@ -10061,27 +10117,28 @@ const Workflow = {
 
               const topActions = el('div', { class: 'checklist-item-edit-actions' });
 
+              const isItemEditing = editingItemIds.has(item.id);
+
               const editBtn = el('button', {
                 type: 'button',
                 class: 'action-btn',
                 style: 'border-color:transparent; padding: 2px 4px; display:flex; align-items:center;',
-                html: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #6366f1;"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>',
-                title: 'Edit checklist item'
+                html: isItemEditing
+                  ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #22c55e;"><polyline points="20 6 9 17 4 12"></polyline></svg>'
+                  : '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: #6366f1;"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>',
+                title: isItemEditing ? 'Done editing' : 'Edit checklist item'
               });
               if (!disableIfPending(editBtn, wr)) {
-                editBtn.addEventListener('click', (e) => {
+                editBtn.addEventListener('click', async (e) => {
                   e.stopPropagation();
-                  this.initInlineEdit(textWrap, item.text,
-                    async (newVal) => {
-                      item.text = newVal;
-                      WorkflowData.updateTask(t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
-                      await renderChecklist();
-                      App.handleRoute();
-                    },
-                    async () => {
-                      await renderChecklist();
-                    }
-                  );
+                  if (isItemEditing) {
+                    // Exit edit mode
+                    editingItemIds.delete(item.id);
+                  } else {
+                    // Enter edit mode
+                    editingItemIds.add(item.id);
+                  }
+                  await renderChecklist();
                 });
               }
               topActions.appendChild(editBtn);
@@ -10092,6 +10149,7 @@ const Workflow = {
                 delBtn.addEventListener('click', async (e) => {
                   e.stopPropagation();
                   await this.confirmDeleteChecklistItem(t, item, async () => {
+                    editingItemIds.delete(item.id);
                     await renderChecklist();
                     populatePrereqSelect();
                     App.handleRoute();
@@ -10106,50 +10164,74 @@ const Workflow = {
               const bottomLeft = el('div', { class: 'checklist-item-bottom-left' });
               const bottomRight = el('div', { class: 'checklist-item-bottom-right' });
 
-              if (this.isDocumentCategory(item)) {
-                const periodSel = this.createPeriodInput(
-                  item.periodYear,
-                  null,
-                  async (val) => {
-                    item.periodYear = val;
-                    WorkflowData.updateTask(t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
-                    await renderChecklist();
-                    App.handleRoute();
-                  }
-                );
-                bottomLeft.appendChild(periodSel);
-              }
+              if (isItemEditing) {
+                // --- EDIT MODE: Show editable fields ---
+                if (this.isDocumentCategory(item)) {
+                  const periodSel = this.createPeriodInput(
+                    item.periodYear,
+                    null,
+                    async (val) => {
+                      item.periodYear = val;
+                      WorkflowData.updateTask(t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+                      await renderChecklist();
+                    }
+                  );
+                  bottomLeft.appendChild(periodSel);
+                }
 
-              if (allowAssignChecklist) {
-                const assigneeDropdown = await this.createGroundWorkerDropdown({
-                  selectedGroundWorkerName: item.assigneeName,
-                  placeholder: 'Assign...',
-                  className: 'checklist-assignee-dropdown',
-                  priorityNames: getTaskAllAssigneeNames(t),
-                  onChange: async ({ assigneeId, assigneeName }) => {
-                    item.assigneeName = assigneeName || null;
-                    item.assigneeId = assigneeId || null;
-                    WorkflowData.updateTask(t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
-                    await renderChecklist();
-                    App.handleRoute();
-                  }
-                });
-                bottomLeft.appendChild(assigneeDropdown);
+                if (allowAssignChecklist) {
+                  const assigneeDropdown = await this.createGroundWorkerDropdown({
+                    selectedGroundWorkerName: item.assigneeName,
+                    placeholder: 'Assign...',
+                    className: 'checklist-assignee-dropdown',
+                    priorityNames: getTaskAllAssigneeNames(t),
+                    onChange: async ({ assigneeId, assigneeName }) => {
+                      item.assigneeName = assigneeName || null;
+                      item.assigneeId = assigneeId || null;
+                      WorkflowData.updateTask(t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+                      await renderChecklist();
+                    }
+                  });
+                  bottomLeft.appendChild(assigneeDropdown);
 
-                const coAssigneePicker = await this.renderChecklistCoAssigneePicker(
-                  t,
-                  item,
-                  { primaryName: item.assigneeName || '', className: 'inline-coassignee-dropdown' },
-                  !isArchived,
-                  true,
-                  async () => {
-                    WorkflowData.updateTask(t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
-                    await renderChecklist();
-                    App.handleRoute();
-                  }
-                );
-                bottomLeft.appendChild(coAssigneePicker);
+                  const coAssigneePicker = await this.renderChecklistCoAssigneePicker(
+                    t,
+                    item,
+                    { primaryName: item.assigneeName || '', className: 'inline-coassignee-dropdown' },
+                    !isArchived,
+                    true,
+                    async () => {
+                      WorkflowData.updateTask(t.id, { checklist: normalizedChecklist, updatedAt: new Date().toISOString() });
+                      await renderChecklist();
+                    }
+                  );
+                  bottomLeft.appendChild(coAssigneePicker);
+                }
+
+                const itemHours = getChecklistItemTotalHours(item);
+                const timePill = el('span', { class: 'hours-pill', text: itemHours + 'h' });
+                bottomRight.appendChild(timePill);
+
+                const logBtn = el('button', { type: 'button', class: 'action-btn', text: 'Log Time' });
+                if (!disableIfPending(logBtn, wr)) {
+                  logBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.showAddTimeLogModal(t.id, item.id);
+                  });
+                }
+                bottomRight.appendChild(logBtn);
               } else {
+                // --- READ-ONLY MODE: Show non-editable display ---
+                if (this.isDocumentCategory(item) && item.periodYear) {
+                  const periodLabel = el('span', {
+                    text: item.periodYear,
+                    class: 'checklist-period-readonly',
+                    style: 'font-size: 0.8125rem; color: var(--color-text-muted); padding: 2px 6px; background: var(--color-bg-subtle, rgba(127,127,127,0.08)); border-radius: 4px;'
+                  });
+                  bottomLeft.appendChild(periodLabel);
+                }
+
+                // Show assignee names as read-only avatars
                 const itemAssigneeNames = [];
                 if (item.assigneeName) {
                   itemAssigneeNames.push(item.assigneeName);
@@ -10161,22 +10243,17 @@ const Workflow = {
                     }
                   });
                 }
-                const assigneeWrap = this.renderAssigneeAvatarsList(itemAssigneeNames);
-                bottomLeft.appendChild(assigneeWrap);
-              }
+                if (itemAssigneeNames.length > 0) {
+                  const assigneeWrap = this.renderAssigneeAvatarsList(itemAssigneeNames);
+                  bottomLeft.appendChild(assigneeWrap);
+                } else {
+                  bottomLeft.appendChild(el('span', { text: 'Unassigned', style: 'font-size: 0.75rem; color: var(--color-text-muted);' }));
+                }
 
-              const itemHours = getChecklistItemTotalHours(item);
-              const timePill = el('span', { class: 'hours-pill', text: itemHours + 'h' });
-              bottomRight.appendChild(timePill);
-
-              const logBtn = el('button', { type: 'button', class: 'action-btn', text: 'Log Time' });
-              if (!disableIfPending(logBtn, wr)) {
-                logBtn.addEventListener('click', (e) => {
-                  e.stopPropagation();
-                  this.showAddTimeLogModal(t.id, item.id);
-                });
+                const itemHours = getChecklistItemTotalHours(item);
+                const timePill = el('span', { class: 'hours-pill', text: itemHours + 'h' });
+                bottomRight.appendChild(timePill);
               }
-              bottomRight.appendChild(logBtn);
 
               bottomRow.appendChild(bottomLeft);
               bottomRow.appendChild(bottomRight);
