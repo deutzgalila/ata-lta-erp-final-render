@@ -147,7 +147,8 @@ const WorkflowData = {
           ? (item.dependsOn[0] || null)
           : (item.dependsOn || null),
         periodYear: item.periodYear || null,
-        timeLogs: item.timeLogs || []
+        timeLogs: item.timeLogs || [],
+        coAssignees: item.coAssignees || []
       }))
     };
   },
@@ -1825,7 +1826,8 @@ const Workflow = {
       assigneeName: overrides.assigneeName || null,
       dependsOn: overrides.dependsOn || null,
       periodYear: isDoc ? this.getDefaultPeriodValue(overrides.periodYear) : (overrides.periodYear || null),
-      timeLogs: overrides.timeLogs || []
+      timeLogs: overrides.timeLogs || [],
+      coAssignees: overrides.coAssignees || []
     };
   },
 
@@ -12869,22 +12871,6 @@ const Workflow = {
             bottomLeft.appendChild(periodSel);
           }
 
-          const prereqSelect = el('select', { class: 'form-select', style: 'font-size:0.8125rem; max-width:140px; height: 28px; padding: 2px 6px;' });
-          prereqSelect.appendChild(el('option', { value: '', text: '— None —' }));
-          prereqSelect.appendChild(el('option', { value: '*', text: 'All Task (*)' }));
-          checklistItems.slice(0, idx).forEach((prev, pIdx) => {
-            if (!prev.id) prev.id = generateUUID();
-            prereqSelect.appendChild(el('option', { value: prev.id, text: `${pIdx + 1}. ${prev.text}` }));
-          });
-          if (checklistItems.length <= 1) {
-            prereqSelect.disabled = true;
-          }
-          prereqSelect.value = item.dependsOn || '';
-          prereqSelect.addEventListener('change', () => {
-            item.dependsOn = prereqSelect.value || null;
-          });
-          bottomLeft.appendChild(prereqSelect);
-
           const assigneeDropdown = await this.createGroundWorkerDropdown({
             selectedGroundWorkerName: item.assigneeName,
             placeholder: 'Assign...',
@@ -12897,6 +12883,18 @@ const Workflow = {
             }
           });
           bottomLeft.appendChild(assigneeDropdown);
+
+          const coAssigneePicker = await this.renderChecklistCoAssigneePicker(
+            null, // task is null during task creation
+            item,
+            { primaryName: item.assigneeName || '', className: 'inline-coassignee-dropdown' },
+            true, // editable
+            true, // showChips
+            async () => {
+              await renderChecklist();
+            }
+          );
+          bottomLeft.appendChild(coAssigneePicker);
         } else {
           // --- READ-ONLY MODE: Show non-editable display ---
           if (this.isDocumentCategory(item) && item.periodYear) {
@@ -12908,9 +12906,20 @@ const Workflow = {
             bottomLeft.appendChild(periodLabel);
           }
 
-          // Show assignee name as read-only
+          // Show assignee and co-assignee avatars as read-only
+          const itemAssigneeNames = [];
           if (item.assigneeName) {
-            const assigneeWrap = this.renderAssigneeAvatarsList([item.assigneeName]);
+            itemAssigneeNames.push(item.assigneeName);
+          }
+          if (item.coAssignees && Array.isArray(item.coAssignees)) {
+            item.coAssignees.forEach(name => {
+              if (name && !itemAssigneeNames.includes(name)) {
+                itemAssigneeNames.push(name);
+              }
+            });
+          }
+          if (itemAssigneeNames.length > 0) {
+            const assigneeWrap = this.renderAssigneeAvatarsList(itemAssigneeNames);
             bottomLeft.appendChild(assigneeWrap);
           } else {
             bottomLeft.appendChild(el('span', { text: 'Unassigned', style: 'font-size: 0.75rem; color: var(--color-text-muted);' }));
