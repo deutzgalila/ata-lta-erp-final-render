@@ -21,6 +21,11 @@ const Transmittal = {
   _rejectedArchiveCounts: null,
   _archiveRestoreLock: false,
 
+  _printCompanyDetails: true,
+  _printCompanyName: '',
+  _printCompanyAddress: '',
+  _lastDetailId: null,
+
   async _withArchiveLock(fn) {
     if (this._archiveRestoreLock) {
       Workflow.showMessage('Action in progress', 'Please wait for the current archive/restore action to finish.', 'info');
@@ -721,8 +726,45 @@ const Transmittal = {
               }
             }
 
+            const defaultCompName = t.entity === 'ATA' ? 'ATA BUSINESS CONSULTANCY SERVICES' : 'LTA BUSINESS CONSULTANCY SERVICES';
+            const defaultCompAddr = 'RM 307 Republic Supermarket Bldg,\nSoler St., cor. F.Torres St.,\nSta. Cruz, Manila';
+            if (this._lastDetailId !== t.id) {
+              this._lastDetailId = t.id;
+              this._printCompanyDetails = true;
+              this._printCompanyName = defaultCompName;
+              this._printCompanyAddress = defaultCompAddr;
+            }
+
+            const companyDetailsLabel = el('label', {
+              style: 'margin-right:12px; font-size:0.8125rem; display:inline-flex; align-items:center; gap:6px; cursor:pointer; color:var(--color-text-muted);',
+              title: 'Include sender company details in transmittal'
+            });
+            const companyDetailsCheckbox = el('input', {
+              type: 'checkbox',
+              id: 'print-company-details'
+            });
+            companyDetailsCheckbox.checked = this._printCompanyDetails !== false;
+            companyDetailsLabel.appendChild(companyDetailsCheckbox);
+            companyDetailsLabel.appendChild(document.createTextNode('Company Details'));
+            actions.insertBefore(companyDetailsLabel, backBtn);
+
+            companyDetailsCheckbox.addEventListener('change', () => {
+              this._printCompanyDetails = companyDetailsCheckbox.checked;
+              const sectionCb = document.getElementById('tx-opt-company-details');
+              if (sectionCb && sectionCb.checked !== companyDetailsCheckbox.checked) {
+                sectionCb.checked = companyDetailsCheckbox.checked;
+                sectionCb.dispatchEvent(new Event('change'));
+              }
+            });
+
             const printBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Print Transmittal', style: 'margin-right:8px;' });
-            printBtn.addEventListener('click', () => this.openPrintLetter(t));
+            printBtn.addEventListener('click', () => {
+              this.openPrintLetter(t, {
+                includeCompanyDetails: this._printCompanyDetails !== false,
+                companyName: this._printCompanyName || defaultCompName,
+                companyAddress: this._printCompanyAddress || defaultCompAddr
+              });
+            });
             actions.insertBefore(printBtn, backBtn);
           }
 
@@ -2313,10 +2355,96 @@ const Transmittal = {
     if (t.notes) meta.appendChild(el('p', { text: 'Notes: ' + t.notes }));
     container.appendChild(meta);
 
-    // Transmittal Letter Preview
+    // Transmittal Letter Preview & Print Options
     const letterSection = el('div', { class: 'form-section', style: 'margin-bottom: var(--spacing-lg);' });
-    letterSection.appendChild(el('h3', { text: 'Transmittal' }));
-    letterSection.appendChild(await this.buildLetterPreview(t));
+    const letterHeader = el('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-sm); flex-wrap: wrap; gap: 8px;' });
+    letterHeader.appendChild(el('h3', { text: 'Transmittal', style: 'margin: 0;' }));
+    letterSection.appendChild(letterHeader);
+
+    const defaultCompName = t.entity === 'ATA' ? 'ATA BUSINESS CONSULTANCY SERVICES' : 'LTA BUSINESS CONSULTANCY SERVICES';
+    const defaultCompAddr = 'RM 307 Republic Supermarket Bldg,\nSoler St., cor. F.Torres St.,\nSta. Cruz, Manila';
+    if (this._lastDetailId !== t.id) {
+      this._lastDetailId = t.id;
+      this._printCompanyDetails = true;
+      this._printCompanyName = defaultCompName;
+      this._printCompanyAddress = defaultCompAddr;
+    }
+
+    const optionsCard = el('div', { class: 'transmittal-print-options', style: 'margin-bottom: 12px; padding: 12px 14px; background: var(--color-bg-secondary, #f8fafc); border: 1px solid var(--color-border, #e2e8f0); border-radius: 6px;' });
+    
+    const toggleRow = el('div', { style: 'display: flex; align-items: center; justify-content: space-between; gap: 12px;' });
+    const checkboxLabel = el('label', { style: 'display: inline-flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer; font-size: 0.875rem; color: var(--color-text); margin: 0;' });
+    const companyCheckbox = el('input', { type: 'checkbox', id: 'tx-opt-company-details' });
+    companyCheckbox.checked = this._printCompanyDetails !== false;
+    checkboxLabel.appendChild(companyCheckbox);
+    checkboxLabel.appendChild(document.createTextNode('Include Company Details (FROM) in Transmittal PDF'));
+    toggleRow.appendChild(checkboxLabel);
+    optionsCard.appendChild(toggleRow);
+
+    const dynamicFieldsContainer = el('div', { id: 'tx-dynamic-company-fields', style: 'margin-top: 10px; display: ' + (companyCheckbox.checked ? 'grid' : 'none') + '; grid-template-columns: 1fr 1fr; gap: 12px;' });
+    
+    const nameGroup = el('div', { style: 'display: flex; flex-direction: column; gap: 4px;' });
+    nameGroup.appendChild(el('label', { style: 'font-size: 0.75rem; font-weight: 600; color: var(--color-text-muted, #64748b); text-transform: uppercase;', text: 'Company Name' }));
+    const nameInput = el('input', {
+      type: 'text',
+      class: 'form-control form-control-sm',
+      style: 'padding: 6px 10px; font-size: 0.875rem; border: 1px solid var(--color-border, #cbd5e1); border-radius: 4px; background: var(--color-surface, #fff); color: var(--color-text, #000);',
+      placeholder: 'e.g. ' + defaultCompName,
+      value: this._printCompanyName || defaultCompName
+    });
+    nameGroup.appendChild(nameInput);
+    dynamicFieldsContainer.appendChild(nameGroup);
+
+    const addrGroup = el('div', { style: 'display: flex; flex-direction: column; gap: 4px;' });
+    addrGroup.appendChild(el('label', { style: 'font-size: 0.75rem; font-weight: 600; color: var(--color-text-muted, #64748b); text-transform: uppercase;', text: 'Company Address' }));
+    const addrTextarea = el('textarea', {
+      class: 'form-control form-control-sm',
+      rows: 2,
+      style: 'padding: 6px 10px; font-size: 0.875rem; border: 1px solid var(--color-border, #cbd5e1); border-radius: 4px; background: var(--color-surface, #fff); color: var(--color-text, #000); resize: vertical;',
+      placeholder: 'e.g. ' + defaultCompAddr
+    });
+    addrTextarea.value = this._printCompanyAddress || defaultCompAddr;
+    addrGroup.appendChild(addrTextarea);
+    dynamicFieldsContainer.appendChild(addrGroup);
+
+    optionsCard.appendChild(dynamicFieldsContainer);
+    letterSection.appendChild(optionsCard);
+
+    const previewWrapper = el('div', { id: 'tx-letter-preview-wrapper' });
+    letterSection.appendChild(previewWrapper);
+
+    const updatePreview = async () => {
+      previewWrapper.innerHTML = '';
+      const letter = await this.buildLetterPreview(t, {
+        includeCompanyDetails: this._printCompanyDetails !== false,
+        companyName: this._printCompanyName,
+        companyAddress: this._printCompanyAddress
+      });
+      previewWrapper.appendChild(letter);
+    };
+
+    const headerCheckbox = document.getElementById('print-company-details');
+
+    companyCheckbox.addEventListener('change', () => {
+      this._printCompanyDetails = companyCheckbox.checked;
+      if (headerCheckbox && headerCheckbox.checked !== companyCheckbox.checked) {
+        headerCheckbox.checked = companyCheckbox.checked;
+      }
+      dynamicFieldsContainer.style.display = companyCheckbox.checked ? 'grid' : 'none';
+      updatePreview();
+    });
+
+    nameInput.addEventListener('input', () => {
+      this._printCompanyName = nameInput.value;
+      updatePreview();
+    });
+
+    addrTextarea.addEventListener('input', () => {
+      this._printCompanyAddress = addrTextarea.value;
+      updatePreview();
+    });
+
+    await updatePreview();
     container.appendChild(letterSection);
 
     // Linked Invoices & Disbursements Section
@@ -2452,12 +2580,18 @@ const Transmittal = {
     });
   },
 
-  async buildLetterPreview(t) {
+  async buildLetterPreview(t, options = {}) {
     await window.apiClient.clientCache.ensure();
     const client = window.apiClient.clientCache.getById(t.clientId);
     const wr = window.apiClient.workRequestCache.getById(t.workRequestId);
     const entity = t.entity || 'ATA';
-    const fromEntity = entity === 'ATA' ? 'ATA BUSINESS CONSULTANCY SERVICES' : 'LTA BUSINESS CONSULTANCY SERVICES';
+
+    const defaultCompName = entity === 'ATA' ? 'ATA BUSINESS CONSULTANCY SERVICES' : 'LTA BUSINESS CONSULTANCY SERVICES';
+    const defaultCompAddr = 'RM 307 Republic Supermarket Bldg,\nSoler St., cor. F.Torres St.,\nSta. Cruz, Manila';
+
+    const includeCompanyDetails = options.includeCompanyDetails !== undefined ? !!options.includeCompanyDetails : (this._printCompanyDetails !== false);
+    const companyName = options.companyName !== undefined ? options.companyName : (this._printCompanyName || defaultCompName);
+    const companyAddress = options.companyAddress !== undefined ? options.companyAddress : (this._printCompanyAddress || defaultCompAddr);
 
     // Date formatting (Entity-aware)
     let formattedDate = '';
@@ -2566,6 +2700,14 @@ const Transmittal = {
       .preview-label-bold {
         font-weight: bold;
         margin-right: 5px;
+      }
+      .preview-from-cell {
+        width: 55%;
+        line-height: 1.4;
+      }
+      .preview-to-cell {
+        width: 45%;
+        line-height: 1.4;
       }
       .preview-underline-line {
         border-bottom: 1.5px solid #000;
@@ -2711,20 +2853,51 @@ const Transmittal = {
     r2.appendChild(tdDate);
     headerTable.appendChild(r2);
 
-    // Row 3: TO only
-    const r3 = el('tr');
-    const tdTo = el('td', { colspan: '2', style: 'width: 100%;' }, [
-      el('div', { style: 'display: flex; gap: 8px; align-items: flex-start;' }, [
-        el('strong', { text: 'TO:', style: 'margin-top: 3px;' }),
-        el('div', { style: 'flex: 1; display: flex; flex-direction: column;' }, [
-          el('div', { class: 'preview-underline-line', text: toLine1 }),
-          el('div', { class: 'preview-underline-line', text: toLine2 }),
-          el('div', { class: 'preview-underline-line', text: toLine3 }),
-          el('div', { class: 'preview-underline-line', text: toLine4 })
+    // Row 3: FROM & TO (Conditional based on includeCompanyDetails)
+    const r3 = el('tr', { class: 'preview-row-from-to' });
+    if (includeCompanyDetails) {
+      const fromChildren = [
+        el('strong', { text: 'FROM:' }),
+        document.createTextNode(' ')
+      ];
+      if (companyName) {
+        fromChildren.push(el('strong', { class: 'preview-from-name', text: companyName }));
+      }
+      if (companyAddress) {
+        const lines = companyAddress.split('\n').map(l => l.trim()).filter(Boolean);
+        lines.forEach(l => {
+          fromChildren.push(el('br'));
+          fromChildren.push(document.createTextNode(l));
+        });
+      }
+      const tdFrom = el('td', { class: 'preview-from-cell', style: 'width: 55%; line-height: 1.4;' }, fromChildren);
+      const tdTo = el('td', { class: 'preview-to-cell', style: 'width: 45%; line-height: 1.4;' }, [
+        el('div', { style: 'display: flex; gap: 8px; align-items: flex-start;' }, [
+          el('strong', { text: 'TO:', style: 'margin-top: 3px;' }),
+          el('div', { style: 'flex: 1; display: flex; flex-direction: column;' }, [
+            el('div', { class: 'preview-underline-line', text: toLine1 }),
+            el('div', { class: 'preview-underline-line', text: toLine2 }),
+            el('div', { class: 'preview-underline-line', text: toLine3 }),
+            el('div', { class: 'preview-underline-line', text: toLine4 })
+          ])
         ])
-      ])
-    ]);
-    r3.appendChild(tdTo);
+      ]);
+      r3.appendChild(tdFrom);
+      r3.appendChild(tdTo);
+    } else {
+      const tdTo = el('td', { class: 'preview-to-cell', colspan: '2', style: 'width: 100%;' }, [
+        el('div', { style: 'display: flex; gap: 8px; align-items: flex-start;' }, [
+          el('strong', { text: 'TO:', style: 'margin-top: 3px;' }),
+          el('div', { style: 'flex: 1; display: flex; flex-direction: column;' }, [
+            el('div', { class: 'preview-underline-line', text: toLine1 }),
+            el('div', { class: 'preview-underline-line', text: toLine2 }),
+            el('div', { class: 'preview-underline-line', text: toLine3 }),
+            el('div', { class: 'preview-underline-line', text: toLine4 })
+          ])
+        ])
+      ]);
+      r3.appendChild(tdTo);
+    }
     headerTable.appendChild(r3);
 
     previewContainer.appendChild(headerTable);
@@ -2783,7 +2956,7 @@ const Transmittal = {
     return letter;
   },
 
-  async openPrintLetter(t) {
+  async openPrintLetter(t, options = {}) {
     const win = window.open('', '_blank');
     if (!win) return;
 
@@ -2791,14 +2964,30 @@ const Transmittal = {
     const client = window.apiClient.clientCache.getById(t.clientId);
     const wr = window.apiClient.workRequestCache.getById(t.workRequestId);
     const entity = t.entity || 'ATA';
-    const fromEntity = entity === 'ATA' ? 'ATA BUSINESS CONSULTANCY SERVICES' : 'LTA BUSINESS CONSULTANCY SERVICES';
+
+    const defaultCompName = entity === 'ATA' ? 'ATA BUSINESS CONSULTANCY SERVICES' : 'LTA BUSINESS CONSULTANCY SERVICES';
+    const defaultCompAddr = 'RM 307 Republic Supermarket Bldg,\nSoler St., cor. F.Torres St.,\nSta. Cruz, Manila';
+
+    const includeCompanyDetails = options.includeCompanyDetails !== undefined ? !!options.includeCompanyDetails : (this._printCompanyDetails !== false);
+    const companyName = options.companyName !== undefined ? options.companyName : (this._printCompanyName || defaultCompName);
+    const companyAddress = options.companyAddress !== undefined ? options.companyAddress : (this._printCompanyAddress || defaultCompAddr);
+
+    const escapeHtml = (str) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    };
 
     // Date formatting (Entity-aware)
     let formattedDate = '';
     const dateObj = new Date(t.sentAt || t.createdAt || new Date());
     if (entity === 'ATA') {
-      const options = { year: 'numeric', month: 'long', day: 'numeric' };
-      formattedDate = dateObj.toLocaleDateString('en-US', options).toUpperCase();
+      const dateFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
+      formattedDate = dateObj.toLocaleDateString('en-US', dateFormatOptions).toUpperCase();
     } else {
       formattedDate = `${dateObj.getMonth() + 1}/${dateObj.getDate()}/${dateObj.getFullYear()}`;
     }
@@ -2840,8 +3029,8 @@ const Transmittal = {
       if (usedRows < totalRows) {
         rowsHtml += `
           <tr class="doc-row">
-            <td class="doc-cell category-cell">${(item.documentType || '').toUpperCase()}</td>
-            <td class="doc-cell document-cell">${(item.description || '').toUpperCase()}</td>
+            <td class="doc-cell category-cell">${escapeHtml((item.documentType || '').toUpperCase())}</td>
+            <td class="doc-cell document-cell">${escapeHtml((item.description || '').toUpperCase())}</td>
           </tr>
         `;
         usedRows++;
@@ -2866,7 +3055,7 @@ const Transmittal = {
       stampHtml = `
         <div class="received-stamp">
           <div class="stamp-title">RECEIVED</div>
-          <div class="stamp-date">${stampDateStr}</div>
+          <div class="stamp-date">${escapeHtml(stampDateStr)}</div>
         </div>
       `;
     }
@@ -2882,12 +3071,58 @@ const Transmittal = {
       }
     }
 
+    const escapedName = escapeHtml(companyName);
+    const escapedAddrHtml = escapeHtml(companyAddress)
+      .split('\n')
+      .map(l => l.trim())
+      .filter(Boolean)
+      .join('<br>');
+
+    let fromToRowHtml = '';
+    if (includeCompanyDetails) {
+      fromToRowHtml = `
+          <tr>
+            <td class="from-cell">
+              <strong>FROM:</strong> ${escapedName ? `<strong>${escapedName}</strong>` : ''}
+              ${escapedAddrHtml ? `<br>${escapedAddrHtml}` : ''}
+            </td>
+            <td class="to-cell">
+              <div style="display: flex; gap: 8px; align-items: flex-start;">
+                <strong style="margin-top: 3px;">TO:</strong>
+                <div style="flex: 1; display: flex; flex-direction: column;">
+                  <div class="underline-line">${escapeHtml(toLine1)}</div>
+                  <div class="underline-line">${escapeHtml(toLine2)}</div>
+                  <div class="underline-line">${escapeHtml(toLine3)}</div>
+                  <div class="underline-line">${escapeHtml(toLine4)}</div>
+                </div>
+              </div>
+            </td>
+          </tr>
+      `;
+    } else {
+      fromToRowHtml = `
+          <tr>
+            <td colspan="2" class="to-cell" style="width: 100%;">
+              <div style="display: flex; gap: 8px; align-items: flex-start;">
+                <strong style="margin-top: 3px;">TO:</strong>
+                <div style="flex: 1; display: flex; flex-direction: column;">
+                  <div class="underline-line">${escapeHtml(toLine1)}</div>
+                  <div class="underline-line">${escapeHtml(toLine2)}</div>
+                  <div class="underline-line">${escapeHtml(toLine3)}</div>
+                  <div class="underline-line">${escapeHtml(toLine4)}</div>
+                </div>
+              </div>
+            </td>
+          </tr>
+      `;
+    }
+
     const doc = win.document;
     const meta = doc.createElement('meta');
     meta.setAttribute('charset', 'UTF-8');
     doc.head.appendChild(meta);
     const title = doc.createElement('title');
-    title.textContent = 'Transmittal — ' + t.trackingNumber;
+    title.textContent = 'Transmittal — ' + (t.trackingNumber || '');
     doc.head.appendChild(title);
 
     const style = doc.createElement('style');
@@ -3003,7 +3238,7 @@ const Transmittal = {
       }
       .category-cell {
         font-weight: bold;
-        border-right: 2px solid #000;
+        border-right: 1px solid #000;
         width: 35%;
       }
       .document-cell {
@@ -3085,26 +3320,14 @@ const Transmittal = {
           <tr>
             <td class="doc-no-cell">
               <span class="label-red">TRANSMITTAL DOC NO.:</span>
-              <span class="value-bold">${t.trackingNumber}</span>
+              <span class="value-bold">${escapeHtml(t.trackingNumber)}</span>
             </td>
             <td class="date-cell">
               <span class="label-bold">DATE:</span>
-              <span class="value-bold">${formattedDate}</span>
+              <span class="value-bold">${escapeHtml(formattedDate)}</span>
             </td>
           </tr>
-          <tr>
-            <td colspan="2" class="to-cell" style="width: 100%;">
-              <div style="display: flex; gap: 8px; align-items: flex-start;">
-                <strong style="margin-top: 3px;">TO:</strong>
-                <div style="flex: 1; display: flex; flex-direction: column;">
-                  <div class="underline-line">${toLine1}</div>
-                  <div class="underline-line">${toLine2}</div>
-                  <div class="underline-line">${toLine3}</div>
-                  <div class="underline-line">${toLine4}</div>
-                </div>
-              </div>
-            </td>
-          </tr>
+          ${fromToRowHtml}
         </table>
 
         <div class="document-box">
@@ -3123,12 +3346,12 @@ const Transmittal = {
           ${stampHtml}
         </div>
 
-        ${t.notes ? `<div style="margin: 10px 0; font-style: italic; font-size: 9.5pt; color: #555;">Notes: ${t.notes}</div>` : ''}
+        ${t.notes ? `<div style="margin: 10px 0; font-style: italic; font-size: 9.5pt; color: #555;">Notes: ${escapeHtml(t.notes)}</div>` : ''}
 
         <div class="signature-container">
           <div class="sig-info">
-            <span class="sig-name">${sigName}</span>
-            <span class="sig-date">${sigDate}</span>
+            <span class="sig-name">${escapeHtml(sigName)}</span>
+            <span class="sig-date">${escapeHtml(sigDate)}</span>
           </div>
           <div class="sig-line"></div>
           <div class="sig-label">Signature over Printed name / Date Received</div>
