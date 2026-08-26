@@ -852,7 +852,7 @@ const Billing = {
             });
             noLogoLabel.appendChild(noLogoCheckbox);
             noLogoLabel.appendChild(
-              document.createTextNode("No Logo (Generic)"),
+              document.createTextNode("No company details and logo"),
             );
             actions.insertBefore(noLogoLabel, backBtn);
 
@@ -862,8 +862,12 @@ const Billing = {
               style: "margin-right:8px;",
             });
             genInvBtn.addEventListener("click", () => {
-              const noLogo = noLogoCheckbox.checked;
-              this.generateInvoice(inv, noLogo);
+              const noCompanyDetailsAndLogo = noLogoCheckbox.checked;
+              this.generateInvoice(inv, {
+                noCompanyDetailsAndLogo,
+                noLogo: noCompanyDetailsAndLogo,
+                includeCompanyDetails: !noCompanyDetailsAndLogo,
+              });
             });
             actions.insertBefore(genInvBtn, backBtn);
 
@@ -5206,10 +5210,76 @@ const Billing = {
     return container;
   },
 
-  generateInvoice(inv, noLogo = false, opts) {
-    const { showTypePrefix = false } = opts || {};
+  generateInvoice(inv, options = false, opts) {
+    let noLogo = false;
+    let includeCompanyDetails = true;
+    let customCompanyName = null;
+    let showTypePrefix = false;
+
+    if (typeof options === "boolean") {
+      noLogo = options;
+      includeCompanyDetails = !options;
+      if (typeof opts === "object" && opts !== null) {
+        showTypePrefix = !!opts.showTypePrefix;
+        customCompanyName = opts.companyName || null;
+        if (opts.noCompanyDetailsAndLogo !== undefined) {
+          noLogo = !!opts.noCompanyDetailsAndLogo;
+          includeCompanyDetails = !opts.noCompanyDetailsAndLogo;
+        } else {
+          if (opts.includeCompanyDetails !== undefined) {
+            includeCompanyDetails = !!opts.includeCompanyDetails;
+          }
+          if (opts.noLogo !== undefined) {
+            noLogo = !!opts.noLogo;
+          }
+        }
+      }
+    } else if (typeof options === "object" && options !== null) {
+      showTypePrefix = !!options.showTypePrefix;
+      customCompanyName = options.companyName || null;
+      if (options.noCompanyDetailsAndLogo !== undefined) {
+        noLogo = !!options.noCompanyDetailsAndLogo;
+        includeCompanyDetails = !options.noCompanyDetailsAndLogo;
+      } else {
+        if (options.includeCompanyDetails !== undefined) {
+          includeCompanyDetails = !!options.includeCompanyDetails;
+        }
+        if (options.noLogo !== undefined) {
+          noLogo = !!options.noLogo;
+        }
+        if (
+          options.includeCompanyDetails === undefined &&
+          options.noLogo !== undefined
+        ) {
+          includeCompanyDetails = !options.noLogo;
+        }
+        if (
+          options.noLogo === undefined &&
+          options.includeCompanyDetails !== undefined
+        ) {
+          noLogo = !options.includeCompanyDetails;
+        }
+      }
+      if (options.showTypePrefix !== undefined) {
+        showTypePrefix = !!options.showTypePrefix;
+      }
+    } else if (typeof options === "string") {
+      const lower = options.toLowerCase().trim();
+      noLogo =
+        lower === "true" ||
+        lower === "1" ||
+        lower === "nologo" ||
+        lower === "generic";
+      includeCompanyDetails = !noLogo;
+    }
+
     const client = window.apiClient.clientCache.getById(inv.clientId);
     const entity = inv.entity || "ATA";
+    const defaultCompanyName =
+      entity === "ATA"
+        ? "A.T.A. BUSINESS CONSULTANCY"
+        : "LTA BUSINESS MANAGEMENT CORP";
+    const companyName = customCompanyName || defaultCompanyName;
     const w = window.open("", "_blank");
     if (!w) return;
     const d = w.document;
@@ -5618,20 +5688,29 @@ const Billing = {
     }
 
     let headerHtml = "";
-    if (noLogo) {
-      headerHtml = `
-        <div class="generic-header">
-          <div class="generic-company-name">${entity === "ATA" ? "A.T.A. BUSINESS CONSULTANCY" : "LTA BUSINESS MANAGEMENT CORP"}</div>
+    if (noLogo || !includeCompanyDetails) {
+      if (!includeCompanyDetails) {
+        headerHtml = `
+        <div class="generic-header" style="justify-content: flex-end;">
           <div class="generic-title">STATEMENT</div>
         </div>
         <div class="generic-header-divider"></div>
       `;
+      } else {
+        headerHtml = `
+        <div class="generic-header">
+          <div class="generic-company-name">${escapeHtml(companyName)}</div>
+          <div class="generic-title">STATEMENT</div>
+        </div>
+        <div class="generic-header-divider"></div>
+      `;
+      }
     } else if (entity === "ATA") {
       headerHtml = `
         <div class="header-container-ata">
           <div style="display: flex; align-items: center;">
             <img src="ERP_Assets/ATA-LOGO.jpg" alt="ATA Logo" style="height: 65px; object-fit: contain; margin-right: 12px;">
-            <span class="company-name-ata">A.T.A. BUSINESS CONSULTANCY</span>
+            <span class="company-name-ata">${escapeHtml(companyName)}</span>
           </div>
           <div class="statement-title-ata">STATEMENT</div>
         </div>
@@ -5642,7 +5721,7 @@ const Billing = {
         <div class="header-container-lta">
           <div class="logo-banner-lta">
             <img src="ERP_Assets/LTA-LOGO.jpg" class="logo-img-lta" alt="LTA Logo">
-            <span class="company-name-lta">LTA BUSINESS MANAGEMENT CORP</span>
+            <span class="company-name-lta">${escapeHtml(companyName)}</span>
           </div>
           <div class="slanted-block-lta">STATEMENT</div>
         </div>
@@ -5833,7 +5912,7 @@ const Billing = {
       <div class="footer-container">
         <div class="thank-you">THANK YOU !!!</div>
         ${
-          entity === "ATA"
+          !includeCompanyDetails || noLogo || entity === "ATA"
             ? `<div class="footer-text">customer's copy</div>`
             : `<div class="footer-text underline">Should you have any enquiries concerning this statement, please contact us on 742-8582/404-4928</div>`
         }
