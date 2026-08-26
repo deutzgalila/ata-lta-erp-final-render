@@ -21,6 +21,11 @@ const Transmittal = {
   _rejectedArchiveCounts: null,
   _archiveRestoreLock: false,
 
+  _printCompanyDetails: true,
+  _printCompanyName: '',
+  _printCompanyAddress: '',
+  _lastDetailId: null,
+
   async _withArchiveLock(fn) {
     if (this._archiveRestoreLock) {
       Workflow.showMessage('Action in progress', 'Please wait for the current archive/restore action to finish.', 'info');
@@ -721,8 +726,45 @@ const Transmittal = {
               }
             }
 
+            const defaultCompName = t.entity === 'ATA' ? 'ATA BUSINESS CONSULTANCY SERVICES' : 'LTA BUSINESS CONSULTANCY SERVICES';
+            const defaultCompAddr = 'RM 307 Republic Supermarket Bldg,\nSoler St., cor. F.Torres St.,\nSta. Cruz, Manila';
+            if (this._lastDetailId !== t.id) {
+              this._lastDetailId = t.id;
+              this._printCompanyDetails = true;
+              this._printCompanyName = defaultCompName;
+              this._printCompanyAddress = defaultCompAddr;
+            }
+
+            const companyDetailsLabel = el('label', {
+              style: 'margin-right:12px; font-size:0.8125rem; display:inline-flex; align-items:center; gap:6px; cursor:pointer; color:var(--color-text-muted);',
+              title: 'Include sender company details in transmittal'
+            });
+            const companyDetailsCheckbox = el('input', {
+              type: 'checkbox',
+              id: 'print-company-details'
+            });
+            companyDetailsCheckbox.checked = this._printCompanyDetails !== false;
+            companyDetailsLabel.appendChild(companyDetailsCheckbox);
+            companyDetailsLabel.appendChild(document.createTextNode('Company Details'));
+            actions.insertBefore(companyDetailsLabel, backBtn);
+
+            companyDetailsCheckbox.addEventListener('change', () => {
+              this._printCompanyDetails = companyDetailsCheckbox.checked;
+              const sectionCb = document.getElementById('tx-opt-company-details');
+              if (sectionCb && sectionCb.checked !== companyDetailsCheckbox.checked) {
+                sectionCb.checked = companyDetailsCheckbox.checked;
+                sectionCb.dispatchEvent(new Event('change'));
+              }
+            });
+
             const printBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Print Transmittal', style: 'margin-right:8px;' });
-            printBtn.addEventListener('click', () => this.openPrintLetter(t));
+            printBtn.addEventListener('click', () => {
+              this.openPrintLetter(t, {
+                includeCompanyDetails: this._printCompanyDetails !== false,
+                companyName: this._printCompanyName !== undefined ? this._printCompanyName : defaultCompName,
+                companyAddress: this._printCompanyAddress !== undefined ? this._printCompanyAddress : defaultCompAddr
+              });
+            });
             actions.insertBefore(printBtn, backBtn);
           }
 
@@ -2313,10 +2355,116 @@ const Transmittal = {
     if (t.notes) meta.appendChild(el('p', { text: 'Notes: ' + t.notes }));
     container.appendChild(meta);
 
-    // Transmittal Letter Preview
+    // Transmittal Letter Preview & Print Options
     const letterSection = el('div', { class: 'form-section', style: 'margin-bottom: var(--spacing-lg);' });
-    letterSection.appendChild(el('h3', { text: 'Transmittal' }));
-    letterSection.appendChild(await this.buildLetterPreview(t));
+    const letterHeader = el('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-sm); flex-wrap: wrap; gap: 8px;' });
+    letterHeader.appendChild(el('h3', { text: 'Transmittal', style: 'margin: 0;' }));
+    letterSection.appendChild(letterHeader);
+
+    const defaultCompName = t.entity === 'ATA' ? 'ATA BUSINESS CONSULTANCY SERVICES' : 'LTA BUSINESS CONSULTANCY SERVICES';
+    const defaultCompAddr = 'RM 307 Republic Supermarket Bldg,\nSoler St., cor. F.Torres St.,\nSta. Cruz, Manila';
+    if (this._lastDetailId !== t.id) {
+      this._lastDetailId = t.id;
+      this._printCompanyDetails = true;
+      this._printCompanyName = defaultCompName;
+      this._printCompanyAddress = defaultCompAddr;
+    }
+
+    const optionsCard = el('div', { class: 'transmittal-print-options', style: 'margin-bottom: 12px; padding: 12px 14px; background: var(--color-bg-secondary, #f8fafc); border: 1px solid var(--color-border, #e2e8f0); border-radius: 6px;' });
+    
+    const toggleRow = el('div', { style: 'display: flex; align-items: center; justify-content: space-between; gap: 12px;' });
+    const checkboxLabel = el('label', { style: 'display: inline-flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer; font-size: 0.875rem; color: var(--color-text); margin: 0;' });
+    const companyCheckbox = el('input', { type: 'checkbox', id: 'tx-opt-company-details' });
+    companyCheckbox.checked = this._printCompanyDetails !== false;
+    checkboxLabel.appendChild(companyCheckbox);
+    checkboxLabel.appendChild(document.createTextNode('Include Company Details (FROM) in Transmittal PDF'));
+    toggleRow.appendChild(checkboxLabel);
+    optionsCard.appendChild(toggleRow);
+
+    const dynamicFieldsContainer = el('div', { id: 'tx-dynamic-company-fields', style: 'margin-top: 10px; display: ' + (companyCheckbox.checked ? 'grid' : 'none') + '; grid-template-columns: 1fr 1fr; gap: 12px;' });
+    
+    const nameGroup = el('div', { style: 'display: flex; flex-direction: column; gap: 4px;' });
+    nameGroup.appendChild(el('label', { style: 'font-size: 0.75rem; font-weight: 600; color: var(--color-text-muted, #64748b); text-transform: uppercase;', text: 'Company Name' }));
+    const nameInput = el('input', {
+      type: 'text',
+      class: 'form-control form-control-sm',
+      style: 'padding: 6px 10px; font-size: 0.875rem; border: 1px solid var(--color-border, #cbd5e1); border-radius: 4px; background: var(--color-surface, #fff); color: var(--color-text, #000);',
+      placeholder: 'e.g. ' + defaultCompName,
+      value: this._printCompanyName || defaultCompName
+    });
+    nameGroup.appendChild(nameInput);
+    dynamicFieldsContainer.appendChild(nameGroup);
+
+    const addrGroup = el('div', { style: 'display: flex; flex-direction: column; gap: 4px;' });
+    addrGroup.appendChild(el('label', { style: 'font-size: 0.75rem; font-weight: 600; color: var(--color-text-muted, #64748b); text-transform: uppercase;', text: 'Company Address' }));
+    const addrTextarea = el('textarea', {
+      class: 'form-control form-control-sm',
+      rows: 2,
+      style: 'padding: 6px 10px; font-size: 0.875rem; border: 1px solid var(--color-border, #cbd5e1); border-radius: 4px; background: var(--color-surface, #fff); color: var(--color-text, #000); resize: vertical;',
+      placeholder: 'e.g. ' + defaultCompAddr
+    });
+    addrTextarea.value = this._printCompanyAddress || defaultCompAddr;
+    addrGroup.appendChild(addrTextarea);
+    dynamicFieldsContainer.appendChild(addrGroup);
+
+    optionsCard.appendChild(dynamicFieldsContainer);
+    letterSection.appendChild(optionsCard);
+
+    const previewWrapper = el('div', { id: 'tx-letter-preview-wrapper' });
+    letterSection.appendChild(previewWrapper);
+
+    let previewGeneration = 0;
+    const updatePreview = async () => {
+      const generation = ++previewGeneration;
+      try {
+        const letter = await this.buildLetterPreview(t, {
+          includeCompanyDetails: this._printCompanyDetails !== false,
+          companyName: this._printCompanyName !== undefined ? this._printCompanyName : defaultCompName,
+          companyAddress: this._printCompanyAddress !== undefined ? this._printCompanyAddress : defaultCompAddr
+        });
+        if (generation !== previewGeneration) {
+          return;
+        }
+        previewWrapper.innerHTML = '';
+        previewWrapper.appendChild(letter);
+      } catch (err) {
+        if (generation !== previewGeneration) {
+          return;
+        }
+        console.error('Failed to build transmittal letter preview:', err);
+        if (!previewWrapper.hasChildNodes()) {
+          previewWrapper.innerHTML = '';
+          previewWrapper.appendChild(el('div', {
+            class: 'alert alert-warning',
+            style: 'padding: 12px; margin: 10px 0;',
+            text: 'Unable to render transmittal preview at this time.'
+          }));
+        }
+      }
+    };
+
+    const headerCheckbox = document.getElementById('print-company-details');
+
+    companyCheckbox.addEventListener('change', () => {
+      this._printCompanyDetails = companyCheckbox.checked;
+      if (headerCheckbox && headerCheckbox.checked !== companyCheckbox.checked) {
+        headerCheckbox.checked = companyCheckbox.checked;
+      }
+      dynamicFieldsContainer.style.display = companyCheckbox.checked ? 'grid' : 'none';
+      updatePreview().catch(err => console.error('Error updating preview:', err));
+    });
+
+    nameInput.addEventListener('input', () => {
+      this._printCompanyName = nameInput.value;
+      updatePreview().catch(err => console.error('Error updating preview:', err));
+    });
+
+    addrTextarea.addEventListener('input', () => {
+      this._printCompanyAddress = addrTextarea.value;
+      updatePreview().catch(err => console.error('Error updating preview:', err));
+    });
+
+    await updatePreview();
     container.appendChild(letterSection);
 
     // Linked Invoices & Disbursements Section
@@ -2452,19 +2600,25 @@ const Transmittal = {
     });
   },
 
-  async buildLetterPreview(t) {
+  async buildLetterPreview(t, options = {}) {
     await window.apiClient.clientCache.ensure();
     const client = window.apiClient.clientCache.getById(t.clientId);
     const wr = window.apiClient.workRequestCache.getById(t.workRequestId);
     const entity = t.entity || 'ATA';
-    const fromEntity = entity === 'ATA' ? 'ATA BUSINESS CONSULTANCY SERVICES' : 'LTA BUSINESS CONSULTANCY SERVICES';
+
+    const defaultCompName = entity === 'ATA' ? 'ATA BUSINESS CONSULTANCY SERVICES' : 'LTA BUSINESS CONSULTANCY SERVICES';
+    const defaultCompAddr = 'RM 307 Republic Supermarket Bldg,\nSoler St., cor. F.Torres St.,\nSta. Cruz, Manila';
+
+    const includeCompanyDetails = options.includeCompanyDetails !== undefined ? !!options.includeCompanyDetails : (this._printCompanyDetails !== false);
+    const companyName = options.companyName !== undefined ? options.companyName : (this._printCompanyName !== undefined ? this._printCompanyName : defaultCompName);
+    const companyAddress = options.companyAddress !== undefined ? options.companyAddress : (this._printCompanyAddress !== undefined ? this._printCompanyAddress : defaultCompAddr);
 
     // Date formatting (Entity-aware)
     let formattedDate = '';
     const dateObj = new Date(t.sentAt || t.createdAt || new Date());
     if (entity === 'ATA') {
-      const options = { year: 'numeric', month: 'long', day: 'numeric' };
-      formattedDate = dateObj.toLocaleDateString('en-US', options).toUpperCase();
+      const dateFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
+      formattedDate = dateObj.toLocaleDateString('en-US', dateFormatOptions).toUpperCase();
     } else {
       formattedDate = `${dateObj.getMonth() + 1}/${dateObj.getDate()}/${dateObj.getFullYear()}`;
     }
@@ -2566,6 +2720,14 @@ const Transmittal = {
       .preview-label-bold {
         font-weight: bold;
         margin-right: 5px;
+      }
+      .preview-from-cell {
+        width: 55%;
+        line-height: 1.4;
+      }
+      .preview-to-cell {
+        width: 45%;
+        line-height: 1.4;
       }
       .preview-underline-line {
         border-bottom: 1.5px solid #000;
@@ -2701,7 +2863,7 @@ const Transmittal = {
     const r2 = el('tr');
     const tdDocNo = el('td', { style: 'width: 55%;' }, [
       el('span', { class: 'preview-label-red', text: 'TRANSMITTAL DOC NO.:' }),
-      el('span', { class: 'value-bold', text: t.trackingNumber })
+      el('span', { class: 'value-bold', text: t.trackingNumber || '' })
     ]);
     const tdDate = el('td', { style: 'width: 45%;' }, [
       el('span', { class: 'preview-label-bold', text: 'DATE:' }),
@@ -2711,20 +2873,51 @@ const Transmittal = {
     r2.appendChild(tdDate);
     headerTable.appendChild(r2);
 
-    // Row 3: TO only
-    const r3 = el('tr');
-    const tdTo = el('td', { colspan: '2', style: 'width: 100%;' }, [
-      el('div', { style: 'display: flex; gap: 8px; align-items: flex-start;' }, [
-        el('strong', { text: 'TO:', style: 'margin-top: 3px;' }),
-        el('div', { style: 'flex: 1; display: flex; flex-direction: column;' }, [
-          el('div', { class: 'preview-underline-line', text: toLine1 }),
-          el('div', { class: 'preview-underline-line', text: toLine2 }),
-          el('div', { class: 'preview-underline-line', text: toLine3 }),
-          el('div', { class: 'preview-underline-line', text: toLine4 })
+    // Row 3: FROM & TO (Conditional based on includeCompanyDetails)
+    const r3 = el('tr', { class: 'preview-row-from-to' });
+    if (includeCompanyDetails) {
+      const fromChildren = [
+        el('strong', { text: 'FROM:' }),
+        document.createTextNode(' ')
+      ];
+      if (companyName) {
+        fromChildren.push(el('strong', { class: 'preview-from-name', text: companyName }));
+      }
+      if (companyAddress) {
+        const lines = companyAddress.split('\n').map(l => l.trim()).filter(Boolean);
+        lines.forEach(l => {
+          fromChildren.push(el('br'));
+          fromChildren.push(document.createTextNode(l));
+        });
+      }
+      const tdFrom = el('td', { class: 'preview-from-cell', style: 'width: 55%; line-height: 1.4;' }, fromChildren);
+      const tdTo = el('td', { class: 'preview-to-cell', style: 'width: 45%; line-height: 1.4;' }, [
+        el('div', { style: 'display: flex; gap: 8px; align-items: flex-start;' }, [
+          el('strong', { text: 'TO:', style: 'margin-top: 3px;' }),
+          el('div', { style: 'flex: 1; display: flex; flex-direction: column;' }, [
+            el('div', { class: 'preview-underline-line', text: toLine1 }),
+            el('div', { class: 'preview-underline-line', text: toLine2 }),
+            el('div', { class: 'preview-underline-line', text: toLine3 }),
+            el('div', { class: 'preview-underline-line', text: toLine4 })
+          ])
         ])
-      ])
-    ]);
-    r3.appendChild(tdTo);
+      ]);
+      r3.appendChild(tdFrom);
+      r3.appendChild(tdTo);
+    } else {
+      const tdTo = el('td', { class: 'preview-to-cell', colspan: '2', style: 'width: 100%;' }, [
+        el('div', { style: 'display: flex; gap: 8px; align-items: flex-start;' }, [
+          el('strong', { text: 'TO:', style: 'margin-top: 3px;' }),
+          el('div', { style: 'flex: 1; display: flex; flex-direction: column;' }, [
+            el('div', { class: 'preview-underline-line', text: toLine1 }),
+            el('div', { class: 'preview-underline-line', text: toLine2 }),
+            el('div', { class: 'preview-underline-line', text: toLine3 }),
+            el('div', { class: 'preview-underline-line', text: toLine4 })
+          ])
+        ])
+      ]);
+      r3.appendChild(tdTo);
+    }
     headerTable.appendChild(r3);
 
     previewContainer.appendChild(headerTable);
@@ -2744,8 +2937,8 @@ const Transmittal = {
     const tbody = el('tbody');
     rows.forEach(r => {
       const tr = el('tr', { class: 'preview-doc-row' });
-      tr.appendChild(el('td', { class: 'preview-doc-cell preview-category-cell', html: r.isEmpty ? '&nbsp;' : r.category }));
-      tr.appendChild(el('td', { class: 'preview-doc-cell preview-document-cell', html: r.isEmpty ? '&nbsp;' : r.document }));
+      tr.appendChild(el('td', { class: 'preview-doc-cell preview-category-cell', text: r.category || '\u00A0' }));
+      tr.appendChild(el('td', { class: 'preview-doc-cell preview-document-cell', text: r.document || '\u00A0' }));
       tbody.appendChild(tr);
     });
     docTable.appendChild(tbody);
@@ -2783,7 +2976,7 @@ const Transmittal = {
     return letter;
   },
 
-  async openPrintLetter(t) {
+  async openPrintLetter(t, options = {}) {
     const win = window.open('', '_blank');
     if (!win) return;
 
@@ -2791,14 +2984,20 @@ const Transmittal = {
     const client = window.apiClient.clientCache.getById(t.clientId);
     const wr = window.apiClient.workRequestCache.getById(t.workRequestId);
     const entity = t.entity || 'ATA';
-    const fromEntity = entity === 'ATA' ? 'ATA BUSINESS CONSULTANCY SERVICES' : 'LTA BUSINESS CONSULTANCY SERVICES';
+
+    const defaultCompName = entity === 'ATA' ? 'ATA BUSINESS CONSULTANCY SERVICES' : 'LTA BUSINESS CONSULTANCY SERVICES';
+    const defaultCompAddr = 'RM 307 Republic Supermarket Bldg,\nSoler St., cor. F.Torres St.,\nSta. Cruz, Manila';
+
+    const includeCompanyDetails = options.includeCompanyDetails !== undefined ? !!options.includeCompanyDetails : (this._printCompanyDetails !== false);
+    const companyName = options.companyName !== undefined ? options.companyName : (this._printCompanyName !== undefined ? this._printCompanyName : defaultCompName);
+    const companyAddress = options.companyAddress !== undefined ? options.companyAddress : (this._printCompanyAddress !== undefined ? this._printCompanyAddress : defaultCompAddr);
 
     // Date formatting (Entity-aware)
     let formattedDate = '';
     const dateObj = new Date(t.sentAt || t.createdAt || new Date());
     if (entity === 'ATA') {
-      const options = { year: 'numeric', month: 'long', day: 'numeric' };
-      formattedDate = dateObj.toLocaleDateString('en-US', options).toUpperCase();
+      const dateFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
+      formattedDate = dateObj.toLocaleDateString('en-US', dateFormatOptions).toUpperCase();
     } else {
       formattedDate = `${dateObj.getMonth() + 1}/${dateObj.getDate()}/${dateObj.getFullYear()}`;
     }
@@ -2832,53 +3031,38 @@ const Transmittal = {
     }
 
     // Build the table rows for the documents
+    const rows = [];
     const totalRows = 12;
     let usedRows = 0;
-    let rowsHtml = '';
 
     (t.items || []).forEach(item => {
       if (usedRows < totalRows) {
-        rowsHtml += `
-          <tr class="doc-row">
-            <td class="doc-cell category-cell">${(item.documentType || '').toUpperCase()}</td>
-            <td class="doc-cell document-cell">${(item.description || '').toUpperCase()}</td>
-          </tr>
-        `;
+        rows.push({
+          category: (item.documentType || '').toUpperCase(),
+          document: (item.description || '').toUpperCase()
+        });
         usedRows++;
       }
     });
 
     while (usedRows < totalRows) {
-      rowsHtml += `
-        <tr class="doc-row">
-          <td class="doc-cell category-cell">&nbsp;</td>
-          <td class="doc-cell document-cell">&nbsp;</td>
-        </tr>
-      `;
+      rows.push({
+        category: '',
+        document: ''
+      });
       usedRows++;
-    }
-
-    // RECEIVED STAMP (if acknowledged)
-    let stampHtml = '';
-    if (t.status === 'Acknowledged' && t.acknowledgedAt) {
-      const stampDateObj = new Date(t.acknowledgedAt);
-      const stampDateStr = stampDateObj.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
-      stampHtml = `
-        <div class="received-stamp">
-          <div class="stamp-title">RECEIVED</div>
-          <div class="stamp-date">${stampDateStr}</div>
-        </div>
-      `;
     }
 
     // Acknowledgment info for the signature
     let sigName = '';
     let sigDate = '';
-    if (t.status === 'Acknowledged' && t.receivedByName) {
-      sigName = t.receivedByName.toUpperCase();
-      if (t.acknowledgedAt) {
-        const dObj = new Date(t.acknowledgedAt);
-        sigDate = `${dObj.getMonth() + 1}/${dObj.getDate()}/${String(dObj.getFullYear()).slice(-2)}`;
+    let stampDateStr = '';
+    if (t.status === 'Acknowledged' && t.acknowledgedAt) {
+      const stampDateObj = new Date(t.acknowledgedAt);
+      stampDateStr = stampDateObj.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+      if (t.receivedByName) {
+        sigName = t.receivedByName.toUpperCase();
+        sigDate = `${stampDateObj.getMonth() + 1}/${stampDateObj.getDate()}/${String(stampDateObj.getFullYear()).slice(-2)}`;
       }
     }
 
@@ -2887,7 +3071,7 @@ const Transmittal = {
     meta.setAttribute('charset', 'UTF-8');
     doc.head.appendChild(meta);
     const title = doc.createElement('title');
-    title.textContent = 'Transmittal — ' + t.trackingNumber;
+    title.textContent = 'Transmittal — ' + (t.trackingNumber || '');
     doc.head.appendChild(title);
 
     const style = doc.createElement('style');
@@ -3003,7 +3187,7 @@ const Transmittal = {
       }
       .category-cell {
         font-weight: bold;
-        border-right: 2px solid #000;
+        border-right: 1px solid #000;
         width: 35%;
       }
       .document-cell {
@@ -3075,66 +3259,146 @@ const Transmittal = {
     `;
     doc.head.appendChild(style);
 
-    const body = doc.body;
-    body.innerHTML = `
-      <div class="container">
-        <table class="header-table">
-          <tr>
-            <td colspan="2" class="title-cell">DOCUMENT TRANSMITTAL FORM</td>
-          </tr>
-          <tr>
-            <td class="doc-no-cell">
-              <span class="label-red">TRANSMITTAL DOC NO.:</span>
-              <span class="value-bold">${t.trackingNumber}</span>
-            </td>
-            <td class="date-cell">
-              <span class="label-bold">DATE:</span>
-              <span class="value-bold">${formattedDate}</span>
-            </td>
-          </tr>
-          <tr>
-            <td colspan="2" class="to-cell" style="width: 100%;">
-              <div style="display: flex; gap: 8px; align-items: flex-start;">
-                <strong style="margin-top: 3px;">TO:</strong>
-                <div style="flex: 1; display: flex; flex-direction: column;">
-                  <div class="underline-line">${toLine1}</div>
-                  <div class="underline-line">${toLine2}</div>
-                  <div class="underline-line">${toLine3}</div>
-                  <div class="underline-line">${toLine4}</div>
-                </div>
-              </div>
-            </td>
-          </tr>
-        </table>
+    const createDocEl = (tag, attrs = {}, children = []) => {
+      const elem = doc.createElement(tag);
+      for (const [key, val] of Object.entries(attrs)) {
+        if (key === 'class') {
+          elem.className = val;
+        } else if (key === 'style') {
+          elem.style.cssText = val;
+        } else if (key === 'text') {
+          elem.textContent = val;
+        } else if (key === 'colspan') {
+          elem.colSpan = parseInt(val, 10);
+        } else {
+          elem.setAttribute(key, val);
+        }
+      }
+      if (Array.isArray(children)) {
+        for (const child of children) {
+          if (!child) continue;
+          if (typeof child === 'string') {
+            elem.appendChild(doc.createTextNode(child));
+          } else if (child.nodeType) {
+            elem.appendChild(child);
+          }
+        }
+      } else if (typeof children === 'string') {
+        elem.appendChild(doc.createTextNode(children));
+      } else if (children && children.nodeType) {
+        elem.appendChild(children);
+      }
+      return elem;
+    };
 
-        <div class="document-box">
-          <div class="document-title">Received the following documents and/or records:</div>
-          <table class="document-table">
-            <thead>
-              <tr class="header-row">
-                <th class="table-header-cell category-header-cell">CATEGORY</th>
-                <th class="table-header-cell document-header-cell">DOCUMENT</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml}
-            </tbody>
-          </table>
-          ${stampHtml}
-        </div>
+    const container = createDocEl('div', { class: 'container' });
 
-        ${t.notes ? `<div style="margin: 10px 0; font-style: italic; font-size: 9.5pt; color: #555;">Notes: ${t.notes}</div>` : ''}
+    // Header table
+    const headerTable = createDocEl('table', { class: 'header-table' });
+    
+    // Row 1: Title
+    const tr1 = createDocEl('tr', {}, [
+      createDocEl('td', { colspan: '2', class: 'title-cell', text: 'DOCUMENT TRANSMITTAL FORM' })
+    ]);
+    headerTable.appendChild(tr1);
 
-        <div class="signature-container">
-          <div class="sig-info">
-            <span class="sig-name">${sigName}</span>
-            <span class="sig-date">${sigDate}</span>
-          </div>
-          <div class="sig-line"></div>
-          <div class="sig-label">Signature over Printed name / Date Received</div>
-        </div>
-      </div>
-    `;
+    // Row 2: Doc No & Date
+    const tr2 = createDocEl('tr', {}, [
+      createDocEl('td', { class: 'doc-no-cell' }, [
+        createDocEl('span', { class: 'label-red', text: 'TRANSMITTAL DOC NO.:' }),
+        doc.createTextNode(' '),
+        createDocEl('span', { class: 'value-bold', text: t.trackingNumber || '' })
+      ]),
+      createDocEl('td', { class: 'date-cell' }, [
+        createDocEl('span', { class: 'label-bold', text: 'DATE:' }),
+        doc.createTextNode(' '),
+        createDocEl('span', { class: 'value-bold', text: formattedDate })
+      ])
+    ]);
+    headerTable.appendChild(tr2);
+
+    // Row 3: FROM & TO or TO only
+    const toWrapper = createDocEl('div', { style: 'display: flex; gap: 8px; align-items: flex-start;' }, [
+      createDocEl('strong', { style: 'margin-top: 3px;', text: 'TO:' }),
+      createDocEl('div', { style: 'flex: 1; display: flex; flex-direction: column;' }, [
+        createDocEl('div', { class: 'underline-line', text: toLine1 }),
+        createDocEl('div', { class: 'underline-line', text: toLine2 }),
+        createDocEl('div', { class: 'underline-line', text: toLine3 }),
+        createDocEl('div', { class: 'underline-line', text: toLine4 })
+      ])
+    ]);
+
+    if (includeCompanyDetails) {
+      const fromChildren = [
+        createDocEl('strong', { text: 'FROM:' }),
+        doc.createTextNode(' ')
+      ];
+      if (companyName) {
+        fromChildren.push(createDocEl('strong', {}, companyName));
+      }
+      if (companyAddress) {
+        const lines = companyAddress.split('\n').map(l => l.trim()).filter(Boolean);
+        lines.forEach(l => {
+          fromChildren.push(doc.createElement('br'));
+          fromChildren.push(doc.createTextNode(l));
+        });
+      }
+      const tdFrom = createDocEl('td', { class: 'from-cell' }, fromChildren);
+      const tdTo = createDocEl('td', { class: 'to-cell' }, [toWrapper]);
+      headerTable.appendChild(createDocEl('tr', {}, [tdFrom, tdTo]));
+    } else {
+      const tdTo = createDocEl('td', { colspan: '2', class: 'to-cell', style: 'width: 100%;' }, [toWrapper]);
+      headerTable.appendChild(createDocEl('tr', {}, [tdTo]));
+    }
+    container.appendChild(headerTable);
+
+    // Document Box
+    const docBox = createDocEl('div', { class: 'document-box' });
+    docBox.appendChild(createDocEl('div', { class: 'document-title', text: 'Received the following documents and/or records:' }));
+
+    const docTable = createDocEl('table', { class: 'document-table' });
+    const thead = createDocEl('thead', {}, [
+      createDocEl('tr', { class: 'header-row' }, [
+        createDocEl('th', { class: 'table-header-cell category-header-cell', text: 'CATEGORY' }),
+        createDocEl('th', { class: 'table-header-cell document-header-cell', text: 'DOCUMENT' })
+      ])
+    ]);
+    docTable.appendChild(thead);
+
+    const tbody = createDocEl('tbody');
+    rows.forEach(r => {
+      tbody.appendChild(createDocEl('tr', { class: 'doc-row' }, [
+        createDocEl('td', { class: 'doc-cell category-cell', text: r.category || '\u00A0' }),
+        createDocEl('td', { class: 'doc-cell document-cell', text: r.document || '\u00A0' })
+      ]));
+    });
+    docTable.appendChild(tbody);
+    docBox.appendChild(docTable);
+
+    if (t.status === 'Acknowledged' && stampDateStr) {
+      const stamp = createDocEl('div', { class: 'received-stamp' }, [
+        createDocEl('div', { class: 'stamp-title', text: 'RECEIVED' }),
+        createDocEl('div', { class: 'stamp-date', text: stampDateStr })
+      ]);
+      docBox.appendChild(stamp);
+    }
+    container.appendChild(docBox);
+
+    if (t.notes) {
+      container.appendChild(createDocEl('div', { style: 'margin: 10px 0; font-style: italic; font-size: 9.5pt; color: #555;', text: 'Notes: ' + t.notes }));
+    }
+
+    const sigContainer = createDocEl('div', { class: 'signature-container' }, [
+      createDocEl('div', { class: 'sig-info' }, [
+        createDocEl('span', { class: 'sig-name', text: sigName }),
+        createDocEl('span', { class: 'sig-date', text: sigDate })
+      ]),
+      createDocEl('div', { class: 'sig-line' }),
+      createDocEl('div', { class: 'sig-label', text: 'Signature over Printed name / Date Received' })
+    ]);
+    container.appendChild(sigContainer);
+
+    doc.body.appendChild(container);
 
     win.focus();
     setTimeout(() => win.print(), 300);
