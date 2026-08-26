@@ -761,8 +761,8 @@ const Transmittal = {
             printBtn.addEventListener('click', () => {
               this.openPrintLetter(t, {
                 includeCompanyDetails: this._printCompanyDetails !== false,
-                companyName: this._printCompanyName || defaultCompName,
-                companyAddress: this._printCompanyAddress || defaultCompAddr
+                companyName: this._printCompanyName !== undefined ? this._printCompanyName : defaultCompName,
+                companyAddress: this._printCompanyAddress !== undefined ? this._printCompanyAddress : defaultCompAddr
               });
             });
             actions.insertBefore(printBtn, backBtn);
@@ -2413,14 +2413,34 @@ const Transmittal = {
     const previewWrapper = el('div', { id: 'tx-letter-preview-wrapper' });
     letterSection.appendChild(previewWrapper);
 
+    let previewGeneration = 0;
     const updatePreview = async () => {
-      previewWrapper.innerHTML = '';
-      const letter = await this.buildLetterPreview(t, {
-        includeCompanyDetails: this._printCompanyDetails !== false,
-        companyName: this._printCompanyName,
-        companyAddress: this._printCompanyAddress
-      });
-      previewWrapper.appendChild(letter);
+      const generation = ++previewGeneration;
+      try {
+        const letter = await this.buildLetterPreview(t, {
+          includeCompanyDetails: this._printCompanyDetails !== false,
+          companyName: this._printCompanyName !== undefined ? this._printCompanyName : defaultCompName,
+          companyAddress: this._printCompanyAddress !== undefined ? this._printCompanyAddress : defaultCompAddr
+        });
+        if (generation !== previewGeneration) {
+          return;
+        }
+        previewWrapper.innerHTML = '';
+        previewWrapper.appendChild(letter);
+      } catch (err) {
+        if (generation !== previewGeneration) {
+          return;
+        }
+        console.error('Failed to build transmittal letter preview:', err);
+        if (!previewWrapper.hasChildNodes()) {
+          previewWrapper.innerHTML = '';
+          previewWrapper.appendChild(el('div', {
+            class: 'alert alert-warning',
+            style: 'padding: 12px; margin: 10px 0;',
+            text: 'Unable to render transmittal preview at this time.'
+          }));
+        }
+      }
     };
 
     const headerCheckbox = document.getElementById('print-company-details');
@@ -2431,17 +2451,17 @@ const Transmittal = {
         headerCheckbox.checked = companyCheckbox.checked;
       }
       dynamicFieldsContainer.style.display = companyCheckbox.checked ? 'grid' : 'none';
-      updatePreview();
+      updatePreview().catch(err => console.error('Error updating preview:', err));
     });
 
     nameInput.addEventListener('input', () => {
       this._printCompanyName = nameInput.value;
-      updatePreview();
+      updatePreview().catch(err => console.error('Error updating preview:', err));
     });
 
     addrTextarea.addEventListener('input', () => {
       this._printCompanyAddress = addrTextarea.value;
-      updatePreview();
+      updatePreview().catch(err => console.error('Error updating preview:', err));
     });
 
     await updatePreview();
@@ -2590,15 +2610,15 @@ const Transmittal = {
     const defaultCompAddr = 'RM 307 Republic Supermarket Bldg,\nSoler St., cor. F.Torres St.,\nSta. Cruz, Manila';
 
     const includeCompanyDetails = options.includeCompanyDetails !== undefined ? !!options.includeCompanyDetails : (this._printCompanyDetails !== false);
-    const companyName = options.companyName !== undefined ? options.companyName : (this._printCompanyName || defaultCompName);
-    const companyAddress = options.companyAddress !== undefined ? options.companyAddress : (this._printCompanyAddress || defaultCompAddr);
+    const companyName = options.companyName !== undefined ? options.companyName : (this._printCompanyName !== undefined ? this._printCompanyName : defaultCompName);
+    const companyAddress = options.companyAddress !== undefined ? options.companyAddress : (this._printCompanyAddress !== undefined ? this._printCompanyAddress : defaultCompAddr);
 
     // Date formatting (Entity-aware)
     let formattedDate = '';
     const dateObj = new Date(t.sentAt || t.createdAt || new Date());
     if (entity === 'ATA') {
-      const options = { year: 'numeric', month: 'long', day: 'numeric' };
-      formattedDate = dateObj.toLocaleDateString('en-US', options).toUpperCase();
+      const dateFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
+      formattedDate = dateObj.toLocaleDateString('en-US', dateFormatOptions).toUpperCase();
     } else {
       formattedDate = `${dateObj.getMonth() + 1}/${dateObj.getDate()}/${dateObj.getFullYear()}`;
     }
@@ -2843,7 +2863,7 @@ const Transmittal = {
     const r2 = el('tr');
     const tdDocNo = el('td', { style: 'width: 55%;' }, [
       el('span', { class: 'preview-label-red', text: 'TRANSMITTAL DOC NO.:' }),
-      el('span', { class: 'value-bold', text: t.trackingNumber })
+      el('span', { class: 'value-bold', text: t.trackingNumber || '' })
     ]);
     const tdDate = el('td', { style: 'width: 45%;' }, [
       el('span', { class: 'preview-label-bold', text: 'DATE:' }),
@@ -2917,8 +2937,8 @@ const Transmittal = {
     const tbody = el('tbody');
     rows.forEach(r => {
       const tr = el('tr', { class: 'preview-doc-row' });
-      tr.appendChild(el('td', { class: 'preview-doc-cell preview-category-cell', html: r.isEmpty ? '&nbsp;' : r.category }));
-      tr.appendChild(el('td', { class: 'preview-doc-cell preview-document-cell', html: r.isEmpty ? '&nbsp;' : r.document }));
+      tr.appendChild(el('td', { class: 'preview-doc-cell preview-category-cell', text: r.category || '\u00A0' }));
+      tr.appendChild(el('td', { class: 'preview-doc-cell preview-document-cell', text: r.document || '\u00A0' }));
       tbody.appendChild(tr);
     });
     docTable.appendChild(tbody);
@@ -2969,18 +2989,8 @@ const Transmittal = {
     const defaultCompAddr = 'RM 307 Republic Supermarket Bldg,\nSoler St., cor. F.Torres St.,\nSta. Cruz, Manila';
 
     const includeCompanyDetails = options.includeCompanyDetails !== undefined ? !!options.includeCompanyDetails : (this._printCompanyDetails !== false);
-    const companyName = options.companyName !== undefined ? options.companyName : (this._printCompanyName || defaultCompName);
-    const companyAddress = options.companyAddress !== undefined ? options.companyAddress : (this._printCompanyAddress || defaultCompAddr);
-
-    const escapeHtml = (str) => {
-      if (!str) return '';
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-    };
+    const companyName = options.companyName !== undefined ? options.companyName : (this._printCompanyName !== undefined ? this._printCompanyName : defaultCompName);
+    const companyAddress = options.companyAddress !== undefined ? options.companyAddress : (this._printCompanyAddress !== undefined ? this._printCompanyAddress : defaultCompAddr);
 
     // Date formatting (Entity-aware)
     let formattedDate = '';
@@ -3021,100 +3031,39 @@ const Transmittal = {
     }
 
     // Build the table rows for the documents
+    const rows = [];
     const totalRows = 12;
     let usedRows = 0;
-    let rowsHtml = '';
 
     (t.items || []).forEach(item => {
       if (usedRows < totalRows) {
-        rowsHtml += `
-          <tr class="doc-row">
-            <td class="doc-cell category-cell">${escapeHtml((item.documentType || '').toUpperCase())}</td>
-            <td class="doc-cell document-cell">${escapeHtml((item.description || '').toUpperCase())}</td>
-          </tr>
-        `;
+        rows.push({
+          category: (item.documentType || '').toUpperCase(),
+          document: (item.description || '').toUpperCase()
+        });
         usedRows++;
       }
     });
 
     while (usedRows < totalRows) {
-      rowsHtml += `
-        <tr class="doc-row">
-          <td class="doc-cell category-cell">&nbsp;</td>
-          <td class="doc-cell document-cell">&nbsp;</td>
-        </tr>
-      `;
+      rows.push({
+        category: '',
+        document: ''
+      });
       usedRows++;
-    }
-
-    // RECEIVED STAMP (if acknowledged)
-    let stampHtml = '';
-    if (t.status === 'Acknowledged' && t.acknowledgedAt) {
-      const stampDateObj = new Date(t.acknowledgedAt);
-      const stampDateStr = stampDateObj.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
-      stampHtml = `
-        <div class="received-stamp">
-          <div class="stamp-title">RECEIVED</div>
-          <div class="stamp-date">${escapeHtml(stampDateStr)}</div>
-        </div>
-      `;
     }
 
     // Acknowledgment info for the signature
     let sigName = '';
     let sigDate = '';
-    if (t.status === 'Acknowledged' && t.receivedByName) {
-      sigName = t.receivedByName.toUpperCase();
-      if (t.acknowledgedAt) {
-        const dObj = new Date(t.acknowledgedAt);
-        sigDate = `${dObj.getMonth() + 1}/${dObj.getDate()}/${String(dObj.getFullYear()).slice(-2)}`;
+    let stampDateStr = '';
+    if (t.status === 'Acknowledged' && t.acknowledgedAt) {
+      const stampDateObj = new Date(t.acknowledgedAt);
+      stampDateStr = stampDateObj.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+      if (t.receivedByName) {
+        sigName = t.receivedByName.toUpperCase();
+        sigDate = `${stampDateObj.getMonth() + 1}/${stampDateObj.getDate()}/${String(stampDateObj.getFullYear()).slice(-2)}`;
       }
-    }
-
-    const escapedName = escapeHtml(companyName);
-    const escapedAddrHtml = escapeHtml(companyAddress)
-      .split('\n')
-      .map(l => l.trim())
-      .filter(Boolean)
-      .join('<br>');
-
-    let fromToRowHtml = '';
-    if (includeCompanyDetails) {
-      fromToRowHtml = `
-          <tr>
-            <td class="from-cell">
-              <strong>FROM:</strong> ${escapedName ? `<strong>${escapedName}</strong>` : ''}
-              ${escapedAddrHtml ? `<br>${escapedAddrHtml}` : ''}
-            </td>
-            <td class="to-cell">
-              <div style="display: flex; gap: 8px; align-items: flex-start;">
-                <strong style="margin-top: 3px;">TO:</strong>
-                <div style="flex: 1; display: flex; flex-direction: column;">
-                  <div class="underline-line">${escapeHtml(toLine1)}</div>
-                  <div class="underline-line">${escapeHtml(toLine2)}</div>
-                  <div class="underline-line">${escapeHtml(toLine3)}</div>
-                  <div class="underline-line">${escapeHtml(toLine4)}</div>
-                </div>
-              </div>
-            </td>
-          </tr>
-      `;
-    } else {
-      fromToRowHtml = `
-          <tr>
-            <td colspan="2" class="to-cell" style="width: 100%;">
-              <div style="display: flex; gap: 8px; align-items: flex-start;">
-                <strong style="margin-top: 3px;">TO:</strong>
-                <div style="flex: 1; display: flex; flex-direction: column;">
-                  <div class="underline-line">${escapeHtml(toLine1)}</div>
-                  <div class="underline-line">${escapeHtml(toLine2)}</div>
-                  <div class="underline-line">${escapeHtml(toLine3)}</div>
-                  <div class="underline-line">${escapeHtml(toLine4)}</div>
-                </div>
-              </div>
-            </td>
-          </tr>
-      `;
     }
 
     const doc = win.document;
@@ -3310,54 +3259,146 @@ const Transmittal = {
     `;
     doc.head.appendChild(style);
 
-    const body = doc.body;
-    body.innerHTML = `
-      <div class="container">
-        <table class="header-table">
-          <tr>
-            <td colspan="2" class="title-cell">DOCUMENT TRANSMITTAL FORM</td>
-          </tr>
-          <tr>
-            <td class="doc-no-cell">
-              <span class="label-red">TRANSMITTAL DOC NO.:</span>
-              <span class="value-bold">${escapeHtml(t.trackingNumber)}</span>
-            </td>
-            <td class="date-cell">
-              <span class="label-bold">DATE:</span>
-              <span class="value-bold">${escapeHtml(formattedDate)}</span>
-            </td>
-          </tr>
-          ${fromToRowHtml}
-        </table>
+    const createDocEl = (tag, attrs = {}, children = []) => {
+      const elem = doc.createElement(tag);
+      for (const [key, val] of Object.entries(attrs)) {
+        if (key === 'class') {
+          elem.className = val;
+        } else if (key === 'style') {
+          elem.style.cssText = val;
+        } else if (key === 'text') {
+          elem.textContent = val;
+        } else if (key === 'colspan') {
+          elem.colSpan = parseInt(val, 10);
+        } else {
+          elem.setAttribute(key, val);
+        }
+      }
+      if (Array.isArray(children)) {
+        for (const child of children) {
+          if (!child) continue;
+          if (typeof child === 'string') {
+            elem.appendChild(doc.createTextNode(child));
+          } else if (child.nodeType) {
+            elem.appendChild(child);
+          }
+        }
+      } else if (typeof children === 'string') {
+        elem.appendChild(doc.createTextNode(children));
+      } else if (children && children.nodeType) {
+        elem.appendChild(children);
+      }
+      return elem;
+    };
 
-        <div class="document-box">
-          <div class="document-title">Received the following documents and/or records:</div>
-          <table class="document-table">
-            <thead>
-              <tr class="header-row">
-                <th class="table-header-cell category-header-cell">CATEGORY</th>
-                <th class="table-header-cell document-header-cell">DOCUMENT</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml}
-            </tbody>
-          </table>
-          ${stampHtml}
-        </div>
+    const container = createDocEl('div', { class: 'container' });
 
-        ${t.notes ? `<div style="margin: 10px 0; font-style: italic; font-size: 9.5pt; color: #555;">Notes: ${escapeHtml(t.notes)}</div>` : ''}
+    // Header table
+    const headerTable = createDocEl('table', { class: 'header-table' });
+    
+    // Row 1: Title
+    const tr1 = createDocEl('tr', {}, [
+      createDocEl('td', { colspan: '2', class: 'title-cell', text: 'DOCUMENT TRANSMITTAL FORM' })
+    ]);
+    headerTable.appendChild(tr1);
 
-        <div class="signature-container">
-          <div class="sig-info">
-            <span class="sig-name">${escapeHtml(sigName)}</span>
-            <span class="sig-date">${escapeHtml(sigDate)}</span>
-          </div>
-          <div class="sig-line"></div>
-          <div class="sig-label">Signature over Printed name / Date Received</div>
-        </div>
-      </div>
-    `;
+    // Row 2: Doc No & Date
+    const tr2 = createDocEl('tr', {}, [
+      createDocEl('td', { class: 'doc-no-cell' }, [
+        createDocEl('span', { class: 'label-red', text: 'TRANSMITTAL DOC NO.:' }),
+        doc.createTextNode(' '),
+        createDocEl('span', { class: 'value-bold', text: t.trackingNumber || '' })
+      ]),
+      createDocEl('td', { class: 'date-cell' }, [
+        createDocEl('span', { class: 'label-bold', text: 'DATE:' }),
+        doc.createTextNode(' '),
+        createDocEl('span', { class: 'value-bold', text: formattedDate })
+      ])
+    ]);
+    headerTable.appendChild(tr2);
+
+    // Row 3: FROM & TO or TO only
+    const toWrapper = createDocEl('div', { style: 'display: flex; gap: 8px; align-items: flex-start;' }, [
+      createDocEl('strong', { style: 'margin-top: 3px;', text: 'TO:' }),
+      createDocEl('div', { style: 'flex: 1; display: flex; flex-direction: column;' }, [
+        createDocEl('div', { class: 'underline-line', text: toLine1 }),
+        createDocEl('div', { class: 'underline-line', text: toLine2 }),
+        createDocEl('div', { class: 'underline-line', text: toLine3 }),
+        createDocEl('div', { class: 'underline-line', text: toLine4 })
+      ])
+    ]);
+
+    if (includeCompanyDetails) {
+      const fromChildren = [
+        createDocEl('strong', { text: 'FROM:' }),
+        doc.createTextNode(' ')
+      ];
+      if (companyName) {
+        fromChildren.push(createDocEl('strong', {}, companyName));
+      }
+      if (companyAddress) {
+        const lines = companyAddress.split('\n').map(l => l.trim()).filter(Boolean);
+        lines.forEach(l => {
+          fromChildren.push(doc.createElement('br'));
+          fromChildren.push(doc.createTextNode(l));
+        });
+      }
+      const tdFrom = createDocEl('td', { class: 'from-cell' }, fromChildren);
+      const tdTo = createDocEl('td', { class: 'to-cell' }, [toWrapper]);
+      headerTable.appendChild(createDocEl('tr', {}, [tdFrom, tdTo]));
+    } else {
+      const tdTo = createDocEl('td', { colspan: '2', class: 'to-cell', style: 'width: 100%;' }, [toWrapper]);
+      headerTable.appendChild(createDocEl('tr', {}, [tdTo]));
+    }
+    container.appendChild(headerTable);
+
+    // Document Box
+    const docBox = createDocEl('div', { class: 'document-box' });
+    docBox.appendChild(createDocEl('div', { class: 'document-title', text: 'Received the following documents and/or records:' }));
+
+    const docTable = createDocEl('table', { class: 'document-table' });
+    const thead = createDocEl('thead', {}, [
+      createDocEl('tr', { class: 'header-row' }, [
+        createDocEl('th', { class: 'table-header-cell category-header-cell', text: 'CATEGORY' }),
+        createDocEl('th', { class: 'table-header-cell document-header-cell', text: 'DOCUMENT' })
+      ])
+    ]);
+    docTable.appendChild(thead);
+
+    const tbody = createDocEl('tbody');
+    rows.forEach(r => {
+      tbody.appendChild(createDocEl('tr', { class: 'doc-row' }, [
+        createDocEl('td', { class: 'doc-cell category-cell', text: r.category || '\u00A0' }),
+        createDocEl('td', { class: 'doc-cell document-cell', text: r.document || '\u00A0' })
+      ]));
+    });
+    docTable.appendChild(tbody);
+    docBox.appendChild(docTable);
+
+    if (t.status === 'Acknowledged' && stampDateStr) {
+      const stamp = createDocEl('div', { class: 'received-stamp' }, [
+        createDocEl('div', { class: 'stamp-title', text: 'RECEIVED' }),
+        createDocEl('div', { class: 'stamp-date', text: stampDateStr })
+      ]);
+      docBox.appendChild(stamp);
+    }
+    container.appendChild(docBox);
+
+    if (t.notes) {
+      container.appendChild(createDocEl('div', { style: 'margin: 10px 0; font-style: italic; font-size: 9.5pt; color: #555;', text: 'Notes: ' + t.notes }));
+    }
+
+    const sigContainer = createDocEl('div', { class: 'signature-container' }, [
+      createDocEl('div', { class: 'sig-info' }, [
+        createDocEl('span', { class: 'sig-name', text: sigName }),
+        createDocEl('span', { class: 'sig-date', text: sigDate })
+      ]),
+      createDocEl('div', { class: 'sig-line' }),
+      createDocEl('div', { class: 'sig-label', text: 'Signature over Printed name / Date Received' })
+    ]);
+    container.appendChild(sigContainer);
+
+    doc.body.appendChild(container);
 
     win.focus();
     setTimeout(() => win.print(), 300);
