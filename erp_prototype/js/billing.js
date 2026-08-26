@@ -5695,231 +5695,362 @@ const Billing = {
       }
     }
 
-    let headerHtml = "";
+    const createDocEl = (tag, attrs = {}, children = []) => {
+      const elem = d.createElement(tag);
+      for (const [key, val] of Object.entries(attrs)) {
+        if (key === "class") {
+          elem.className = val;
+        } else if (key === "style") {
+          elem.style.cssText = val;
+        } else if (key === "text") {
+          elem.textContent = val;
+        } else if (key === "colspan") {
+          elem.colSpan = parseInt(val, 10);
+        } else if (key === "src") {
+          elem.src = val;
+        } else if (key === "alt") {
+          elem.alt = val;
+        } else {
+          elem.setAttribute(key, val);
+        }
+      }
+      if (Array.isArray(children)) {
+        for (const child of children) {
+          if (!child) continue;
+          if (typeof child === "string" || typeof child === "number") {
+            elem.appendChild(d.createTextNode(String(child)));
+          } else if (child.nodeType) {
+            elem.appendChild(child);
+          }
+        }
+      } else if (typeof children === "string" || typeof children === "number") {
+        elem.appendChild(d.createTextNode(String(children)));
+      } else if (children && children.nodeType) {
+        elem.appendChild(children);
+      }
+      return elem;
+    };
+
+    const headerElements = [];
     if (!includeCompanyDetails) {
-      headerHtml = `
-        <div class="generic-header" style="justify-content: flex-end;">
-          <div class="generic-title">STATEMENT</div>
-        </div>
-        <div class="generic-header-divider"></div>
-      `;
+      headerElements.push(
+        createDocEl(
+          "div",
+          { class: "generic-header", style: "justify-content: flex-end;" },
+          [createDocEl("div", { class: "generic-title", text: "STATEMENT" })]
+        ),
+        createDocEl("div", { class: "generic-header-divider" })
+      );
     } else if (noLogo) {
-      headerHtml = `
-        <div class="generic-header">
-          <div class="generic-company-name">${escapeHtml(companyName)}</div>
-          <div class="generic-title">STATEMENT</div>
-        </div>
-        <div class="generic-header-divider"></div>
-      `;
+      headerElements.push(
+        createDocEl("div", { class: "generic-header" }, [
+          createDocEl("div", {
+            class: "generic-company-name",
+            text: companyName,
+          }),
+          createDocEl("div", { class: "generic-title", text: "STATEMENT" }),
+        ]),
+        createDocEl("div", { class: "generic-header-divider" })
+      );
     } else if (entity === "ATA") {
-      headerHtml = `
-        <div class="header-container-ata">
-          <div style="display: flex; align-items: center;">
-            <img src="ERP_Assets/ATA-LOGO.jpg" alt="ATA Logo" style="height: 65px; object-fit: contain; margin-right: 12px;">
-            <span class="company-name-ata">${escapeHtml(companyName)}</span>
-          </div>
-          <div class="statement-title-ata">STATEMENT</div>
-        </div>
-        <div class="header-divider-ata"></div>
-      `;
+      headerElements.push(
+        createDocEl("div", { class: "header-container-ata" }, [
+          createDocEl("div", { style: "display: flex; align-items: center;" }, [
+            createDocEl("img", {
+              src: "ERP_Assets/ATA-LOGO.jpg",
+              alt: "ATA Logo",
+              style: "height: 65px; object-fit: contain; margin-right: 12px;",
+            }),
+            createDocEl("span", {
+              class: "company-name-ata",
+              text: companyName,
+            }),
+          ]),
+          createDocEl("div", {
+            class: "statement-title-ata",
+            text: "STATEMENT",
+          }),
+        ]),
+        createDocEl("div", { class: "header-divider-ata" })
+      );
     } else {
-      headerHtml = `
-        <div class="header-container-lta">
-          <div class="logo-banner-lta">
-            <img src="ERP_Assets/LTA-LOGO.jpg" class="logo-img-lta" alt="LTA Logo">
-            <span class="company-name-lta">${escapeHtml(companyName)}</span>
-          </div>
-          <div class="slanted-block-lta">STATEMENT</div>
-        </div>
-      `;
+      headerElements.push(
+        createDocEl("div", { class: "header-container-lta" }, [
+          createDocEl("div", { class: "logo-banner-lta" }, [
+            createDocEl("img", {
+              src: "ERP_Assets/LTA-LOGO.jpg",
+              class: "logo-img-lta",
+              alt: "LTA Logo",
+            }),
+            createDocEl("span", {
+              class: "company-name-lta",
+              text: companyName,
+            }),
+          ]),
+          createDocEl("div", { class: "slanted-block-lta", text: "STATEMENT" }),
+        ])
+      );
     }
 
-    const isGenericLayout = noLogo || !includeCompanyDetails || entity === "ATA";
+    const billToChildren = [
+      createDocEl("p", {}, [
+        createDocEl("strong", { text: client?.name || "—" }),
+      ]),
+    ];
+    if (client?.tradeName) {
+      billToChildren.push(createDocEl("p", { text: `(${client.tradeName})` }));
+    }
+    billToChildren.push(createDocEl("p", { text: client?.address || "—" }));
+    if (client?.tin) {
+      billToChildren.push(createDocEl("p", { text: `TIN: ${client.tin}` }));
+    }
 
-    const tableHeaders = isGenericLayout
-      ? `
-        <tr>
-          <th style="width: 15%;">DATE</th>
-          <th style="width: 65%;">DESCRIPTION</th>
-          <th style="width: 20%; text-align: right;">AMOUNT DUE</th>
-        </tr>
-      `
-      : `
-        <tr>
-          <th style="width: 15%;">DATE</th>
-          <th style="width: 55%;">DESCRIPTION</th>
-          <th style="width: 10%;"></th>
-          <th style="width: 20%; text-align: right;">AMOUNT DUE</th>
-        </tr>
-      `;
+    const twoCol = createDocEl("div", { class: "two-col" }, [
+      createDocEl("div", { class: "col-bill-to" }, [
+        createDocEl("div", {
+          class: "bill-to-title",
+          text: entity === "ATA" ? "BILL TO" : "BILL TO:",
+        }),
+        createDocEl("div", { class: "bill-to-content" }, billToChildren),
+      ]),
+      createDocEl("div", { class: "col-details" }, [
+        createDocEl("table", { class: "details-table" }, [
+          createDocEl("tbody", {}, [
+            createDocEl("tr", {}, [
+              createDocEl("td", {
+                class: "details-label",
+                text: "STATEMENT NUMBER",
+              }),
+              createDocEl("td", {
+                class: "details-value",
+                text: inv.invoiceNumber || "",
+              }),
+            ]),
+            createDocEl("tr", {}, [
+              createDocEl("td", {
+                class: "details-label",
+                text: "STATEMENT DATE",
+              }),
+              createDocEl("td", {
+                class: "details-value",
+                text: formatDate(inv.issueDate),
+              }),
+            ]),
+          ]),
+        ]),
+      ]),
+    ]);
 
-    const balanceForwardRow = isGenericLayout
-      ? `
-        <tr>
-          <td></td>
-          <td style="font-weight: bold; text-align: right;">BALANCE FORWARD:</td>
-          <td></td>
-        </tr>
-      `
-      : `
-        <tr>
-          <td></td>
-          <td style="font-weight: bold; text-align: right;">BALANCE FORWARD:</td>
-          <td></td>
-          <td></td>
-        </tr>
-      `;
+    const isGenericLayout =
+      noLogo || !includeCompanyDetails || entity === "ATA";
 
-    const lineItemsHtml = (inv.lineItems || [])
-      .map((li, idx) => {
-        const qty = parseFloat(li.qty) || 1;
-        const unit = parseFloat(li.unitCost || li.amount) || 0;
-        const total = qty * unit;
-        const dateStr = idx === 0 ? formatDate(inv.issueDate) : "";
-        let descStr = escapeHtml(li.description || "—");
-        if (qty > 1) {
-          descStr += ` (Qty: ${qty} x ${formatPHP(unit)})`;
-        }
-        // Optionally prepend the line item type (e.g. "[Professional Fee]") to the
-        // description. Disabled by default because the internal billing detail view
-        // already shows type in its own column, making the prefix redundant on the
-        // printed statement. Callers can pass { showTypePrefix: true } if they need it.
-        if (showTypePrefix && li.type) {
-          descStr = `[${escapeHtml(li.type)}] ${descStr}`;
-        }
+    const theadTr = isGenericLayout
+      ? createDocEl("tr", {}, [
+          createDocEl("th", { style: "width: 15%;", text: "DATE" }),
+          createDocEl("th", { style: "width: 65%;", text: "DESCRIPTION" }),
+          createDocEl("th", {
+            style: "width: 20%; text-align: right;",
+            text: "AMOUNT DUE",
+          }),
+        ])
+      : createDocEl("tr", {}, [
+          createDocEl("th", { style: "width: 15%;", text: "DATE" }),
+          createDocEl("th", { style: "width: 55%;", text: "DESCRIPTION" }),
+          createDocEl("th", { style: "width: 10%;" }),
+          createDocEl("th", {
+            style: "width: 20%; text-align: right;",
+            text: "AMOUNT DUE",
+          }),
+        ]);
 
-        if (isGenericLayout) {
-          return `
-          <tr>
-            <td>${escapeHtml(dateStr)}</td>
-            <td>${descStr}</td>
-            <td class="num">${formatPHP(total)}</td>
-          </tr>
-        `;
-        }
-        return `
-          <tr>
-            <td>${escapeHtml(dateStr)}</td>
-            <td>${descStr}</td>
-            <td></td>
-            <td class="num">${formatPHP(total)}</td>
-          </tr>
-        `;
-      })
-      .join("");
+    const tbodyRows = [];
+    if (isGenericLayout) {
+      tbodyRows.push(
+        createDocEl("tr", {}, [
+          createDocEl("td"),
+          createDocEl("td", {
+            style: "font-weight: bold; text-align: right;",
+            text: "BALANCE FORWARD:",
+          }),
+          createDocEl("td"),
+        ])
+      );
+    } else {
+      tbodyRows.push(
+        createDocEl("tr", {}, [
+          createDocEl("td"),
+          createDocEl("td", {
+            style: "font-weight: bold; text-align: right;",
+            text: "BALANCE FORWARD:",
+          }),
+          createDocEl("td"),
+          createDocEl("td"),
+        ])
+      );
+    }
 
-    const vatHtml = isVat
-      ? `<div class="vat-breakdown">
-          <p><strong>VAT Breakdown</strong></p>
-          <p>VATable Sales: ${formatPHP(subtotal)}</p>
-          <p>VAT Amount (12%): ${formatPHP(vatAmount)}</p>
-          <p>Total Amount Due: ${formatPHP(inv.total)}</p>
-        </div>`
-      : "";
+    (inv.lineItems || []).forEach((li, idx) => {
+      const qty = parseFloat(li.qty) || 1;
+      const unit = parseFloat(li.unitCost || li.amount) || 0;
+      const total = qty * unit;
+      const dateStr = idx === 0 ? formatDate(inv.issueDate) : "";
+      let descStr = li.description || "—";
+      if (qty > 1) {
+        descStr += ` (Qty: ${qty} x ${formatPHP(unit)})`;
+      }
+      if (showTypePrefix && li.type) {
+        descStr = `[${li.type}] ${descStr}`;
+      }
 
-    const clientNameEscaped = escapeHtml(client?.name || "—");
-    const clientTradeNameEscaped = client?.tradeName
-      ? `<p>(${escapeHtml(client.tradeName)})</p>`
-      : "";
-    const clientAddressEscaped = escapeHtml(client?.address || "—");
-    const clientTinEscaped = client?.tin
-      ? `<p>TIN: ${escapeHtml(client.tin)}</p>`
-      : "";
-    const invoiceNumberEscaped = escapeHtml(inv.invoiceNumber);
-    const invoiceDateEscaped = escapeHtml(formatDate(inv.issueDate));
-    const dateValEscaped = escapeHtml(dateVal);
-    const cashValEscaped = escapeHtml(cashVal);
-    const checkValEscaped = escapeHtml(checkVal);
-    const bankValEscaped = escapeHtml(bankVal);
+      if (isGenericLayout) {
+        tbodyRows.push(
+          createDocEl("tr", {}, [
+            createDocEl("td", { text: dateStr }),
+            createDocEl("td", { text: descStr }),
+            createDocEl("td", { class: "num", text: formatPHP(total) }),
+          ])
+        );
+      } else {
+        tbodyRows.push(
+          createDocEl("tr", {}, [
+            createDocEl("td", { text: dateStr }),
+            createDocEl("td", { text: descStr }),
+            createDocEl("td"),
+            createDocEl("td", { class: "num", text: formatPHP(total) }),
+          ])
+        );
+      }
+    });
 
-    d.body.innerHTML = `
-      ${headerHtml}
+    const itemsTable = createDocEl("table", { class: "items-table" }, [
+      createDocEl("thead", {}, [theadTr]),
+      createDocEl("tbody", {}, tbodyRows),
+    ]);
 
-      <div class="two-col">
-        <div class="col-bill-to">
-          <div class="bill-to-title">${entity === "ATA" ? "BILL TO" : "BILL TO:"}</div>
-          <div class="bill-to-content">
-            <p><strong>${clientNameEscaped}</strong></p>
-            ${clientTradeNameEscaped}
-            <p>${clientAddressEscaped}</p>
-            ${clientTinEscaped}
-          </div>
-        </div>
-        <div class="col-details">
-          <table class="details-table">
-            <tr>
-              <td class="details-label">STATEMENT NUMBER</td>
-              <td class="details-value">${invoiceNumberEscaped}</td>
-            </tr>
-            <tr>
-              <td class="details-label">STATEMENT DATE</td>
-              <td class="details-value">${invoiceDateEscaped}</td>
-            </tr>
-          </table>
-        </div>
-      </div>
+    const bottomContainer = createDocEl("div", { class: "bottom-container" }, [
+      createDocEl("div", { class: "payment-details-box" }, [
+        createDocEl("div", {
+          class: "payment-details-title",
+          text: "PAYMENT DETAILS:",
+        }),
+        createDocEl("div", { class: "payment-details-row" }, [
+          createDocEl("span", { text: "DATE:" }),
+          createDocEl("span", {
+            class: "fill-line",
+            style: "padding-left: 5px; font-weight: bold;",
+            text: dateVal,
+          }),
+        ]),
+        createDocEl("div", { class: "payment-details-row" }, [
+          createDocEl("span", { text: "CASH:" }),
+          createDocEl("span", {
+            class: "fill-line",
+            style: "padding-left: 5px; font-weight: bold;",
+            text: cashVal,
+          }),
+        ]),
+        createDocEl("div", { class: "payment-details-row" }, [
+          createDocEl("span", { text: "DATE/CHECK NO.:" }),
+          createDocEl("span", {
+            class: "fill-line",
+            style: "padding-left: 5px; font-weight: bold;",
+            text: checkVal,
+          }),
+        ]),
+        createDocEl("div", { class: "payment-details-row" }, [
+          createDocEl("span", { text: "BANK/BRANCH:" }),
+          createDocEl("span", {
+            class: "fill-line",
+            style: "padding-left: 5px; font-weight: bold;",
+            text: bankVal,
+          }),
+        ]),
+      ]),
+      createDocEl(
+        "div",
+        { class: "total-box-container", style: "width: 50%;" },
+        [
+          createDocEl("table", { class: "total-table" }, [
+            createDocEl("tbody", {}, [
+              createDocEl("tr", {}, [
+                createDocEl("td", {
+                  class: "total-label",
+                  text: "TOTAL AMOUNT DUE",
+                }),
+                createDocEl("td", { class: "total-currency", text: "PHP" }),
+                createDocEl("td", {
+                  class: "total-value",
+                  text: formatPHP(inv.total).replace("₱", "").trim(),
+                }),
+              ]),
+            ]),
+          ]),
+        ]
+      ),
+    ]);
 
-      <table class="items-table">
-        <thead>
-          ${tableHeaders}
-        </thead>
-        <tbody>
-          ${balanceForwardRow}
-          ${lineItemsHtml}
-        </tbody>
-      </table>
+    let vatElement = null;
+    if (isVat) {
+      vatElement = createDocEl("div", { class: "vat-breakdown" }, [
+        createDocEl("p", {}, [
+          createDocEl("strong", { text: "VAT Breakdown" }),
+        ]),
+        createDocEl("p", { text: `VATable Sales: ${formatPHP(subtotal)}` }),
+        createDocEl("p", { text: `VAT Amount (12%): ${formatPHP(vatAmount)}` }),
+        createDocEl("p", { text: `Total Amount Due: ${formatPHP(inv.total)}` }),
+      ]);
+    }
 
-      <div class="bottom-container">
-        <div class="payment-details-box">
-          <div class="payment-details-title">PAYMENT DETAILS:</div>
-          <div class="payment-details-row"><span>DATE:</span><span class="fill-line" style="padding-left: 5px; font-weight: bold;">${dateValEscaped}</span></div>
-          <div class="payment-details-row"><span>CASH:</span><span class="fill-line" style="padding-left: 5px; font-weight: bold;">${cashValEscaped}</span></div>
-          <div class="payment-details-row"><span>DATE/CHECK NO.:</span><span class="fill-line" style="padding-left: 5px; font-weight: bold;">${checkValEscaped}</span></div>
-          <div class="payment-details-row"><span>BANK/BRANCH:</span><span class="fill-line" style="padding-left: 5px; font-weight: bold;">${bankValEscaped}</span></div>
-        </div>
-        <div class="total-box-container" style="width: 50%;">
-          <table class="total-table">
-            <tr>
-              <td class="total-label">TOTAL AMOUNT DUE</td>
-              <td class="total-currency">PHP</td>
-              <td class="total-value">${formatPHP(inv.total).replace("₱", "").trim()}</td>
-            </tr>
-          </table>
-        </div>
-      </div>
-      ${vatHtml}
+    const signatureRow = createDocEl("div", { class: "signature-row" }, [
+      createDocEl("div", { class: "signature-box" }, [
+        createDocEl("div", { class: "signature-label", text: "Noted by:" }),
+        createDocEl("div", { class: "signature-line-container" }, [
+          createDocEl("div", {
+            class: "signature-name-printed",
+            text: "HENRY WONG",
+          }),
+        ]),
+      ]),
+      createDocEl("div", { class: "signature-box" }, [
+        createDocEl("div", { class: "signature-label", text: "Prepared by:" }),
+        createDocEl("div", { class: "signature-line-container" }, [
+          createDocEl("div", {
+            class: "signature-name-printed",
+            text: "\u00A0",
+          }),
+        ]),
+      ]),
+      createDocEl("div", { class: "signature-box" }, [
+        createDocEl("div", { class: "signature-label", text: "Received by:" }),
+        createDocEl("div", { class: "signature-line-container" }, [
+          createDocEl("div", {
+            class: "signature-name-printed",
+            text: "\u00A0",
+          }),
+        ]),
+      ]),
+    ]);
 
-      <div class="signature-row">
-        <div class="signature-box">
-          <div class="signature-label">Noted by:</div>
-          <div class="signature-line-container">
-            <div class="signature-name-printed">HENRY WONG</div>
-          </div>
-        </div>
-        <div class="signature-box">
-          <div class="signature-label">Prepared by:</div>
-          <div class="signature-line-container">
-            <div class="signature-name-printed">&nbsp;</div>
-          </div>
-        </div>
-        <div class="signature-box">
-          <div class="signature-label">Received by:</div>
-          <div class="signature-line-container">
-            <div class="signature-name-printed">&nbsp;</div>
-          </div>
-        </div>
-      </div>
+    const isATAOrGeneric = !includeCompanyDetails || noLogo || entity === "ATA";
+    const footerElement = createDocEl("div", { class: "footer-container" }, [
+      createDocEl("div", { class: "thank-you", text: "THANK YOU !!!" }),
+      isATAOrGeneric
+        ? createDocEl("div", { class: "footer-text", text: "customer's copy" })
+        : createDocEl("div", {
+            class: "footer-text underline",
+            text: "Should you have any enquiries concerning this statement, please contact us on 742-8582/404-4928",
+          }),
+    ]);
 
-      <div class="footer-container">
-        <div class="thank-you">THANK YOU !!!</div>
-        ${
-          !includeCompanyDetails || noLogo || entity === "ATA"
-            ? `<div class="footer-text">customer's copy</div>`
-            : `<div class="footer-text underline">Should you have any enquiries concerning this statement, please contact us on 742-8582/404-4928</div>`
-        }
-      </div>
-
-    `;
+    headerElements.forEach((elem) => d.body.appendChild(elem));
+    d.body.appendChild(twoCol);
+    d.body.appendChild(itemsTable);
+    d.body.appendChild(bottomContainer);
+    if (vatElement) {
+      d.body.appendChild(vatElement);
+    }
+    d.body.appendChild(signatureRow);
+    d.body.appendChild(footerElement);
 
     setTimeout(() => w.print(), 300);
   },
