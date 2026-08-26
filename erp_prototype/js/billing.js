@@ -5210,70 +5210,78 @@ const Billing = {
     return container;
   },
 
-  generateInvoice(inv, options = false, opts) {
-    let noLogo = false;
-    let includeCompanyDetails = true;
-    let customCompanyName = null;
-    let showTypePrefix = false;
-
+  _resolveInvoicePrintOptions(options = false, opts = {}) {
+    let normalized = {};
     if (typeof options === "boolean") {
-      noLogo = options;
-      includeCompanyDetails = !options;
-      if (typeof opts === "object" && opts !== null) {
-        showTypePrefix = !!opts.showTypePrefix;
-        customCompanyName = opts.companyName || null;
-        if (opts.noCompanyDetailsAndLogo !== undefined) {
-          noLogo = !!opts.noCompanyDetailsAndLogo;
-          includeCompanyDetails = !opts.noCompanyDetailsAndLogo;
-        } else {
-          if (opts.includeCompanyDetails !== undefined) {
-            includeCompanyDetails = !!opts.includeCompanyDetails;
-          }
-          if (opts.noLogo !== undefined) {
-            noLogo = !!opts.noLogo;
-          }
-        }
-      }
-    } else if (typeof options === "object" && options !== null) {
-      showTypePrefix = !!options.showTypePrefix;
-      customCompanyName = options.companyName || null;
-      if (options.noCompanyDetailsAndLogo !== undefined) {
-        noLogo = !!options.noCompanyDetailsAndLogo;
-        includeCompanyDetails = !options.noCompanyDetailsAndLogo;
-      } else {
-        if (options.includeCompanyDetails !== undefined) {
-          includeCompanyDetails = !!options.includeCompanyDetails;
-        }
-        if (options.noLogo !== undefined) {
-          noLogo = !!options.noLogo;
-        }
-        if (
-          options.includeCompanyDetails === undefined &&
-          options.noLogo !== undefined
-        ) {
-          includeCompanyDetails = !options.noLogo;
-        }
-        if (
-          options.noLogo === undefined &&
-          options.includeCompanyDetails !== undefined
-        ) {
-          noLogo = !options.includeCompanyDetails;
-        }
-      }
-      if (options.showTypePrefix !== undefined) {
-        showTypePrefix = !!options.showTypePrefix;
-      }
+      normalized = {
+        noLogo: options,
+        includeCompanyDetails: !options,
+        ...(typeof opts === "object" && opts !== null ? opts : {}),
+      };
     } else if (typeof options === "string") {
       const lower = options.toLowerCase().trim();
-      noLogo =
+      const isGeneric =
         lower === "true" ||
         lower === "1" ||
         lower === "nologo" ||
         lower === "generic";
-      includeCompanyDetails = !noLogo;
+      normalized = {
+        noLogo: isGeneric,
+        includeCompanyDetails: !isGeneric,
+        ...(typeof opts === "object" && opts !== null ? opts : {}),
+      };
+    } else if (typeof options === "object" && options !== null) {
+      normalized = {
+        ...options,
+        ...(typeof opts === "object" && opts !== null ? opts : {}),
+      };
     }
 
-    const client = window.apiClient.clientCache.getById(inv.clientId);
+    const hasNoCompFlag = normalized.noCompanyDetailsAndLogo !== undefined;
+    const noCompanyDetailsAndLogo = hasNoCompFlag
+      ? !!normalized.noCompanyDetailsAndLogo
+      : false;
+
+    let noLogo = hasNoCompFlag
+      ? noCompanyDetailsAndLogo
+      : normalized.noLogo !== undefined
+        ? !!normalized.noLogo
+        : false;
+    let includeCompanyDetails = hasNoCompFlag
+      ? !noCompanyDetailsAndLogo
+      : normalized.includeCompanyDetails !== undefined
+        ? !!normalized.includeCompanyDetails
+        : normalized.noLogo !== undefined
+          ? !normalized.noLogo
+          : true;
+
+    if (
+      normalized.noLogo !== undefined &&
+      normalized.includeCompanyDetails !== undefined &&
+      !hasNoCompFlag
+    ) {
+      noLogo = !!normalized.noLogo;
+      includeCompanyDetails = !!normalized.includeCompanyDetails;
+    }
+
+    return {
+      noLogo,
+      includeCompanyDetails,
+      showTypePrefix: !!normalized.showTypePrefix,
+      companyName: normalized.companyName || null,
+      companyAddress: normalized.companyAddress || null,
+    };
+  },
+
+  generateInvoice(inv, options = false, opts) {
+    const {
+      noLogo,
+      includeCompanyDetails,
+      showTypePrefix,
+      companyName: customCompanyName,
+    } = this._resolveInvoicePrintOptions(options, opts);
+
+    const client = window.apiClient?.clientCache?.getById(inv.clientId);
     const entity = inv.entity || "ATA";
     const defaultCompanyName =
       entity === "ATA"
@@ -5688,23 +5696,21 @@ const Billing = {
     }
 
     let headerHtml = "";
-    if (noLogo || !includeCompanyDetails) {
-      if (!includeCompanyDetails) {
-        headerHtml = `
+    if (!includeCompanyDetails) {
+      headerHtml = `
         <div class="generic-header" style="justify-content: flex-end;">
           <div class="generic-title">STATEMENT</div>
         </div>
         <div class="generic-header-divider"></div>
       `;
-      } else {
-        headerHtml = `
+    } else if (noLogo) {
+      headerHtml = `
         <div class="generic-header">
           <div class="generic-company-name">${escapeHtml(companyName)}</div>
           <div class="generic-title">STATEMENT</div>
         </div>
         <div class="generic-header-divider"></div>
       `;
-      }
     } else if (entity === "ATA") {
       headerHtml = `
         <div class="header-container-ata">
@@ -5728,17 +5734,17 @@ const Billing = {
       `;
     }
 
-    let tableHeaders = "";
-    if (noLogo || entity === "ATA") {
-      tableHeaders = `
+    const isGenericLayout = noLogo || !includeCompanyDetails || entity === "ATA";
+
+    const tableHeaders = isGenericLayout
+      ? `
         <tr>
           <th style="width: 15%;">DATE</th>
           <th style="width: 65%;">DESCRIPTION</th>
           <th style="width: 20%; text-align: right;">AMOUNT DUE</th>
         </tr>
-      `;
-    } else {
-      tableHeaders = `
+      `
+      : `
         <tr>
           <th style="width: 15%;">DATE</th>
           <th style="width: 55%;">DESCRIPTION</th>
@@ -5746,19 +5752,16 @@ const Billing = {
           <th style="width: 20%; text-align: right;">AMOUNT DUE</th>
         </tr>
       `;
-    }
 
-    let balanceForwardRow = "";
-    if (noLogo || entity === "ATA") {
-      balanceForwardRow = `
+    const balanceForwardRow = isGenericLayout
+      ? `
         <tr>
           <td></td>
           <td style="font-weight: bold; text-align: right;">BALANCE FORWARD:</td>
           <td></td>
         </tr>
-      `;
-    } else {
-      balanceForwardRow = `
+      `
+      : `
         <tr>
           <td></td>
           <td style="font-weight: bold; text-align: right;">BALANCE FORWARD:</td>
@@ -5766,9 +5769,8 @@ const Billing = {
           <td></td>
         </tr>
       `;
-    }
 
-    const lineItemsHtml = inv.lineItems
+    const lineItemsHtml = (inv.lineItems || [])
       .map((li, idx) => {
         const qty = parseFloat(li.qty) || 1;
         const unit = parseFloat(li.unitCost || li.amount) || 0;
@@ -5786,7 +5788,7 @@ const Billing = {
           descStr = `[${escapeHtml(li.type)}] ${descStr}`;
         }
 
-        if (noLogo || entity === "ATA") {
+        if (isGenericLayout) {
           return `
           <tr>
             <td>${escapeHtml(dateStr)}</td>
@@ -5794,8 +5796,8 @@ const Billing = {
             <td class="num">${formatPHP(total)}</td>
           </tr>
         `;
-        } else {
-          return `
+        }
+        return `
           <tr>
             <td>${escapeHtml(dateStr)}</td>
             <td>${descStr}</td>
@@ -5803,7 +5805,6 @@ const Billing = {
             <td class="num">${formatPHP(total)}</td>
           </tr>
         `;
-        }
       })
       .join("");
 
