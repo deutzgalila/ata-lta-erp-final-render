@@ -1340,6 +1340,7 @@ const Billing = {
       clientId: doc.client_id || doc.clientId,
       workRequestId: doc.work_request_id || doc.workRequestId,
       linkedTaskId: doc.linked_task_id || doc.linkedTaskId || null,
+      linkedTransmittalId: doc.linked_transmittal_id || doc.linkedTransmittalId || null,
       entityId: doc.entity_id || doc.entityId,
       entity,
       issueDate: doc.issue_date || doc.issueDate,
@@ -1375,6 +1376,8 @@ const Billing = {
     return {
       clientId: record.clientId,
       workRequestId: record.workRequestId || null,
+      linkedTaskId: record.linkedTaskId || null,
+      linkedTransmittalId: record.linkedTransmittalId || null,
       invoiceNumber: record.invoiceNumber,
       issueDate: record.issueDate,
       dueDate: record.dueDate,
@@ -3183,6 +3186,7 @@ const Billing = {
       window.apiClient.userCache.ensure(),
       window.apiClient.clientCache.ensure(),
       window.apiClient.workRequestCache.ensure(),
+      window.apiClient.transmittalCache.ensure(),
     ]);
     if (!Auth.can("billing:edit")) {
       this.view = "list";
@@ -3200,6 +3204,7 @@ const Billing = {
         ? {
             workRequestId: this.prefilledWrId,
             clientId: this.prefilledClientId,
+            linkedTransmittalId: this.prefilledTransmittalId || null,
           }
         : null) ||
       (opReq
@@ -3211,6 +3216,7 @@ const Billing = {
         : null);
     this.pendingPrefill = null; // consume once
     this._prefilledOpReq = null; // consume once
+    this.prefilledTransmittalId = null;
     const container = el("div");
 
     const form = el("form", {
@@ -3233,7 +3239,7 @@ const Billing = {
       required: true,
       class: "notion-prop-select",
     };
-    if (prefill) clientSelAttrs.disabled = true;
+    if (prefill && prefill.clientId) clientSelAttrs.disabled = true;
     const clientSel = el("select", clientSelAttrs);
     clientSel.appendChild(el("option", { value: "", text: "— Select —" }));
     const allClients = window.apiClient.clientCache._clients || [];
@@ -3247,7 +3253,7 @@ const Billing = {
         clientSel.appendChild(opt);
       });
     clientGroup.appendChild(clientSel);
-    if (prefill)
+    if (prefill && prefill.clientId)
       clientGroup.appendChild(
         el("input", {
           type: "hidden",
@@ -3265,7 +3271,7 @@ const Billing = {
       }),
     );
     const wrSelAttrs = { name: "workRequestId", class: "notion-prop-select" };
-    if (prefill) wrSelAttrs.disabled = true;
+    if (prefill && prefill.workRequestId) wrSelAttrs.disabled = true;
     const wrSel = el("select", wrSelAttrs);
     wrSel.appendChild(el("option", { value: "", text: "— None —" }));
     const wrs = window.apiClient.workRequestCache.getActiveByEntity(entity);
@@ -3328,6 +3334,29 @@ const Billing = {
     }
     propsGrid.appendChild(taskGroup);
 
+    // Transmittal link (Dynamic based on WR / Client / Entity)
+    const transGroup = el("div", { class: "notion-prop" });
+    transGroup.appendChild(
+      el("label", {
+        html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg> Transmittal',
+      }),
+    );
+    const transSelAttrs = { name: "linkedTransmittalId", class: "notion-prop-select" };
+    if (prefill && prefill.linkedTransmittalId) transSelAttrs.disabled = true;
+    const transSel = el("select", transSelAttrs);
+    transSel.appendChild(el("option", { value: "", text: "— None —" }));
+    transGroup.appendChild(transSel);
+    if (prefill && prefill.linkedTransmittalId) {
+      transGroup.appendChild(
+        el("input", {
+          type: "hidden",
+          name: "linkedTransmittalId",
+          value: prefill.linkedTransmittalId,
+        }),
+      );
+    }
+    propsGrid.appendChild(transGroup);
+
     const updateTasks = () => {
       while (taskSel.firstChild) taskSel.removeChild(taskSel.firstChild);
       taskSel.appendChild(
@@ -3346,8 +3375,60 @@ const Billing = {
         });
       }
     };
-    wrSel.addEventListener("change", updateTasks);
+
+    const updateTransmittals = () => {
+      const currentSelected = transSel.value || (inv?.linkedTransmittalId || (prefill?.linkedTransmittalId || ""));
+      while (transSel.firstChild) transSel.removeChild(transSel.firstChild);
+      transSel.appendChild(el("option", { value: "", text: "— None —" }));
+      const allTransmittals = window.apiClient.transmittalCache.getActiveByEntity(entity);
+      const wrId = wrSel.value;
+      const clientId = clientSel.value;
+      
+      const filtered = allTransmittals.filter(t => {
+        if (wrId) return (t.work_request_id || t.workRequestId) === wrId;
+        if (clientId) return (t.client_id || t.clientId) === clientId;
+        return true;
+      });
+
+      filtered.forEach(t => {
+        const tracking = t.tracking_number || t.trackingNumber;
+        const opt = el("option", { value: t.id, text: tracking + (t.status ? ` (${t.status})` : '') });
+        if (currentSelected === t.id) opt.selected = true;
+        transSel.appendChild(opt);
+      });
+    };
+
+    transSel.addEventListener("change", () => {
+      const transId = transSel.value;
+      if (transId) {
+        const trans = window.apiClient.transmittalCache.getById(transId);
+        const transWrId = trans?.work_request_id || trans?.workRequestId;
+        const transClientId = trans?.client_id || trans?.clientId;
+        if (transWrId && wrSel.value !== transWrId) {
+          wrSel.value = transWrId;
+          updateTasks();
+        }
+        if (transClientId && clientSel.value !== transClientId) {
+          clientSel.value = transClientId;
+        }
+      }
+    });
+
+    wrSel.addEventListener("change", () => {
+      const wr = window.apiClient.workRequestCache.getById(wrSel.value);
+      if (wr?.clientId && (!clientSel.value || clientSel.value !== wr.clientId)) {
+        clientSel.value = wr.clientId;
+      }
+      updateTasks();
+      updateTransmittals();
+    });
+
+    clientSel.addEventListener("change", () => {
+      updateTransmittals();
+    });
+
     updateTasks();
+    updateTransmittals();
 
     // Issue Date
     const issueDateProp = el("div", { class: "notion-prop" });
@@ -3654,6 +3735,7 @@ const Billing = {
       clientId: data.clientId,
       workRequestId: data.workRequestId || null,
       linkedTaskId: data.linkedTaskId || null,
+      linkedTransmittalId: data.linkedTransmittalId || null,
       entity: recordEntity,
       issueDate: data.issueDate,
       dueDate: data.dueDate,
@@ -4320,6 +4402,44 @@ const Billing = {
         );
         container.appendChild(linkCard);
       }
+    }
+
+    // Linked Transmittal info card
+    if (inv.linkedTransmittalId) {
+      const linkedTrans = window.apiClient.transmittalCache?.getById(inv.linkedTransmittalId);
+      const trackingNo = linkedTrans?.tracking_number || linkedTrans?.trackingNumber || inv.linkedTransmittalId;
+      const linkCard = el("div", {
+        style:
+          "background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.2);border-radius: 12px;padding:12px 16px;margin-bottom:var(--spacing-md);font-size:0.8125rem;",
+      });
+      const linkHeader = el("div", {
+        style:
+          "display:flex;align-items:center;gap:6px;margin-bottom:6px;color:#065f46;font-weight:600;",
+      });
+      linkHeader.appendChild(
+        el("span", {
+          html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>',
+        }),
+      );
+      linkHeader.appendChild(el("span", { text: "Linked Transmittal" }));
+      linkCard.appendChild(linkHeader);
+
+      const transLink = el("a", {
+        href: "javascript:void(0)",
+        text: `Transmittal ${trackingNo}` + (linkedTrans?.status ? ` (${linkedTrans.status})` : ''),
+        style: "color:#059669;font-weight:500;text-decoration:none;",
+      });
+      transLink.addEventListener("click", () => {
+        location.hash = "#transmittal/detail/" + (linkedTrans?.id || inv.linkedTransmittalId);
+      });
+      transLink.addEventListener("mouseenter", () => {
+        transLink.style.textDecoration = "underline";
+      });
+      transLink.addEventListener("mouseleave", () => {
+        transLink.style.textDecoration = "none";
+      });
+      linkCard.appendChild(transLink);
+      container.appendChild(linkCard);
     }
 
     // Line items table

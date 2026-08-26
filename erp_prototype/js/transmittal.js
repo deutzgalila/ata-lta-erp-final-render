@@ -2319,6 +2319,109 @@ const Transmittal = {
     letterSection.appendChild(await this.buildLetterPreview(t));
     container.appendChild(letterSection);
 
+    // Linked Invoices & Disbursements Section
+    const linkedSection = el('div', { class: 'form-section', style: 'margin-top: var(--spacing-lg); margin-bottom: var(--spacing-lg);' });
+    const linkedHeader = el('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-sm);' });
+    linkedHeader.appendChild(el('h3', { text: 'Linked Billings & Disbursements', style: 'margin: 0;' }));
+
+    const btnWrap = el('div', { style: 'display: flex; gap: 8px;' });
+    if (Auth.can('billing:edit')) {
+      const createBillBtn = el('button', {
+        class: 'btn btn-secondary btn-sm',
+        html: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Create Billing'
+      });
+      createBillBtn.addEventListener('click', () => {
+        if (typeof Billing !== 'undefined') {
+          Billing.pendingPrefill = {
+            clientId: t.clientId,
+            workRequestId: t.workRequestId,
+            linkedTransmittalId: t.id
+          };
+        }
+        location.hash = '#billing/form/new';
+      });
+      btnWrap.appendChild(createBillBtn);
+    }
+    if (Auth.can('disbursement:create')) {
+      const createDisbBtn = el('button', {
+        class: 'btn btn-secondary btn-sm',
+        html: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Create Disbursement'
+      });
+      createDisbBtn.addEventListener('click', () => {
+        if (typeof Disbursement !== 'undefined') {
+          Disbursement.prefilledWrId = t.workRequestId;
+          Disbursement.prefilledClientId = t.clientId;
+          Disbursement.prefilledTransmittalId = t.id;
+        }
+        location.hash = '#disbursement/form/new';
+      });
+      btnWrap.appendChild(createDisbBtn);
+    }
+    linkedHeader.appendChild(btnWrap);
+    linkedSection.appendChild(linkedHeader);
+
+    let linkedInvs = [];
+    let linkedDisbs = [];
+    try {
+      const [invsRes, disbsRes] = await Promise.all([
+        window.apiClient.invoices.list({ linkedTransmittalId: t.id }),
+        window.apiClient.disbursements.list({ linkedTransmittalId: t.id })
+      ]);
+      linkedInvs = invsRes?.data || [];
+      linkedDisbs = disbsRes?.data || [];
+    } catch (e) {
+      console.error('Failed to load linked records for transmittal', e);
+    }
+
+    if (linkedInvs.length === 0 && linkedDisbs.length === 0) {
+      linkedSection.appendChild(el('p', {
+        text: 'No billings or disbursements currently linked to this transmittal.',
+        style: 'font-size: 0.875rem; color: var(--color-text-muted); font-style: italic;'
+      }));
+    } else {
+      const grid = el('div', { style: 'display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;' });
+
+      linkedInvs.forEach(inv => {
+        const itemCard = el('div', { style: 'border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 10px 14px; background: var(--color-surface);' });
+        const cardTitle = el('div', { style: 'display: flex; justify-content: space-between; align-items: center;' });
+        const link = el('a', {
+          href: `#billing/detail/${inv.id}`,
+          text: `Invoice #${inv.invoice_number || inv.invoiceNumber}`,
+          style: 'font-weight: 600; color: var(--color-primary); text-decoration: none;'
+        });
+        cardTitle.appendChild(link);
+        cardTitle.appendChild(el('span', { class: 'badge', text: inv.status || 'Draft', style: 'font-size: 0.75rem;' }));
+        itemCard.appendChild(cardTitle);
+
+        const cardSub = el('div', { style: 'font-size: 0.8125rem; color: var(--color-text-muted); margin-top: 4px;' });
+        cardSub.textContent = `Amount: ${formatPHP(inv.total || 0)} • Due: ${formatDate(inv.due_date || inv.dueDate)}`;
+        itemCard.appendChild(cardSub);
+        grid.appendChild(itemCard);
+      });
+
+      linkedDisbs.forEach(d => {
+        const itemCard = el('div', { style: 'border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 10px 14px; background: var(--color-surface);' });
+        const cardTitle = el('div', { style: 'display: flex; justify-content: space-between; align-items: center;' });
+        const link = el('a', {
+          href: `#disbursement/detail/${d.id}`,
+          text: `Disbursement #${d.disbursement_number || d.disbursementNumber || d.id.slice(0, 8)}`,
+          style: 'font-weight: 600; color: var(--color-primary); text-decoration: none;'
+        });
+        cardTitle.appendChild(link);
+        cardTitle.appendChild(el('span', { class: 'badge', text: d.status || 'Draft', style: 'font-size: 0.75rem;' }));
+        itemCard.appendChild(cardTitle);
+
+        const cardSub = el('div', { style: 'font-size: 0.8125rem; color: var(--color-text-muted); margin-top: 4px;' });
+        cardSub.textContent = `${d.category || 'Expense'} • ${formatPHP(d.amount || 0)} • ${d.fund_source || d.fundSource || 'Firm Fund'}`;
+        itemCard.appendChild(cardSub);
+        grid.appendChild(itemCard);
+      });
+
+      linkedSection.appendChild(grid);
+    }
+
+    container.appendChild(linkedSection);
+
     return container;
   },
 
