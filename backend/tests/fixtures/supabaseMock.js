@@ -413,7 +413,9 @@ const rpcImpl = {
     const row = mockTables.work_requests.get(params.p_id);
     if (!row) return { data: [], error: null };
     if (row.entity_id !== params.p_entity_id) return { data: [], error: null };
-    if (row.status !== params.p_from_status) return { data: [], error: null };
+    // post-000046 the DB signature is p_from_statuses text[]; accept arrays.
+    const fromStatuses = params.p_from_statuses || (params.p_from_status ? [params.p_from_status] : null);
+    if (!fromStatuses || !fromStatuses.includes(row.status)) return { data: [], error: null };
 
     row.status = params.p_to_status;
     row.updated_at = nowIso();
@@ -430,7 +432,9 @@ const rpcImpl = {
     const row = mockTables.tasks.get(params.p_id);
     if (!row) return { data: [], error: null };
     if (row.work_request_id !== params.p_work_request_id) return { data: [], error: null };
-    if (row.status !== params.p_from_status) return { data: [], error: null };
+    // post-000046 the DB signature is p_from_statuses text[]; accept arrays.
+    const fromStatuses = params.p_from_statuses || (params.p_from_status ? [params.p_from_status] : null);
+    if (!fromStatuses || !fromStatuses.includes(row.status)) return { data: [], error: null };
 
     row.status = params.p_to_status;
     row.updated_at = nowIso();
