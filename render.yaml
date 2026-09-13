@@ -17,14 +17,17 @@
 projects:
   - name: My project
     environments:
-      - name: uat
+      - name: main
         services:
           # ─── Backend ────────────────────────────────────────────────
           - type: web
             name: ata-lta-erp-api-main
             runtime: docker
             region: singapore
-            plan: free
+            # Upgraded from free: 1 GB RAM + no 15-min idle sleep. The free
+            # tier's 512 MB ceiling OOM-kills (exit 137) concurrent Chromium
+            # PDF renders and causes 50-75s cold starts for users.
+            plan: starter
             repo: https://github.com/jevvii/ata-lta-erp-final-render.git
             branch: main
             rootDir: backend
