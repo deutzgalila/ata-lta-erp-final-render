@@ -37,14 +37,43 @@ const operationsRequestsRouter = require('./modules/operationsRequests/routes');
 const app = express();
 app.set('trust proxy', 1); // Trust Render/reverse proxy headers (X-Forwarded-For)
 
+// Explicit CORS whitelist. A wildcard regex for *.onrender.com previously let
+// ANY site hosted on Render (including malicious third-party accounts) make
+// credentialed cross-origin requests to this API. Only our own SPA origins
+// are permitted (Spec 1.2).
+const ALLOWED_ORIGINS = new Set([
+  'https://ata-lta-erp-spa-main.onrender.com',
+  'https://ata-lta-erp-spa-staging.onrender.com',
+  'https://ata-lta-erp-spa-uat.onrender.com',
+]);
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true; // Non-browser agents (curl, server-to-server)
+  if (env.isDevelopment) return true;
+  if (origin === env.frontendUrl) return true;
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return true;
+  return ALLOWED_ORIGINS.has(origin);
+};
+
 // Security middleware
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(
   cors({
-    origin: env.isDevelopment ? true : env.frontendUrl,
+    origin: (origin, callback) => {
+      callback(null, isAllowedOrigin(origin));
+    },
     credentials: true,
-    allowedHeaders: ['Authorization', 'Content-Type', 'X-Active-Entity'],
-    exposedHeaders: ['X-Request-Id'],
+    // Idempotency-Key / If-Match / X-Request-Id support the concurrency and
+    // idempotency controls rolled out in Phase 2.
+    allowedHeaders: [
+      'Authorization',
+      'Content-Type',
+      'X-Active-Entity',
+      'Idempotency-Key',
+      'If-Match',
+      'X-Request-Id',
+    ],
+    exposedHeaders: ['X-Request-Id', 'ETag', 'Idempotent-Replay'],
   })
 );
 
