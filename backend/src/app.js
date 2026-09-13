@@ -196,6 +196,46 @@ app.get('/health', async (req, res) => {
   res.status(ok ? 200 : 503).json(body);
 });
 
+// Decoupled probes (Spec 3.2). Mounted BEFORE the auth middleware so load
+// balancers and the read-only smoke test can reach them without credentials.
+// Liveness: instant 200 as long as the event loop is responsive.
+app.get('/livez', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// Readiness: un-cached live check of PostgreSQL and Supabase Storage with a
+// 3-second timeout per dependency. Traffic should only be routed here when
+// this returns 200.
+const READINESS_TIMEOUT_MS = 3_000;
+const withTimeout = (promise) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Probe timeout')), READINESS_TIMEOUT_MS)
+    ),
+  ]);
+
+app.get('/readyz', async (req, res) => {
+  try {
+    await Promise.all([
+      withTimeout(supabaseAdmin.from('entities').select('id').limit(1)),
+      withTimeout(supabaseAdmin.storage.listBuckets()),
+    ]);
+    res.status(200).json({ status: 'ready', timestamp: new Date().toISOString() });
+  } catch (err) {
+    logger.warn('readiness probe failed', { error: err.message, requestId: req.id });
+    res.status(503).json({
+      status: 'not_ready',
+      error: err.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 // Public routes
 app.use('/v1/auth', require('./modules/auth/routes'));
 
