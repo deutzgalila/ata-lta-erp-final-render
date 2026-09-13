@@ -5,6 +5,19 @@ on:
     - cron: '0 3 * * *'
   workflow_dispatch:
 
+# Backups are streamed through GPG AES-256 symmetric encryption and uploaded
+# directly to a PRIVATE Supabase Storage bucket. Plain-text SQL dumps must
+# never be stored as GitHub Actions artifacts: they contain client TINs,
+# financial balances, and password hashes, and remain downloadable for 30
+# days by anyone with repo read access (Philippine DPA RA 10173 exposure).
+#
+# Required repository secrets (production environment):
+#   PROD_DATABASE_URL        - live database connection string
+#   BACKUP_ENCRYPTION_KEY    - symmetric passphrase for GPG AES-256
+#   PROD_SUPABASE_URL        - e.g. https://<project>.supabase.co
+#   PROD_SUPABASE_SERVICE_KEY- service role key (storage write access)
+# Target bucket: erp-db-backups (must exist, private, in the prod project).
+
 jobs:
   backup-prod:
     runs-on: ubuntu-latest
@@ -17,13 +30,25 @@ jobs:
           sudo apt-get install -y postgresql-common
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get install -y postgresql-client-17
-      - run: |
+      - name: Dump, Encrypt and Upload Database Backup
+        run: |
+          set -euo pipefail
+          FILE="ata-lta-erp-prod-$(date +%Y%m%d-%H%M%S).sql.gpg"
           /usr/lib/postgresql/17/bin/pg_dump "$DATABASE_URL" --no-owner --no-acl --clean --if-exists \
-            --file ata-lta-erp-prod-$(date +%Y%m%d-%H%M%S).sql
+            | gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase "$BACKUP_KEY" \
+            > "$FILE"
+          echo "Encrypted backup written: $FILE ($(du -h "$FILE" | cut -f1))"
+          curl -fsS -X POST \
+            "${SUPABASE_URL}/storage/v1/object/${BACKUP_BUCKET}/${FILE}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+            -H "x-upsert: false" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary "@${FILE}"
+          rm -f "$FILE"
+          echo "Uploaded to Supabase Storage bucket '${BACKUP_BUCKET}': $FILE"
         env:
           DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: prod-db-backup
-          path: ata-lta-erp-prod-*.sql
-          retention-days: 30
+          BACKUP_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+          SUPABASE_URL: ${{ secrets.PROD_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.PROD_SUPABASE_SERVICE_KEY }}
+          BACKUP_BUCKET: erp-db-backups
