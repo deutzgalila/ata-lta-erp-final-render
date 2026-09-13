@@ -4,6 +4,15 @@ on:
   push:
     branches: [main]
 
+# Required repository secrets (production environment):
+#   PROD_DATABASE_URL        - live database connection string
+#   BACKUP_ENCRYPTION_KEY    - symmetric passphrase for GPG AES-256
+#   PROD_SUPABASE_URL        - e.g. https://<project>.supabase.co
+#   PROD_SUPABASE_SERVICE_KEY- service role key (storage write access)
+#   PROD_SPA_URL             - e.g. https://ata-lta-erp-spa-main.onrender.com
+# The pre-migration backup lands in the private Supabase Storage bucket
+# 'erp-db-backups'. It is never uploaded as an unencrypted CI artifact.
+
 jobs:
   backup-before-migrate:
     runs-on: ubuntu-latest
@@ -16,16 +25,28 @@ jobs:
           sudo apt-get install -y postgresql-common
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
           sudo apt-get install -y postgresql-client-17
-      - run: |
+      - name: Dump, Encrypt and Upload Pre-Migration Backup
+        run: |
+          set -euo pipefail
+          FILE="backup-before-migration-$(date +%Y%m%d-%H%M%S).sql.gpg"
           /usr/lib/postgresql/17/bin/pg_dump "$DATABASE_URL" --no-owner --no-acl --clean --if-exists \
-            --file backup-before-migration-$(date +%Y%m%d-%H%M%S).sql
+            | gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase "$BACKUP_KEY" \
+            > "$FILE"
+          echo "Encrypted backup written: $FILE ($(du -h "$FILE" | cut -f1))"
+          curl -fsS -X POST \
+            "${SUPABASE_URL}/storage/v1/object/${BACKUP_BUCKET}/${FILE}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_KEY}" \
+            -H "x-upsert: false" \
+            -H "Content-Type: application/octet-stream" \
+            --data-binary "@${FILE}"
+          rm -f "$FILE"
+          echo "Uploaded to Supabase Storage bucket '${BACKUP_BUCKET}': $FILE"
         env:
           DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: prod-pre-migration-backup
-          path: backup-before-migration-*.sql
-          retention-days: 30
+          BACKUP_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+          SUPABASE_URL: ${{ secrets.PROD_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.PROD_SUPABASE_SERVICE_KEY }}
+          BACKUP_BUCKET: erp-db-backups
 
   migrate-prod:
     needs: backup-before-migrate
@@ -57,6 +78,9 @@ jobs:
           cache-dependency-path: erp_prototype/package-lock.json
       - run: npm ci
         working-directory: erp_prototype
-      - run: node smoke-test.js
+      # Read-only probes only. The old smoke-test.js created mock clients and
+      # recorded real payments on the production ledger on every deploy.
+      - run: node smoke-test-readonly.js
+        working-directory: erp_prototype
         env:
           BASE_URL: ${{ secrets.PROD_SPA_URL }}
