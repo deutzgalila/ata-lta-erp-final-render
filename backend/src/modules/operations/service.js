@@ -934,7 +934,7 @@ const deleteTask = async ({ workRequestId, taskId, entityId }) => {
  * @param {string} params.entityId - Entity UUID
  * @returns {Promise<{ invoices: object[], disbursements: object[], transmittals: object[], documents: object[] }>}
  */
-const getWorkRequestRelated = async ({ id, entityId }) => {
+const getWorkRequestRelated = async ({ id, entityId: _entityId }) => {
   const { data: wr } = await supabaseAdmin
     .from('work_requests')
     .select('id, entity_id')

@@ -29,7 +29,7 @@ const checklistItemSchema = z.object({
     .nullable(),
   periodYear: z
     .string()
-    .regex(/^[a-zA-Z0-9\s/\-]*$/)
+    .regex(/^[a-zA-Z0-9\s/-]*$/)
     .max(100)
     .optional()
     .nullable(),

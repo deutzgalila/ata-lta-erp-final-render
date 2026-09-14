@@ -8,6 +8,7 @@
 
 const logger = require('../../../src/lib/logger');
 
+/* eslint-disable no-console */
 describe('logger Error serialization', () => {
   const captured = [];
   const original = { log: console.log, warn: console.warn, error: console.error };

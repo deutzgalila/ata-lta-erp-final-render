@@ -24,10 +24,10 @@ projects:
             name: ata-lta-erp-api-main
             runtime: docker
             region: singapore
-            # Upgraded from free: 1 GB RAM + no 15-min idle sleep. The free
-            # tier's 512 MB ceiling OOM-kills (exit 137) concurrent Chromium
-            # PDF renders and causes 50-75s cold starts for users.
-            plan: starter
+            # Maintained on free tier per configuration preference.
+            # Low-memory Chromium flags and concurrency mutex in pdfService.js
+            # protect the 512 MB memory limit during PDF generation.
+            plan: free
             repo: https://github.com/jevvii/ata-lta-erp-final-render.git
             branch: main
             rootDir: backend
