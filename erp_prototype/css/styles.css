@@ -17590,3 +17590,297 @@ table.data-table th.dt-cell--right {
   gap: 8px;
   align-items: center;
 }
+
+/* ==========================================================================
+   Modern Guarded Password Validation & Inline Feedback (Admin / Users)
+   ========================================================================== */
+
+.pw-prop-container {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 4px;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pw-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.pw-header-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.pw-header-row label svg {
+  width: 14px;
+  height: 14px;
+  stroke: var(--color-text-muted);
+}
+
+.pw-generate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.pw-generate-btn:hover {
+  background: var(--color-primary-alpha);
+  border-color: var(--color-primary);
+  color: var(--color-primary-dark);
+}
+
+.pw-generate-btn svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+}
+
+.pw-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.pw-input-wrapper .pw-input {
+  padding-right: 42px !important;
+  font-family: inherit;
+  letter-spacing: normal;
+}
+
+.pw-input.pw-input-error {
+  border-color: var(--color-danger) !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+}
+
+.pw-input.pw-input-success {
+  border-color: var(--color-success) !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15) !important;
+}
+
+.pw-toggle-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.pw-toggle-btn:hover {
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+.pw-meter-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.pw-meter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+}
+
+.pw-meter-title {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.pw-meter-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  transition: all 0.2s ease;
+}
+
+.pw-meter-badge.strength-none {
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+}
+
+.pw-meter-badge.strength-weak {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.pw-meter-badge.strength-fair {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.pw-meter-badge.strength-good {
+  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+.pw-meter-badge.strength-strong {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.pw-meter-segments {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  height: 5px;
+}
+
+.pw-meter-segment {
+  flex: 1;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-border);
+  transition: background-color 0.25s ease;
+}
+
+.pw-meter-segment.active-weak {
+  background: #ef4444;
+}
+
+.pw-meter-segment.active-fair {
+  background: #f59e0b;
+}
+
+.pw-meter-segment.active-good {
+  background: #3b82f6;
+}
+
+.pw-meter-segment.active-strong {
+  background: #10b981;
+}
+
+.pw-checklist {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 6px 12px;
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--color-border);
+}
+
+.pw-rule-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: var(--color-bg);
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.pw-rule-item.is-met {
+  color: #059669;
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+[data-theme="dark"] .pw-rule-item.is-met {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.pw-rule-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.pw-rule-item.is-met .pw-rule-icon {
+  color: #10b981;
+  transform: scale(1.1);
+}
+
+.pw-rule-text {
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.pw-shake {
+  animation: pwShake 0.4s ease-in-out;
+}
+
+@keyframes pwShake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+[data-theme="dark"] .pw-prop-container {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+[data-theme="dark"] .pw-rule-item {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+[data-theme="dark"] .pw-generate-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--color-border);
+}
+
+@media (max-width: 480px) {
+  .pw-header-row {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .pw-checklist {
+    grid-template-columns: 1fr;
+  }
+}
+

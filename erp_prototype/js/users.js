@@ -1590,8 +1590,296 @@ const Users = {
     return el('span', { class: 'badge ' + (map[role] || ''), text: role });
   },
 
+  /**
+   * Evaluates password against security complexity requirements (mirroring backend schema).
+   */
+  _evaluatePassword(pw) {
+    const val = typeof pw === 'string' ? pw : '';
+    const checks = {
+      length: val.length >= 8 && val.length <= 128,
+      lower: /[a-z]/.test(val),
+      upper: /[A-Z]/.test(val),
+      number: /[0-9]/.test(val),
+      special: /[^a-zA-Z0-9]/.test(val),
+    };
+    const validCount = Object.values(checks).filter(Boolean).length;
+    const isValid = validCount === 5;
+
+    let strength = 'none';
+    let label = 'No Password';
+    let activeSegments = 0;
+
+    if (val.length > 0) {
+      if (validCount <= 2) {
+        strength = 'weak';
+        label = 'Weak';
+        activeSegments = 1;
+      } else if (validCount === 3) {
+        strength = 'fair';
+        label = 'Fair';
+        activeSegments = 2;
+      } else if (validCount === 4) {
+        strength = 'good';
+        label = 'Good';
+        activeSegments = 3;
+      } else if (validCount === 5) {
+        strength = 'strong';
+        label = 'Strong';
+        activeSegments = 4;
+      }
+    }
+
+    return { val, checks, validCount, isValid, strength, label, activeSegments };
+  },
+
+  /**
+   * Generates a cryptographically strong 16-character password satisfying all 5 criteria.
+   */
+  _generateSecurePassword() {
+    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const numbers = '0123456789';
+    const symbols = '!@#$%^&*()_+-=[]{}|;:,.<>?';
+    const all = lowercase + uppercase + numbers + symbols;
+
+    const getSecureChar = (set) => {
+      if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+        const arr = new Uint32Array(1);
+        window.crypto.getRandomValues(arr);
+        return set[arr[0] % set.length];
+      }
+      return set[Math.floor(Math.random() * set.length)];
+    };
+
+    const chars = [
+      getSecureChar(uppercase),
+      getSecureChar(uppercase),
+      getSecureChar(lowercase),
+      getSecureChar(lowercase),
+      getSecureChar(numbers),
+      getSecureChar(numbers),
+      getSecureChar(symbols),
+      getSecureChar(symbols),
+    ];
+
+    while (chars.length < 16) {
+      chars.push(getSecureChar(all));
+    }
+
+    for (let i = chars.length - 1; i > 0; i--) {
+      let j;
+      if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+        const arr = new Uint32Array(1);
+        window.crypto.getRandomValues(arr);
+        j = arr[0] % (i + 1);
+      } else {
+        j = Math.floor(Math.random() * (i + 1));
+      }
+      [chars[i], chars[j]] = [chars[j], chars[i]];
+    }
+
+    return chars.join('');
+  },
+
+  /**
+   * Renders the modern guarded password field with show/hide toggle, live checklist,
+   * segmented strength meter, and generate-password action.
+   */
+  _renderModernPasswordField(user) {
+    const container = el('div', { class: 'notion-prop pw-prop-container' });
+
+    // Header with label and generate button
+    const header = el('div', { class: 'pw-header-row' });
+    const label = el('label', {
+      html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Password'
+    });
+    header.appendChild(label);
+
+    const generateBtn = el('button', {
+      type: 'button',
+      class: 'pw-generate-btn',
+      title: 'Generate a secure random password satisfying all requirements'
+    });
+    generateBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 2-2 2m-1.5 1.5L14 9M3 21l6.5-6.5a4.95 4.95 0 0 1 0-7 4.95 4.95 0 0 1 7 0l2 2a4.95 4.95 0 0 1 0 7l-6.5 6.5-5 1 1-5Z"/></svg> Generate Password';
+    header.appendChild(generateBtn);
+    container.appendChild(header);
+
+    // Input wrapper with eye toggle
+    const inputWrapper = el('div', { class: 'pw-input-wrapper' });
+    const pwInput = el('input', {
+      type: 'password',
+      name: 'password',
+      class: 'notion-prop-input pw-input',
+      placeholder: user ? 'Leave blank to keep current password' : 'Set secure password',
+      autocomplete: 'new-password'
+    });
+    inputWrapper.appendChild(pwInput);
+
+    const eyeIconSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+    const eyeOffIconSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+
+    const toggleBtn = el('button', {
+      type: 'button',
+      class: 'pw-toggle-btn',
+      'aria-label': 'Show password',
+      title: 'Show password',
+      tabindex: '-1'
+    });
+    toggleBtn.innerHTML = eyeIconSvg;
+
+    toggleBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const isPw = pwInput.type === 'password';
+      pwInput.type = isPw ? 'text' : 'password';
+      toggleBtn.innerHTML = isPw ? eyeOffIconSvg : eyeIconSvg;
+      toggleBtn.setAttribute('aria-label', isPw ? 'Hide password' : 'Show password');
+      toggleBtn.setAttribute('title', isPw ? 'Hide password' : 'Show password');
+      pwInput.focus();
+    });
+
+    inputWrapper.appendChild(toggleBtn);
+    container.appendChild(inputWrapper);
+
+    // Segmented strength meter
+    const meterContainer = el('div', { class: 'pw-meter-container' });
+    const meterHeader = el('div', { class: 'pw-meter-header' });
+    meterHeader.appendChild(el('span', { class: 'pw-meter-title', text: 'Password Strength' }));
+
+    const meterBadge = el('span', { class: 'pw-meter-badge strength-none', text: user ? 'Optional' : 'Required' });
+    meterHeader.appendChild(meterBadge);
+    meterContainer.appendChild(meterHeader);
+
+    const segmentsWrapper = el('div', { class: 'pw-meter-segments' });
+    const segments = [
+      el('div', { class: 'pw-meter-segment' }),
+      el('div', { class: 'pw-meter-segment' }),
+      el('div', { class: 'pw-meter-segment' }),
+      el('div', { class: 'pw-meter-segment' })
+    ];
+    segments.forEach(s => segmentsWrapper.appendChild(s));
+    meterContainer.appendChild(segmentsWrapper);
+    container.appendChild(meterContainer);
+
+    // Live criteria checklist
+    const checklist = el('div', { class: 'pw-checklist' });
+    const rules = [
+      { key: 'length', label: '8–128 characters' },
+      { key: 'upper', label: 'Uppercase letter (A–Z)' },
+      { key: 'lower', label: 'Lowercase letter (a–z)' },
+      { key: 'number', label: 'Numeric digit (0–9)' },
+      { key: 'special', label: 'Special character (e.g. !@#$)' }
+    ];
+
+    const checkIconSvg = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    const circleIconSvg = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/></svg>';
+
+    const ruleEls = {};
+    rules.forEach(rule => {
+      const item = el('div', { class: 'pw-rule-item', 'data-rule': rule.key });
+      const iconSpan = el('span', { class: 'pw-rule-icon', html: circleIconSvg });
+      const textSpan = el('span', { class: 'pw-rule-text', text: rule.label });
+      item.appendChild(iconSpan);
+      item.appendChild(textSpan);
+      checklist.appendChild(item);
+      ruleEls[rule.key] = { item, iconSpan };
+    });
+    container.appendChild(checklist);
+
+    // Field error element
+    const fieldError = el('span', { class: 'field-error hidden', text: '' });
+    container.appendChild(fieldError);
+
+    // Real-time evaluation updater
+    const updateUI = () => {
+      const val = pwInput.value;
+      const isEdit = !!user;
+
+      container.classList.remove('pw-shake');
+
+      if (isEdit && !val) {
+        meterBadge.className = 'pw-meter-badge strength-none';
+        meterBadge.textContent = 'Unchanged (Optional)';
+        segments.forEach(s => { s.className = 'pw-meter-segment'; });
+        rules.forEach(r => {
+          ruleEls[r.key].item.classList.remove('is-met');
+          ruleEls[r.key].iconSpan.innerHTML = circleIconSvg;
+        });
+        pwInput.classList.remove('pw-input-error', 'pw-input-success');
+        fieldError.classList.add('hidden');
+        fieldError.textContent = '';
+        return;
+      }
+
+      const evalRes = this._evaluatePassword(val);
+
+      rules.forEach(r => {
+        const isMet = evalRes.checks[r.key];
+        if (isMet) {
+          ruleEls[r.key].item.classList.add('is-met');
+          ruleEls[r.key].iconSpan.innerHTML = checkIconSvg;
+        } else {
+          ruleEls[r.key].item.classList.remove('is-met');
+          ruleEls[r.key].iconSpan.innerHTML = circleIconSvg;
+        }
+      });
+
+      meterBadge.className = `pw-meter-badge strength-${evalRes.strength}`;
+      meterBadge.textContent = evalRes.strength === 'none' ? 'Required' : evalRes.label;
+
+      segments.forEach((seg, idx) => {
+        seg.className = 'pw-meter-segment';
+        if (idx < evalRes.activeSegments) {
+          seg.classList.add(`active-${evalRes.strength}`);
+        }
+      });
+
+      if (!val) {
+        pwInput.classList.remove('pw-input-error', 'pw-input-success');
+      } else if (evalRes.isValid) {
+        pwInput.classList.remove('pw-input-error');
+        pwInput.classList.add('pw-input-success');
+        fieldError.classList.add('hidden');
+        fieldError.textContent = '';
+      } else {
+        pwInput.classList.remove('pw-input-success');
+      }
+    };
+
+    pwInput.addEventListener('input', updateUI);
+    pwInput.addEventListener('focus', () => {
+      if (fieldError.textContent) {
+        fieldError.classList.add('hidden');
+        fieldError.textContent = '';
+        pwInput.classList.remove('pw-input-error');
+      }
+    });
+
+    generateBtn.addEventListener('click', () => {
+      const newPw = this._generateSecurePassword();
+      pwInput.value = newPw;
+      pwInput.type = 'text';
+      toggleBtn.innerHTML = eyeOffIconSvg;
+      toggleBtn.setAttribute('aria-label', 'Hide password');
+      toggleBtn.setAttribute('title', 'Hide password');
+      updateUI();
+
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        navigator.clipboard.writeText(newPw).catch(() => {});
+      }
+
+      if (typeof Workflow !== 'undefined' && typeof Workflow.showMessage === 'function') {
+        Workflow.showMessage('Password Generated', 'Strong password generated and copied to clipboard.', 'success');
+      }
+      pwInput.focus();
+    });
+
+    updateUI();
+    return container;
+  },
+
   renderUserFormContent(user) {
-    const form = el('form', { id: 'user-form', class: 'form-stacked notion-form' });
+    const form = el('form', { id: 'user-form', class: 'form-stacked notion-form', novalidate: 'true' });
 
     // Title-style primary field: name
     const nameSection = el('div', { class: 'notion-freeform notion-freeform--title' });
@@ -1624,17 +1912,8 @@ const Users = {
     emailProp.appendChild(el('span', { class: 'field-error hidden', text: '' }));
     propsGrid.appendChild(emailProp);
 
-    // Password
-    const pwProp = el('div', { class: 'notion-prop' });
-    pwProp.appendChild(el('label', { html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Password' }));
-    pwProp.appendChild(el('input', {
-      type: 'password',
-      name: 'password',
-      class: 'notion-prop-input',
-      placeholder: user ? 'Leave blank to keep current' : 'Set password',
-      required: !user
-    }));
-    pwProp.appendChild(el('span', { class: 'field-error hidden', text: '' }));
+    // Password (Modern guarded component with inline feedback & strength meter)
+    const pwProp = this._renderModernPasswordField(user);
     propsGrid.appendChild(pwProp);
 
     // Department (multi-select); skip for Admin because Admin is all-powerful.
@@ -1771,6 +2050,7 @@ const Users = {
 
     // Clear previous errors
     form.querySelectorAll('.field-error').forEach(e => { e.classList.add('hidden'); e.textContent = ''; });
+    form.querySelectorAll('.pw-input').forEach(e => { e.classList.remove('pw-input-error'); });
 
     const errors = [];
     if (!data.name || data.name.trim().length < 2) {
@@ -1779,9 +2059,26 @@ const Users = {
     if (!data.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
       errors.push({ field: 'email', msg: 'Please enter a valid email address.' });
     }
-    if (!this.editingId && (!data.password || data.password.length < 1)) {
-      errors.push({ field: 'password', msg: 'Password is required for new users.' });
+
+    const passwordVal = data.password ? data.password.trim() : '';
+    const isNew = !this.editingId || this.editingId === 'new';
+
+    if (isNew) {
+      if (!passwordVal) {
+        errors.push({ field: 'password', msg: 'Password is required for new users.' });
+      } else {
+        const pwEval = this._evaluatePassword(passwordVal);
+        if (!pwEval.isValid) {
+          errors.push({ field: 'password', msg: 'Password must satisfy all security requirements below.' });
+        }
+      }
+    } else if (passwordVal) {
+      const pwEval = this._evaluatePassword(passwordVal);
+      if (!pwEval.isValid) {
+        errors.push({ field: 'password', msg: 'Password must satisfy all security requirements below.' });
+      }
     }
+
     if (entities.length === 0) {
       errors.push({ field: 'entities', msg: 'At least one entity must be selected.' });
     }
@@ -1792,13 +2089,24 @@ const Users = {
     if (errors.length > 0) {
       errors.forEach(err => {
         const field = form.querySelector('[name="' + err.field + '"]');
-        const group = field && field.closest('.notion-prop, .notion-freeform');
+        const group = field && field.closest('.notion-prop, .notion-freeform, .pw-prop-container');
         const elErr = group && group.querySelector('.field-error');
         if (elErr) {
           elErr.textContent = err.msg;
           elErr.classList.remove('hidden');
         }
+        if (err.field === 'password' && field) {
+          field.classList.add('pw-input-error');
+          const pwContainer = form.querySelector('.pw-prop-container');
+          if (pwContainer) {
+            pwContainer.classList.remove('pw-shake');
+            void pwContainer.offsetWidth; // trigger reflow
+            pwContainer.classList.add('pw-shake');
+          }
+        }
       });
+      const firstErrField = form.querySelector('[name="' + errors[0].field + '"]');
+      if (firstErrField && typeof firstErrField.focus === 'function') firstErrField.focus();
       return;
     }
 
