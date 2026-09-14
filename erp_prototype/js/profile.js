@@ -755,6 +755,11 @@ const Profile = {
       placeholder: '•••••••••••••',
       editable: !isLoading
     });
+    const currentPassHelper = el('div', {
+      id: 'profile-current-pass-helper',
+      class: 'pw-match-helper match-empty'
+    });
+    currentField.group.appendChild(currentPassHelper);
     form.appendChild(currentField.group);
 
     // New Password header generate button
@@ -952,7 +957,9 @@ const Profile = {
     confirmField.input.addEventListener('input', updateUI);
     currentField.input.addEventListener('input', () => {
       currentField.input.classList.remove('pw-input-error');
-      if (errorEl.textContent === 'Current password is required.') {
+      currentPassHelper.className = 'pw-match-helper match-empty';
+      currentPassHelper.textContent = '';
+      if (errorEl.textContent && errorEl.textContent.toLowerCase().includes('current password')) {
         errorEl.classList.add('hidden');
         errorEl.textContent = '';
       }
@@ -991,6 +998,8 @@ const Profile = {
 
       errorEl.classList.add('hidden');
       errorEl.textContent = '';
+      currentPassHelper.className = 'pw-match-helper match-empty';
+      currentPassHelper.textContent = '';
       currentInput.classList.remove('pw-input-error');
       newPassInput.classList.remove('pw-input-error');
       confirmInput.classList.remove('pw-input-error');
@@ -1008,6 +1017,8 @@ const Profile = {
       if (!current) {
         errorEl.textContent = 'Current password is required.';
         errorEl.classList.remove('hidden');
+        currentPassHelper.className = 'pw-match-helper match-no';
+        currentPassHelper.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Current password is required.';
         triggerShake(currentInput);
         return;
       }
@@ -1055,6 +1066,8 @@ const Profile = {
         window.hideGoogleLoader(card);
         Workflow.showMessage('Password', 'Password updated successfully.', 'success');
         form.reset();
+        currentPassHelper.className = 'pw-match-helper match-empty';
+        currentPassHelper.textContent = '';
         updateUI();
         currentInput.disabled = false;
         newPassInput.disabled = false;
@@ -1072,9 +1085,18 @@ const Profile = {
           saveBtn.disabled = false;
           saveBtn.textContent = 'Update Password';
         }
-        errorEl.textContent = err.message || 'Unable to update password.';
+        const errMsg = err.message || 'Unable to update password.';
+        errorEl.textContent = errMsg;
         errorEl.classList.remove('hidden');
-        triggerShake(currentInput);
+        if (/current password/i.test(errMsg)) {
+          currentPassHelper.className = 'pw-match-helper match-no';
+          currentPassHelper.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> ' + errMsg;
+          triggerShake(currentInput);
+        } else if (/new password/i.test(errMsg)) {
+          triggerShake(newPassInput);
+        } else {
+          triggerShake();
+        }
       }
     });
 

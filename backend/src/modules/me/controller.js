@@ -86,6 +86,7 @@ const changePassword = async (req, res, next) => {
     await meService.changePassword({
       userId: req.user.id,
       authUserId: req.user.authUserId,
+      email: req.user.email,
       currentPassword,
       newPassword,
     });

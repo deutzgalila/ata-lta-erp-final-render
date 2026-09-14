@@ -92,7 +92,7 @@ const updateProfile = async ({ userId, data }) => {
   return getProfile(userId);
 };
 
-const changePassword = async ({ userId, authUserId, currentPassword, newPassword }) => {
+const changePassword = async ({ userId, authUserId, email, currentPassword, newPassword }) => {
   if (!currentPassword || !newPassword) {
     throw new AppError({
       statusCode: 400,
@@ -109,10 +109,39 @@ const changePassword = async ({ userId, authUserId, currentPassword, newPassword
     });
   }
 
-  // Note: Supabase service-role password update does not require the current
-  // password. We still collect it on the client to confirm intentional action.
-  // Hardening option: use a Supabase Edge Function or RLS-protected RPC to
-  // verify the current password before applying the change.
+  // Resolve user email if not directly provided
+  let userEmail = email;
+  if (!userEmail) {
+    const { data: userRecord } = await supabaseAdmin
+      .from('users')
+      .select('email')
+      .eq('id', userId)
+      .maybeSingle();
+    userEmail = userRecord?.email;
+  }
+
+  if (!userEmail) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'Unable to verify user account',
+    });
+  }
+
+  // Verify current password via Supabase Auth sign-in
+  const { data: signInData, error: verifyError } = await supabaseAdmin.auth.signInWithPassword({
+    email: userEmail,
+    password: currentPassword,
+  });
+
+  if (verifyError || !signInData?.user) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'Current password is incorrect',
+    });
+  }
+
   const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(authUserId, {
     password: newPassword,
   });

@@ -89,6 +89,7 @@ const registerUser = (user) => {
     id,
     auth_user_id: user.authUserId || id,
     email: user.email,
+    password: user.password || 'oldpass',
     name: user.name,
     role: user.role,
     entities: user.entities || ['ATA'],
@@ -743,11 +744,25 @@ const supabaseAdmin = {
         error: null,
       });
     },
-    signInWithPassword: (_credentials) => {
-      // Test double with no real auth backend: every attempt is rejected.
-      // Successful signin flows are exercised via registerUser-issued bearer
-      // tokens; this exists so the signin endpoint (and its rate limiter) can
-      // be driven in tests.
+    signInWithPassword: (credentials) => {
+      for (const record of mockUsers.values()) {
+        if (
+          record.email === credentials?.email &&
+          (record.password === credentials?.password || (!record.password && credentials?.password === 'oldpass'))
+        ) {
+          return Promise.resolve({
+            data: {
+              user: { id: record.auth_user_id, email: record.email },
+              session: {
+                access_token: `token-${record.email}`,
+                refresh_token: 'mock-refresh-token',
+                expires_at: Math.floor(Date.now() / 1000) + 3600,
+              },
+            },
+            error: null,
+          });
+        }
+      }
       return Promise.resolve({
         data: { user: null, session: null },
         error: { message: 'Invalid login credentials', status: 400 },
@@ -766,6 +781,11 @@ const supabaseAdmin = {
       },
       updateUserById: (authUserId, updates) => {
         const record = { id: authUserId, ...updates };
+        for (const user of mockUsers.values()) {
+          if (user.auth_user_id === authUserId) {
+            if (updates.password) user.password = updates.password;
+          }
+        }
         return Promise.resolve({ data: { user: record }, error: null });
       },
     },

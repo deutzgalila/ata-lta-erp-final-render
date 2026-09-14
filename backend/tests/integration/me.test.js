@@ -221,14 +221,69 @@ describe('PATCH /v1/me/password', () => {
       name: 'Administrator',
       role: 'Admin',
       entities: ['ATA', 'LTA'],
+      password: 'initialpassword1',
     });
 
     await request(app)
       .patch('/v1/me/password')
       .set('Authorization', `Bearer ${token}`)
       .set('X-Active-Entity', 'ATA')
-      .send({ currentPassword: 'oldpass', newPassword: 'newpass123' })
+      .send({ currentPassword: 'initialpassword1', newPassword: 'newpass123' })
       .expect(204);
+
+    // Old password should now fail
+    const failRes = await request(app)
+      .patch('/v1/me/password')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({ currentPassword: 'initialpassword1', newPassword: 'anotherpass123' })
+      .expect(400);
+    expect(failRes.body.detail).toMatch(/current password is incorrect/i);
+
+    // New password should succeed
+    await request(app)
+      .patch('/v1/me/password')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({ currentPassword: 'newpass123', newPassword: 'anotherpass123' })
+      .expect(204);
+  });
+
+  it('rejects incorrect current password', async () => {
+    const token = registerUser({
+      email: 'admin@ata-lta.ph',
+      name: 'Administrator',
+      role: 'Admin',
+      entities: ['ATA', 'LTA'],
+      password: 'correctpassword1',
+    });
+
+    const res = await request(app)
+      .patch('/v1/me/password')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({ currentPassword: 'wrongpassword', newPassword: 'newpass123' })
+      .expect(400);
+
+    expect(res.body.detail).toMatch(/current password is incorrect/i);
+  });
+
+  it('rejects missing current password', async () => {
+    const token = registerUser({
+      email: 'admin@ata-lta.ph',
+      name: 'Administrator',
+      role: 'Admin',
+      entities: ['ATA', 'LTA'],
+    });
+
+    const res = await request(app)
+      .patch('/v1/me/password')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({ newPassword: 'newpass123' })
+      .expect(400);
+
+    expect(res.body.detail).toMatch(/current password and new password are required/i);
   });
 
   it('rejects short new password', async () => {
