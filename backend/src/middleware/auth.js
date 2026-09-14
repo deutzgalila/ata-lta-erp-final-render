@@ -143,4 +143,23 @@ const auth = async (req, res, next) => {
  */
 const clearProfileCache = () => profileCache.clear();
 
-module.exports = { auth, clearProfileCache };
+/**
+ * Evict one user's cached profile (Spec 2.4 / R-13).
+ *
+ * Admin updates (role, entities, departments, is_active) must take effect
+ * immediately — without eviction a cached profile keeps granting the old
+ * role/scopes for up to PROFILE_CACHE_TTL_MS. Accepts either identifier:
+ * the Supabase auth user id (cache key) or the internal users.id stored on
+ * the cached profile.
+ * @param {string} userIdOrAuthId
+ */
+const evictUserProfile = (userIdOrAuthId) => {
+  if (!userIdOrAuthId) return;
+  for (const [key, entry] of profileCache) {
+    if (key === userIdOrAuthId || entry.profile?.id === userIdOrAuthId) {
+      profileCache.delete(key);
+    }
+  }
+};
+
+module.exports = { auth, clearProfileCache, evictUserProfile };

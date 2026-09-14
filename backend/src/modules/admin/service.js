@@ -13,6 +13,7 @@ const disbursementsService = require('../disbursements/service');
 const transmittalsService = require('../transmittals/service');
 const { computePermissions } = require('../../middleware/rbac');
 const { hasPermission } = require('../../lib/permissions');
+const { evictUserProfile } = require('../../middleware/auth');
 
 const ALLOWED_DEPARTMENTS = ['Management', 'Accounting', 'Operations', 'Documentation', 'HR'];
 
@@ -282,6 +283,11 @@ const updateUser = async ({ id, data, updatedBy: _updatedBy }) => {
     await setDepartments(id, data.departments);
   }
 
+  // R-13: role/entities/departments/is_active changed — drop the cached
+  // profile so the next request re-reads the row instead of serving stale
+  // permissions for up to the cache TTL.
+  evictUserProfile(id);
+
   return getUserById(id);
 };
 
@@ -301,6 +307,11 @@ const deleteUser = async ({ id, deletedBy: _deletedBy }) => {
       detail: 'Unable to disable user',
     });
   }
+
+  // R-13: the account is disabled — evict immediately so in-flight tokens no
+  // longer authenticate against the stale cached profile.
+  evictUserProfile(id);
+
   return true;
 };
 
