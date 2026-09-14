@@ -11464,19 +11464,34 @@ const Workflow = {
       }
 
       const closeBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'Close' });
-      const cleanup = () => {
+      const cleanup = (e) => {
+        if (e) {
+          if (typeof e.preventDefault === 'function') e.preventDefault();
+          if (typeof e.stopPropagation === 'function') e.stopPropagation();
+          if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+        }
         if (isLocalBlob && url) {
           URL.revokeObjectURL(url);
         }
         overlay.remove();
-        document.removeEventListener('keydown', handleKeyDown);
+        document.removeEventListener('keydown', handleKeyDown, true);
       };
       const handleKeyDown = (e) => {
-        if (e.key === 'Escape') cleanup();
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          cleanup(e);
+        }
       };
-      document.addEventListener('keydown', handleKeyDown);
+      document.addEventListener('keydown', handleKeyDown, true);
 
-      closeBtn.addEventListener('click', cleanup);
+      closeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        cleanup(e);
+      });
       header.appendChild(closeBtn);
 
       const viewer = el('div', { class: 'document-preview-viewer' });
@@ -11617,7 +11632,12 @@ const Workflow = {
       overlay.appendChild(pane);
 
       overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) cleanup();
+        if (e.target === overlay) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          cleanup(e);
+        }
       });
 
       document.body.appendChild(overlay);

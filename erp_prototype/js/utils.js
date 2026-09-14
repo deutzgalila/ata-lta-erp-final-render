@@ -1206,6 +1206,7 @@ class SidePane {
 
     document.addEventListener('keydown', (e) => {
       if (!this.isOpen()) return;
+      if (document.querySelector('.document-preview-overlay, .modal-overlay, .modal')) return;
       if (e.key === 'Escape') {
         if (this.viewMenu && this.viewMenu.classList.contains('open')) {
           this.hideViewMenu();
@@ -1224,6 +1225,14 @@ class SidePane {
         return;
       }
       const path = e.composedPath ? e.composedPath() : this.composedPathPolyfill(e.target);
+      const isPreviewClick = path.some(el => el && el.classList && (
+        el.classList.contains('document-preview-overlay') ||
+        el.classList.contains('document-preview-pane') ||
+        el.classList.contains('document-preview-header') ||
+        el.classList.contains('document-preview-viewer')
+      ));
+      if (isPreviewClick) return;
+
       const clickedInsidePane = path.some(el => el === this.pane || el === this.viewMenu);
       const clickedTrigger = path.some(el => {
         if (!el || !el.classList) return false;
@@ -1242,7 +1251,9 @@ class SidePane {
                el.classList.contains('mtp-overlay') ||
                el.classList.contains('sidebar') ||
                el.classList.contains('sidebar-collapse-btn') ||
-               el.classList.contains('notion-embed-popover');
+               el.classList.contains('notion-embed-popover') ||
+               el.classList.contains('document-preview-overlay') ||
+               el.classList.contains('document-preview-pane');
       });
       if (!clickedInsidePane && !clickedTrigger) this.close();
     });
