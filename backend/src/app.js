@@ -238,6 +238,21 @@ app.get('/readyz', async (req, res) => {
 });
 
 // Public routes
+// Spec 2.8 / R-14: the global limiter (1000 req / 15 min) is far too lax for
+// the login endpoint — scope a strict limiter to signin to blunt credential
+// brute-forcing without throttling the rest of the API.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Max 10 attempts per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    status: 429,
+    title: 'Too Many Requests',
+    detail: 'Too many authentication attempts. Please try again in 15 minutes.',
+  },
+});
+app.use('/v1/auth/signin', authLimiter);
 app.use('/v1/auth', require('./modules/auth/routes'));
 
 // Authenticated / scoped routes

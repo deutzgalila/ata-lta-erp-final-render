@@ -743,6 +743,16 @@ const supabaseAdmin = {
         error: null,
       });
     },
+    signInWithPassword: (_credentials) => {
+      // Test double with no real auth backend: every attempt is rejected.
+      // Successful signin flows are exercised via registerUser-issued bearer
+      // tokens; this exists so the signin endpoint (and its rate limiter) can
+      // be driven in tests.
+      return Promise.resolve({
+        data: { user: null, session: null },
+        error: { message: 'Invalid login credentials', status: 400 },
+      });
+    },
     admin: {
       createUser: ({ email, password }) => {
         const authUserId = nextId();
