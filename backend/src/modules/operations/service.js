@@ -5,6 +5,7 @@
 
 const { supabaseAdmin } = require('../../services/supabaseClient');
 const AppError = require('../../lib/AppError');
+const { concurrencyConflict, resolveExpectedVersion } = require('../../lib/concurrency');
 const { randomUUID } = require('crypto');
 
 const isValidUUID = (v) =>
@@ -70,6 +71,7 @@ const toApiWorkRequest = (row, entityCode) => ({
   dueDate: row.due_date || null,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
+  version: row.version || 1,
 });
 
 const formatTimeManila = (dateTime) => {
@@ -125,6 +127,7 @@ const toApiTask = (row, { checklist = [], timeLogs = [], taskDocuments = [] } = 
     predecessors: row.predecessors || [],
     dueDate: row.due_date || null,
     displayOrder: row.display_order,
+    version: row.version || 1,
     checklist: checklist.map((c) => {
       const itemLogs = timeLogs.filter((t) => t.checklist_item_id === c.id);
       return {
@@ -465,17 +468,29 @@ const updateWorkRequest = async ({ id, entityId, data, user }) => {
 
   if (data.archived !== undefined) updates.archived = data.archived;
 
-  const { error } = await supabaseAdmin
-    .from('work_requests')
-    .update(updates)
-    .eq('id', id)
-    .eq('entity_id', entityId);
+  // OCC (Spec 2.2 / R-10): version-guard the update when the client declares
+  // the version it read; zero matching rows means a concurrent edit landed
+  // first and is reported as 409 instead of being silently overwritten.
+  const expectedVersion = resolveExpectedVersion(data);
+  if (expectedVersion !== null) {
+    updates.version = (existing.version || 1) + 1;
+  }
+
+  let query = supabaseAdmin.from('work_requests').update(updates).eq('id', id).eq('entity_id', entityId);
+  if (expectedVersion !== null) {
+    query = query.eq('version', expectedVersion);
+  }
+  const { data: updatedRows, error } = await query.select();
   if (error) {
     throw new AppError({
       statusCode: 500,
       title: 'Database Error',
       detail: 'Unable to update work request',
     });
+  }
+
+  if (expectedVersion !== null && (!updatedRows || updatedRows.length === 0)) {
+    throw concurrencyConflict();
   }
 
   return getWorkRequestById({ id, entityId, user });
@@ -825,17 +840,32 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user }
     updated_at: new Date().toISOString(),
   };
 
-  const { error } = await supabaseAdmin
+  // OCC (Spec 2.2 / R-10): version-guard the update when the client declares
+  // the version it read; zero matching rows become a 409 conflict.
+  const expectedVersion = resolveExpectedVersion(data);
+  if (expectedVersion !== null) {
+    updates.version = (existing.version || 1) + 1;
+  }
+
+  let query = supabaseAdmin
     .from('tasks')
     .update(updates)
     .eq('id', taskId)
     .eq('work_request_id', workRequestId);
+  if (expectedVersion !== null) {
+    query = query.eq('version', expectedVersion);
+  }
+  const { data: updatedRows, error } = await query.select();
   if (error) {
     throw new AppError({
       statusCode: 500,
       title: 'Database Error',
       detail: 'Unable to update task',
     });
+  }
+
+  if (expectedVersion !== null && (!updatedRows || updatedRows.length === 0)) {
+    throw concurrencyConflict();
   }
 
   if (data.checklist !== undefined) {

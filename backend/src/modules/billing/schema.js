@@ -51,6 +51,8 @@ const updateInvoiceSchema = z.object({
   notes: z.string().max(2000).optional().nullable(),
   terms: z.string().max(2000).optional().nullable(),
   archived: z.boolean().optional(),
+  // OCC guard (Spec 2.2 / R-10): update applies only if the stored version matches.
+  expectedVersion: z.number().int().positive().optional(),
 });
 
 /**

@@ -15,6 +15,7 @@ const {
 } = require('./schema');
 const auditService = require('../../services/auditService');
 const AppError = require('../../lib/AppError');
+const { injectExpectedVersion } = require('../../lib/concurrency');
 
 const validate = (schema, data) => {
   const result = schema.safeParse(data);
@@ -144,7 +145,7 @@ const getById = async (req, res, next) => {
 
 const update = async (req, res, next) => {
   try {
-    const payload = validate(updateWorkRequestSchema, req.body);
+    const payload = injectExpectedVersion(req, validate(updateWorkRequestSchema, req.body));
     const entityId = req.entityUUID;
 
     if (payload.entity && payload.entity !== req.entityCode) {
@@ -242,7 +243,7 @@ const createTask = async (req, res, next) => {
 
 const updateTask = async (req, res, next) => {
   try {
-    const payload = validate(updateTaskSchema, req.body);
+    const payload = injectExpectedVersion(req, validate(updateTaskSchema, req.body));
     const entityId = req.entityUUID;
     const task = await operationsService.updateTask({
       workRequestId: req.params.wrId,

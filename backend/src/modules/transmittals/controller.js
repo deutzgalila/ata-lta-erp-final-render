@@ -8,6 +8,7 @@
 const { createTransmittalSchema, updateTransmittalSchema } = require('./schema');
 const service = require('./service');
 const AppError = require('../../lib/AppError');
+const { injectExpectedVersion } = require('../../lib/concurrency');
 
 /** @param {Error} err @param {import('express').NextFunction} next */
 const handleZodError = (err, next) => {
@@ -91,7 +92,7 @@ const getTransmittal = async (req, res, next) => {
 /** @type {import('express').RequestHandler} */
 const updateTransmittal = async (req, res, next) => {
   try {
-    const validated = updateTransmittalSchema.parse(req.body);
+    const validated = injectExpectedVersion(req, updateTransmittalSchema.parse(req.body));
     const data = await service.updateTransmittal({
       entityId: req.activeEntity,
       id: req.params.id,

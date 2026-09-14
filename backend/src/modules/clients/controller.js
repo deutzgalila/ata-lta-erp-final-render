@@ -7,6 +7,7 @@ const clientsService = require('./service');
 const { createClientSchema, updateClientSchema } = require('./schema');
 const auditService = require('../../services/auditService');
 const AppError = require('../../lib/AppError');
+const { injectExpectedVersion } = require('../../lib/concurrency');
 
 /**
  * Validate request body against a Zod schema.
@@ -145,6 +146,7 @@ const getById = async (req, res, next) => {
 const update = async (req, res, next) => {
   try {
     const payload = validate(updateClientSchema, req.body);
+    injectExpectedVersion(req, payload); // OCC: If-Match header fallback (Spec 2.2 / R-10)
     const entityId = req.entityUUID;
 
     if (payload.entity && payload.entity !== req.entityCode) {

@@ -5,6 +5,7 @@
 
 const { supabaseAdmin } = require('../../services/supabaseClient');
 const AppError = require('../../lib/AppError');
+const { concurrencyConflict, resolveExpectedVersion } = require('../../lib/concurrency');
 const { randomUUID } = require('crypto');
 
 /**
@@ -36,6 +37,7 @@ const toApiClient = (row, extras = {}) => {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     deletedAt: row.deleted_at || null,
+    version: row.version || 1,
     contactDetails: (extras.contactDetails || []).map((cd) => ({
       id: cd.id,
       type: cd.type,
@@ -415,11 +417,20 @@ const updateClient = async ({ id, entityId, data, updatedBy }) => {
     updates.deleted_at = null;
   }
 
-  const { error } = await supabaseAdmin
-    .from('clients')
-    .update(updates)
-    .eq('id', id)
-    .eq('entity_id', entityId);
+  // OCC (Spec 2.2 / R-10): when the client declares expectedVersion, the
+  // UPDATE additionally filters on it — a concurrent edit bumps the version,
+  // this write then matches zero rows, and the API returns 409 instead of
+  // silently overwriting the other user's changes.
+  const expectedVersion = resolveExpectedVersion(data);
+  if (expectedVersion !== null) {
+    updates.version = (existing.version || 1) + 1;
+  }
+
+  let query = supabaseAdmin.from('clients').update(updates).eq('id', id).eq('entity_id', entityId);
+  if (expectedVersion !== null) {
+    query = query.eq('version', expectedVersion);
+  }
+  const { data: updatedRows, error } = await query.select();
 
   if (error) {
     throw new AppError({
@@ -427,6 +438,10 @@ const updateClient = async ({ id, entityId, data, updatedBy }) => {
       title: 'Database Error',
       detail: 'Unable to update client',
     });
+  }
+
+  if (expectedVersion !== null && (!updatedRows || updatedRows.length === 0)) {
+    throw concurrencyConflict();
   }
 
   if (data.contactDetails !== undefined) {

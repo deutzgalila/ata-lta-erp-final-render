@@ -43,6 +43,24 @@ const nextId = () => {
   return `mock-${sequence}`;
 };
 
+// Tables carrying `version integer NOT NULL DEFAULT 1` (migration 000031).
+// Postgres applies the DEFAULT on INSERT even when the column is omitted;
+// the mock mirrors that so OCC guards (`eq('version', n)`) behave the same
+// here as they would against the live database.
+const VERSIONED_TABLES = new Set([
+  'clients',
+  'invoices',
+  'invoice_line_items',
+  'disbursements',
+  'transmittals',
+  'transmittal_items',
+  'work_requests',
+  'tasks',
+  'operations_requests',
+  'pending_changes',
+  'documents',
+]);
+
 const nowIso = () => new Date().toISOString();
 
 /**
@@ -172,6 +190,9 @@ const tableQuery = (table) => {
       insertRecords.forEach((rec) => {
         const id = rec.id || nextId();
         const stored = { ...rec, id };
+        if (VERSIONED_TABLES.has(table) && stored.version === undefined) {
+          stored.version = 1;
+        }
         rows.set(id, stored);
         inserted.push(stored);
       });

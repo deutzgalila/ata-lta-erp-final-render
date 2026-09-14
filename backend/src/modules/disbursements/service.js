@@ -11,6 +11,7 @@
 const { supabaseAdmin } = require('../../services/supabaseClient');
 const auditService = require('../../services/auditService');
 const AppError = require('../../lib/AppError');
+const { concurrencyConflict, resolveExpectedVersion } = require('../../lib/concurrency');
 const { buildPermissionSet, hasPermission } = require('../../lib/permissions');
 const { resolveEntityCode } = require('../../lib/entityResolver');
 
@@ -479,19 +480,39 @@ const updateDisbursement = async ({ entityId, id, userId, data }) => {
   if (data.receiptS3Key !== undefined) updates.receipt_s3_key = data.receiptS3Key;
   if (data.receiptFilename !== undefined) updates.receipt_filename = data.receiptFilename;
 
-  const { data: updated, error } = await supabaseAdmin
+  // OCC (Spec 2.2 / R-10): version-guard the update when the client declares
+  // the version it read; zero matching rows become a 409 conflict.
+  const expectedVersion = resolveExpectedVersion(data);
+  if (expectedVersion !== null) {
+    updates.version = (existing.version || 1) + 1;
+  }
+
+  let query = supabaseAdmin
     .from('disbursements')
     .update(updates)
     .eq('id', id)
-    .eq('entity_id', entityId)
-    .select()
-    .single();
+    .eq('entity_id', entityId);
+  if (expectedVersion !== null) {
+    query = query.eq('version', expectedVersion);
+  }
+  const { data: updated, error } = await query.select().maybeSingle();
 
   if (error) {
     throw new AppError({
       statusCode: 500,
       title: 'Database Error',
       detail: 'Failed to update disbursement',
+    });
+  }
+
+  if (!updated) {
+    if (expectedVersion !== null) {
+      throw concurrencyConflict();
+    }
+    throw new AppError({
+      statusCode: 404,
+      title: 'Not Found',
+      detail: `Disbursement ${id} not found`,
     });
   }
 

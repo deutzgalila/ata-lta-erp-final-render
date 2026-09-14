@@ -208,6 +208,27 @@
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
+
+      // OCC conflict (Spec 2.2): the record changed under us. Surface a toast
+      // and tag the error so screens can refetch the latest record shape.
+      if (res.status === 409 && body.code === 'ERR_CONCURRENCY_CONFLICT') {
+        try {
+          if (typeof showToast === 'function') {
+            showToast(
+              'Conflict',
+              'This record was modified by another user. Reloading latest data may be needed before editing again.',
+              'error'
+            );
+          }
+        } catch (e) {
+          /* toast must never break the request path */
+        }
+        const conflictErr = new Error(body.detail || 'HTTP 409 Conflict');
+        conflictErr.status = 409;
+        conflictErr.code = body.code;
+        throw conflictErr;
+      }
+
       throw new Error(body.detail || `HTTP ${res.status}`);
     }
 
@@ -257,10 +278,30 @@
     return promise;
   };
 
+  /**
+   * Attach optimistic-concurrency metadata to update payloads (Spec 2.2).
+   * Callers that loaded the record via the API carry its `version`; forwarding
+   * it as `expectedVersion` lets the backend reject stale writes with 409
+   * instead of silently overwriting another user's edit.
+   * @param {object} body
+   * @returns {object}
+   */
+  const withExpectedVersion = (body) => {
+    if (
+      body &&
+      typeof body === 'object' &&
+      body.expectedVersion === undefined &&
+      Number.isInteger(body.version)
+    ) {
+      return { ...body, expectedVersion: body.version };
+    }
+    return body;
+  };
+
   const post = (path, body, options = {}) => request(path, { ...options, method: 'POST', body: JSON.stringify(body) });
   const put = (path, body, options = {}) =>
-    request(path, { ...options, method: 'PUT', body: JSON.stringify(body) });
-  const patch = (path, body, options = {}) => request(path, { ...options, method: 'PATCH', body: JSON.stringify(body) });
+    request(path, { ...options, method: 'PUT', body: JSON.stringify(withExpectedVersion(body)) });
+  const patch = (path, body, options = {}) => request(path, { ...options, method: 'PATCH', body: JSON.stringify(withExpectedVersion(body)) });
   const del = (path, options = {}) => request(path, { ...options, method: 'DELETE' });
 
   // Lightweight 30-second cache for tab-badge count endpoints.
