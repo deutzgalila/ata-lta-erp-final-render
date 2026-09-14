@@ -17662,14 +17662,19 @@ table.data-table th.dt-cell--right {
 }
 
 .pw-input-wrapper {
-  position: relative;
-  width: 100%;
+  position: relative !important;
+  width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  box-sizing: border-box !important;
 }
 
 .pw-input-wrapper .pw-input {
-  padding-right: 42px !important;
+  width: 100% !important;
+  padding-right: 44px !important;
   font-family: inherit;
   letter-spacing: normal;
+  box-sizing: border-box !important;
 }
 
 .pw-input.pw-input-error {
@@ -17683,25 +17688,35 @@ table.data-table th.dt-cell--right {
 }
 
 .pw-toggle-btn {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: transparent;
-  border: none;
-  padding: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  border-radius: 6px;
-  transition: color 0.15s ease, background-color 0.15s ease;
+  position: absolute !important;
+  right: 10px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  padding: 6px !important;
+  margin: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: var(--color-text-muted) !important;
+  cursor: pointer !important;
+  border-radius: 6px !important;
+  z-index: 2 !important;
+  line-height: 1 !important;
+  transition: color 0.15s ease, background-color 0.15s ease !important;
+  box-shadow: none !important;
 }
 
 .pw-toggle-btn:hover {
-  color: var(--color-text);
-  background: var(--color-bg);
+  color: var(--color-text) !important;
+  background: var(--color-bg) !important;
+}
+
+.pw-toggle-btn svg {
+  pointer-events: none !important;
+  display: block !important;
 }
 
 .pw-meter-container {

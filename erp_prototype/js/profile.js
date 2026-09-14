@@ -302,6 +302,289 @@ const Profile = {
   },
 
   /**
+   * Helper to ensure modern design tokens and guardrail styles are injected into document.head
+   */
+  _injectGuardrailsStyles() {
+    if (document.getElementById('pw-guardrails-tokens-style')) return;
+    const styleEl = document.createElement('style');
+    styleEl.id = 'pw-guardrails-tokens-style';
+    styleEl.textContent = `
+/* Modern Password Guardrails & In-field Eye Toggle Design Tokens */
+.pw-input-wrapper {
+  position: relative !important;
+  width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  box-sizing: border-box !important;
+}
+.pw-input-wrapper .pw-input {
+  width: 100% !important;
+  padding-right: 44px !important;
+  box-sizing: border-box !important;
+  font-family: inherit !important;
+}
+.pw-toggle-btn {
+  position: absolute !important;
+  right: 10px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  padding: 6px !important;
+  margin: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  color: var(--color-text-muted, #9494a0) !important;
+  border-radius: 6px !important;
+  z-index: 2 !important;
+  line-height: 1 !important;
+  transition: color 0.15s ease, background-color 0.15s ease !important;
+  box-shadow: none !important;
+}
+.pw-toggle-btn:hover {
+  color: var(--color-text, #2d2d3f) !important;
+  background: var(--color-bg, #f4f6fb) !important;
+}
+.pw-toggle-btn svg {
+  pointer-events: none !important;
+  display: block !important;
+}
+.pw-header-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin-bottom: 4px !important;
+}
+.pw-header-row label {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+  color: var(--color-text-muted, #9494a0) !important;
+  margin: 0 !important;
+}
+.pw-generate-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  background: var(--color-bg, #f4f6fb) !important;
+  border: 1px solid var(--color-border, #e2e8f0) !important;
+  border-radius: 6px !important;
+  padding: 3px 8px !important;
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+  color: var(--color-primary, #2563eb) !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  white-space: nowrap !important;
+  outline: none !important;
+}
+.pw-generate-btn:hover {
+  background: var(--color-primary-alpha, rgba(37, 99, 235, 0.08)) !important;
+  border-color: var(--color-primary, #2563eb) !important;
+  color: var(--color-primary-dark, #1d4ed8) !important;
+}
+.pw-generate-btn svg {
+  pointer-events: none !important;
+  width: 12px !important;
+  height: 12px !important;
+}
+.pw-match-badge {
+  font-size: 0.7rem !important;
+  font-weight: 600 !important;
+  padding: 2px 8px !important;
+  border-radius: 999px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.03em !important;
+  transition: all 0.2s ease !important;
+  white-space: nowrap !important;
+}
+.pw-match-badge.hidden {
+  display: none !important;
+}
+.pw-match-badge.match-yes {
+  color: #10b981 !important;
+  background: rgba(16, 185, 129, 0.12) !important;
+  border: 1px solid rgba(16, 185, 129, 0.25) !important;
+}
+.pw-match-badge.match-no {
+  color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.1) !important;
+  border: 1px solid rgba(239, 68, 68, 0.25) !important;
+}
+.pw-profile-guardrails {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  background: var(--color-bg, #f4f6fb) !important;
+  border: 1px solid var(--color-border, #e2e8f0) !important;
+  border-radius: 12px !important;
+  padding: 14px 16px !important;
+  margin-top: 6px !important;
+  box-sizing: border-box !important;
+}
+[data-theme="dark"] .pw-profile-guardrails {
+  background: rgba(255, 255, 255, 0.02) !important;
+  border-color: var(--color-border, #4a4a4a) !important;
+}
+.pw-meter-container {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+}
+.pw-meter-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  font-size: 0.75rem !important;
+}
+.pw-meter-title {
+  color: var(--color-text-muted, #9494a0) !important;
+  font-weight: 500 !important;
+}
+.pw-meter-badge {
+  font-size: 0.7rem !important;
+  font-weight: 600 !important;
+  padding: 2px 8px !important;
+  border-radius: 999px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.03em !important;
+  transition: all 0.2s ease !important;
+}
+.pw-meter-badge.strength-none {
+  color: var(--color-text-muted, #9494a0) !important;
+  background: var(--color-surface, #ffffff) !important;
+  border: 1px solid var(--color-border, #e2e8f0) !important;
+}
+.pw-meter-badge.strength-weak {
+  color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.1) !important;
+  border: 1px solid rgba(239, 68, 68, 0.25) !important;
+}
+.pw-meter-badge.strength-fair {
+  color: #f59e0b !important;
+  background: rgba(245, 158, 11, 0.1) !important;
+  border: 1px solid rgba(245, 158, 11, 0.25) !important;
+}
+.pw-meter-badge.strength-good {
+  color: #3b82f6 !important;
+  background: rgba(59, 130, 246, 0.1) !important;
+  border: 1px solid rgba(59, 130, 246, 0.25) !important;
+}
+.pw-meter-badge.strength-strong {
+  color: #10b981 !important;
+  background: rgba(16, 185, 129, 0.12) !important;
+  border: 1px solid rgba(16, 185, 129, 0.25) !important;
+}
+.pw-meter-segments {
+  display: flex !important;
+  gap: 6px !important;
+  width: 100% !important;
+  height: 6px !important;
+}
+.pw-meter-segment {
+  flex: 1 !important;
+  height: 100% !important;
+  border-radius: 999px !important;
+  background: var(--color-border, #e2e8f0) !important;
+  transition: background-color 0.25s ease !important;
+}
+.pw-meter-segment.active-weak { background: #ef4444 !important; }
+.pw-meter-segment.active-fair { background: #f59e0b !important; }
+.pw-meter-segment.active-good { background: #3b82f6 !important; }
+.pw-meter-segment.active-strong { background: #10b981 !important; }
+.pw-checklist {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)) !important;
+  gap: 6px 12px !important;
+  margin-top: 4px !important;
+  padding-top: 8px !important;
+  border-top: 1px dashed var(--color-border, #e2e8f0) !important;
+}
+.pw-rule-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  font-size: 0.75rem !important;
+  color: var(--color-text-muted, #9494a0) !important;
+  padding: 5px 8px !important;
+  border-radius: 8px !important;
+  background: var(--color-surface, #ffffff) !important;
+  border: 1px solid transparent !important;
+  transition: all 0.2s ease !important;
+  user-select: none !important;
+}
+.pw-rule-item.is-met {
+  color: #059669 !important;
+  background: rgba(16, 185, 129, 0.08) !important;
+  border-color: rgba(16, 185, 129, 0.25) !important;
+}
+[data-theme="dark"] .pw-rule-item.is-met {
+  color: #34d399 !important;
+  background: rgba(16, 185, 129, 0.15) !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+.pw-rule-icon {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 14px !important;
+  height: 14px !important;
+  flex-shrink: 0 !important;
+  color: var(--color-text-muted, #9494a0) !important;
+  transition: color 0.2s ease, transform 0.2s ease !important;
+}
+.pw-rule-icon svg {
+  pointer-events: none !important;
+  display: block !important;
+}
+.pw-rule-item.is-met .pw-rule-icon {
+  color: #10b981 !important;
+  transform: scale(1.1) !important;
+}
+.pw-rule-text {
+  font-weight: 500 !important;
+  line-height: 1.2 !important;
+}
+.pw-match-helper {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+  margin-top: 6px !important;
+  min-height: 18px !important;
+  transition: all 0.2s ease !important;
+}
+.pw-match-helper.match-yes { color: #10b981 !important; }
+.pw-match-helper.match-no { color: #ef4444 !important; }
+.pw-match-helper.match-empty { color: var(--color-text-muted, #9494a0) !important; }
+.pw-match-helper svg {
+  width: 14px !important;
+  height: 14px !important;
+  flex-shrink: 0 !important;
+  pointer-events: none !important;
+}
+.pw-input.pw-input-error {
+  border-color: var(--color-danger, #ef4444) !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+}
+.pw-input.pw-input-success {
+  border-color: var(--color-success, #10b981) !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15) !important;
+}
+`;
+    document.head.appendChild(styleEl);
+  },
+
+  /**
    * Helper to create a password field with show/hide toggle and header action.
    */
   createPasswordField({ label, id, placeholder = '', editable = true, headerAction = null }) {
@@ -314,7 +597,10 @@ const Profile = {
     }
     group.appendChild(header);
 
-    const wrapper = el('div', { class: 'pw-input-wrapper' });
+    const wrapper = el('div', {
+      class: 'pw-input-wrapper',
+      style: 'position: relative; width: 100%; display: flex; align-items: center; box-sizing: border-box;'
+    });
     const input = el('input', {
       type: 'password',
       id: id,
@@ -322,39 +608,59 @@ const Profile = {
       disabled: !editable,
       placeholder: placeholder,
       class: 'profile-input pw-input',
-      autocomplete: id.includes('current') ? 'current-password' : 'new-password'
+      autocomplete: id.includes('current') ? 'current-password' : 'new-password',
+      style: 'width: 100%; padding-right: 44px !important; box-sizing: border-box;'
     });
     wrapper.appendChild(input);
 
-    const eyeIconSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
-    const eyeOffIconSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+    const eyeIconSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;display:block;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+    const eyeOffIconSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;display:block;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
 
     const toggleBtn = el('button', {
       type: 'button',
       class: 'pw-toggle-btn',
       'aria-label': 'Show password',
       title: 'Show password',
-      tabindex: '-1'
+      tabindex: '-1',
+      style: 'position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: transparent; border: none; outline: none; cursor: pointer; padding: 6px; margin: 0; display: inline-flex; align-items: center; justify-content: center; z-index: 2; border-radius: 6px; color: var(--color-text-muted, #9494a0);'
     });
     toggleBtn.innerHTML = eyeIconSvg;
+
+    const setVisibility = (visible) => {
+      const targetType = visible ? 'text' : 'password';
+      input.type = targetType;
+      input.setAttribute('type', targetType);
+      toggleBtn.innerHTML = visible ? eyeOffIconSvg : eyeIconSvg;
+      const labelText = visible ? 'Hide password' : 'Show password';
+      toggleBtn.setAttribute('aria-label', labelText);
+      toggleBtn.setAttribute('title', labelText);
+    };
+
+    toggleBtn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+    });
 
     toggleBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      const isPw = input.type === 'password';
-      input.type = isPw ? 'text' : 'password';
-      toggleBtn.innerHTML = isPw ? eyeOffIconSvg : eyeIconSvg;
-      toggleBtn.setAttribute('aria-label', isPw ? 'Hide password' : 'Show password');
-      toggleBtn.setAttribute('title', isPw ? 'Hide password' : 'Show password');
-      input.focus();
+      const isCurrentlyPw = input.type === 'password' || input.getAttribute('type') === 'password';
+      setVisibility(isCurrentlyPw);
+      try {
+        input.focus({ preventScroll: true });
+        if (input.setSelectionRange && input.value) {
+          const len = input.value.length;
+          input.setSelectionRange(len, len);
+        }
+      } catch (err) {}
     });
     wrapper.appendChild(toggleBtn);
 
     group.appendChild(wrapper);
-    return { group, input, toggleBtn, eyeIconSvg, eyeOffIconSvg };
+    return { group, input, toggleBtn, eyeIconSvg, eyeOffIconSvg, setVisibility };
   },
 
   renderPasswordCard(isLoading = false) {
+    this._injectGuardrailsStyles();
     const card = el('div', { class: 'card profile-card' });
 
     // Card Header
@@ -579,16 +885,8 @@ const Profile = {
       newPassField.input.value = generated;
       confirmField.input.value = generated;
 
-      newPassField.input.type = 'text';
-      confirmField.input.type = 'text';
-
-      newPassField.toggleBtn.innerHTML = newPassField.eyeOffIconSvg;
-      newPassField.toggleBtn.setAttribute('aria-label', 'Hide password');
-      newPassField.toggleBtn.setAttribute('title', 'Hide password');
-
-      confirmField.toggleBtn.innerHTML = confirmField.eyeOffIconSvg;
-      confirmField.toggleBtn.setAttribute('aria-label', 'Hide password');
-      confirmField.toggleBtn.setAttribute('title', 'Hide password');
+      newPassField.setVisibility(true);
+      confirmField.setVisibility(true);
 
       updateUI();
 

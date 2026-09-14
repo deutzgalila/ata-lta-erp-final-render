@@ -176,8 +176,12 @@ function exposeGlobalsPlugin(exposeMap) {
 function generateIndexHtml(sourceHtml, manifest, apiOrigin) {
   // Replace stylesheet with hashed bundle.
   let html = sourceHtml.replace(
-    /<link\s+rel=["']stylesheet["']\s+href=["']css\/styles\.css["']\s*\/?>/i,
+    /<link[\s\S]*?href=["']css\/styles\.css(?:\?[^"']*)?["'][\s\S]*?\/?>/i,
     `<link rel="stylesheet" href="${manifest.styles}">`
+  );
+  html = html.replace(
+    /<noscript><link[\s\S]*?href=["']css\/styles\.css(?:\?[^"']*)?["'][\s\S]*?\/><\/noscript>/i,
+    `<noscript><link rel="stylesheet" href="${manifest.styles}" /></noscript>`
   );
 
   // Inject API origin preconnect into <head>.

@@ -1705,37 +1705,59 @@ const Users = {
     container.appendChild(header);
 
     // Input wrapper with eye toggle
-    const inputWrapper = el('div', { class: 'pw-input-wrapper' });
+    const inputWrapper = el('div', {
+      class: 'pw-input-wrapper',
+      style: 'position: relative; width: 100%; display: flex; align-items: center; box-sizing: border-box;'
+    });
     const pwInput = el('input', {
       type: 'password',
       name: 'password',
       class: 'notion-prop-input pw-input',
       placeholder: user ? 'Leave blank to keep current password' : 'Set secure password',
-      autocomplete: 'new-password'
+      autocomplete: 'new-password',
+      style: 'width: 100%; padding-right: 44px !important; box-sizing: border-box;'
     });
     inputWrapper.appendChild(pwInput);
 
-    const eyeIconSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
-    const eyeOffIconSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+    const eyeIconSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;display:block;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+    const eyeOffIconSvg = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="pointer-events:none;display:block;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
 
     const toggleBtn = el('button', {
       type: 'button',
       class: 'pw-toggle-btn',
       'aria-label': 'Show password',
       title: 'Show password',
-      tabindex: '-1'
+      tabindex: '-1',
+      style: 'position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: transparent; border: none; outline: none; cursor: pointer; padding: 6px; margin: 0; display: inline-flex; align-items: center; justify-content: center; z-index: 2; border-radius: 6px; color: var(--color-text-muted, #9494a0);'
     });
     toggleBtn.innerHTML = eyeIconSvg;
+
+    const setVisibility = (visible) => {
+      const targetType = visible ? 'text' : 'password';
+      pwInput.type = targetType;
+      pwInput.setAttribute('type', targetType);
+      toggleBtn.innerHTML = visible ? eyeOffIconSvg : eyeIconSvg;
+      const labelText = visible ? 'Hide password' : 'Show password';
+      toggleBtn.setAttribute('aria-label', labelText);
+      toggleBtn.setAttribute('title', labelText);
+    };
+
+    toggleBtn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+    });
 
     toggleBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      const isPw = pwInput.type === 'password';
-      pwInput.type = isPw ? 'text' : 'password';
-      toggleBtn.innerHTML = isPw ? eyeOffIconSvg : eyeIconSvg;
-      toggleBtn.setAttribute('aria-label', isPw ? 'Hide password' : 'Show password');
-      toggleBtn.setAttribute('title', isPw ? 'Hide password' : 'Show password');
-      pwInput.focus();
+      const isCurrentlyPw = pwInput.type === 'password' || pwInput.getAttribute('type') === 'password';
+      setVisibility(isCurrentlyPw);
+      try {
+        pwInput.focus({ preventScroll: true });
+        if (pwInput.setSelectionRange && pwInput.value) {
+          const len = pwInput.value.length;
+          pwInput.setSelectionRange(len, len);
+        }
+      } catch (err) {}
     });
 
     inputWrapper.appendChild(toggleBtn);
@@ -1858,10 +1880,7 @@ const Users = {
     generateBtn.addEventListener('click', () => {
       const newPw = this._generateSecurePassword();
       pwInput.value = newPw;
-      pwInput.type = 'text';
-      toggleBtn.innerHTML = eyeOffIconSvg;
-      toggleBtn.setAttribute('aria-label', 'Hide password');
-      toggleBtn.setAttribute('title', 'Hide password');
+      setVisibility(true);
       updateUI();
 
       if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {

@@ -114,11 +114,11 @@
     <!-- Full stylesheet loaded non-blocking after first paint -->
     <link
       rel="stylesheet"
-      href="css/styles.css"
+      href="css/styles.css?v=2.2.0"
       media="print"
       onload="this.media='all'"
     />
-    <noscript><link rel="stylesheet" href="css/styles.css" /></noscript>
+    <noscript><link rel="stylesheet" href="css/styles.css?v=2.2.0" /></noscript>
   </head>
   <body>
     <!-- Loading Screen -->
@@ -443,7 +443,7 @@
         // In development, check for updates but never auto-reload so open forms
         // are not interrupted.
         navigator.serviceWorker
-          .register("sw.js")
+          .register("sw.js?v=2.2.0")
           .then(function (registration) {
             registration.addEventListener("updatefound", function () {
               var installing = registration.installing;
