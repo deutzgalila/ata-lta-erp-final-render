@@ -357,6 +357,7 @@ const Profile = {
   justify-content: space-between !important;
   align-items: center !important;
   gap: 8px !important;
+  min-height: 28px !important;
   margin-bottom: 4px !important;
 }
 .pw-header-row label {
@@ -369,6 +370,7 @@ const Profile = {
   letter-spacing: 0.04em !important;
   color: var(--color-text-muted, #9494a0) !important;
   margin: 0 !important;
+  white-space: nowrap !important;
 }
 .pw-generate-btn {
   display: inline-flex !important;
@@ -580,6 +582,79 @@ const Profile = {
   border-color: var(--color-success, #10b981) !important;
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15) !important;
 }
+
+/* Always strictly align New Password and Confirm Password fields in the row */
+.profile-form-grid.pw-aligned-grid {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  column-gap: 20px !important;
+  row-gap: 8px !important;
+  align-items: start !important;
+}
+
+@media (min-width: 641px) {
+  .profile-form-grid.pw-aligned-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    grid-template-rows: auto auto auto !important;
+    column-gap: 20px !important;
+    row-gap: 8px !important;
+    align-items: start !important;
+  }
+  .profile-form-grid.pw-aligned-grid .pw-col-new,
+  .profile-form-grid.pw-aligned-grid .pw-col-confirm {
+    display: contents !important;
+  }
+  .profile-form-grid.pw-aligned-grid .pw-col-new .pw-header-row {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    align-self: end !important;
+    margin-bottom: 0 !important;
+    min-height: 28px !important;
+  }
+  .profile-form-grid.pw-aligned-grid .pw-col-confirm .pw-header-row {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    align-self: end !important;
+    margin-bottom: 0 !important;
+    min-height: 28px !important;
+  }
+  .profile-form-grid.pw-aligned-grid .pw-col-new .pw-input-wrapper {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+    align-self: start !important;
+  }
+  .profile-form-grid.pw-aligned-grid .pw-col-confirm .pw-input-wrapper {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    align-self: start !important;
+  }
+  .profile-form-grid.pw-aligned-grid .pw-col-new .pw-match-helper {
+    grid-column: 1 !important;
+    grid-row: 3 !important;
+    align-self: start !important;
+    margin-top: 0 !important;
+  }
+  .profile-form-grid.pw-aligned-grid .pw-col-confirm .pw-match-helper {
+    grid-column: 2 !important;
+    grid-row: 3 !important;
+    align-self: start !important;
+    margin-top: 0 !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .profile-form-grid.pw-aligned-grid {
+    grid-template-columns: 1fr !important;
+    row-gap: 14px !important;
+  }
+  .profile-form-grid.pw-aligned-grid .pw-col-new,
+  .profile-form-grid.pw-aligned-grid .pw-col-confirm {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+}
 `;
     document.head.appendChild(styleEl);
   },
@@ -730,7 +805,10 @@ const Profile = {
     confirmField.group.appendChild(confirmMatchHelper);
 
     // Grid for New Password and Confirm Password
-    const grid = el('div', { class: 'profile-form-grid' });
+    newPassField.group.classList.add('pw-col-new');
+    confirmField.group.classList.add('pw-col-confirm');
+
+    const grid = el('div', { class: 'profile-form-grid pw-aligned-grid' });
     grid.appendChild(newPassField.group);
     grid.appendChild(confirmField.group);
     form.appendChild(grid);
@@ -850,14 +928,14 @@ const Profile = {
         confirmField.input.classList.remove('pw-input-error', 'pw-input-success');
       } else if (confirmVal === val && val.length > 0) {
         matchBadge.className = 'pw-match-badge match-yes';
-        matchBadge.textContent = '✓ Passwords match';
+        matchBadge.textContent = '✓ Match';
         confirmMatchHelper.className = 'pw-match-helper match-yes';
         confirmMatchHelper.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Passwords match';
         confirmField.input.classList.remove('pw-input-error');
         confirmField.input.classList.add('pw-input-success');
       } else {
         matchBadge.className = 'pw-match-badge match-no';
-        matchBadge.textContent = '✕ Passwords do not match';
+        matchBadge.textContent = '✕ No match';
         confirmMatchHelper.className = 'pw-match-helper match-no';
         confirmMatchHelper.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Passwords do not match';
         confirmField.input.classList.remove('pw-input-success');

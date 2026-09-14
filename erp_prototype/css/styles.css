@@ -17614,7 +17614,8 @@ table.data-table th.dt-cell--right {
   justify-content: space-between;
   align-items: center;
   gap: 8px;
-  margin-bottom: 2px;
+  min-height: 28px;
+  margin-bottom: 4px;
 }
 
 .pw-header-row label {
@@ -17625,6 +17626,7 @@ table.data-table th.dt-cell--right {
   font-weight: 600;
   color: var(--color-text);
   margin: 0;
+  white-space: nowrap;
 }
 
 .pw-header-row label svg {
@@ -17965,6 +17967,80 @@ table.data-table th.dt-cell--right {
   height: 14px;
   flex-shrink: 0;
 }
+
+/* Always strictly align New Password and Confirm Password fields in the row */
+.profile-form-grid.pw-aligned-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 20px;
+  row-gap: 8px;
+  align-items: start;
+}
+
+@media (min-width: 641px) {
+  .profile-form-grid.pw-aligned-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    grid-template-rows: auto auto auto !important;
+    column-gap: 20px !important;
+    row-gap: 8px !important;
+    align-items: start !important;
+  }
+  .profile-form-grid.pw-aligned-grid .pw-col-new,
+  .profile-form-grid.pw-aligned-grid .pw-col-confirm {
+    display: contents !important;
+  }
+  .profile-form-grid.pw-aligned-grid .pw-col-new .pw-header-row {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    align-self: end !important;
+    margin-bottom: 0 !important;
+    min-height: 28px !important;
+  }
+  .profile-form-grid.pw-aligned-grid .pw-col-confirm .pw-header-row {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    align-self: end !important;
+    margin-bottom: 0 !important;
+    min-height: 28px !important;
+  }
+  .profile-form-grid.pw-aligned-grid .pw-col-new .pw-input-wrapper {
+    grid-column: 1 !important;
+    grid-row: 2 !important;
+    align-self: start !important;
+  }
+  .profile-form-grid.pw-aligned-grid .pw-col-confirm .pw-input-wrapper {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    align-self: start !important;
+  }
+  .profile-form-grid.pw-aligned-grid .pw-col-new .pw-match-helper {
+    grid-column: 1 !important;
+    grid-row: 3 !important;
+    align-self: start !important;
+    margin-top: 0 !important;
+  }
+  .profile-form-grid.pw-aligned-grid .pw-col-confirm .pw-match-helper {
+    grid-column: 2 !important;
+    grid-row: 3 !important;
+    align-self: start !important;
+    margin-top: 0 !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .profile-form-grid.pw-aligned-grid {
+    grid-template-columns: 1fr !important;
+    row-gap: 14px !important;
+  }
+  .profile-form-grid.pw-aligned-grid .pw-col-new,
+  .profile-form-grid.pw-aligned-grid .pw-col-confirm {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+}
+
 
 
 
