@@ -1,6 +1,6 @@
 # Incident Response Runbook
 
-**Last updated**: 2026-07-17
+**Last updated**: 2026-09-14
 
 ## Severity Levels
 
@@ -20,16 +20,16 @@
 
 ### 2. Assess
 
-- Check `/health` endpoint.
+- Check `/livez` (process liveness) and `/readyz` (dependency readiness) endpoints; `/health` reports `supabase` and `storage` subsystem status.
 - Check Render dashboard for service status.
-- Check Render logs for errors.
+- Check Render logs for errors (structured JSON; `error.message` and `error.stack` are serialized).
 - Check UptimeRobot/monitoring for outage duration.
 
 ### 3. Mitigate
 
 - If the backend is down: check Render logs, try manual redeploy.
 - If the database is unreachable: check Supabase status page.
-- If S3/CloudFront is failing: check AWS status page.
+- If file uploads fail: check Supabase Storage service status and bucket quota.
 - If the SPA is broken: check if `env.js` was generated correctly.
 
 ### 4. Resolve
@@ -53,5 +53,6 @@
 ## Contact Information
 
 - Render status: https://status.render.com
+- Render docs (deploys, logs, rollback): https://render.com/docs
 - Supabase status: https://status.supabase.com
-- AWS status: https://health.aws.amazon.com
+- Supabase Storage docs: https://supabase.com/docs/guides/storage

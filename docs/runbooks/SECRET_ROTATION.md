@@ -1,6 +1,6 @@
 # Secret Rotation Runbook
 
-**Last updated**: 2026-07-17
+**Last updated**: 2026-09-14
 
 ## Supabase Service Key Rotation
 
@@ -10,22 +10,26 @@
 4. Verify `/health` returns `supabase: true`.
 5. Revoke the old key in Supabase.
 
-## AWS Access Key Rotation
+## Backup Encryption Key Rotation
 
-1. Create a new IAM access key in AWS Console → IAM → Users.
-2. Update `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` in the Render environment group.
-3. Redeploy the affected Web Service.
-4. Verify `/health` returns `s3: true`.
-5. Deactivate and delete the old access key in AWS.
+Pre-migration and scheduled database dumps are AES-256-encrypted with
+`BACKUP_ENCRYPTION_KEY` and stored in the Supabase Storage bucket
+`erp-db-backups`.
 
-## CloudFront Key Pair Rotation
+1. Generate a new strong passphrase: `openssl rand -base64 48`.
+2. Update `BACKUP_ENCRYPTION_KEY` in GitHub → Settings → Secrets → Actions.
+3. Re-run the backup workflow manually (`backup-prod.yml`) to verify.
+4. Store the new passphrase in the team password manager.
+5. Note: existing dumps remain encrypted with the previous key — keep the
+   old passphrase retrievable until those dumps' retention lapses.
 
-1. Generate a new CloudFront key pair in AWS Console → CloudFront → Key Management → Public Keys.
-2. Create a new key group with the new public key.
-3. Update `CLOUDFRONT_KEY_ID` and `CLOUDFRONT_PRIVATE_KEY` in the Render environment group.
-4. Redeploy the Web Service.
-5. Test document download URLs.
-6. Remove the old public key from the key group and delete it.
+## Document Storage Access
+
+Documents live in Supabase Storage (`documents` bucket); access is governed
+by the Supabase service role key above. There are no separate storage
+credentials to rotate — rotating the service key covers document access and
+signed URL generation. After rotation, test document upload and download in
+the SPA.
 
 ## GitHub Repository Secrets
 
