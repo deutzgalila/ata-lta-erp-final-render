@@ -21,6 +21,7 @@ const { supabaseAdmin } = require('./services/supabaseClient');
 const errorHandler = require('./middleware/errorHandler');
 const { auth } = require('./middleware/auth');
 const { entityScope } = require('./middleware/entityScope');
+const { idempotencyMiddleware } = require('./middleware/idempotency');
 
 // Module routers (stubs)
 const clientsRouter = require('./modules/clients/routes');
@@ -242,6 +243,12 @@ app.use('/v1/auth', require('./modules/auth/routes'));
 // Authenticated / scoped routes
 app.use(auth);
 app.use(entityScope);
+
+// Idempotency-Key replay protection for mutating requests (Spec 2.1 / R-08).
+// Mounted after auth + entityScope so records can be scoped to
+// `${userId}:${entityCode}`. Requests without the header pass through
+// unchanged, keeping older SPA builds fully functional during rollout.
+app.use('/v1', idempotencyMiddleware);
 
 // API v1 module routes (stubs)
 app.use('/v1/me', require('./modules/me/routes'));

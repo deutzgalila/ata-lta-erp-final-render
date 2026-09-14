@@ -131,6 +131,17 @@
       headers['X-Active-Entity'] = activeEntityHeader;
     }
 
+    // Idempotency (Spec 2.1): attach a per-request UUID to every mutation so
+    // the backend can replay the stored response instead of double-executing
+    // when the call is retried (double-click, flaky network, token-refresh
+    // retry below — the retry reuses this same `headers` object and key).
+    const methodUpper = (options.method || 'GET').toUpperCase();
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(methodUpper) && !headers['Idempotency-Key']) {
+      headers['Idempotency-Key'] = (window.crypto && typeof window.crypto.randomUUID === 'function')
+        ? window.crypto.randomUUID()
+        : 'idemp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11);
+    }
+
     let signal;
     if (__controller) {
       signal = combineSignals(callerSignal, __controller.signal);
