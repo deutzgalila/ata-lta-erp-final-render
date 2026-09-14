@@ -7,6 +7,17 @@ const { z } = require('zod');
 
 const ALLOWED_DEPARTMENTS = ['Management', 'Accounting', 'Operations', 'Documentation', 'HR'];
 
+// Spec 2.8 / R-14: minimum length plus character-class complexity so
+// admin-provisioned credentials cannot be trivially weak.
+const passwordSchema = z
+  .string()
+  .min(8, 'Password must be at least 8 characters')
+  .max(128, 'Password must not exceed 128 characters')
+  .regex(/[a-z]/, 'Must include lowercase letter')
+  .regex(/[A-Z]/, 'Must include uppercase letter')
+  .regex(/[0-9]/, 'Must include number')
+  .regex(/[^a-zA-Z0-9]/, 'Must include special character');
+
 const createUserSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1).max(255),
@@ -14,7 +25,7 @@ const createUserSchema = z.object({
   departments: z.array(z.enum(ALLOWED_DEPARTMENTS)).optional(),
   entities: z.array(z.enum(['ATA', 'LTA'])).min(1),
   isActive: z.boolean().default(true),
-  password: z.string().min(1).optional(),
+  password: passwordSchema.optional(),
 });
 
 const updateUserSchema = createUserSchema.partial();

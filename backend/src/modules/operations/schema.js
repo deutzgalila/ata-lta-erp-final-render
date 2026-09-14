@@ -29,7 +29,7 @@ const checklistItemSchema = z.object({
     .nullable(),
   periodYear: z
     .string()
-    .regex(/^[a-zA-Z0-9\s/\-]*$/)
+    .regex(/^[a-zA-Z0-9\s/-]*$/)
     .max(100)
     .optional()
     .nullable(),
@@ -63,6 +63,8 @@ const WR_STATUSES = [
 const updateWorkRequestSchema = createWorkRequestSchema.partial().extend({
   archived: z.boolean().optional(),
   status: z.enum(WR_STATUSES).optional(),
+  // OCC guard (Spec 2.2 / R-10): update applies only if the stored version matches.
+  expectedVersion: z.number().int().positive().optional(),
 });
 
 const createTaskSchema = z.object({
@@ -79,7 +81,10 @@ const createTaskSchema = z.object({
   taskDocuments: z.array(z.any()).optional().nullable(),
 });
 
-const updateTaskSchema = createTaskSchema.partial();
+const updateTaskSchema = createTaskSchema.partial().extend({
+  // OCC guard (Spec 2.2 / R-10): update applies only if the stored version matches.
+  expectedVersion: z.number().int().positive().optional(),
+});
 
 const nullableUuid = z.preprocess(
   (val) => (val === '' || val === undefined ? null : val),

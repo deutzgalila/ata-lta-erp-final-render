@@ -21,3 +21,22 @@ describe('GET /health', () => {
     });
   });
 });
+
+describe('GET /livez', () => {
+  it('returns 200 instantly without auth and without touching dependencies', async () => {
+    const res = await request(app).get('/livez');
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('ok');
+    expect(typeof res.body.uptime).toBe('number');
+    expect(res.body.timestamp).toBeDefined();
+  });
+});
+
+describe('GET /readyz', () => {
+  it('returns 200 without auth when PostgreSQL and storage are reachable', async () => {
+    const res = await request(app).get('/readyz');
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('ready');
+    expect(res.body.timestamp).toBeDefined();
+  });
+});

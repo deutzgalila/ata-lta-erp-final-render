@@ -128,7 +128,6 @@ const listInvoices = async ({ entityId, filters = {}, user }) => {
 const createInvoice = async ({ entityId, userId, data }) => {
   const subtotal = data.lineItems.reduce((sum, item) => sum + item.amount, 0);
   const total = subtotal; // Tax removed per prototype v3 schema
-  const balance = total;
 
   const requestedStatus = data.status || 'Draft';
   if (['Paid', 'Partially Paid', 'Sent'].includes(requestedStatus)) {
@@ -139,35 +138,43 @@ const createInvoice = async ({ entityId, userId, data }) => {
     });
   }
 
-  const invoiceRow = {
-    invoice_number: data.invoiceNumber,
-    client_id: data.clientId,
-    work_request_id: data.workRequestId || null,
-    linked_task_id: data.linkedTaskId || null,
-    linked_transmittal_id: data.linkedTransmittalId || null,
-    entity_id: entityId,
-    issue_date: data.issueDate,
-    due_date: data.dueDate,
-    status: requestedStatus,
-    subtotal,
-    tax_amount: 0,
-    total,
-    amount_paid: 0,
-    balance,
-    notes: data.notes || null,
-    terms: data.terms || null,
-    created_by: userId,
-    updated_by: userId,
-  };
+  // Atomic create (Spec 2.3 / R-11): the invoice row and its line items are
+  // inserted by invoice_create_transactional() inside a single PostgreSQL
+  // function transaction. The previous two-round-trip flow attempted a
+  // best-effort delete() rollback when the line-item insert failed; a crash or
+  // network partition in between left orphaned ₱0 invoices.
+  const lineItems = data.lineItems.map((item, idx) => ({
+    description: item.description,
+    amount: item.amount,
+    type: item.type || 'Professional Fee',
+    sort_order: idx,
+  }));
 
-  const { data: invoice, error: invoiceErr } = await supabaseAdmin
-    .from('invoices')
-    .insert(invoiceRow)
-    .select()
-    .single();
+  const { data: invoice, error: invoiceErr } = await supabaseAdmin.rpc(
+    'invoice_create_transactional',
+    {
+      p_invoice_data: {
+        clientId: data.clientId,
+        workRequestId: data.workRequestId || null,
+        linkedTaskId: data.linkedTaskId || null,
+        linkedTransmittalId: data.linkedTransmittalId || null,
+        invoiceNumber: data.invoiceNumber,
+        issueDate: data.issueDate,
+        dueDate: data.dueDate,
+        status: requestedStatus,
+        subtotal,
+        total,
+        notes: data.notes || null,
+        terms: data.terms || null,
+      },
+      p_line_items: lineItems,
+      p_user_id: userId,
+      p_entity_id: entityId,
+    }
+  );
 
-  if (invoiceErr) {
-    if (invoiceErr.code === '23505') {
+  if (invoiceErr || !invoice) {
+    if (invoiceErr?.code === '23505') {
       throw new AppError({
         statusCode: 409,
         title: 'Conflict',
@@ -181,26 +188,11 @@ const createInvoice = async ({ entityId, userId, data }) => {
     });
   }
 
-  // Insert line items
-  const lineItems = data.lineItems.map((item, idx) => ({
+  // Shape the returned line items as the callers expect (with invoice_id).
+  const createdLineItems = lineItems.map((item) => ({
+    ...item,
     invoice_id: invoice.id,
-    description: item.description,
-    amount: item.amount,
-    type: item.type || 'Professional Fee',
-    sort_order: idx,
   }));
-
-  const { error: lineErr } = await supabaseAdmin.from('invoice_line_items').insert(lineItems);
-
-  if (lineErr) {
-    // Rollback: delete the invoice if line items fail
-    await supabaseAdmin.from('invoices').delete().eq('id', invoice.id);
-    throw new AppError({
-      statusCode: 500,
-      title: 'Database Error',
-      detail: 'Failed to create invoice line items',
-    });
-  }
 
   await auditService.log({
     action: 'invoice.create',
@@ -212,7 +204,7 @@ const createInvoice = async ({ entityId, userId, data }) => {
   });
 
   const entityCode = await resolveEntityCode(invoice.entity_id);
-  return { ...invoice, entity_code: entityCode, line_items: lineItems };
+  return { ...invoice, entity_code: entityCode, line_items: createdLineItems };
 };
 
 /**
@@ -368,65 +360,72 @@ const updateInvoice = async ({ entityId, id, userId, data }) => {
     }
   }
 
-  const updates = {
-    updated_by: userId,
-    updated_at: new Date().toISOString(),
-  };
+  // Atomic update (Spec 2.3 / R-11) with OCC guard (Spec 2.2 / R-10): field
+  // updates, line-item replacement, total/balance recomputation, and the
+  // version bump happen inside one PostgreSQL function transaction. When
+  // expectedVersion is supplied, a stale write matches zero rows and surfaces
+  // as a 409 conflict instead of silently overwriting the other user's edit.
+  const expectedVersion =
+    data.expectedVersion !== undefined && data.expectedVersion !== null
+      ? Number(data.expectedVersion)
+      : null;
 
-  if (data.clientId !== undefined) updates.client_id = data.clientId;
-  if (data.workRequestId !== undefined) updates.work_request_id = data.workRequestId;
-  if (data.linkedTaskId !== undefined) updates.linked_task_id = data.linkedTaskId;
-  if (data.linkedTransmittalId !== undefined) updates.linked_transmittal_id = data.linkedTransmittalId;
-  if (data.invoiceNumber !== undefined) updates.invoice_number = data.invoiceNumber;
-  if (data.issueDate !== undefined) updates.issue_date = data.issueDate;
-  if (data.dueDate !== undefined) updates.due_date = data.dueDate;
-  if (data.status !== undefined) updates.status = data.status;
-  if (data.notes !== undefined) updates.notes = data.notes;
-  if (data.terms !== undefined) updates.terms = data.terms;
-  if (data.archived !== undefined) updates.archived = data.archived;
+  const rpcUpdates = {};
+  if (data.clientId !== undefined) rpcUpdates.client_id = data.clientId;
+  if (data.workRequestId !== undefined) rpcUpdates.work_request_id = data.workRequestId;
+  if (data.linkedTaskId !== undefined) rpcUpdates.linked_task_id = data.linkedTaskId;
+  if (data.linkedTransmittalId !== undefined)
+    rpcUpdates.linked_transmittal_id = data.linkedTransmittalId;
+  if (data.invoiceNumber !== undefined) rpcUpdates.invoice_number = data.invoiceNumber;
+  if (data.issueDate !== undefined) rpcUpdates.issue_date = data.issueDate;
+  if (data.dueDate !== undefined) rpcUpdates.due_date = data.dueDate;
+  if (data.status !== undefined) rpcUpdates.status = data.status;
+  if (data.notes !== undefined) rpcUpdates.notes = data.notes;
+  if (data.terms !== undefined) rpcUpdates.terms = data.terms;
+  if (data.archived !== undefined) rpcUpdates.archived = data.archived;
 
-  // If line items provided, recalculate totals
-  if (data.lineItems) {
-    const subtotal = data.lineItems.reduce((sum, item) => sum + item.amount, 0);
-    updates.subtotal = subtotal;
-    updates.total = subtotal;
+  const rpcLineItems = data.lineItems
+    ? data.lineItems.map((item, idx) => ({
+        description: item.description,
+        amount: item.amount,
+        type: item.type || 'Professional Fee',
+        sort_order: idx,
+      }))
+    : null;
 
-    // Get current amount_paid to recalculate balance
-    const { data: current } = await supabaseAdmin
-      .from('invoices')
-      .select('amount_paid')
-      .eq('id', id)
-      .single();
-
-    updates.balance = subtotal - (current?.amount_paid || 0);
-
-    // Replace line items: delete old, insert new
-    await supabaseAdmin.from('invoice_line_items').delete().eq('invoice_id', id);
-
-    const lineItems = data.lineItems.map((item, idx) => ({
-      invoice_id: id,
-      description: item.description,
-      amount: item.amount,
-      type: item.type || 'Professional Fee',
-      sort_order: idx,
-    }));
-
-    await supabaseAdmin.from('invoice_line_items').insert(lineItems);
-  }
-
-  const { data: updated, error } = await supabaseAdmin
-    .from('invoices')
-    .update(updates)
-    .eq('id', id)
-    .eq('entity_id', entityId)
-    .select()
-    .single();
+  const { data: updated, error } = await supabaseAdmin.rpc('invoice_update_transactional', {
+    p_invoice_id: id,
+    p_updates: rpcUpdates,
+    p_line_items: rpcLineItems,
+    p_user_id: userId,
+    p_entity_id: entityId,
+    p_expected_version: expectedVersion,
+  });
 
   if (error) {
     throw new AppError({
       statusCode: 500,
       title: 'Database Error',
       detail: 'Failed to update invoice',
+    });
+  }
+
+  if (!updated) {
+    // Zero rows updated: the record was fetched above, so it exists — a NULL
+    // return means the version guard rejected a stale write.
+    if (expectedVersion !== null) {
+      throw new AppError({
+        statusCode: 409,
+        title: 'Conflict',
+        detail:
+          'The record was modified by another user. Please reload the latest version before editing.',
+        code: 'ERR_CONCURRENCY_CONFLICT',
+      });
+    }
+    throw new AppError({
+      statusCode: 404,
+      title: 'Not Found',
+      detail: `Invoice ${id} not found`,
     });
   }
 

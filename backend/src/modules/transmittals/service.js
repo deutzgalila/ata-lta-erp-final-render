@@ -10,6 +10,7 @@
 const { supabaseAdmin } = require('../../services/supabaseClient');
 const auditService = require('../../services/auditService');
 const AppError = require('../../lib/AppError');
+const { concurrencyConflict, resolveExpectedVersion } = require('../../lib/concurrency');
 
 /**
  * List transmittals for the active entity.
@@ -331,19 +332,39 @@ const updateTransmittal = async ({ entityId, id, userId, data }) => {
     await supabaseAdmin.from('transmittal_items').insert(items);
   }
 
-  const { data: updated, error } = await supabaseAdmin
+  // OCC (Spec 2.2 / R-10): version-guard the update when the client declares
+  // the version it read; zero matching rows become a 409 conflict.
+  const expectedVersion = resolveExpectedVersion(data);
+  if (expectedVersion !== null) {
+    updates.version = (existing.version || 1) + 1;
+  }
+
+  let query = supabaseAdmin
     .from('transmittals')
     .update(updates)
     .eq('id', id)
-    .eq('entity_id', entityId)
-    .select()
-    .single();
+    .eq('entity_id', entityId);
+  if (expectedVersion !== null) {
+    query = query.eq('version', expectedVersion);
+  }
+  const { data: updated, error } = await query.select().maybeSingle();
 
   if (error) {
     throw new AppError({
       statusCode: 500,
       title: 'Database Error',
       detail: 'Failed to update transmittal',
+    });
+  }
+
+  if (!updated) {
+    if (expectedVersion !== null) {
+      throw concurrencyConflict();
+    }
+    throw new AppError({
+      statusCode: 404,
+      title: 'Not Found',
+      detail: `Transmittal ${id} not found`,
     });
   }
 

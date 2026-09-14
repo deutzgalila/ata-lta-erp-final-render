@@ -11,6 +11,7 @@
 const { supabaseAdmin } = require('../../services/supabaseClient');
 const auditService = require('../../services/auditService');
 const AppError = require('../../lib/AppError');
+const { concurrencyConflict, resolveExpectedVersion } = require('../../lib/concurrency');
 const { buildPermissionSet, hasPermission } = require('../../lib/permissions');
 const { resolveEntityCode } = require('../../lib/entityResolver');
 
@@ -26,22 +27,33 @@ const VALID_TRANSITIONS = {
 /**
  * Generate a disbursement number.
  * Format: DISB-{ENTITY_CODE}-{YYYYMMDD}-{seq}
- * @param {string} entityId - UUID of the entity
+ *
+ * Allocation is delegated to the next_document_sequence() RPC (migration
+ * 000047, Spec 2.4 / R-11), whose single-statement upsert takes a row lock on
+ * the daily prefix, so concurrent creators can never read the same count and
+ * collide. The previous count(*)+1 approach raced under parallel submits.
+ *
+ * @param {string} _entityId - UUID of the entity (kept for signature stability)
  * @param {string} entityCode - entity code (ATA or LTA)
  * @returns {Promise<string>}
  */
-const generateDisbursementNumber = async (entityId, entityCode, attempt = 0) => {
+const generateDisbursementNumber = async (_entityId, entityCode) => {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const prefix = `DISB-${entityCode}-${today}`;
 
-  const { count } = await supabaseAdmin
-    .from('disbursements')
-    .select('*', { count: 'exact', head: true })
-    .eq('entity_id', entityId)
-    .ilike('disbursement_number', `${prefix}%`);
+  const { data, error } = await supabaseAdmin.rpc('next_document_sequence', {
+    p_prefix: prefix,
+  });
 
-  const seq = String((count || 0) + 1 + attempt).padStart(4, '0');
-  return `${prefix}-${seq}`;
+  if (error || !data) {
+    throw new AppError({
+      statusCode: 500,
+      title: 'Sequence Error',
+      detail: 'Failed to allocate a disbursement number',
+    });
+  }
+
+  return data;
 };
 
 // ============================================================
@@ -468,19 +480,39 @@ const updateDisbursement = async ({ entityId, id, userId, data }) => {
   if (data.receiptS3Key !== undefined) updates.receipt_s3_key = data.receiptS3Key;
   if (data.receiptFilename !== undefined) updates.receipt_filename = data.receiptFilename;
 
-  const { data: updated, error } = await supabaseAdmin
+  // OCC (Spec 2.2 / R-10): version-guard the update when the client declares
+  // the version it read; zero matching rows become a 409 conflict.
+  const expectedVersion = resolveExpectedVersion(data);
+  if (expectedVersion !== null) {
+    updates.version = (existing.version || 1) + 1;
+  }
+
+  let query = supabaseAdmin
     .from('disbursements')
     .update(updates)
     .eq('id', id)
-    .eq('entity_id', entityId)
-    .select()
-    .single();
+    .eq('entity_id', entityId);
+  if (expectedVersion !== null) {
+    query = query.eq('version', expectedVersion);
+  }
+  const { data: updated, error } = await query.select().maybeSingle();
 
   if (error) {
     throw new AppError({
       statusCode: 500,
       title: 'Database Error',
       detail: 'Failed to update disbursement',
+    });
+  }
+
+  if (!updated) {
+    if (expectedVersion !== null) {
+      throw concurrencyConflict();
+    }
+    throw new AppError({
+      statusCode: 404,
+      title: 'Not Found',
+      detail: `Disbursement ${id} not found`,
     });
   }
 

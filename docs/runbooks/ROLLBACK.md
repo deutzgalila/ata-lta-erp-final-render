@@ -1,6 +1,6 @@
 # Rollback Runbook
 
-**Last updated**: 2026-07-17
+**Last updated**: 2026-09-14
 
 ## Application Rollback
 
@@ -8,7 +8,7 @@
 
 1. Go to the Render dashboard → select the affected service.
 2. Click **Manual Deploy** → select the last known good commit.
-3. Verify `/health` returns `{"status": "ok"}`.
+3. Verify `/livez` returns `200` and `/readyz` reports dependencies ready.
 
 ### Alternative: Git Revert
 
@@ -23,18 +23,38 @@ Render will auto-deploy the reverted commit.
 
 ### Using Migration Rollback
 
+Migrations are applied by the custom runner (`backend/scripts/migrate-remote.js`), which is forward-only. To roll back, apply the failing migration's `down` SQL manually against a **non-production** clone first, then run it against production as plain SQL:
+
 ```bash
-cd backend
-npm run migrate:down
+# Locate the migration's down block
+ls backend/migrations/0000XX_*.js
+
+# Apply its SQL manually
+psql "$DATABASE_URL" -f rollback.sql
 ```
 
 ### Using Backup Restore
 
-1. Download the latest backup artifact from GitHub Actions.
-2. Restore:
+Database backups are AES-256/GPG-encrypted SQL dumps stored in the private
+Supabase Storage bucket `erp-db-backups` (see `backup-prod.yml`). They are no
+longer GitHub Actions artifacts.
+
+1. Download the latest encrypted dump from the bucket:
 
 ```bash
-psql "$DATABASE_URL" < backup-before-migration-YYYYMMDD-HHMMSS.sql
+supabase storage cp "ss:///erp-db-backups/backup-before-migration-YYYYMMDD-HHMMSS.sql.gpg" ./backup.sql.gpg
+```
+
+2. Decrypt with the backup encryption key (`BACKUP_ENCRYPTION_KEY` secret):
+
+```bash
+gpg --batch --yes --passphrase "$BACKUP_ENCRYPTION_KEY" -o backup.sql -d backup.sql.gpg
+```
+
+3. Restore:
+
+```bash
+psql "$DATABASE_URL" < backup.sql
 ```
 
 ### Using Supabase Point-in-Time Recovery
@@ -43,21 +63,22 @@ psql "$DATABASE_URL" < backup-before-migration-YYYYMMDD-HHMMSS.sql
 2. Select a point-in-time before the failed migration.
 3. Restore to a new project, then swap connection strings.
 
-## Document (S3) Rollback
+## Document (Supabase Storage) Rollback
 
-1. If S3 versioning is enabled, restore the previous version of the affected object.
-2. For bulk restore, use AWS CLI:
+Documents live in the Supabase Storage `documents` bucket. To restore a
+previous archived version over the active tree, use the Supabase CLI:
 
 ```bash
-aws s3api list-object-versions --bucket $S3_DOCUMENT_BUCKET --prefix <path>
+supabase storage cp -r "ss:///documents/archive/<version>" "ss:///documents/active"
 ```
 
-3. Delete the current version to restore the previous one.
+For single-object restores, download the archived object and re-upload it at
+the active path, then verify the SPA can preview and download it.
 
 ## Verification
 
 After any rollback:
 
-- [ ] `/health` returns `ok` with `supabase: true` and `s3: true`.
+- [ ] `/health` returns `ok` with `supabase: true` and `storage: true`.
 - [ ] SPA loads and authenticates successfully.
 - [ ] Smoke tests pass.

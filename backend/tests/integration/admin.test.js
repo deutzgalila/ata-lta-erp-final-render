@@ -35,7 +35,7 @@ describe('/v1/admin', () => {
         role: 'Accounting',
         entities: ['ATA'],
         departments: ['Accounting'],
-        password: 'password123',
+        password: 'Password123!',
       })
       .expect(201);
 
@@ -105,7 +105,7 @@ describe('/v1/admin', () => {
         role: 'Accounting',
         entities: ['ATA'],
         departments: ['Marketing'],
-        password: 'password123',
+        password: 'Password123!',
       })
       .expect(400);
 
@@ -166,7 +166,7 @@ describe('/v1/admin', () => {
         role: 'Accounting',
         entities: ['ATA'],
         departments: ['Accounting'],
-        password: 'password123',
+        password: 'Password123!',
       })
       .expect(403);
 
@@ -301,7 +301,7 @@ describe('/v1/admin', () => {
         role: 'Accounting',
         entities: ['ATA'],
         departments: ['Accounting'],
-        password: 'password123',
+        password: 'Password123!',
       })
       .expect(201);
 

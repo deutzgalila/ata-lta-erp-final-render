@@ -6,14 +6,15 @@
     "build": "node build.js",
     "build:prod": "NODE_ENV=production node build.js",
     "build:staging": "ERP_API_BASE_URL=https://ata-lta-erp-api-staging.onrender.com node build.js",
-    "build:uat": "ERP_API_BASE_URL=https://ata-lta-erp-api-uat.onrender.com node build.js",
     "dev": "node dev-server.js",
     "dev:staging": "ERP_API_BASE_URL=https://ata-lta-erp-api-staging.onrender.com node dev-server.js",
-    "dev:uat": "ERP_API_BASE_URL=https://ata-lta-erp-api-uat.onrender.com node dev-server.js",
+    "dev:prod": "ERP_API_BASE_URL=https://ata-lta-erp-api-main.onrender.com node dev-server.js",
     "smoke": "node smoke-test.js",
     "smoke:dev": "node smoke-dev.js",
     "smoke:dev:staging": "ERP_API_BASE_URL=https://ata-lta-erp-api-staging.onrender.com node smoke-dev.js",
-    "smoke:dev:uat": "ERP_API_BASE_URL=https://ata-lta-erp-api-uat.onrender.com node smoke-dev.js"
+    "smoke:dev:prod": "ERP_API_BASE_URL=https://ata-lta-erp-api-main.onrender.com node smoke-dev.js",
+    "smoke:readonly": "node smoke-test-readonly.js",
+    "smoke:readonly:prod": "ERP_API_BASE_URL=https://ata-lta-erp-api-main.onrender.com BASE_URL=https://ata-lta-erp-spa-main.onrender.com node smoke-test-readonly.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

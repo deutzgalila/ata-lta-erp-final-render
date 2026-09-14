@@ -37,7 +37,11 @@ const createClientSchema = z.object({
   relatedCompanies: z.array(relatedCompanySchema).optional(),
 });
 
-const updateClientSchema = createClientSchema.partial();
+// expectedVersion carries the OCC guard (Spec 2.2 / R-10): when present, the
+// update only applies if the stored row still has this version.
+const updateClientSchema = createClientSchema.partial().extend({
+  expectedVersion: z.number().int().positive().optional(),
+});
 
 module.exports = {
   createClientSchema,

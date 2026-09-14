@@ -25,6 +25,9 @@ projects:
             name: ata-lta-erp-api-staging # Replace "staging" with "uat" for uat
             runtime: docker
             region: singapore
+            # Maintained on free tier per configuration preference.
+            # Low-memory Chromium flags and concurrency mutex in pdfService.js
+            # protect the 512 MB memory limit during PDF generation.
             plan: free
             repo: https://github.com/jevvii/ata-lta-erp-final-render.git
             branch: staging # Change to uat for uat

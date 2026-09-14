@@ -13,6 +13,7 @@ const {
 } = require('./schema');
 const service = require('./service');
 const AppError = require('../../lib/AppError');
+const { injectExpectedVersion } = require('../../lib/concurrency');
 
 /**
  * Handle Zod validation errors consistently.
@@ -96,7 +97,7 @@ const getInvoice = async (req, res, next) => {
 /** @type {import('express').RequestHandler} */
 const updateInvoice = async (req, res, next) => {
   try {
-    const validated = updateInvoiceSchema.parse(req.body);
+    const validated = injectExpectedVersion(req, updateInvoiceSchema.parse(req.body));
     const data = await service.updateInvoice({
       entityId: req.activeEntity,
       id: req.params.id,
