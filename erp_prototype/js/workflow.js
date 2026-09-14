@@ -3484,7 +3484,7 @@ const Workflow = {
 
     const handleFile = (file) => {
       errorLabel.textContent = '';
-      statusLabel.textContent = '';
+      statusLabel.innerHTML = '';
       if (!file) return;
 
       const limit = 50 * 1024 * 1024;
@@ -3494,12 +3494,11 @@ const Workflow = {
         return;
       }
 
-      const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
-      statusLabel.innerHTML = `<span style="font-weight: 600; color: var(--color-text);">${file.name}</span> (${sizeMB} MB)`;
-      
       const dt = new DataTransfer();
       dt.items.add(file);
       fileInput.files = dt.files;
+
+      this.renderSelectedFileCard(file, fileInput, statusLabel);
     };
 
     dropzone.addEventListener('click', () => fileInput.click());
@@ -3954,7 +3953,7 @@ const Workflow = {
 
       const handleFile = (file) => {
         errorLabel.textContent = '';
-        statusLabel.textContent = '';
+        statusLabel.innerHTML = '';
         if (!file) return;
 
         const limit = 50 * 1024 * 1024;
@@ -3964,12 +3963,11 @@ const Workflow = {
           return;
         }
 
-        const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
-        statusLabel.innerHTML = `<span style="font-weight: 600; color: var(--color-text);">${file.name}</span> (${sizeMB} MB)`;
-        
         const dt = new DataTransfer();
         dt.items.add(file);
         fileInput.files = dt.files;
+
+        this.renderSelectedFileCard(file, fileInput, statusLabel);
       };
 
       dropzone.addEventListener('click', () => fileInput.click());
@@ -4074,7 +4072,7 @@ const Workflow = {
 
       const handleFile = (file) => {
         errorLabel.textContent = '';
-        statusLabel.textContent = '';
+        statusLabel.innerHTML = '';
         if (!file) return;
 
         const limit = 50 * 1024 * 1024;
@@ -4084,12 +4082,11 @@ const Workflow = {
           return;
         }
 
-        const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
-        statusLabel.innerHTML = `<span style="font-weight: 600; color: var(--color-text);">${file.name}</span> (${sizeMB} MB)`;
-        
         const dt = new DataTransfer();
         dt.items.add(file);
         fileInput.files = dt.files;
+
+        this.renderSelectedFileCard(file, fileInput, statusLabel);
       };
 
       dropzone.addEventListener('click', () => fileInput.click());
@@ -11250,18 +11247,134 @@ const Workflow = {
     return dmsDoc;
   },
 
-  async showDocumentPreview(documentId) {
+  renderSelectedFileCard(file, fileInput, statusLabel) {
+    statusLabel.innerHTML = '';
+    if (!file) return;
+
+    const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+    const card = el('div', {
+      class: 'receipt-selected-card',
+      style: 'display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 8px; margin-top: 6px;'
+    });
+
+    const fileInfo = el('div', { style: 'display: flex; align-items: center; gap: 8px; overflow: hidden; min-width: 0;' });
+    const fileIcon = el('span', {
+      html: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
+      style: 'color: var(--color-primary); flex-shrink: 0;'
+    });
+
+    const nameBtn = el('button', {
+      type: 'button',
+      text: file.name,
+      title: 'Click to preview document',
+      style: 'background: none; border: none; padding: 0; font-size: 0.8125rem; font-weight: 600; color: var(--color-primary); cursor: pointer; text-decoration: underline; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; text-align: left;'
+    });
+    nameBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.showDocumentPreview(file);
+    });
+
+    const sizeSpan = el('span', {
+      text: `(${sizeMB} MB)`,
+      style: 'font-size: 0.75rem; color: var(--color-text-muted); flex-shrink: 0;'
+    });
+
+    fileInfo.appendChild(fileIcon);
+    fileInfo.appendChild(nameBtn);
+    fileInfo.appendChild(sizeSpan);
+
+    const actionGroup = el('div', { style: 'display: flex; align-items: center; gap: 6px; flex-shrink: 0;' });
+
+    const previewBtn = el('button', {
+      type: 'button',
+      class: 'btn btn-secondary btn-xs',
+      style: 'display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; font-size: 0.75rem; cursor: pointer;',
+      html: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Preview'
+    });
+    previewBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.showDocumentPreview(file);
+    });
+
+    const removeBtn = el('button', {
+      type: 'button',
+      class: 'btn btn-ghost btn-xs',
+      style: 'color: var(--color-danger); padding: 3px 6px; font-size: 1rem; line-height: 1; cursor: pointer;',
+      title: 'Remove file',
+      text: '✕'
+    });
+    removeBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      fileInput.value = '';
+      statusLabel.innerHTML = '';
+    });
+
+    actionGroup.appendChild(previewBtn);
+    actionGroup.appendChild(removeBtn);
+
+    card.appendChild(fileInfo);
+    card.appendChild(actionGroup);
+
+    statusLabel.appendChild(card);
+  },
+
+  async showDocumentPreview(docInput) {
     try {
-      const docRes = await window.apiClient.documents.get(documentId);
-      const doc = docRes.data;
-
       let url = '';
-      let fileName = doc.original_name || doc.file_name || 'Document';
+      let fileName = 'Document';
+      let contentType = '';
+      let fileSize = 0;
+      let createdAt = new Date().toISOString();
+      let isExternal = false;
+      let extUrl = '';
+      let isLocalBlob = false;
+      let localFileBlob = null;
 
-      if (!doc.external_url) {
-        const urlRes = await window.apiClient.documents.downloadUrl(documentId);
-        url = urlRes.data.url;
-        fileName = urlRes.data.fileName || fileName;
+      if (docInput instanceof File || docInput instanceof Blob) {
+        localFileBlob = docInput;
+        fileName = docInput.name || 'Document';
+        contentType = docInput.type || '';
+        fileSize = docInput.size || 0;
+        url = URL.createObjectURL(docInput);
+        isLocalBlob = true;
+      } else if (docInput && typeof docInput === 'object' && (docInput.file instanceof File || docInput.file instanceof Blob)) {
+        localFileBlob = docInput.file;
+        fileName = docInput.fileName || docInput.file.name || 'Document';
+        contentType = docInput.contentType || docInput.file.type || '';
+        fileSize = docInput.file.size || 0;
+        url = URL.createObjectURL(docInput.file);
+        isLocalBlob = true;
+      } else {
+        const docRes = await window.apiClient.documents.get(docInput);
+        const doc = docRes.data;
+
+        fileName = doc.original_name || doc.file_name || 'Document';
+        contentType = doc.content_type || '';
+        fileSize = doc.file_size || 0;
+        createdAt = doc.created_at || new Date().toISOString();
+
+        if (doc.external_url) {
+          isExternal = true;
+          extUrl = doc.external_url;
+        } else {
+          const urlRes = await window.apiClient.documents.downloadUrl(docInput);
+          url = urlRes.data.url;
+          fileName = urlRes.data.fileName || fileName;
+        }
+      }
+
+      if (!contentType) {
+        const lowerName = fileName.toLowerCase();
+        if (lowerName.endsWith('.docx')) {
+          contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        } else if (lowerName.endsWith('.pdf')) {
+          contentType = 'application/pdf';
+        } else if (/\.(jpe?g|png|webp|gif|svg)$/i.test(lowerName)) {
+          contentType = 'image/' + lowerName.split('.').pop().replace('jpg', 'jpeg');
+        }
       }
 
       const overlay = el('div', { class: 'document-preview-overlay' });
@@ -11271,7 +11384,7 @@ const Workflow = {
       const titleSpan = el('h3', { text: fileName, class: 'document-preview-title' });
       header.appendChild(titleSpan);
 
-      if (!doc.external_url) {
+      if (!isExternal && url) {
         const downloadBtn = el('a', {
           href: url,
           download: fileName,
@@ -11284,14 +11397,24 @@ const Workflow = {
       }
 
       const closeBtn = el('button', { class: 'btn btn-ghost btn-sm', text: 'Close' });
-      closeBtn.addEventListener('click', () => overlay.remove());
+      const cleanup = () => {
+        if (isLocalBlob && url) {
+          URL.revokeObjectURL(url);
+        }
+        overlay.remove();
+        document.removeEventListener('keydown', handleKeyDown);
+      };
+      const handleKeyDown = (e) => {
+        if (e.key === 'Escape') cleanup();
+      };
+      document.addEventListener('keydown', handleKeyDown);
+
+      closeBtn.addEventListener('click', cleanup);
       header.appendChild(closeBtn);
 
       const viewer = el('div', { class: 'document-preview-viewer' });
-      const contentType = doc.content_type || '';
 
-      if (doc.external_url) {
-        const extUrl = doc.external_url;
+      if (isExternal) {
         if (extUrl.includes('figma.com')) {
           viewer.innerHTML = `<iframe src="https://www.figma.com/embed?embed_host=share&url=${encodeURIComponent(extUrl)}" allowfullscreen style="width:100%; height:100%; border:none;"></iframe>`;
         } else if (extUrl.includes('drive.google.com') || extUrl.includes('docs.google.com') || extUrl === 'mock-google-drive-data-url') {
@@ -11306,6 +11429,69 @@ const Workflow = {
         viewer.appendChild(el('img', { src: url, alt: fileName, style: 'max-width:100%; max-height:100%; object-fit:contain;' }));
       } else if (contentType === 'application/pdf') {
         viewer.innerHTML = `<iframe src="${url}" frameborder="0" allowfullscreen style="width:100%; height:100%; border:none;"></iframe>`;
+      } else if (contentType.includes('wordprocessingml') || fileName.toLowerCase().endsWith('.docx')) {
+        viewer.innerHTML = `
+          <div class="docx-preview-loading" style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; gap:12px; color:var(--color-text-muted);">
+            <div class="loading-spinner"></div>
+            <div style="font-size:0.875rem;">Loading Word document preview...</div>
+          </div>
+        `;
+
+        const loadScript = (src) => new Promise((resolve, reject) => {
+          if (document.querySelector(`script[src="${src}"]`)) return resolve();
+          const s = document.createElement('script');
+          s.src = src;
+          s.onload = () => resolve();
+          s.onerror = () => reject(new Error('Failed to load ' + src));
+          document.head.appendChild(s);
+        });
+
+        (async () => {
+          try {
+            if (!window.JSZip) {
+              try {
+                await loadScript('ERP_Assets/vendor/jszip.min.js');
+              } catch (_) {
+                await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+              }
+            }
+            if (!window.docx) {
+              try {
+                await loadScript('ERP_Assets/vendor/docx-preview.min.js');
+              } catch (_) {
+                await loadScript('https://cdn.jsdelivr.net/npm/docx-preview@0.3.3/dist/docx-preview.min.js');
+              }
+            }
+
+            let docBuffer;
+            if (localFileBlob) {
+              docBuffer = await localFileBlob.arrayBuffer();
+            } else {
+              const res = await fetch(url);
+              if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+              docBuffer = await res.arrayBuffer();
+            }
+
+            viewer.innerHTML = '';
+            const docxContainer = el('div', { class: 'docx-preview-container' });
+            viewer.appendChild(docxContainer);
+
+            await window.docx.renderAsync(docBuffer, docxContainer, null, {
+              className: 'docx-rendered-doc',
+              inWrapper: true,
+              ignoreWidth: false,
+              ignoreHeight: false,
+              breakPages: true
+            });
+          } catch (err) {
+            console.warn('[DocxPreview] Inline rendering failed, falling back to download link:', err);
+            viewer.innerHTML = '';
+            viewer.appendChild(el('div', { class: 'document-preview-fallback', style: 'padding: 20px; text-align: center;' }, [
+              el('p', { text: 'Preview not available for this file type.', style: 'margin-bottom: 12px;' }),
+              el('a', { href: url, download: fileName, text: 'Download to View', class: 'btn btn-primary', target: '_blank' })
+            ]));
+          }
+        })();
       } else {
         viewer.appendChild(el('div', { class: 'document-preview-fallback', style: 'padding: 20px; text-align: center;' }, [
           el('p', { text: 'Preview not available for this file type.', style: 'margin-bottom: 12px;' }),
@@ -11322,13 +11508,13 @@ const Workflow = {
       }
 
       const meta = el('div', { class: 'document-preview-meta' });
-      if (!doc.external_url) {
+      if (!isExternal) {
         meta.appendChild(el('span', { text: `Type: ${contentType || 'unknown'}` }));
-        meta.appendChild(el('span', { text: `Size: ${formatBytes(doc.file_size || 0)}` }));
+        meta.appendChild(el('span', { text: `Size: ${formatBytes(fileSize)}` }));
       } else {
         meta.appendChild(el('span', { text: `Type: Link Attachment` }));
       }
-      meta.appendChild(el('span', { text: `Uploaded: ${formatDate(doc.created_at)}` }));
+      meta.appendChild(el('span', { text: `Uploaded: ${formatDate(createdAt)}` }));
 
       pane.appendChild(header);
       pane.appendChild(viewer);
@@ -11336,9 +11522,7 @@ const Workflow = {
       overlay.appendChild(pane);
 
       overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) {
-          overlay.remove();
-        }
+        if (e.target === overlay) cleanup();
       });
 
       document.body.appendChild(overlay);

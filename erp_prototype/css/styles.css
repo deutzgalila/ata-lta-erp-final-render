@@ -10858,7 +10858,7 @@ tbody tr:hover {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.45);
-  z-index: 2000;
+  z-index: 2500;
   display: flex;
   justify-content: flex-end;
 }
@@ -10943,6 +10943,39 @@ tbody tr:hover {
   flex-direction: column;
   align-items: center;
   gap: 12px;
+}
+
+.docx-preview-container {
+  overflow: auto;
+  height: 100%;
+  width: 100%;
+  padding: 24px 16px;
+  background: var(--color-bg, #f1f5f9);
+  box-sizing: border-box;
+}
+
+.docx-preview-container .docx-wrapper {
+  background: transparent !important;
+  padding: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+}
+
+.docx-preview-container .docx-wrapper > section.docx {
+  background: #ffffff !important;
+  color: #1a202c !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+  border-radius: 4px !important;
+  margin-bottom: 20px !important;
+}
+
+[data-theme="dark"] .document-preview-overlay {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+[data-theme="dark"] .docx-preview-container {
+  background: #0f172a;
 }
 
 

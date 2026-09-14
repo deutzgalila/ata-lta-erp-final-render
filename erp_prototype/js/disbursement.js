@@ -2360,7 +2360,7 @@ const Disbursement = {
 
     const handleFile = (file) => {
       errorLabel.textContent = '';
-      statusLabel.textContent = '';
+      statusLabel.innerHTML = '';
       if (!file) return;
 
       const limit = 50 * 1024 * 1024;
@@ -2370,12 +2370,11 @@ const Disbursement = {
         return;
       }
 
-      const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
-      statusLabel.innerHTML = `<span style="font-weight: 600; color: var(--color-text);">${file.name}</span> (${sizeMB} MB)`;
-      
       const dt = new DataTransfer();
       dt.items.add(file);
       fileInput.files = dt.files;
+
+      Workflow.renderSelectedFileCard(file, fileInput, statusLabel);
     };
 
     dropzone.addEventListener('click', () => fileInput.click());
