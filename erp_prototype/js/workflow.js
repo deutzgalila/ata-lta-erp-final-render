@@ -11256,6 +11256,9 @@ const Workflow = {
     const isImage = (file.type && file.type.startsWith('image/')) || /\.(jpe?g|png|webp|gif|svg)$/i.test(lowerName);
     const isPdf = file.type === 'application/pdf' || lowerName.endsWith('.pdf');
     const isDocx = lowerName.endsWith('.docx') || (file.type && file.type.includes('wordprocessingml'));
+    const isDoc = lowerName.endsWith('.doc') || (file.type && file.type.includes('msword'));
+    const isWord = isDocx || isDoc;
+    const isText = lowerName.endsWith('.txt') || lowerName.endsWith('.csv') || (file.type && file.type.startsWith('text/'));
 
     const card = el('div', { class: 'receipt-selected-card' });
     const fileInfo = el('div', { style: 'display: flex; align-items: center; gap: 10px; overflow: hidden; min-width: 0;' });
@@ -11282,7 +11285,8 @@ const Workflow = {
       const iconWrap = el('div', { class: 'receipt-selected-icon-wrap' });
       let iconColor = 'var(--color-primary)';
       if (isPdf) iconColor = 'var(--color-danger, #ef4444)';
-      else if (isDocx) iconColor = 'var(--color-info, #3b82f6)';
+      else if (isWord) iconColor = 'var(--color-info, #3b82f6)';
+      else if (isText) iconColor = 'var(--color-warning, #f59e0b)';
 
       iconWrap.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`;
       iconWrap.style.cursor = 'pointer';
@@ -11320,6 +11324,12 @@ const Workflow = {
     } else if (isDocx) {
       pillClass = 'pill-doc';
       pillText = 'DOCX';
+    } else if (isDoc) {
+      pillClass = 'pill-doc';
+      pillText = 'DOC';
+    } else if (isText) {
+      pillClass = 'pill-other';
+      pillText = lowerName.endsWith('.csv') ? 'CSV' : 'TXT';
     }
 
     const typePill = el('span', { class: `receipt-type-pill ${pillClass}`, text: pillText });
@@ -11421,8 +11431,14 @@ const Workflow = {
         const lowerName = fileName.toLowerCase();
         if (lowerName.endsWith('.docx')) {
           contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        } else if (lowerName.endsWith('.doc')) {
+          contentType = 'application/msword';
         } else if (lowerName.endsWith('.pdf')) {
           contentType = 'application/pdf';
+        } else if (lowerName.endsWith('.txt')) {
+          contentType = 'text/plain';
+        } else if (lowerName.endsWith('.csv')) {
+          contentType = 'text/csv';
         } else if (/\.(jpe?g|png|webp|gif|svg)$/i.test(lowerName)) {
           contentType = 'image/' + lowerName.split('.').pop().replace('jpg', 'jpeg');
         }
@@ -11543,6 +11559,34 @@ const Workflow = {
             ]));
           }
         })();
+      } else if (contentType.startsWith('text/') || fileName.toLowerCase().endsWith('.txt') || fileName.toLowerCase().endsWith('.csv')) {
+        const textContainer = el('pre', {
+          style: 'padding: 24px; margin: 0; width: 100%; height: 100%; overflow: auto; box-sizing: border-box; font-family: monospace; font-size: 0.8125rem; white-space: pre-wrap; line-height: 1.5; color: var(--color-text); background: var(--color-surface);'
+        });
+        (async () => {
+          try {
+            const txt = localFileBlob ? await localFileBlob.text() : await (await fetch(url)).text();
+            textContainer.textContent = txt;
+          } catch (e) {
+            textContainer.textContent = 'Failed to load text content.';
+          }
+        })();
+        viewer.appendChild(textContainer);
+      } else if (contentType === 'application/msword' || fileName.toLowerCase().endsWith('.doc')) {
+        viewer.appendChild(el('div', { class: 'document-preview-fallback', style: 'padding: 30px 20px; text-align: center;' }, [
+          el('svg', {
+            width: '48',
+            height: '48',
+            viewBox: '0 0 24 24',
+            fill: 'none',
+            stroke: 'var(--color-info, #3b82f6)',
+            'stroke-width': '2',
+            style: 'margin: 0 auto 12px auto; display: block;'
+          }),
+          el('h4', { text: 'Word (.doc) Document', style: 'margin-bottom: 8px;' }),
+          el('p', { text: 'Legacy .doc format requires download to view or convert to .docx for inline preview.', style: 'margin-bottom: 16px; color: var(--color-text-muted);' }),
+          el('a', { href: url, download: fileName, text: 'Download Document', class: 'btn btn-primary', target: '_blank' })
+        ]));
       } else {
         viewer.appendChild(el('div', { class: 'document-preview-fallback', style: 'padding: 20px; text-align: center;' }, [
           el('p', { text: 'Preview not available for this file type.', style: 'margin-bottom: 12px;' }),
