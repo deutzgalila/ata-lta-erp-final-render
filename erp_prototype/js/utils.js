@@ -202,10 +202,18 @@ function matchesEntity(recordEntity, activeEntity) {
 function isAbortError(e) {
   if (!e) return false;
   if (e.name === 'AbortError') return true;
-  if (typeof e === 'string' && (e === 'route-change' || e.includes('AbortError'))) return true;
-  if (typeof e.message === 'string' && (e.message === 'route-change' || e.message === 'Request aborted' || e.message.includes('AbortError'))) return true;
-  if (typeof e.reason === 'string' && (e.reason === 'route-change' || e.reason.includes('AbortError'))) return true;
+  if (typeof e === 'string') {
+    const s = e.toLowerCase();
+    return s === 'route-change' || s.includes('aborterror') || s.includes('aborted') || s.includes('cancel');
+  }
+  const msg = typeof e.message === 'string' ? e.message.toLowerCase() : '';
+  if (msg === 'route-change' || msg.includes('aborterror') || msg.includes('aborted') || msg.includes('cancel')) return true;
+  const reason = typeof e.reason === 'string' ? e.reason.toLowerCase() : '';
+  if (reason === 'route-change' || reason.includes('aborterror') || reason.includes('aborted') || reason.includes('cancel')) return true;
   return false;
+}
+if (typeof window !== 'undefined') {
+  window.isAbortError = isAbortError;
 }
 
 function generateId(prefix) {

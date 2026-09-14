@@ -14,7 +14,7 @@ const ROOT = path.join(__dirname, '..');
 const files = [
   { src: 'backend/.env.example', dest: 'backend/.env' },
   { src: 'backend/.env.development.example', dest: 'backend/.env.development' },
-  { src: 'backend/.env.uat.example', dest: 'backend/.env.uat' },
+  { src: 'backend/.env.production.example', dest: 'backend/.env.production' },
   { src: 'erp_prototype/.env.example', dest: 'erp_prototype/.env' },
 ];
 

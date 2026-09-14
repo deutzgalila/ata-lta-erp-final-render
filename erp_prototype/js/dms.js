@@ -28,7 +28,7 @@ const DMS = {
             this._wrs = await this._fetchDirect('/work-requests').then(r => r.data || []);
           }
         } catch (e) {
-          console.error('Failed to load work requests for DMS', e);
+          if (!isAbortError(e)) console.error('Failed to load work requests for DMS', e);
           this._wrs = [];
         }
         return this._wrs;
@@ -411,6 +411,7 @@ const DMS = {
     try {
       docs = await this.fetchDocuments();
     } catch (e) {
+      if (isAbortError(e)) return;
       console.error('Failed to load documents', e);
       container.appendChild(renderEmptyState('Unable to load documents', e.message, { variant: 'zero-state' }));
       return;
@@ -775,7 +776,9 @@ const DMS = {
       wrs.forEach(wr => {
         wrSel.appendChild(el('option', { value: wr.id, text: wr.title }));
       });
-    }).catch(e => console.error('Failed to load work requests for upload form', e));
+    }).catch(e => {
+      if (!isAbortError(e)) console.error('Failed to load work requests for upload form', e);
+    });
 
     // Document Type
     const typeGroup = el('div', { class: 'form-group' });
@@ -903,6 +906,7 @@ const DMS = {
       const res = await window.apiClient.documents.get(this.detailId);
       doc = this.normalizeDocument(res.data);
     } catch (e) {
+      if (isAbortError(e)) return;
       console.error('Failed to load document detail', e);
       while (container.firstChild) container.removeChild(container.firstChild);
       container.appendChild(el('div', { class: 'alert alert-danger', text: 'Failed to load document details.' }));

@@ -787,7 +787,9 @@ const App = {
       // Update sidebar badges in the background so slow count endpoints do not
       // block the route from completing or showing fresh module content.
       this.updateSidebarNotifications().catch(err => {
-        console.error('[App.handleRoute] sidebar notifications failed', err);
+        if (!isAbortError(err)) {
+          console.error('[App.handleRoute] sidebar notifications failed', err);
+        }
       });
       requestAnimationFrame(() => this.updateStickyTrayOffset());
     }

@@ -115,7 +115,7 @@ const Billing = {
           this.loadRejectedCount().catch(() => {});
         })
         .catch((err) => {
-          console.error("Failed to load billing counts", err);
+          if (!isAbortError(err)) console.error("Failed to load billing counts", err);
         });
     }
   },
@@ -538,7 +538,7 @@ const Billing = {
         App.handleRoute();
       }
     } catch (err) {
-      console.error("Failed to fetch invoice", id, err);
+      if (!isAbortError(err)) console.error("Failed to fetch invoice", id, err);
     }
   },
 
@@ -711,7 +711,7 @@ const Billing = {
       };
       this._countsEntity = entity;
     } catch (err) {
-      console.error("Failed to load invoice counts", err);
+      if (!isAbortError(err)) console.error("Failed to load invoice counts", err);
       this._counts = { active: 0, archived: 0, rejected: 0, templates: 0 };
       this._countsEntity = entity;
     }
@@ -768,7 +768,7 @@ const Billing = {
 
       rejected = rejectedInvoiceChanges + rejectedBillingRequests;
     } catch (err) {
-      console.error("Failed to load rejected invoice counts", err);
+      if (!isAbortError(err)) console.error("Failed to load rejected invoice counts", err);
     }
 
     const changed =
@@ -1537,7 +1537,7 @@ const Billing = {
       const res = await window.apiClient.invoices.listTemplates();
       return (res.data || []).map((t) => this.normalizeTemplate(t));
     } catch (e) {
-      console.error("Failed to fetch billing templates", e);
+      if (!isAbortError(e)) console.error("Failed to fetch billing templates", e);
       return [];
     }
   },
@@ -1590,7 +1590,7 @@ const Billing = {
       this._templatesEntity = entity;
       return this._templates;
     } catch (e) {
-      console.error("Failed to load billing templates", e);
+      if (!isAbortError(e)) console.error("Failed to load billing templates", e);
       if (loadGen !== this._templatesGeneration) return this._templates || [];
       if (!Array.isArray(this._templates)) this._templates = [];
       this._templatesEntity = entity;
@@ -1633,7 +1633,7 @@ const Billing = {
       const template = this._templates.find((t) => t.id === id) || null;
       return template ? deepClone(template) : null;
     } catch (e) {
-      console.error("Failed to fetch template by id", id, e);
+      if (!isAbortError(e)) console.error("Failed to fetch template by id", id, e);
       return null;
     }
   },
@@ -1840,11 +1840,7 @@ const Billing = {
             return inv;
           });
       } catch (e) {
-        if (
-          e.name !== "AbortError" &&
-          e.message !== "route-change" &&
-          !e.message?.includes("aborted")
-        ) {
+        if (!isAbortError(e)) {
           console.error("Failed to load pending invoice approvals", e);
         }
       }
@@ -2536,24 +2532,11 @@ const Billing = {
         )
           return;
         const newOrder = (idx + 1) * 1000;
-        if (inv.boardOrder === newOrder) return;
-        inv.boardOrder = newOrder;
-        if (canEdit) {
-          window.apiClient.invoices
-            .update(inv.id, { boardOrder: newOrder })
-            .catch((e) => {
-              if (
-                e.status === 404 ||
-                e.statusCode === 404 ||
-                e.message?.includes("404") ||
-                e.message?.includes("not found") ||
-                e.message === "route-change" ||
-                e.message?.includes("aborted")
-              ) {
-                return;
-              }
-              console.error("Failed to update board order", e);
-            });
+        if (inv.boardOrder !== newOrder) {
+          // boardOrder is frontend-only and is not persisted by the backend.
+          // Normalize it locally to keep drop midpoint math stable without firing
+          // a PUT for every card on each refresh.
+          inv.boardOrder = newOrder;
         }
       });
       const colPendingInvs = invoices.filter(
@@ -2866,29 +2849,8 @@ const Billing = {
 
         // Same status: reorder only
         if (fromStatus === targetStatus) {
-          const snapshot = self._updateCachedItem(item.id, {});
-          Workflow.runBlockingArchiveAction({
-            title: "Updating Invoice Order",
-            message: `Please wait while "${item.invoiceNumber}" is being reordered...`,
-            apiCall: async () => {
-              self._updateCachedItem(item.id, { boardOrder: newOrder });
-              const res = await window.apiClient.invoices.update(item.id, {
-                boardOrder: newOrder,
-              });
-              self._syncInvoiceToCaches(res.data);
-              return { data: res.data };
-            },
-            successTitle: "Order Updated",
-            successMessage: `Invoice "${item.invoiceNumber}" order has been updated.`,
-            errorTitle: "Update Failed",
-          }).then((runResult) => {
-            if (runResult.success) {
-              self._invalidateCountsAndSidebar();
-            } else if (snapshot) {
-              self._rollbackCachedItem(item.id, snapshot);
-            }
-            App.handleRoute();
-          });
+          self._updateCachedItem(item.id, { boardOrder: newOrder });
+          App.handleRoute();
           return;
         }
 
@@ -4045,7 +4007,7 @@ const Billing = {
       });
       pendingBillingRequests = pendingRes.data || [];
     } catch (e) {
-      console.error("Failed to load pending billing requests", e);
+      if (!isAbortError(e)) console.error("Failed to load pending billing requests", e);
     }
     const pendingWrIds = new Set(
       pendingBillingRequests
@@ -7470,7 +7432,7 @@ const Billing = {
         return true;
       });
     } catch (e) {
-      console.error("Failed to load rejected invoice changes", e);
+      if (!isAbortError(e)) console.error("Failed to load rejected invoice changes", e);
     }
     try {
       const opReqRes = await window.apiClient.operationsRequests.list({
@@ -7483,7 +7445,7 @@ const Billing = {
         return true;
       });
     } catch (e) {
-      console.error("Failed to load rejected billing requests", e);
+      if (!isAbortError(e)) console.error("Failed to load rejected billing requests", e);
     }
 
     const buildInvItem = (inv, category) => {
@@ -7656,12 +7618,14 @@ const Billing = {
       });
       container.appendChild(grid);
     } catch (e) {
-      console.error("Failed to load aging report", e);
-      container.appendChild(
-        renderEmptyState("Unable to load aging report", e.message, {
-          variant: "zero-state",
-        }),
-      );
+      if (!isAbortError(e)) {
+        console.error("Failed to load aging report", e);
+        container.appendChild(
+          renderEmptyState("Unable to load aging report", e.message, {
+            variant: "zero-state",
+          }),
+        );
+      }
     }
     return container;
   },

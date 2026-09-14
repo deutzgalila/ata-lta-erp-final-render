@@ -478,8 +478,10 @@ const Clients = {
           const res = await window.apiClient.clients.get(this.editingId);
           client = res.data;
         } catch (e) {
-          console.error('Failed to load client for form', e);
-          if (typeof showToast === 'function') showToast('Client not found or could not be loaded.', 'error');
+          if (!isAbortError(e)) {
+            console.error('Failed to load client for form', e);
+            if (typeof showToast === 'function') showToast('Client not found or could not be loaded.', 'error');
+          }
           this.editingId = null;
           location.hash = '#clients';
           return container;
@@ -611,7 +613,9 @@ const Clients = {
         }
         this.updateStickyOffsets();
       } catch (err) {
-        console.error('Clients background load failed:', err);
+        if (!isAbortError(err)) {
+          console.error('Clients background load failed:', err);
+        }
       }
     })();
 
@@ -649,7 +653,7 @@ const Clients = {
         archivedCount: data.archived ?? data.archivedCount ?? 0
       };
     } catch (e) {
-      console.error('Failed to get client counts', e);
+      if (!isAbortError(e)) console.error('Failed to get client counts', e);
       const clients = ClientsData.getAllClients();
       const activeCount = clients.filter(c => c.status !== 'Archived').length;
       const archivedCount = clients.filter(c => c.status === 'Archived').length;
@@ -684,7 +688,7 @@ const Clients = {
       });
       rejectedCount = rejectedClientChanges.length + rejectedClientRequests.length;
     } catch (e) {
-      console.error('Failed to load client rejected archive counts', e);
+      if (!isAbortError(e)) console.error('Failed to load client rejected archive counts', e);
     }
     this._rejectedArchiveCounts = { total: rejectedCount };
     return this._rejectedArchiveCounts;
@@ -1271,8 +1275,10 @@ const Clients = {
         const res = await window.apiClient.clients.get(clientId);
         client = this.normalizeClient(res.data);
       } catch (e) {
-        console.error('Failed to load client form', e);
-        if (typeof showToast === 'function') showToast('Client not found or could not be loaded.', 'error');
+        if (!isAbortError(e)) {
+          console.error('Failed to load client form', e);
+          if (typeof showToast === 'function') showToast('Client not found or could not be loaded.', 'error');
+        }
         this.editingId = null;
         this.showList();
         return;
@@ -1306,7 +1312,7 @@ const Clients = {
         const res = await window.apiClient.clients.get(clientId);
         client = this.normalizeClient(res.data);
       } catch (e) {
-        console.error('Failed to load client form', e);
+        if (!isAbortError(e)) console.error('Failed to load client form', e);
       }
     }
     await Promise.all([
@@ -1912,7 +1918,7 @@ const Clients = {
           const res = await window.apiClient.clients.get(clientId);
           client = res.data;
         } catch (e) {
-          console.error('Failed to load client for archive request', e);
+          if (!isAbortError(e)) console.error('Failed to load client for archive request', e);
           return;
         }
         if (!client) return;
@@ -2242,7 +2248,7 @@ const Clients = {
         return true;
       });
     } catch (e) {
-      console.error('Failed to load rejected client records', e);
+      if (!isAbortError(e)) console.error('Failed to load rejected client records', e);
     }
 
     const canEdit = Auth.user?.role === 'Admin';

@@ -19,17 +19,23 @@ const { Client } = require('pg');
 
 const emailArg = process.argv[2];
 const passwordArg = process.argv[3];
-const envArg = process.argv[process.argv.length - 1] === 'uat' ? 'uat' : (process.argv[process.argv.length - 1] === 'staging' ? 'staging' : 'local');
+const lastArg = process.argv[process.argv.length - 1];
+if (lastArg === 'uat') {
+  console.error('❌ The UAT environment connection has been disabled because it was converted to the Main Render deployment.');
+  console.error('   Use "prod" or "staging" instead.');
+  process.exit(1);
+}
+const envArg = lastArg === 'prod' || lastArg === 'production' ? 'prod' : (lastArg === 'staging' ? 'staging' : 'local');
 
 if (!emailArg) {
-  console.error('Usage: node scripts/verify-supabase-auth.js <email> [password] [uat|staging]');
+  console.error('Usage: node scripts/verify-supabase-auth.js <email> [password] [prod|staging]');
   process.exit(1);
 }
 
 const envFiles = {
   local: '.env.development',
   staging: '.env.staging',
-  uat: '.env.uat',
+  prod: '.env.production',
 };
 
 const envPath = path.join(__dirname, '..', envFiles[envArg]);

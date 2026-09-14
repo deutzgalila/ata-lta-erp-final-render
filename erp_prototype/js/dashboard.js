@@ -1665,7 +1665,7 @@ const Dashboard = {
     try {
       this.renderCalendarCard(this.calendarCardRef);
     } catch (err) {
-      console.error('[Dashboard] refreshCalendarCard failed:', err);
+      if (!isAbortError(err)) console.error('[Dashboard] refreshCalendarCard failed:', err);
       // Avoid leaving the calendar card empty: render a minimal error state so
       // the rest of the dashboard remains usable.
       this.calendarCardRef.replaceChildren(
@@ -1878,7 +1878,7 @@ const Dashboard = {
     ]);
 
     const dashRes = await window.apiClient.reports.dashboard({ signal }).catch(err => {
-      console.warn('Dashboard report fetch failed:', err);
+      if (!isAbortError(err)) console.warn('Dashboard report fetch failed:', err);
       return { data: null };
     });
     const dash = dashRes?.data || {};
@@ -1915,7 +1915,7 @@ const Dashboard = {
       }
     } else {
       const wrRes = await window.apiClient.workRequests.list({ includeTasks: true, signal }).catch(err => {
-        console.warn('Work requests fetch failed:', err);
+        if (!isAbortError(err)) console.warn('Work requests fetch failed:', err);
         return { data: [] };
       });
       workRequests = (wrRes.data || []).map(wr => ({

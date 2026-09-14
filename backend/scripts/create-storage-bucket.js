@@ -23,14 +23,19 @@ const envFiles = {
   local: '.env.development',
   dev: '.env.development',
   development: '.env.development',
-  uat: '.env.uat',
+  staging: '.env.staging',
   prod: '.env.production',
   production: '.env.production',
 };
 
+if (envName === 'uat') {
+  console.error('❌ The UAT environment connection has been disabled because it was converted to the Main Render deployment.');
+  process.exit(1);
+}
+
 const envFile = envFiles[envName];
 if (!envFile) {
-  console.error(`Unknown environment "${envArg}". Use one of: local, uat, prod`);
+  console.error(`Unknown environment "${envArg}". Use one of: local, staging, prod`);
   process.exit(1);
 }
 

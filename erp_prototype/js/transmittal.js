@@ -890,6 +890,7 @@ const Transmittal = {
         return true;
       })).length;
     } catch (e) {
+      if (isAbortError(e)) return this._rejectedArchiveCounts || { total: 0 };
       console.error('Failed to load rejected transmittal requests', e);
     }
     this._rejectedArchiveCounts = { total: requests };
@@ -1252,6 +1253,7 @@ const Transmittal = {
         }
         this.refreshList(listContainer, items, activeFilters, this.listViewMode || 'table', groupBy, groupOptions, stickyContainer);
       } catch (e) {
+        if (isAbortError(e)) return;
         console.error('Failed to refresh transmittal list', e);
         listContainer.replaceChildren(renderEmptyState('Unable to load transmittals', e.message, { variant: 'zero-state' }));
       }
@@ -1851,7 +1853,7 @@ const Transmittal = {
         const res = await window.apiClient.transmittals.get(txId);
         existing = this.normalizeTransmittal(res.data);
       } catch (e) {
-        console.error('Failed to load transmittal form', e);
+        if (!isAbortError(e)) console.error('Failed to load transmittal form', e);
       }
     }
     const fullPageRoute = isNew ? '#transmittal/form/new' : `#transmittal/form/${txId}`;
@@ -1885,7 +1887,7 @@ const Transmittal = {
         const res = await window.apiClient.transmittals.get(this.detailId);
         existing = this.normalizeTransmittal(res.data);
       } catch (e) {
-        console.error('Failed to load transmittal form', e);
+        if (!isAbortError(e)) console.error('Failed to load transmittal form', e);
       }
     }
 
@@ -2519,7 +2521,7 @@ const Transmittal = {
       linkedInvs = invsRes?.data || [];
       linkedDisbs = disbsRes?.data || [];
     } catch (e) {
-      console.error('Failed to load linked records for transmittal', e);
+      if (!isAbortError(e)) console.error('Failed to load linked records for transmittal', e);
     }
 
     if (linkedInvs.length === 0 && linkedDisbs.length === 0) {
@@ -3756,7 +3758,7 @@ const Transmittal = {
       archivedTransmittals = (res.data || []).map(t => this.normalizeTransmittal(t));
       this._lastArchiveMeta = res.meta || {};
     } catch (e) {
-      console.error('Failed to load archived transmittals', e);
+      if (!isAbortError(e)) console.error('Failed to load archived transmittals', e);
       this._lastArchiveMeta = {};
     }
 
@@ -3795,7 +3797,7 @@ const Transmittal = {
         return true;
       });
     } catch (e) {
-      console.error('Failed to load rejected transmittal requests', e);
+      if (!isAbortError(e)) console.error('Failed to load rejected transmittal requests', e);
     }
 
     const isAdmin = Auth.user?.role === 'Admin';

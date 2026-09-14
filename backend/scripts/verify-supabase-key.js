@@ -17,9 +17,16 @@ const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 
 const envArg = process.argv[2] || 'local';
+if (envArg.toLowerCase() === 'uat') {
+  console.error('❌ The UAT environment connection has been disabled because it was converted to the Main Render deployment.');
+  console.error('   Use "prod" or "staging" instead.');
+  process.exit(1);
+}
+
 const envFiles = {
   local: '.env.development',
-  uat: '.env.uat',
+  staging: '.env.staging',
+  prod: '.env.production',
 };
 
 const envPath = path.join(__dirname, '..', envFiles[envArg] || '.env.development');

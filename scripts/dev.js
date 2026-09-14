@@ -107,11 +107,15 @@ function shutdown(signal) {
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-if (isUat || isProd) {
+if (isUat) {
+  console.error('[dev] ❌ The UAT environment connection has been disabled because it was converted to the Main Render deployment.');
+  console.error('[dev] Use "npm run dev" (local), "npm run dev:staging", or "npm run dev:prod" instead.');
+  process.exit(1);
+}
+
+if (isProd) {
   console.log(`Starting full-stack dev against ${envArg.toUpperCase()} backend...`);
-  const apiUrl = isUat
-    ? 'https://ata-lta-erp-api-uat.onrender.com'
-    : 'https://ata-lta-erp-api.onrender.com';
+  const apiUrl = 'https://ata-lta-erp-api-main.onrender.com';
   backend = run('backend', 'npm', ['--prefix', 'backend', 'run', `start:${envArg}`], { env: process.env });
   frontend = run('spa', 'npm', ['--prefix', 'erp_prototype', 'run', 'dev'], {
     env: { ...process.env, ERP_API_BASE_URL: apiUrl },

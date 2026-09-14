@@ -27,14 +27,19 @@ const envFiles = {
   dev: '.env.development',
   development: '.env.development',
   staging: '.env.staging',
-  uat: '.env.uat',
   prod: '.env.production',
   production: '.env.production',
 };
 
+if (envArg.toLowerCase() === 'uat') {
+  console.error('❌ The UAT environment connection has been disabled because it was converted to the Main Render deployment.');
+  console.error('   Aborting reset to prevent accidental production data loss.');
+  process.exit(1);
+}
+
 const envFile = envFiles[envArg.toLowerCase()];
 if (!envFile) {
-  console.error(`Unknown environment "${envArg}". Use one of: local, staging, uat, prod`);
+  console.error(`Unknown environment "${envArg}". Use one of: local, staging, prod`);
   process.exit(1);
 }
 

@@ -1546,7 +1546,7 @@ const Workflow = {
         return this._groundWorkers;
       })
       .catch(err => {
-        console.error('[Workflow] failed to load ground workers', err);
+        if (!isAbortError(err)) console.error('[Workflow] failed to load ground workers', err);
         this._groundWorkers = [];
         return this._groundWorkers;
       })
@@ -1624,7 +1624,7 @@ const Workflow = {
       this._retainerTemplatesEntity = entity;
       return this._retainerTemplates;
     } catch (err) {
-      console.error('[Workflow] failed to load retainer templates', err);
+      if (!isAbortError(err)) console.error('[Workflow] failed to load retainer templates', err);
       if (loadGen !== this._retainerTemplatesGeneration) return this._retainerTemplates || [];
       if (!Array.isArray(this._retainerTemplates)) this._retainerTemplates = [];
       this._retainerTemplatesEntity = entity;
@@ -5383,8 +5383,8 @@ const Workflow = {
         text: `Page ${page}${totalPages ? ' of ' + totalPages : ''}`
       });
 
-      prevBtn.addEventListener('click', () => { if (page > 1) { page--; refresh(); } });
-      nextBtn.addEventListener('click', () => { if (page < totalPages) { page++; refresh(); } });
+      prevBtn.addEventListener('click', () => { if (page > 1) { page--; refresh().catch(err => { if (!isAbortError(err)) console.error(err); }); } });
+      nextBtn.addEventListener('click', () => { if (page < totalPages) { page++; refresh().catch(err => { if (!isAbortError(err)) console.error(err); }); } });
 
       footer.appendChild(prevBtn);
       footer.appendChild(info);
@@ -5468,7 +5468,9 @@ const Workflow = {
       }
     };
 
-    refresh();
+    refresh().catch(err => {
+      if (!isAbortError(err)) console.error(err);
+    });
 
     return wrapper;
   },
@@ -10638,9 +10640,11 @@ const Workflow = {
               });
             }
           } catch (err) {
-            console.error('Failed to load task details for time logs in detail view', err);
-            timeList.innerHTML = '';
-            timeList.appendChild(renderEmptyState('Failed to load logs'));
+            if (!isAbortError(err)) {
+              console.error('Failed to load task details for time logs in detail view', err);
+              timeList.innerHTML = '';
+              timeList.appendChild(renderEmptyState('Failed to load logs'));
+            }
           }
         })();
 

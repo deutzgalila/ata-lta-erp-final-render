@@ -395,6 +395,12 @@ async function build() {
     fs.copyFileSync(swPath, path.join(DIST, 'sw.js'));
   }
 
+  // Copy favicon into dist if present.
+  const faviconPath = path.join(ROOT, 'favicon.ico');
+  if (fs.existsSync(faviconPath)) {
+    fs.copyFileSync(faviconPath, path.join(DIST, 'favicon.ico'));
+  }
+
   // Generate dist/index.html.
   const indexHtml = generateIndexHtml(sourceHtml, manifest, apiOrigin);
   fs.writeFileSync(path.join(DIST, 'index.html'), indexHtml);

@@ -91,7 +91,7 @@ const Disbursement = {
       const res = await window.apiClient.disbursements.listTemplates();
       return (res.data || []).map(t => this.normalizeTemplate(t));
     } catch (e) {
-      console.error('Failed to fetch disbursement templates', e);
+      if (!isAbortError(e)) console.error('Failed to fetch disbursement templates', e);
       return [];
     }
   },
@@ -137,7 +137,7 @@ const Disbursement = {
       this._templatesEntity = entity;
       return this._templates;
     } catch (e) {
-      console.error('Failed to load disbursement templates', e);
+      if (!isAbortError(e)) console.error('Failed to load disbursement templates', e);
       if (loadGen !== this._templatesGeneration) return this._templates || [];
       if (!Array.isArray(this._templates)) this._templates = [];
       this._templatesEntity = entity;
@@ -415,8 +415,10 @@ const Disbursement = {
       this._lastDisbursementMeta = res.meta || {};
       return (res.data || []).map(d => this.normalizeDisbursement(d));
     } catch (e) {
-      console.error('Failed to fetch disbursements', e);
-      Workflow.showMessage('Disbursements', e.message || 'Unable to load disbursements.', 'error');
+      if (!isAbortError(e)) {
+        console.error('Failed to fetch disbursements', e);
+        Workflow.showMessage('Disbursements', e.message || 'Unable to load disbursements.', 'error');
+      }
       this._lastDisbursementMeta = {};
       return [];
     }
@@ -837,7 +839,7 @@ const Disbursement = {
         return true;
       })).length;
     } catch (e) {
-      console.error('Failed to load rejected disbursement changes', e);
+      if (!isAbortError(e)) console.error('Failed to load rejected disbursement changes', e);
     }
     try {
       const opReqRes = await window.apiClient.operationsRequests.list({ status: 'rejected', type: 'disbursement' });
@@ -847,7 +849,7 @@ const Disbursement = {
         return true;
       })).length;
     } catch (e) {
-      console.error('Failed to load rejected disbursement requests', e);
+      if (!isAbortError(e)) console.error('Failed to load rejected disbursement requests', e);
     }
     this._rejectedArchiveCounts = { changes, requests, total: changes + requests };
     return this._rejectedArchiveCounts;
@@ -862,7 +864,7 @@ const Disbursement = {
       const res = await window.apiClient.disbursements.counts();
       this._counts = res?.data || { active: 0, archived: 0, rejected: 0 };
     } catch (err) {
-      console.error('Failed to load disbursement counts', err);
+      if (!isAbortError(err)) console.error('Failed to load disbursement counts', err);
       this._counts = { active: 0, archived: 0, rejected: 0 };
     }
     return this._counts;
@@ -877,7 +879,7 @@ const Disbursement = {
       const res = await window.apiClient.operationsRequests.get(this.prefilledRequestId);
       this._prefilledOpReq = res.data || null;
     } catch (err) {
-      console.error('Failed to load prefilled operations request', this.prefilledRequestId, err);
+      if (!isAbortError(err)) console.error('Failed to load prefilled operations request', this.prefilledRequestId, err);
       this._prefilledOpReq = null;
     }
   },
@@ -1785,15 +1787,10 @@ const Disbursement = {
         if (this._isTempId(d.id) || d.status === 'Cancelled' || d.archived) return;
         const newOrder = (idx + 1) * 1000;
         if (d.boardOrder !== newOrder) {
+          // boardOrder is frontend-only and is not persisted by the backend.
+          // Normalize it locally to keep drop midpoint math stable without firing
+          // a PUT for every card on each refresh.
           d.boardOrder = newOrder;
-          if (canEdit) {
-            window.apiClient.disbursements.update(d.id, { boardOrder: newOrder }).catch(e => {
-              if (e.status === 404 || e.statusCode === 404 || e.message?.includes('404') || e.message?.includes('not found') || e.message === 'route-change' || e.message?.includes('aborted')) {
-                return;
-              }
-              console.error('Failed to update disbursement board order', d.id, e);
-            });
-          }
         }
       });
       const colPendingItems = items.filter(d => phase.statuses.includes(d.status) && d.pendingChangeId);
@@ -1981,27 +1978,8 @@ const Disbursement = {
 
         // Same status: reorder only
         if (fromStatus === targetStatus) {
-          const snapshot = self._getCachedItem(item.id);
-          Workflow.runBlockingArchiveAction({
-            title: 'Updating Disbursement Order',
-            message: `Please wait while "${item.category}" is being reordered...`,
-            apiCall: async () => {
-              self._updateCachedDisbursement(item.id, { ...item, boardOrder: newOrder });
-              const res = await window.apiClient.disbursements.update(item.id, { boardOrder: newOrder });
-              self._syncDisbursementToCaches(res.data);
-              return { data: res.data };
-            },
-            successTitle: 'Order Updated',
-            successMessage: `Disbursement order has been updated.`,
-            errorTitle: 'Update Failed'
-          }).then(runResult => {
-            if (runResult.success) {
-              self._invalidateCountsAndSidebar();
-            } else if (snapshot) {
-              self._updateCachedDisbursement(item.id, snapshot);
-            }
-            App.handleRoute();
-          });
+          self._updateCachedDisbursement(item.id, { ...item, boardOrder: newOrder });
+          App.handleRoute();
           return;
         }
 
@@ -2526,7 +2504,9 @@ const Disbursement = {
         if (existing && existing.linkedInvoiceId === inv.id) opt.selected = true;
         invSel.appendChild(opt);
       });
-    }).catch(e => console.error('Failed to load invoices for disbursement form', e));
+    }).catch(e => {
+      if (!isAbortError(e)) console.error('Failed to load invoices for disbursement form', e);
+    });
 
     invToggle.addEventListener('click', () => {
       invGroup.classList.toggle('open');
@@ -2697,7 +2677,7 @@ const Disbursement = {
       const pendingRes = await window.apiClient.operationsRequests.list({ status: 'pending', type: 'disbursement' });
       pendingRequests = pendingRes.data || [];
     } catch (e) {
-      console.error('Failed to load pending disbursement requests', e);
+      if (!isAbortError(e)) console.error('Failed to load pending disbursement requests', e);
     }
     const pendingWrIds = new Set(pendingRequests.map(r => r.work_request_id || r.workRequestId).filter(Boolean));
 
@@ -4369,7 +4349,7 @@ const Disbursement = {
         return true;
       });
     } catch (e) {
-      console.error('Failed to load rejected disbursement changes', e);
+      if (!isAbortError(e)) console.error('Failed to load rejected disbursement changes', e);
     }
     try {
       const opReqRes = await window.apiClient.operationsRequests.list({ status: 'rejected', type: 'disbursement' });
@@ -4379,7 +4359,7 @@ const Disbursement = {
         return true;
       });
     } catch (e) {
-      console.error('Failed to load rejected disbursement requests', e);
+      if (!isAbortError(e)) console.error('Failed to load rejected disbursement requests', e);
     }
 
     const buildItem = (d, category) => {
