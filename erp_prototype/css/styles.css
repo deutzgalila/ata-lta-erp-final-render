@@ -10978,6 +10978,120 @@ tbody tr:hover {
   background: #0f172a;
 }
 
+.receipt-selected-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-md, 8px);
+  margin-top: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.receipt-selected-card:hover {
+  border-color: var(--color-primary, #6366f1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.receipt-selected-thumb-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--color-border, #e2e8f0);
+  flex-shrink: 0;
+  cursor: pointer;
+  background: var(--color-bg, #f8fafc);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.receipt-selected-thumb-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.2s ease;
+}
+
+.receipt-selected-thumb-wrap:hover img {
+  transform: scale(1.08);
+}
+
+.receipt-selected-icon-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--color-bg, #f8fafc);
+  border: 1px solid var(--color-border, #e2e8f0);
+}
+
+.receipt-selected-name {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-primary, #6366f1);
+  cursor: pointer;
+  text-decoration: underline;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.receipt-selected-meta {
+  font-size: 0.72rem;
+  color: var(--color-text-muted, #94a3b8);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.receipt-type-pill {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  line-height: 1.2;
+}
+
+.receipt-type-pill.pill-img {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.receipt-type-pill.pill-pdf {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.receipt-type-pill.pill-doc {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+.receipt-type-pill.pill-other {
+  background: rgba(100, 116, 139, 0.15);
+  color: #64748b;
+}
+
+
 
 .notion-popover-panel {
   display: flex;

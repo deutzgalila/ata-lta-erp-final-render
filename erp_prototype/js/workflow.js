@@ -11247,27 +11247,60 @@ const Workflow = {
     return dmsDoc;
   },
 
-  renderSelectedFileCard(file, fileInput, statusLabel) {
+  renderSelectedFileCard(file, fileInput, statusLabel, onRemove = null) {
     statusLabel.innerHTML = '';
     if (!file) return;
 
     const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
-    const card = el('div', {
-      class: 'receipt-selected-card',
-      style: 'display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 8px; margin-top: 6px;'
-    });
+    const lowerName = file.name.toLowerCase();
+    const isImage = (file.type && file.type.startsWith('image/')) || /\.(jpe?g|png|webp|gif|svg)$/i.test(lowerName);
+    const isPdf = file.type === 'application/pdf' || lowerName.endsWith('.pdf');
+    const isDocx = lowerName.endsWith('.docx') || (file.type && file.type.includes('wordprocessingml'));
 
-    const fileInfo = el('div', { style: 'display: flex; align-items: center; gap: 8px; overflow: hidden; min-width: 0;' });
-    const fileIcon = el('span', {
-      html: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
-      style: 'color: var(--color-primary); flex-shrink: 0;'
-    });
+    const card = el('div', { class: 'receipt-selected-card' });
+    const fileInfo = el('div', { style: 'display: flex; align-items: center; gap: 10px; overflow: hidden; min-width: 0;' });
 
+    let thumbUrl = null;
+    if (isImage) {
+      thumbUrl = URL.createObjectURL(file);
+      const thumbWrap = el('div', {
+        class: 'receipt-selected-thumb-wrap',
+        title: 'Click to preview photo'
+      });
+      const img = el('img', {
+        src: thumbUrl,
+        alt: file.name
+      });
+      thumbWrap.appendChild(img);
+      thumbWrap.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.showDocumentPreview(file);
+      });
+      fileInfo.appendChild(thumbWrap);
+    } else {
+      const iconWrap = el('div', { class: 'receipt-selected-icon-wrap' });
+      let iconColor = 'var(--color-primary)';
+      if (isPdf) iconColor = 'var(--color-danger, #ef4444)';
+      else if (isDocx) iconColor = 'var(--color-info, #3b82f6)';
+
+      iconWrap.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`;
+      iconWrap.style.cursor = 'pointer';
+      iconWrap.title = 'Click to preview document';
+      iconWrap.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.showDocumentPreview(file);
+      });
+      fileInfo.appendChild(iconWrap);
+    }
+
+    const details = el('div', { style: 'display: flex; flex-direction: column; overflow: hidden; min-width: 0;' });
     const nameBtn = el('button', {
       type: 'button',
+      class: 'receipt-selected-name',
       text: file.name,
-      title: 'Click to preview document',
-      style: 'background: none; border: none; padding: 0; font-size: 0.8125rem; font-weight: 600; color: var(--color-primary); cursor: pointer; text-decoration: underline; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; text-align: left;'
+      title: 'Click to preview file'
     });
     nameBtn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -11275,21 +11308,35 @@ const Workflow = {
       this.showDocumentPreview(file);
     });
 
-    const sizeSpan = el('span', {
-      text: `(${sizeMB} MB)`,
-      style: 'font-size: 0.75rem; color: var(--color-text-muted); flex-shrink: 0;'
-    });
+    const meta = el('div', { class: 'receipt-selected-meta' });
+    let pillClass = 'pill-other';
+    let pillText = 'FILE';
+    if (isImage) {
+      pillClass = 'pill-img';
+      pillText = lowerName.endsWith('.png') ? 'PNG' : lowerName.endsWith('.webp') ? 'WEBP' : 'PHOTO';
+    } else if (isPdf) {
+      pillClass = 'pill-pdf';
+      pillText = 'PDF';
+    } else if (isDocx) {
+      pillClass = 'pill-doc';
+      pillText = 'DOCX';
+    }
 
-    fileInfo.appendChild(fileIcon);
-    fileInfo.appendChild(nameBtn);
-    fileInfo.appendChild(sizeSpan);
+    const typePill = el('span', { class: `receipt-type-pill ${pillClass}`, text: pillText });
+    const sizeSpan = el('span', { text: `${sizeMB} MB` });
+    meta.appendChild(typePill);
+    meta.appendChild(sizeSpan);
+
+    details.appendChild(nameBtn);
+    details.appendChild(meta);
+    fileInfo.appendChild(details);
 
     const actionGroup = el('div', { style: 'display: flex; align-items: center; gap: 6px; flex-shrink: 0;' });
 
     const previewBtn = el('button', {
       type: 'button',
       class: 'btn btn-secondary btn-xs',
-      style: 'display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; font-size: 0.75rem; cursor: pointer;',
+      style: 'display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; font-size: 0.75rem; cursor: pointer;',
       html: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Preview'
     });
     previewBtn.addEventListener('click', (e) => {
@@ -11301,15 +11348,19 @@ const Workflow = {
     const removeBtn = el('button', {
       type: 'button',
       class: 'btn btn-ghost btn-xs',
-      style: 'color: var(--color-danger); padding: 3px 6px; font-size: 1rem; line-height: 1; cursor: pointer;',
+      style: 'color: var(--color-danger); padding: 4px 6px; font-size: 1rem; line-height: 1; cursor: pointer;',
       title: 'Remove file',
       text: '✕'
     });
     removeBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
+      if (thumbUrl) {
+        URL.revokeObjectURL(thumbUrl);
+      }
       fileInput.value = '';
       statusLabel.innerHTML = '';
+      if (typeof onRemove === 'function') onRemove();
     });
 
     actionGroup.appendChild(previewBtn);
@@ -12007,8 +12058,10 @@ const Workflow = {
           }
 
           selectedFile = file;
-          const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
-          statusLabel.innerHTML = `<span style="font-weight: 600; color: var(--color-text);">${file.name}</span> (${sizeMB} MB)`;
+          this.renderSelectedFileCard(file, fileInput, statusLabel, () => {
+            selectedFile = null;
+            uploadBtn.style.display = 'none';
+          });
           uploadBtn.style.display = 'flex';
         };
 
