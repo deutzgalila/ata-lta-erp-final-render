@@ -7,6 +7,40 @@
 const env = require('../config/env');
 
 /**
+ * Serialize a native Error for JSON output (Spec 3.3 / R-15).
+ * `message` and `stack` are non-enumerable, so a plain spread silently
+ * drops them — log entries would emit `{}` for the error field.
+ * @param {*} err
+ * @returns {*}
+ */
+const serializeError = (err) => {
+  if (err instanceof Error) {
+    return {
+      message: err.message,
+      name: err.name,
+      stack: err.stack,
+      code: err.code || err.statusCode,
+      ...(err.details ? { details: err.details } : {}),
+    };
+  }
+  return err;
+};
+
+/**
+ * Serialize Error instances carried in meta under the conventional
+ * `error` / `err` keys; every other field passes through unchanged.
+ * @param {object} meta
+ * @returns {object}
+ */
+const formatMeta = (meta) => {
+  if (!meta || typeof meta !== 'object') return meta;
+  const clean = { ...meta };
+  if (clean.error) clean.error = serializeError(clean.error);
+  if (clean.err) clean.err = serializeError(clean.err);
+  return clean;
+};
+
+/**
  * Build a structured log payload.
  * @param {string} level
  * @param {string} msg
@@ -19,7 +53,7 @@ const format = (level, msg, meta) =>
     level,
     env: env.nodeEnv,
     msg,
-    ...meta,
+    ...formatMeta(meta),
   });
 
 const logger = {
