@@ -17922,4 +17922,34 @@ table.data-table th.dt-cell--right {
   border: 1px solid rgba(239, 68, 68, 0.25);
 }
 
+.pw-match-helper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-top: 6px;
+  min-height: 18px;
+  transition: all 0.2s ease;
+}
+
+.pw-match-helper.match-yes {
+  color: #10b981;
+}
+
+.pw-match-helper.match-no {
+  color: #ef4444;
+}
+
+.pw-match-helper.match-empty {
+  color: var(--color-text-muted);
+}
+
+.pw-match-helper svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+
 

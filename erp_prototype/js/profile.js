@@ -409,6 +409,20 @@ const Profile = {
       headerAction: matchBadge
     });
 
+    // Sub-field helper indicators
+    const newPassHelper = el('div', {
+      id: 'profile-new-pass-helper',
+      class: 'pw-match-helper match-empty',
+      text: 'Must be 8+ characters with uppercase, lowercase, number, and special character'
+    });
+    newPassField.group.appendChild(newPassHelper);
+
+    const confirmMatchHelper = el('div', {
+      id: 'profile-confirm-match-helper',
+      class: 'pw-match-helper match-empty'
+    });
+    confirmField.group.appendChild(confirmMatchHelper);
+
     // Grid for New Password and Confirm Password
     const grid = el('div', { class: 'profile-form-grid' });
     grid.appendChild(newPassField.group);
@@ -509,25 +523,37 @@ const Profile = {
 
       if (!val) {
         newPassField.input.classList.remove('pw-input-error', 'pw-input-success');
+        newPassHelper.className = 'pw-match-helper match-empty';
+        newPassHelper.textContent = 'Must be 8+ characters with uppercase, lowercase, number, and special character';
       } else if (evalRes.isValid) {
         newPassField.input.classList.remove('pw-input-error');
         newPassField.input.classList.add('pw-input-success');
+        newPassHelper.className = 'pw-match-helper match-yes';
+        newPassHelper.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Meets all complexity criteria';
       } else {
         newPassField.input.classList.remove('pw-input-success');
+        newPassHelper.className = 'pw-match-helper match-no';
+        newPassHelper.textContent = `${5 - evalRes.validCount} requirement(s) remaining`;
       }
 
       if (!confirmVal) {
         matchBadge.className = 'pw-match-badge hidden';
         matchBadge.textContent = '';
+        confirmMatchHelper.className = 'pw-match-helper match-empty';
+        confirmMatchHelper.textContent = val ? 'Please repeat your new password' : '';
         confirmField.input.classList.remove('pw-input-error', 'pw-input-success');
       } else if (confirmVal === val && val.length > 0) {
         matchBadge.className = 'pw-match-badge match-yes';
         matchBadge.textContent = '✓ Passwords match';
+        confirmMatchHelper.className = 'pw-match-helper match-yes';
+        confirmMatchHelper.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Passwords match';
         confirmField.input.classList.remove('pw-input-error');
         confirmField.input.classList.add('pw-input-success');
       } else {
         matchBadge.className = 'pw-match-badge match-no';
         matchBadge.textContent = '✕ Passwords do not match';
+        confirmMatchHelper.className = 'pw-match-helper match-no';
+        confirmMatchHelper.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Passwords do not match';
         confirmField.input.classList.remove('pw-input-success');
         confirmField.input.classList.add('pw-input-error');
       }
