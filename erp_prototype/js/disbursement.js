@@ -2403,13 +2403,49 @@ const Disbursement = {
     receiptGroup.appendChild(errorLabel);
 
     if (existing && existing.receiptFilename) {
-      const currentWrap = el('p', { text: 'Current: ', style: 'font-size:0.75rem;color:var(--color-text-muted);' });
-      const viewLink = el('a', {
-        href: 'javascript:void(0)',
+      const currentWrap = el('div', { class: 'receipt-selected-card', style: 'margin-top: 6px;' });
+      const fileInfo = el('div', { style: 'display: flex; align-items: center; gap: 10px; overflow: hidden; min-width: 0;' });
+      const lowerName = (existing.receiptFilename || '').toLowerCase();
+      const isImg = /\.(jpe?g|png|webp|gif|svg)$/i.test(lowerName);
+      const isPdf = lowerName.endsWith('.pdf');
+      const isDocx = lowerName.endsWith('.docx');
+
+      const iconWrap = el('div', { class: 'receipt-selected-icon-wrap' });
+      let iconColor = 'var(--color-primary)';
+      if (isImg) iconColor = 'var(--color-success, #10b981)';
+      else if (isPdf) iconColor = 'var(--color-danger, #ef4444)';
+      else if (isDocx) iconColor = 'var(--color-info, #3b82f6)';
+      iconWrap.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`;
+
+      const details = el('div', { style: 'display: flex; flex-direction: column; overflow: hidden; min-width: 0;' });
+      const nameBtn = el('button', {
+        type: 'button',
+        class: 'receipt-selected-name',
         text: existing.receiptFilename,
-        style: 'color:var(--color-primary);font-weight:500;text-decoration:none;cursor:pointer;'
+        title: 'Click to preview current receipt'
       });
-      viewLink.addEventListener('click', async () => {
+      const meta = el('div', { class: 'receipt-selected-meta' });
+      let pillClass = 'pill-other';
+      let pillText = 'SAVED';
+      if (isImg) { pillClass = 'pill-img'; pillText = 'PHOTO'; }
+      else if (isPdf) { pillClass = 'pill-pdf'; pillText = 'PDF'; }
+      else if (isDocx) { pillClass = 'pill-doc'; pillText = 'DOCX'; }
+      meta.appendChild(el('span', { class: `receipt-type-pill ${pillClass}`, text: pillText }));
+      meta.appendChild(el('span', { text: 'Current Receipt' }));
+
+      details.appendChild(nameBtn);
+      details.appendChild(meta);
+      fileInfo.appendChild(iconWrap);
+      fileInfo.appendChild(details);
+
+      const previewBtn = el('button', {
+        type: 'button',
+        class: 'btn btn-secondary btn-xs',
+        style: 'display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; font-size: 0.75rem; cursor: pointer;',
+        html: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Preview'
+      });
+
+      const handlePreview = async () => {
         try {
           if (existing.receiptS3Key) {
             await Workflow.showDocumentPreview(existing.receiptS3Key);
@@ -2420,10 +2456,13 @@ const Disbursement = {
           console.error('Failed to show preview', err);
           Workflow.showMessage('Preview Failed', 'Failed to display document preview: ' + (err.message || 'Unknown error'), 'danger');
         }
-      });
-      viewLink.addEventListener('mouseenter', () => { viewLink.style.textDecoration = 'underline'; });
-      viewLink.addEventListener('mouseleave', () => { viewLink.style.textDecoration = 'none'; });
-      currentWrap.appendChild(viewLink);
+      };
+
+      nameBtn.addEventListener('click', handlePreview);
+      previewBtn.addEventListener('click', handlePreview);
+
+      currentWrap.appendChild(fileInfo);
+      currentWrap.appendChild(previewBtn);
       receiptGroup.appendChild(currentWrap);
     } else if (!existing && opReq && opReq.receiptFilename) {
       receiptGroup.appendChild(el('p', { text: 'Requested receipt: ' + opReq.receiptFilename, style: 'font-size:0.75rem;color:var(--color-text-muted);' }));
