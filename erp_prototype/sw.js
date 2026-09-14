@@ -10,7 +10,7 @@
  * a bundler), those URLs are added to the app-shell cache. Otherwise a static
  * fallback list is used.
  */
-const CACHE_VERSION = 'v5';
+const CACHE_VERSION = 'v6';
 const SHELL_CACHE = `erp-shell-${CACHE_VERSION}`;
 const API_CACHE = `erp-api-${CACHE_VERSION}`;
 
@@ -70,6 +70,20 @@ const SAFE_API_PATHS = [
 
 function isSameOrigin(url) {
   return url.origin === location.origin;
+}
+
+// R-12: the SPA and API are served from different Render origins, so a
+// strict same-origin check bypasses the worker for EVERY API request.
+// Explicitly permit the trusted backend origins while continuing to never
+// cache untrusted third-party cross-origin requests.
+function isAllowedApiOrigin(url) {
+  if (isSameOrigin(url)) return true;
+  const host = url.hostname.toLowerCase();
+  // Match Render staging & prod API subdomains.
+  if (host.startsWith('ata-lta-erp-api') && host.endsWith('.onrender.com')) return true;
+  // Match local development backend.
+  if (host === 'localhost' || host === '127.0.0.1') return true;
+  return false;
 }
 
 function isShellAsset(url, request) {
@@ -218,8 +232,8 @@ self.addEventListener('fetch', event => {
   // Ignore non-HTTP(S) requests (e.g. chrome-extension).
   if (!url.protocol.startsWith('http')) return;
 
-  // Never cache cross-origin requests.
-  if (!isSameOrigin(url)) return;
+  // Never cache third-party untrusted cross-origin requests.
+  if (!isAllowedApiOrigin(url)) return;
 
   // Never intercept write/auth/PDF requests.
   if (isWriteOrAuthOrPdf(request)) return;
