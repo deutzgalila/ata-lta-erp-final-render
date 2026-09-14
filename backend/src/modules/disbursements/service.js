@@ -26,22 +26,33 @@ const VALID_TRANSITIONS = {
 /**
  * Generate a disbursement number.
  * Format: DISB-{ENTITY_CODE}-{YYYYMMDD}-{seq}
- * @param {string} entityId - UUID of the entity
+ *
+ * Allocation is delegated to the next_document_sequence() RPC (migration
+ * 000047, Spec 2.4 / R-11), whose single-statement upsert takes a row lock on
+ * the daily prefix, so concurrent creators can never read the same count and
+ * collide. The previous count(*)+1 approach raced under parallel submits.
+ *
+ * @param {string} _entityId - UUID of the entity (kept for signature stability)
  * @param {string} entityCode - entity code (ATA or LTA)
  * @returns {Promise<string>}
  */
-const generateDisbursementNumber = async (entityId, entityCode, attempt = 0) => {
+const generateDisbursementNumber = async (_entityId, entityCode) => {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const prefix = `DISB-${entityCode}-${today}`;
 
-  const { count } = await supabaseAdmin
-    .from('disbursements')
-    .select('*', { count: 'exact', head: true })
-    .eq('entity_id', entityId)
-    .ilike('disbursement_number', `${prefix}%`);
+  const { data, error } = await supabaseAdmin.rpc('next_document_sequence', {
+    p_prefix: prefix,
+  });
 
-  const seq = String((count || 0) + 1 + attempt).padStart(4, '0');
-  return `${prefix}-${seq}`;
+  if (error || !data) {
+    throw new AppError({
+      statusCode: 500,
+      title: 'Sequence Error',
+      detail: 'Failed to allocate a disbursement number',
+    });
+  }
+
+  return data;
 };
 
 // ============================================================

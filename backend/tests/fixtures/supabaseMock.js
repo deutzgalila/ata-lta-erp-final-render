@@ -34,6 +34,7 @@ const mockTables = {
   ground_workers: new Map(),
   idempotency_keys: new Map(),
   status_history: new Map(),
+  document_sequences: new Map(),
 };
 
 let sequence = 0;
@@ -536,6 +537,135 @@ const rpcImpl = {
     invoice.version = (invoice.version || 1) + 1;
 
     return { data: { payment, invoice }, error: null };
+  },
+
+  // Atomic document sequence allocator (migration 000047). A shared per-prefix
+  // counter serializes allocation exactly like the row-locking upsert does in
+  // PostgreSQL, so concurrent creates always receive distinct numbers.
+  next_document_sequence: (params) => {
+    const prefix = params.p_prefix;
+    const row = mockTables.document_sequences.get(prefix) || {
+      prefix,
+      current_val: 0,
+    };
+    row.current_val += 1;
+    row.updated_at = nowIso();
+    mockTables.document_sequences.set(prefix, row);
+    return { data: `${prefix}-${String(row.current_val).padStart(4, '0')}`, error: null };
+  },
+
+  // Atomic invoice create (migration 000047): invoice row + line items in one
+  // step, mirroring invoice_create_transactional().
+  invoice_create_transactional: (params) => {
+    const d = params.p_invoice_data || {};
+    const invoice = {
+      id: d.id || nextId(),
+      entity_id: params.p_entity_id,
+      client_id: d.clientId || null,
+      work_request_id: d.workRequestId || null,
+      linked_task_id: d.linkedTaskId || null,
+      linked_transmittal_id: d.linkedTransmittalId || null,
+      invoice_number: d.invoiceNumber,
+      issue_date: d.issueDate,
+      due_date: d.dueDate,
+      status: d.status || 'Draft',
+      subtotal: d.subtotal ?? 0,
+      tax_amount: 0,
+      total: d.total ?? 0,
+      amount_paid: 0,
+      balance: d.total ?? 0,
+      notes: d.notes ?? null,
+      terms: d.terms ?? null,
+      archived: false,
+      created_by: params.p_user_id,
+      updated_by: params.p_user_id,
+      created_at: nowIso(),
+      updated_at: nowIso(),
+      version: 1,
+    };
+
+    const dup = Array.from(mockTables.invoices.values()).find(
+      (r) => r.entity_id === invoice.entity_id && r.invoice_number === invoice.invoice_number
+    );
+    if (dup) {
+      return {
+        data: null,
+        error: {
+          message: 'duplicate key value violates unique constraint "invoices_entity_id_invoice_number_key"',
+          code: '23505',
+        },
+      };
+    }
+
+    mockTables.invoices.set(invoice.id, invoice);
+
+    (params.p_line_items || []).forEach((item, idx) => {
+      const li = {
+        id: nextId(),
+        invoice_id: invoice.id,
+        description: item.description,
+        amount: Number(item.amount),
+        type: item.type || 'Professional Fee',
+        sort_order: item.sort_order ?? idx,
+        created_at: nowIso(),
+      };
+      mockTables.invoice_line_items.set(li.id, li);
+    });
+
+    return { data: invoice, error: null };
+  },
+
+  // Atomic invoice update (migration 000047): line-item replacement, totals,
+  // version bump, and OCC guard in one step, mirroring
+  // invoice_update_transactional(). Returns null data when the version guard
+  // rejects a stale write (the service maps that to 409).
+  invoice_update_transactional: (params) => {
+    const invoice = mockTables.invoices.get(params.p_invoice_id);
+    if (!invoice || invoice.entity_id !== params.p_entity_id) return { data: null, error: null };
+    if (
+      params.p_expected_version !== null &&
+      params.p_expected_version !== undefined &&
+      invoice.version !== Number(params.p_expected_version)
+    ) {
+      return { data: null, error: null };
+    }
+
+    let subtotal = null;
+    if (params.p_line_items !== null && params.p_line_items !== undefined) {
+      Array.from(mockTables.invoice_line_items.values())
+        .filter((li) => li.invoice_id === params.p_invoice_id)
+        .forEach((li) => mockTables.invoice_line_items.delete(li.id));
+
+      params.p_line_items.forEach((item, idx) => {
+        const li = {
+          id: nextId(),
+          invoice_id: params.p_invoice_id,
+          description: item.description,
+          amount: Number(item.amount),
+          type: item.type || 'Professional Fee',
+          sort_order: item.sort_order ?? idx,
+          created_at: nowIso(),
+        };
+        mockTables.invoice_line_items.set(li.id, li);
+      });
+
+      subtotal = params.p_line_items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    }
+
+    const u = params.p_updates || {};
+    Object.keys(u).forEach((key) => {
+      invoice[key] = u[key];
+    });
+    if (subtotal !== null) {
+      invoice.subtotal = subtotal;
+      invoice.total = subtotal;
+      invoice.balance = subtotal - Number(invoice.amount_paid || 0);
+    }
+    invoice.updated_by = params.p_user_id;
+    invoice.updated_at = nowIso();
+    invoice.version = (invoice.version || 1) + 1;
+
+    return { data: invoice, error: null };
   },
 
   client_archive_cascade: (params) => {
