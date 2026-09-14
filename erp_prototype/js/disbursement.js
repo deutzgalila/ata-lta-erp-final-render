@@ -1987,7 +1987,8 @@ const Disbursement = {
 
         // Released opens the release dialog (existing behavior)
         if (targetStatus === 'Released') {
-          self.showReleaseDialog(item.id);
+          const isAdmin = Auth.user?.role === 'Admin' || Auth.can('disbursement:approve');
+          self.showReleaseDialog(item.id, isAdmin);
           return;
         }
 
@@ -2996,7 +2997,8 @@ const Disbursement = {
     } else if (d.status === 'Approved' && (Auth.can('disbursement:mark_released') || Auth.can('disbursement:approve'))) {
       const actions = el('div', { class: 'form-actions', style: 'margin-top: var(--spacing-xl); border-top: 1px solid #e2e8f0; padding-top: var(--spacing-lg);' });
       const releaseBtn = el('button', { class: 'btn btn-primary', text: 'Authorize & Release Funds' });
-      releaseBtn.addEventListener('click', () => { this.showReleaseDialog(d.id); });
+      const isAdmin = Auth.user?.role === 'Admin' || Auth.can('disbursement:approve');
+      releaseBtn.addEventListener('click', () => { this.showReleaseDialog(d.id, isAdmin); });
       actions.appendChild(releaseBtn);
       container.appendChild(actions);
     } else if (d.status === 'Released' && (canApprove || Auth.can('disbursement:release') || Auth.user?.departments?.includes('Accounting'))) {
@@ -3081,6 +3083,9 @@ const Disbursement = {
   },
 
   async showReleaseDialog(id, adminRelease) {
+    if (typeof adminRelease === 'undefined') {
+      adminRelease = Auth.user?.role === 'Admin' || Auth.can('disbursement:approve');
+    }
     const d = await this.loadDisbursement(id);
     if (!d) return;
     if (adminRelease && !Auth.can('disbursement:approve')) {
@@ -3093,7 +3098,7 @@ const Disbursement = {
       Workflow.showMessage('Error', 'This disbursement is not approved for release.', 'danger');
       return;
     }
-    if (!adminRelease && d.paymentHandledBy !== Auth.user.id) {
+    if (!adminRelease && d.paymentHandledBy && d.paymentHandledBy !== Auth.user?.id) {
       Workflow.showMessage('Unauthorized', 'You are not assigned to release this disbursement.', 'danger');
       return;
     }
