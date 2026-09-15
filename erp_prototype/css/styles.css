@@ -782,6 +782,21 @@ h4.is-required:not(:has(.required-indicator))::after {
   opacity: 0.9;
 }
 
+/* Suppress visual requirement indicators on the sign-in / login form */
+#login-screen label::after,
+#login-form label::after,
+.login-card label::after,
+#login-screen .required-indicator,
+#login-form .required-indicator,
+[data-theme="dark"] #login-screen label::after,
+[data-theme="dark"] #login-form label::after,
+[data-theme="dark"] .login-card label::after,
+[data-theme="dark"] #login-screen .required-indicator,
+[data-theme="dark"] #login-form .required-indicator {
+  content: none !important;
+  display: none !important;
+}
+
 input[type="text"],
 input[type="email"],
 input[type="password"],
