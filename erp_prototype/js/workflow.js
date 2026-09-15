@@ -489,6 +489,10 @@ const WorkflowData = {
     const payload = { ...record };
     delete payload.id;
     delete payload.tasks;
+    if (!payload.entity || payload.entity === 'ALL') {
+      const c = payload.clientId && window.apiClient?.clientCache?.getById ? window.apiClient.clientCache.getById(payload.clientId) : null;
+      payload.entity = c?.entity || (typeof Auth !== 'undefined' && Auth.user?.entities?.find(e => e !== 'ALL')) || 'ATA';
+    }
     const res = await window.apiClient.workRequests.create(payload);
     const created = this.normalizeWorkRequest(res.data);
     let existing = localId ? this.getWorkRequestById(localId) : null;
@@ -7482,7 +7486,7 @@ const Workflow = {
     const clientSel = el('select', { name: 'clientId', class: 'notion-prop-select', required: true });
     clientSel.appendChild(el('option', { value: '', text: '— Select —' }));
     (window.apiClient.clientCache._clients || []).filter(c => matchesEntity(c.entity, entity)).forEach(c => {
-      const opt = el('option', { value: c.id, text: c.name });
+      const opt = el('option', { value: c.id, text: c.name + (entity === 'ALL' && c.entity ? ` (${c.entity})` : '') });
       if (wr && wr.clientId === c.id) opt.selected = true;
       clientSel.appendChild(opt);
     });
@@ -7995,7 +7999,11 @@ const Workflow = {
     if (!validateRequiredFields(form)) { disabledFields.forEach(f => f.disabled = true); return; }
     if (!this.validateManualAssignees(form)) { disabledFields.forEach(f => f.disabled = true); return; }
     const data = Object.fromEntries(new FormData(form).entries());
-    const entity = Auth.activeEntity;
+    let entity = Auth.activeEntity;
+    if (entity === 'ALL') {
+      const selectedClient = data.clientId && window.apiClient?.clientCache?.getById ? window.apiClient.clientCache.getById(data.clientId) : null;
+      entity = selectedClient?.entity || (Auth.user?.entities || []).find(e => e !== 'ALL') || 'ATA';
+    }
 
     const now = new Date().toISOString();
     const record = {
@@ -14885,6 +14893,12 @@ const Workflow = {
     const titleSuffix = now.toLocaleDateString('en-PH', { month: 'short', year: 'numeric' });
     const dueDate = new Date(now.getTime() + (template.schedule === 'quarterly' ? 90 : 30) * 86400000);
 
+    let templateEntity = template.entity;
+    if (!templateEntity || templateEntity === 'ALL') {
+      const c = template.clientId && window.apiClient?.clientCache?.getById ? window.apiClient.clientCache.getById(template.clientId) : null;
+      templateEntity = c?.entity || (typeof Auth !== 'undefined' && Auth.user?.entities?.find(e => e !== 'ALL')) || 'ATA';
+    }
+
     const workRequest = {
       id: generateId('wr'),
       title: `${template.name} (${titleSuffix})`,
@@ -14892,7 +14906,7 @@ const Workflow = {
       clientId: template.clientId,
       priority: 'Priority',
       dueDate: dueDate.toISOString().slice(0, 10),
-      entity: template.entity,
+      entity: templateEntity,
       status: 'Draft',
       createdAt: nowIso,
       updatedAt: nowIso,
@@ -14999,6 +15013,11 @@ const Workflow = {
             if (!template) continue;
 
             const dueDate = new Date(now.getTime() + (template.schedule === 'quarterly' ? 90 : 30) * 86400000);
+            let templateEntity = template.entity;
+            if (!templateEntity || templateEntity === 'ALL') {
+              const c = template.clientId && window.apiClient?.clientCache?.getById ? window.apiClient.clientCache.getById(template.clientId) : null;
+              templateEntity = c?.entity || (typeof Auth !== 'undefined' && Auth.user?.entities?.find(e => e !== 'ALL')) || 'ATA';
+            }
             const workRequest = {
               id: generateId('wr'),
               title: `${template.name} (${titleSuffix})`,
@@ -15006,7 +15025,7 @@ const Workflow = {
               clientId: template.clientId,
               priority: template.priority || 'Normal',
               dueDate: dueDate.toISOString().slice(0, 10),
-              entity: template.entity,
+              entity: templateEntity,
               status: 'Draft',
               createdAt: nowIso,
               updatedAt: nowIso,

@@ -2106,10 +2106,24 @@ const Transmittal = {
       return;
     }
 
-    const recordEntity = entity === 'ALL' ? (Auth.user.entities[0] || 'ATA') : entity;
+    let recordEntity = entity;
+    if (recordEntity === 'ALL') {
+      if (data.clientId && window.apiClient?.clientCache?.getById) {
+        const c = window.apiClient.clientCache.getById(data.clientId);
+        if (c?.entity && c.entity !== 'ALL') recordEntity = c.entity;
+      }
+      if (recordEntity === 'ALL' && data.workRequestId && window.apiClient?.workRequestCache?.getById) {
+        const wr = window.apiClient.workRequestCache.getById(data.workRequestId);
+        if (wr?.entity && wr.entity !== 'ALL') recordEntity = wr.entity;
+      }
+      if (recordEntity === 'ALL') {
+        recordEntity = (Auth.user?.entities?.find(e => e !== 'ALL') || 'ATA');
+      }
+    }
     const payload = {
       workRequestId: data.workRequestId,
       clientId: data.clientId,
+      entity: recordEntity,
       trackingNumber: data.trackingNumber || await this.nextTrackingNumber(recordEntity),
       items,
       notes: data.notes || null

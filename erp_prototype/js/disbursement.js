@@ -578,14 +578,30 @@ const Disbursement = {
     return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
   },
 
-  _getOptimisticEntity() {
+  _getOptimisticEntity(record) {
     const activeEntity = this._getActiveEntity();
-    return (activeEntity && activeEntity !== 'ALL') ? activeEntity : (Auth.user?.entities?.[0] || 'ATA');
+    if (activeEntity && activeEntity !== 'ALL') return activeEntity;
+    if (record) {
+      if (record.clientId && window.apiClient?.clientCache?.getById) {
+        const c = window.apiClient.clientCache.getById(record.clientId);
+        if (c?.entity && c.entity !== 'ALL') return c.entity;
+      }
+      const wrId = record.linkedWorkRequestId || record.workRequestId;
+      if (wrId && window.apiClient?.workRequestCache?.getById) {
+        const wr = window.apiClient.workRequestCache.getById(wrId);
+        if (wr?.entity && wr.entity !== 'ALL') return wr.entity;
+        if (wr?.clientId && window.apiClient?.clientCache?.getById) {
+          const c = window.apiClient.clientCache.getById(wr.clientId);
+          if (c?.entity && c.entity !== 'ALL') return c.entity;
+        }
+      }
+    }
+    return (Auth.user?.entities?.find(e => e !== 'ALL') || 'ATA');
   },
 
   _assignEntity(record) {
-    if (!record.entity) {
-      record.entity = this._getOptimisticEntity();
+    if (!record.entity || record.entity === 'ALL') {
+      record.entity = this._getOptimisticEntity(record);
     }
     record.entityId = record.entityId || record.entity || null;
     return record;
