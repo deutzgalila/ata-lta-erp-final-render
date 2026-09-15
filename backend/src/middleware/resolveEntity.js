@@ -35,7 +35,7 @@ function resolveEntity(options = {}) {
         let resolvedUUID = null;
 
         // 1. Explicit valid entity in body
-        if (req.body?.entity && VALID_ENTITIES.includes(req.body.entity.toUpperCase())) {
+        if (req.body?.entity && typeof req.body.entity === 'string' && VALID_ENTITIES.includes(req.body.entity.toUpperCase())) {
           resolvedCode = req.body.entity.toUpperCase();
         }
 

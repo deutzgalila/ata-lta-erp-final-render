@@ -351,9 +351,17 @@ function el(tag, attrs = {}, children = []) {
 }
 
 function parseHTML(html) {
+  if (!html) return document.createTextNode('');
   const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  return doc.body.firstChild || document.createTextNode('');
+  const doc = parser.parseFromString(String(html).trim(), 'text/html');
+  if (doc.body.childNodes.length === 1) {
+    return doc.body.firstChild;
+  }
+  const fragment = document.createDocumentFragment();
+  while (doc.body.firstChild) {
+    fragment.appendChild(doc.body.firstChild);
+  }
+  return fragment;
 }
 
 function isNode(val) {
@@ -3648,9 +3656,15 @@ const ArchivePage = {
     return row;
   },
 
-  metaNode(html, text, className = '') {
+  metaNode(iconOrHtml, text, className = '') {
     const span = el('span', { class: className });
-    if (html) span.innerHTML = html;
+    if (iconOrHtml) {
+      if (isNode(iconOrHtml)) {
+        span.appendChild(iconOrHtml);
+      } else if (typeof iconOrHtml === 'string') {
+        span.appendChild(parseHTML(iconOrHtml));
+      }
+    }
     if (isNode(text)) {
       span.appendChild(text);
     } else {

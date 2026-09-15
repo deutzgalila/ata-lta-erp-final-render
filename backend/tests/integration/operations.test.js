@@ -394,5 +394,13 @@ describe('/v1/work-requests', () => {
 
     expect(wrRes2.body.data.title).toBe('Consolidated WR 2');
     expect(wrRes2.body.data.entity).toBe('LTA');
+
+    // 3. With non-string entity in body (should return 400 validation error, not 500 TypeError)
+    await request(app)
+      .post('/v1/work-requests')
+      .set('Authorization', `Bearer ${admin}`)
+      .set('X-Active-Entity', 'ALL')
+      .send({ title: 'Malformed Entity WR', clientId: client.id, entity: 123 })
+      .expect(400);
   });
 });
