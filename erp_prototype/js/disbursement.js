@@ -2721,9 +2721,9 @@ const Disbursement = {
     const pendingWrIds = new Set(pendingRequests.map(r => r.work_request_id || r.workRequestId).filter(Boolean));
 
     const wrapper = el('div', { class: 'form-stacked', style: 'display: flex; flex-direction: column;' });
-    const selectGroup = el('div', { class: 'form-group' });
-    selectGroup.appendChild(el('label', { text: 'Select Work Request *' }));
-    const wrSelect = el('select', { class: 'form-select', style: 'width:100%;' });
+    const selectGroup = el('div', { class: 'form-group is-required' });
+    selectGroup.appendChild(el('label', { text: 'Select Work Request' }));
+    const wrSelect = el('select', { class: 'form-select', style: 'width:100%;', required: true });
     wrSelect.appendChild(el('option', { value: '', text: '— Select —' }));
     wrs.forEach(wr => {
       const client = window.apiClient.clientCache.getById(wr.clientId);
@@ -3144,25 +3144,25 @@ const Disbursement = {
     const form = el('form', { class: 'form-stacked' });
 
     const methodGroup = el('div', { class: 'form-group' });
-    methodGroup.appendChild(el('label', { text: 'Payment Method *' }));
+    methodGroup.appendChild(el('label', { text: 'Payment Method' }));
     const methodSel = el('select', { name: 'method', required: true, class: 'form-select' });
     ['Cash', 'Check', 'Bank Transfer', 'GCash', 'Maya', 'Other Digital'].forEach(m => methodSel.appendChild(el('option', { value: m, text: m })));
     methodGroup.appendChild(methodSel);
     form.appendChild(methodGroup);
 
     const refGroup = el('div', { class: 'form-group' });
-    refGroup.appendChild(el('label', { text: 'Reference / Check Number *' }));
+    refGroup.appendChild(el('label', { text: 'Reference / Check Number' }));
     refGroup.appendChild(el('input', { type: 'text', name: 'reference', required: true }));
     form.appendChild(refGroup);
 
     const dateGroup = el('div', { class: 'form-group' });
-    dateGroup.appendChild(el('label', { text: 'Date of Release *' }));
+    dateGroup.appendChild(el('label', { text: 'Date of Release' }));
     dateGroup.appendChild(el('input', { type: 'date', name: 'date', required: true, value: new Date().toISOString().slice(0, 10) }));
     form.appendChild(dateGroup);
 
     // Document Requirement
     const docGroup = el('div', { class: 'form-group' });
-    docGroup.appendChild(el('label', { text: 'Attached Scanned Document (Required) *' }));
+    docGroup.appendChild(el('label', { text: 'Attached Scanned Document' }));
     docGroup.appendChild(el('input', { type: 'file', name: 'releaseDoc', required: true }));
     form.appendChild(docGroup);
 
@@ -3993,7 +3993,7 @@ const Disbursement = {
     form.appendChild(titleSection);
 
     const catGroup = el('div', { class: 'form-group' });
-    catGroup.appendChild(el('label', { text: 'Category *' }));
+    catGroup.appendChild(el('label', { text: 'Category' }));
     const catSel = el('select', { name: 'category', required: true, class: 'form-select' });
     this.STANDARD_CATEGORIES.forEach(c => {
       catSel.appendChild(el('option', { value: c, text: c }));
@@ -4003,13 +4003,13 @@ const Disbursement = {
     form.appendChild(catGroup);
 
     const amtGroup = el('div', { class: 'form-group' });
-    amtGroup.appendChild(el('label', { text: 'Amount (₱) *' }));
+    amtGroup.appendChild(el('label', { text: 'Amount (₱)' }));
     const amtInput = el('input', { type: 'number', name: 'amount', min: 0, step: 0.01, required: true, value: template?.amount || '' });
     amtGroup.appendChild(amtInput);
     form.appendChild(amtGroup);
 
-    const fundGroup = el('div', { class: 'form-group' });
-    fundGroup.appendChild(el('label', { text: 'Fund Source *' }));
+    const fundGroup = el('div', { class: 'form-group is-required' });
+    fundGroup.appendChild(el('label', { text: 'Fund Source' }));
     const fundWrap = el('div', { class: 'radio-group' });
     ['Firm Fund', 'Client Fund'].forEach(f => {
       const label = el('label', { class: 'radio-label' });

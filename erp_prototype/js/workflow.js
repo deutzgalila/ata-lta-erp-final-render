@@ -3181,7 +3181,7 @@ const Workflow = {
     const dateRow = el('div', { style: 'display: grid; grid-template-columns: 1fr 1fr; gap: 12px;' });
 
     const issueDateGroup = el('div', { class: 'form-group' });
-    issueDateGroup.appendChild(el('label', { text: 'Issue Date *' }));
+    issueDateGroup.appendChild(el('label', { text: 'Issue Date' }));
     issueDateGroup.appendChild(el('input', {
       type: 'date', name: 'issueDate',
       value: new Date().toISOString().slice(0, 10),
@@ -3190,7 +3190,7 @@ const Workflow = {
     dateRow.appendChild(issueDateGroup);
 
     const dueDateGroup = el('div', { class: 'form-group' });
-    dueDateGroup.appendChild(el('label', { text: 'Due Date *' }));
+    dueDateGroup.appendChild(el('label', { text: 'Due Date' }));
     dueDateGroup.appendChild(el('input', {
       type: 'date', name: 'dueDate',
       value: '', required: true
@@ -3408,7 +3408,7 @@ const Workflow = {
 
     // ---------- Category ----------
     const catGroup = el('div', { class: 'form-group' });
-    catGroup.appendChild(el('label', { text: 'Category *' }));
+    catGroup.appendChild(el('label', { text: 'Category' }));
     const catSel = el('select', { name: 'category', required: true, class: 'form-select' });
     ['Transportation', 'Notary', 'Meals', 'Government Fee', 'Other'].forEach(c => {
       catSel.appendChild(el('option', { value: c, text: c }));
@@ -3418,13 +3418,13 @@ const Workflow = {
 
     // ---------- Description ----------
     const descGroup = el('div', { class: 'form-group' });
-    descGroup.appendChild(el('label', { text: 'Description *' }));
+    descGroup.appendChild(el('label', { text: 'Description' }));
     descGroup.appendChild(el('input', { type: 'text', name: 'description', required: true, placeholder: 'e.g. BIR filing fee' }));
     form.appendChild(descGroup);
 
     // ---------- Amount ----------
     const amtGroup = el('div', { class: 'form-group' });
-    amtGroup.appendChild(el('label', { text: 'Amount (₱) *' }));
+    amtGroup.appendChild(el('label', { text: 'Amount (₱)' }));
     const amtIn = el('input', { type: 'text', inputmode: 'decimal', name: 'amount', placeholder: '0.00', required: true });
     amtIn.addEventListener('input', () => { amtIn.value = amtIn.value.replace(/[^0-9.,]/g, ''); });
     amtIn.addEventListener('focus', () => { const n = parseFloat(String(amtIn.value).replace(/[₱$,\s]/g, '')) || 0; amtIn.value = n > 0 ? String(n) : ''; });
@@ -3433,8 +3433,8 @@ const Workflow = {
     form.appendChild(amtGroup);
 
     // ---------- Fund Source ----------
-    const fundGroup = el('div', { class: 'form-group' });
-    fundGroup.appendChild(el('label', { text: 'Fund Source *' }));
+    const fundGroup = el('div', { class: 'form-group is-required' });
+    fundGroup.appendChild(el('label', { text: 'Fund Source' }));
     const fundWrap = el('div', { class: 'radio-group' });
     ['Firm Fund', 'Client Fund'].forEach(f => {
       const label = el('label', { class: 'radio-label' });
@@ -3928,7 +3928,7 @@ const Workflow = {
 
       // 2. Billing Amount
       const amtGroup = el('div', { class: 'form-group' });
-      amtGroup.appendChild(el('label', { text: 'Billing Amount (₱) *' }));
+      amtGroup.appendChild(el('label', { text: 'Billing Amount (₱)' }));
       const amtIn = el('input', { type: 'text', inputmode: 'decimal', name: 'amount', placeholder: '0.00', required: true });
       amtIn.addEventListener('input', () => { amtIn.value = amtIn.value.replace(/[^0-9.,]/g, ''); });
       amtIn.addEventListener('focus', () => { const n = parseFloat(String(amtIn.value).replace(/[₱$,\s]/g, '')) || 0; amtIn.value = n > 0 ? String(n) : ''; });
@@ -4005,8 +4005,8 @@ const Workflow = {
     }
     else if (type === 'disbursement') {
       // 1. Request Type Toggle (Reimbursement vs Cash Advance)
-      const typeGroup = el('div', { class: 'form-group' });
-      typeGroup.appendChild(el('label', { text: 'Disbursement Type *' }));
+      const typeGroup = el('div', { class: 'form-group is-required' });
+      typeGroup.appendChild(el('label', { text: 'Disbursement Type' }));
       const typeWrap = el('div', { class: 'radio-group', style: 'display: flex; gap: var(--spacing-md);' });
       
       const rLabel = el('label', { class: 'radio-label', style: 'font-weight: normal; cursor: pointer;' });
@@ -4026,7 +4026,7 @@ const Workflow = {
 
       // 2. Category Select
       const catGroup = el('div', { class: 'form-group' });
-      catGroup.appendChild(el('label', { text: 'Category *' }));
+      catGroup.appendChild(el('label', { text: 'Category' }));
       const catSel = el('select', { name: 'category', required: true, class: 'form-select' });
       ['Government Fee', 'Notarization', 'Transportation / Travel', 'Meals / Client Meeting', 'Other'].forEach(c => {
         catSel.appendChild(el('option', { value: c, text: c }));
@@ -4036,7 +4036,7 @@ const Workflow = {
 
       // 3. Amount
       const amtGroup = el('div', { class: 'form-group' });
-      amtGroup.appendChild(el('label', { text: 'Amount (₱) *' }));
+      amtGroup.appendChild(el('label', { text: 'Amount (₱)' }));
       const amtIn = el('input', { type: 'text', inputmode: 'decimal', name: 'amount', placeholder: '0.00', required: true });
       amtIn.addEventListener('input', () => { amtIn.value = amtIn.value.replace(/[^0-9.,]/g, ''); });
       amtIn.addEventListener('focus', () => { const n = parseFloat(String(amtIn.value).replace(/[₱$,\s]/g, '')) || 0; amtIn.value = n > 0 ? String(n) : ''; });
@@ -4046,7 +4046,7 @@ const Workflow = {
 
       // 4. Payment Method
       const payGroup = el('div', { class: 'form-group' });
-      payGroup.appendChild(el('label', { text: 'Preferred Payment Method *' }));
+      payGroup.appendChild(el('label', { text: 'Preferred Payment Method' }));
       const paySel = el('select', { name: 'paymentMethod', class: 'form-select', required: true });
       ['Cash', 'Bank Transfer', 'GCash / E-Wallet', 'Check'].forEach(m => {
         paySel.appendChild(el('option', { value: m, text: m }));
@@ -4128,8 +4128,8 @@ const Workflow = {
     }
     else if (type === 'transmittal') {
       // 1. Documents listing (Hybrid)
-      const docGroup = el('div', { class: 'form-group' });
-      docGroup.appendChild(el('label', { text: 'Documents to Transmit *', style: 'margin-bottom: var(--spacing-xs);' }));
+      const docGroup = el('div', { class: 'form-group is-required' });
+      docGroup.appendChild(el('label', { text: 'Documents to Transmit', style: 'margin-bottom: var(--spacing-xs);' }));
       
       const docListContainer = el('div', { style: 'display: flex; flex-direction: column; gap: var(--spacing-xs); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: var(--spacing-sm); max-height: 150px; overflow-y: auto; background: var(--color-surface);' });
       
@@ -4157,7 +4157,7 @@ const Workflow = {
 
       // 3. Recipient & Delivery Details
       const recGroup = el('div', { class: 'form-group' });
-      recGroup.appendChild(el('label', { text: 'Recipient & Delivery Details *' }));
+      recGroup.appendChild(el('label', { text: 'Recipient & Delivery Details' }));
       const recArea = el('textarea', { name: 'recipientDetails', class: 'form-control', required: true, style: 'min-height: 80px;', placeholder: 'Recipient Name, Phone, and Delivery Address...' });
       recGroup.appendChild(recArea);
       form.appendChild(recGroup);
@@ -9077,11 +9077,11 @@ const Workflow = {
         const workerInput = el('input', { type: 'text', name: 'workerName', placeholder: 'Worker name', value: Auth.user?.name || '' });
         form.appendChild(el('div', { class: 'form-group' }, [el('label', { text: 'Worker Name' }), workerInput]));
         const dateInput = el('input', { type: 'date', name: 'date', required: true, value: manilaToday() });
-        form.appendChild(el('div', { class: 'form-group' }, [el('label', { text: 'Date *' }), dateInput]));
+        form.appendChild(el('div', { class: 'form-group' }, [el('label', { text: 'Date' }), dateInput]));
         const startInput = el('input', { type: 'time', name: 'start', required: true });
-        form.appendChild(el('div', { class: 'form-group' }, [el('label', { text: 'Start Time *' }), startInput]));
+        form.appendChild(el('div', { class: 'form-group' }, [el('label', { text: 'Start Time' }), startInput]));
         const endInput = el('input', { type: 'time', name: 'end', required: true });
-        form.appendChild(el('div', { class: 'form-group' }, [el('label', { text: 'End Time *' }), endInput]));
+        form.appendChild(el('div', { class: 'form-group' }, [el('label', { text: 'End Time' }), endInput]));
         const noteInput = el('input', { type: 'text', name: 'note', placeholder: 'What did you work on?' });
         form.appendChild(el('div', { class: 'form-group' }, [el('label', { text: 'Note / Activity' }), noteInput]));
         const hoursInput = el('input', { type: 'text', name: 'hours', readOnly: true, value: '0.00', style: 'background: var(--bg); cursor: not-allowed;' });
@@ -10961,7 +10961,7 @@ const Workflow = {
     
     // Type Select
     const typeGroup = el('div', { class: 'form-group' });
-    typeGroup.appendChild(el('label', { text: 'Record Type *' }));
+    typeGroup.appendChild(el('label', { text: 'Record Type' }));
     const typeSel = el('select', { required: true });
     typeSel.appendChild(el('option', { value: '', text: '— Select Type —' }));
     typeSel.appendChild(el('option', { value: 'invoice', text: 'Service Invoice (Billing)' }));
@@ -10971,7 +10971,7 @@ const Workflow = {
 
     // Record Select
     const recGroup = el('div', { class: 'form-group' });
-    recGroup.appendChild(el('label', { text: 'Select Record *' }));
+    recGroup.appendChild(el('label', { text: 'Select Record' }));
     const recSel = el('select', { required: true, disabled: true });
     recGroup.appendChild(recSel);
     form.appendChild(recGroup);
@@ -12798,21 +12798,21 @@ const Workflow = {
     // Date field
     const dateInput = el('input', { type: 'date', name: 'date', required: true, value: manilaToday() });
     form.appendChild(el('div', { class: 'form-group' }, [
-      el('label', { text: 'Date *' }),
+      el('label', { text: 'Date' }),
       dateInput
     ]));
 
     // Start Time field
     const startInput = el('input', { type: 'time', name: 'start', required: true });
     form.appendChild(el('div', { class: 'form-group' }, [
-      el('label', { text: 'Start Time *' }),
+      el('label', { text: 'Start Time' }),
       startInput
     ]));
 
     // End Time field
     const endInput = el('input', { type: 'time', name: 'end', required: true });
     form.appendChild(el('div', { class: 'form-group' }, [
-      el('label', { text: 'End Time *' }),
+      el('label', { text: 'End Time' }),
       endInput
     ]));
 
@@ -13628,7 +13628,7 @@ const Workflow = {
     // Task Title
     const titleInput = el('input', { type: 'text', name: 'title', required: true, value: task.title || '' });
     form.appendChild(el('div', { class: 'form-group' }, [
-      el('label', { text: 'Task Title *' }),
+      el('label', { text: 'Task Title' }),
       titleInput
     ]));
 
@@ -14080,7 +14080,7 @@ const Workflow = {
 
     const commentForm = el('form', { class: 'form-stacked' });
     commentForm.appendChild(el('div', { class: 'form-group' }, [
-      el('label', { text: 'Add Comment *' }),
+      el('label', { text: 'Add Comment' }),
       el('textarea', { name: 'commentText', rows: 3, required: true })
     ]));
     const commentBtn = el('button', { type: 'submit', class: 'btn btn-primary', text: 'Post Comment' });
@@ -14441,7 +14441,7 @@ const Workflow = {
     ]));
 
     const clientGroup = el('div', { class: 'form-group' });
-    clientGroup.appendChild(el('label', { text: 'Client *' }));
+    clientGroup.appendChild(el('label', { text: 'Client' }));
     const clientSel = el('select', { name: 'clientId', required: true });
     clientSel.appendChild(el('option', { value: '', text: '— Select Client —' }));
     (window.apiClient.clientCache._clients || []).filter(c => matchesEntity(c.entity, entity)).forEach(c => {
@@ -14464,7 +14464,7 @@ const Workflow = {
     form.appendChild(priorityGroup);
 
     const scheduleGroup = el('div', { class: 'form-group' });
-    scheduleGroup.appendChild(el('label', { text: 'Schedule *' }));
+    scheduleGroup.appendChild(el('label', { text: 'Schedule' }));
     const scheduleSel = el('select', { name: 'schedule', required: true });
     ['monthly', 'quarterly'].forEach(s => {
       const opt = el('option', { value: s, text: s });

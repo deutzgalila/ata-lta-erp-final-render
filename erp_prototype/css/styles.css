@@ -697,6 +697,83 @@ h3 {
   color: var(--color-text-muted);
 }
 
+/* Required Field Visual Indicator — Modern Minimal Design Token */
+.required-indicator {
+  content: "*";
+  display: inline-block;
+  color: var(--color-danger, #ef4444);
+  font-size: 0.75em;
+  font-weight: 600;
+  line-height: 1;
+  margin-left: 3px;
+  vertical-align: super;
+  transform: translateY(-1px);
+  opacity: 0.85;
+  user-select: none;
+  pointer-events: none;
+}
+
+[data-theme="dark"] .required-indicator {
+  color: #f87171;
+  opacity: 0.9;
+}
+
+/* Automatic pseudo-element indicator on form labels containing required controls */
+.form-group:has(:is(input, select, textarea):is([required], [aria-required="true"], .is-required)) > label:not(.radio-label):not(.checkbox-label):not(:has(.required-indicator))::after,
+.form-group.is-required > label:not(.radio-label):not(.checkbox-label):not(:has(.required-indicator))::after,
+.notion-prop:has(:is(input, select, textarea):is([required], [aria-required="true"], .is-required)) > label:not(.radio-label):not(.checkbox-label):not(:has(.required-indicator))::after,
+.notion-prop:has(:is(input, select, textarea):is([required], [aria-required="true"], .is-required)) .pw-header-row > label:not(:has(.required-indicator))::after,
+.notion-prop.is-required > label:not(.radio-label):not(.checkbox-label):not(:has(.required-indicator))::after,
+.notion-prop.is-required .pw-header-row > label:not(:has(.required-indicator))::after,
+.notion-freeform:has(:is(input, select, textarea):is([required], [aria-required="true"], .is-required)) > :is(label, .notion-section-label):not(:has(.required-indicator))::after,
+.notion-freeform.is-required > :is(label, .notion-section-label):not(:has(.required-indicator))::after,
+.profile-form-group:has(:is(input, select, textarea):is([required], [aria-required="true"], .is-required)) > label:not(:has(.required-indicator))::after,
+.profile-form-group:has(:is(input, select, textarea):is([required], [aria-required="true"], .is-required)) .pw-header-row > label:not(:has(.required-indicator))::after,
+.profile-form-group.is-required > label:not(:has(.required-indicator))::after,
+.profile-form-group.is-required .pw-header-row > label:not(:has(.required-indicator))::after,
+label.is-required:not(:has(.required-indicator))::after,
+label.required:not(:has(.required-indicator))::after,
+.notion-section-label.is-required:not(:has(.required-indicator))::after {
+  content: "*";
+  display: inline-block;
+  color: var(--color-danger, #ef4444);
+  font-size: 0.75em;
+  font-weight: 600;
+  line-height: 1;
+  margin-left: 3px;
+  vertical-align: super;
+  transform: translateY(-1px);
+  opacity: 0.85;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Subtle gap compensation for flex label containers */
+.notion-prop > label::after,
+.pw-header-row > label::after {
+  margin-left: -2px;
+}
+
+/* Dark mode overrides for required field indicator */
+[data-theme="dark"] .form-group:has(:is(input, select, textarea):is([required], [aria-required="true"], .is-required)) > label:not(.radio-label):not(.checkbox-label):not(:has(.required-indicator))::after,
+[data-theme="dark"] .form-group.is-required > label:not(.radio-label):not(.checkbox-label):not(:has(.required-indicator))::after,
+[data-theme="dark"] .notion-prop:has(:is(input, select, textarea):is([required], [aria-required="true"], .is-required)) > label:not(.radio-label):not(.checkbox-label):not(:has(.required-indicator))::after,
+[data-theme="dark"] .notion-prop:has(:is(input, select, textarea):is([required], [aria-required="true"], .is-required)) .pw-header-row > label:not(:has(.required-indicator))::after,
+[data-theme="dark"] .notion-prop.is-required > label:not(.radio-label):not(.checkbox-label):not(:has(.required-indicator))::after,
+[data-theme="dark"] .notion-prop.is-required .pw-header-row > label:not(:has(.required-indicator))::after,
+[data-theme="dark"] .notion-freeform:has(:is(input, select, textarea):is([required], [aria-required="true"], .is-required)) > :is(label, .notion-section-label):not(:has(.required-indicator))::after,
+[data-theme="dark"] .notion-freeform.is-required > :is(label, .notion-section-label):not(:has(.required-indicator))::after,
+[data-theme="dark"] .profile-form-group:has(:is(input, select, textarea):is([required], [aria-required="true"], .is-required)) > label:not(:has(.required-indicator))::after,
+[data-theme="dark"] .profile-form-group:has(:is(input, select, textarea):is([required], [aria-required="true"], .is-required)) .pw-header-row > label:not(:has(.required-indicator))::after,
+[data-theme="dark"] .profile-form-group.is-required > label:not(:has(.required-indicator))::after,
+[data-theme="dark"] .profile-form-group.is-required .pw-header-row > label:not(:has(.required-indicator))::after,
+[data-theme="dark"] label.is-required:not(:has(.required-indicator))::after,
+[data-theme="dark"] label.required:not(:has(.required-indicator))::after,
+[data-theme="dark"] .notion-section-label.is-required:not(:has(.required-indicator))::after {
+  color: #f87171;
+  opacity: 0.9;
+}
+
 input[type="text"],
 input[type="email"],
 input[type="password"],

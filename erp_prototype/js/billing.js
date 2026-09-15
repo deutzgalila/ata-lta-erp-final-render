@@ -4023,7 +4023,7 @@ const Billing = {
 
     // 1. Select Work Request
     const wrGroup = el("div", { class: "form-group" });
-    wrGroup.appendChild(el("label", { text: "Select Work Request *" }));
+    wrGroup.appendChild(el("label", { text: "Select Work Request" }));
     const wrSelect = el("select", {
       name: "workRequestId",
       class: "form-select",
@@ -4098,7 +4098,7 @@ const Billing = {
 
     // 3. Billing Amount
     const amtGroup = el("div", { class: "form-group" });
-    amtGroup.appendChild(el("label", { text: "Billing Amount (₱) *" }));
+    amtGroup.appendChild(el("label", { text: "Billing Amount (₱)" }));
     const amtIn = el("input", {
       type: "text",
       inputmode: "decimal",
@@ -4578,7 +4578,7 @@ const Billing = {
       // Amount and Date (always shown)
       payForm.appendChild(
         el("div", { class: "form-group" }, [
-          el("label", { text: "Amount Paid *" }),
+          el("label", { text: "Amount Paid" }),
           el("input", {
             type: "number",
             name: "payAmount",
@@ -4591,7 +4591,7 @@ const Billing = {
       );
       payForm.appendChild(
         el("div", { class: "form-group" }, [
-          el("label", { text: "Payment Date *" }),
+          el("label", { text: "Payment Date" }),
           el("input", {
             type: "date",
             name: "payDate",
@@ -4603,7 +4603,7 @@ const Billing = {
 
       // Payment Method
       const methodGroup = el("div", { class: "form-group" });
-      methodGroup.appendChild(el("label", { text: "Payment Method *" }));
+      methodGroup.appendChild(el("label", { text: "Payment Method" }));
       const methodSel = el("select", { name: "payMethod", required: true });
       const methods = [
         { value: "", text: "— Select Method —" },
@@ -4624,19 +4624,22 @@ const Billing = {
       payForm.appendChild(methodGroup);
 
       // Conditional field groups
-      const createFieldGroup = (name, label, type = "text", placeholder = "") =>
-        el(
+      const createFieldGroup = (name, label, type = "text", placeholder = "") => {
+        const isReq = label.includes("*");
+        const cleanLabel = label.replace(/\s*\*$/, "");
+        return el(
           "div",
           {
-            class: "form-group pay-field-group",
+            class: "form-group pay-field-group" + (isReq ? " is-required" : ""),
             "data-method": name,
             style: "display:none;",
           },
           [
-            el("label", { text: label }),
-            el("input", { type, name, placeholder }),
+            el("label", { text: cleanLabel }),
+            el("input", { type, name, placeholder, required: isReq }),
           ],
         );
+      };
 
       const checkFields = el("div", {
         class: "pay-check-fields",
@@ -6696,7 +6699,7 @@ const Billing = {
     form.appendChild(titleSection);
 
     const clientGroup = el("div", { class: "form-group" });
-    clientGroup.appendChild(el("label", { text: "Client *" }));
+    clientGroup.appendChild(el("label", { text: "Client" }));
     const clientSel = el("select", { name: "clientId", required: true });
     clientSel.appendChild(
       el("option", { value: "", text: "— Select Client —" }),
@@ -6719,7 +6722,7 @@ const Billing = {
     form.appendChild(clientGroup);
 
     const schedGroup = el("div", { class: "form-group" });
-    schedGroup.appendChild(el("label", { text: "Schedule *" }));
+    schedGroup.appendChild(el("label", { text: "Schedule" }));
     const schedSel = el("select", { name: "schedule", required: true });
     ["monthly", "quarterly"].forEach((s) => {
       const opt = el("option", { value: s, text: s });
@@ -6731,7 +6734,7 @@ const Billing = {
 
     form.appendChild(
       el("div", { class: "form-group" }, [
-        el("label", { text: "Professional Fee Amount *" }),
+        el("label", { text: "Professional Fee Amount" }),
         el("input", {
           type: "number",
           name: "pfAmount",

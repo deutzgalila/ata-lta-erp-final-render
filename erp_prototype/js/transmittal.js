@@ -1917,7 +1917,7 @@ const Transmittal = {
 
     // Client
     const clientGroup = el('div', { class: 'notion-prop' });
-    clientGroup.appendChild(el('label', { html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Client *' }));
+    clientGroup.appendChild(el('label', { html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Client' }));
     const clientSel = el('select', { name: 'clientId', required: true, class: 'notion-prop-select' });
     clientSel.appendChild(el('option', { value: '', text: '— Select —' }));
     const allClients = window.apiClient.clientCache._clients || [];
@@ -1935,7 +1935,7 @@ const Transmittal = {
 
     // Work Request (filtered by selected client)
     const wrGroup = el('div', { class: 'notion-prop' });
-    wrGroup.appendChild(el('label', { html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg> Work Request *' }));
+    wrGroup.appendChild(el('label', { html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg> Work Request' }));
     const wrSel = el('select', { name: 'workRequestId', required: true, class: 'notion-prop-select' });
     wrSel.appendChild(el('option', { value: '', text: '— Select —' }));
     wrGroup.appendChild(wrSel);
@@ -2259,9 +2259,9 @@ const Transmittal = {
     const wrs = window.apiClient.workRequestCache.getActiveByEntity(entity);
 
     const wrapper = el('div', { class: 'form-stacked', style: 'display: flex; flex-direction: column;' });
-    const selectGroup = el('div', { class: 'form-group' });
-    selectGroup.appendChild(el('label', { text: 'Select Work Request *' }));
-    const wrSelect = el('select', { class: 'form-select', style: 'width:100%;' });
+    const selectGroup = el('div', { class: 'form-group is-required' });
+    selectGroup.appendChild(el('label', { text: 'Select Work Request' }));
+    const wrSelect = el('select', { class: 'form-select', style: 'width:100%;', required: true });
     wrSelect.appendChild(el('option', { value: '', text: '— Select —' }));
     for (const wr of wrs) {
       const clientName = this.getClientName(wr.clientId);
@@ -2580,12 +2580,12 @@ const Transmittal = {
     const form = el('form', { class: 'form-stacked' });
 
     const nameGroup = el('div', { class: 'form-group' });
-    nameGroup.appendChild(el('label', { text: 'Received By (Name) *' }));
+    nameGroup.appendChild(el('label', { text: 'Received By (Name)' }));
     nameGroup.appendChild(el('input', { type: 'text', name: 'receivedBy', required: true, class: 'form-control' }));
     form.appendChild(nameGroup);
 
     const dateGroup = el('div', { class: 'form-group' });
-    dateGroup.appendChild(el('label', { text: 'Received Date *' }));
+    dateGroup.appendChild(el('label', { text: 'Received Date' }));
     dateGroup.appendChild(el('input', { type: 'date', name: 'receivedDate', required: true, class: 'form-control', value: new Date().toISOString().slice(0, 10) }));
     form.appendChild(dateGroup);
 
