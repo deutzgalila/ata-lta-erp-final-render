@@ -1765,7 +1765,9 @@ const Billing = {
         label: "Client",
         getName: (inv) => {
           const client = window.apiClient.clientCache.getById(inv.clientId);
-          return client?.name || "No Client";
+          const entity = client?.entity || inv.entity;
+          const entitySuffix = (typeof Auth !== 'undefined' && Auth.activeEntity === 'ALL' && entity) ? ` (${entity})` : '';
+          return (client?.name || "No Client") + entitySuffix;
         },
       },
       {
@@ -2192,8 +2194,10 @@ const Billing = {
       {
         key: "clientId",
         label: "Client",
-        render: (inv) =>
-          window.apiClient.clientCache.getById(inv.clientId)?.name || "—",
+        render: (inv) => {
+          const client = window.apiClient.clientCache.getById(inv.clientId);
+          return renderClientWithEntity(client?.name || "—", client?.entity || inv.entity);
+        },
       },
       {
         key: "issueDate",
@@ -2592,7 +2596,7 @@ const Billing = {
         progress,
         statusColor: statusColors[inv.status] || "#cbd5e1",
         title: inv.invoiceNumber,
-        description: client?.name || "—",
+        description: renderClientWithEntity(client?.name || "—", client?.entity || inv.entity),
         detail: descParts.slice(1).join(" • "),
         date: inv.issueDate ? formatDate(inv.issueDate) : "",
         priority: self.getInvoiceDisplayStatus(inv.status),
@@ -3063,10 +3067,12 @@ const Billing = {
       }
       row.appendChild(
         el("div", {}, [
-          el("div", {
-            class: "list-item-title",
-            text: inv.invoiceNumber + " — " + (client?.name || "—"),
-          }),
+          (() => {
+            const titleEl = el("div", { class: "list-item-title" });
+            titleEl.appendChild(document.createTextNode(inv.invoiceNumber + " — "));
+            titleEl.appendChild(renderClientWithEntity(client?.name || "—", client?.entity || inv.entity));
+            return titleEl;
+          })(),
           el("div", {
             class: "list-item-meta",
             text:
@@ -4301,7 +4307,8 @@ const Billing = {
     }
 
     const meta = el("div", { class: "invoice-meta" });
-    meta.appendChild(el("p", { text: "Client: " + (client?.name || "—") }));
+    const clientP = el("p", {}, ["Client: ", renderClientWithEntity(client?.name || "—", client?.entity || inv.entity)]);
+    meta.appendChild(clientP);
     meta.appendChild(
       el("p", { text: "Issue Date: " + formatDate(inv.issueDate) }),
     );
@@ -6326,7 +6333,7 @@ const Billing = {
         iconHtml:
           '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--color-primary);"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
         tags: [
-          { text: client?.name || "No Client", type: "client" },
+          { text: renderClientWithEntity(client?.name || "No Client", client?.entity || t.entity), type: "client" },
           {
             text: t.schedule || "—",
             type: "schedule",
@@ -7466,7 +7473,7 @@ const Billing = {
         category,
         title: inv.invoiceNumber || "(no number)",
         meta: [
-          { icon: ArchivePage.icons.client, text: client?.name || "—" },
+          { icon: ArchivePage.icons.client, text: renderClientWithEntity(client?.name || "—", client?.entity || inv.entity) },
           { icon: ArchivePage.icons.amount, text: formatPHP(inv.total) },
           { icon: ArchivePage.icons.date, text: formatDate(inv.updatedAt) },
         ],
@@ -7521,11 +7528,11 @@ const Billing = {
       const pc = isOpReq ? null : record;
       const r = isOpReq ? record : null;
       const data = pc ? pc.proposedData || {} : r;
-      const clientName =
-        (
-          window.apiClient.clientCache.getById(data.clientId) ||
-          window.apiClient.clientCache.getById(r?.clientId)
-        )?.name || "—";
+      const clientObj =
+        window.apiClient.clientCache.getById(data.clientId) ||
+        window.apiClient.clientCache.getById(r?.clientId);
+      const clientName = clientObj?.name || "—";
+      const clientEntity = clientObj?.entity || data.entity || r?.entity || null;
       const title = isOpReq
         ? `Billing Request ${r.workRequestId ? "for WR" : ""}`
         : `Invoice Change: ${data.invoiceNumber || "(untitled)"}`;
@@ -7535,7 +7542,7 @@ const Billing = {
         category: "rejected",
         title,
         meta: [
-          { icon: ArchivePage.icons.client, text: clientName },
+          { icon: ArchivePage.icons.client, text: renderClientWithEntity(clientName, clientEntity) },
           {
             icon: ArchivePage.icons.date,
             text: formatDate(

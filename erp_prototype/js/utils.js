@@ -356,6 +356,71 @@ function parseHTML(html) {
   return doc.body.firstChild || document.createTextNode('');
 }
 
+function isNode(val) {
+  return val && typeof val === 'object' && val.nodeType !== undefined;
+}
+
+/**
+ * Render a subtle, minimal, modern entity tag pill for a client when in consolidated view ('ALL').
+ * Returns an HTMLElement or null.
+ */
+function renderClientEntityTag(entity) {
+  if (!entity || (typeof Auth !== 'undefined' && Auth.activeEntity !== 'ALL')) return null;
+  const upper = String(entity).trim().toUpperCase();
+  if (upper !== 'ATA' && upper !== 'LTA') return null;
+  return el('span', {
+    class: `client-entity-tag tag-${upper.toLowerCase()}`,
+    text: upper
+  });
+}
+
+/**
+ * Render client name with entity badge when in consolidated view.
+ * @param {string|object} clientOrName
+ * @param {string|object} [entityOrItem]
+ * @returns {HTMLElement}
+ */
+function renderClientWithEntity(clientOrName, entityOrItem) {
+  let name = '';
+  let entity = null;
+
+  if (clientOrName && typeof clientOrName === 'object' && !isNode(clientOrName)) {
+    name = clientOrName.name || '—';
+    entity = clientOrName.entity || null;
+  } else if (typeof clientOrName === 'string') {
+    name = clientOrName;
+  }
+
+  if (typeof entityOrItem === 'string') {
+    entity = entityOrItem;
+  } else if (entityOrItem && typeof entityOrItem === 'object') {
+    entity = entityOrItem.entity || null;
+    if (!entity && entityOrItem.clientId && window.apiClient?.clientCache?.getById) {
+      const c = window.apiClient.clientCache.getById(entityOrItem.clientId);
+      entity = c?.entity || null;
+    }
+  }
+
+  if (!entity && typeof clientOrName === 'string' && window.apiClient?.clientCache?._clients) {
+    const found = window.apiClient.clientCache._clients.find(c => c.name === clientOrName);
+    if (found?.entity) entity = found.entity;
+  }
+
+  const wrapper = el('span', { class: 'client-with-entity' });
+  const nameSpan = el('span', { class: 'client-name-text' });
+  if (typeof clientOrName === 'object' && isNode(clientOrName)) {
+    nameSpan.appendChild(clientOrName);
+  } else {
+    nameSpan.textContent = name || '—';
+  }
+  wrapper.appendChild(nameSpan);
+
+  const tag = renderClientEntityTag(entity);
+  if (tag) wrapper.appendChild(tag);
+
+  return wrapper;
+}
+
 /**
  * Build a Notion-style empty-state v2 component.
  * @param {Object} opts
@@ -568,7 +633,15 @@ function buildCompactBoardCard(opts) {
   if (opts.title) body.appendChild(el('div', { class: 'card-v2-title', text: opts.title }));
 
   // 3. Description
-  if (opts.description) body.appendChild(el('div', { class: 'card-v2-desc', text: opts.description }));
+  if (opts.description) {
+    const descEl = el('div', { class: 'card-v2-desc' });
+    if (isNode(opts.description)) {
+      descEl.appendChild(opts.description);
+    } else {
+      descEl.textContent = opts.description;
+    }
+    body.appendChild(descEl);
+  }
 
   // 3b. Additional muted detail paragraph (e.g. work-request description).
   if (opts.detail) {
@@ -3577,7 +3650,13 @@ const ArchivePage = {
 
   metaNode(html, text, className = '') {
     const span = el('span', { class: className });
-    span.innerHTML = (html || '') + '<span>' + escapeHtml(text) + '</span>';
+    if (html) span.innerHTML = html;
+    if (isNode(text)) {
+      span.appendChild(text);
+    } else {
+      const textSpan = el('span', { text: text != null ? String(text) : '' });
+      span.appendChild(textSpan);
+    }
     return span;
   },
 
@@ -3924,11 +4003,14 @@ const JiraBacklogList = {
         }
 
         let textVal = tag.text;
-        if (tag.type === 'amount' && textVal.startsWith('₱')) {
+        if (typeof textVal === 'string' && tag.type === 'amount' && textVal.startsWith('₱')) {
           textVal = textVal.substring(1).trim();
         }
 
-        if (tag.isHtml) {
+        if (tag.node || isNode(tag.text)) {
+          if (iconHtml) tNode.innerHTML = iconHtml;
+          tNode.appendChild(tag.node || tag.text);
+        } else if (tag.isHtml) {
           tNode.innerHTML = textVal;
         } else if (iconHtml) {
           tNode.innerHTML = iconHtml + '<span>' + escapeHtml(textVal) + '</span>';

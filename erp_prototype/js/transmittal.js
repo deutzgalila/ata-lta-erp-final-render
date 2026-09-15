@@ -1198,7 +1198,16 @@ const Transmittal = {
     let groupBy = App.restoreGroupBy('transmittals') || 'none';
     const groupOptions = [
       { key: 'none', label: 'None' },
-      { key: 'client', label: 'Client', getName: t => self.getClientName(t.clientId) },
+      {
+        key: 'client',
+        label: 'Client',
+        getName: t => {
+          const client = window.apiClient?.clientCache?.getById ? window.apiClient.clientCache.getById(t.clientId) : null;
+          const entity = client?.entity || t.entity;
+          const entitySuffix = (typeof Auth !== 'undefined' && Auth.activeEntity === 'ALL' && entity) ? ` (${entity})` : '';
+          return (client?.name || self.getClientName(t.clientId)) + entitySuffix;
+        }
+      },
       { key: 'employee', label: 'Employee', getName: t => {
         const creatorName = self.getUserName(t.createdBy);
         const senderName = self.getUserName(t.sentBy);
@@ -1422,7 +1431,14 @@ const Transmittal = {
         }
       },
       { key: 'workRequestId', label: 'Work Request', render: (t) => this.getWorkRequestTitle(t.workRequestId) },
-      { key: 'clientId', label: 'Client', render: (t) => this.getClientName(t.clientId) },
+      {
+        key: 'clientId',
+        label: 'Client',
+        render: (t) => {
+          const client = window.apiClient?.clientCache?.getById ? window.apiClient.clientCache.getById(t.clientId) : null;
+          return renderClientWithEntity(client?.name || this.getClientName(t.clientId), client?.entity || t.entity);
+        }
+      },
       { key: 'status', label: 'Status', render: (t) => this.statusBadge(t.status), width: '130px' },
       { key: 'items', label: 'Items', render: (t) => String((t.items || []).length), width: '70px', align: 'center' },
       { key: 'actions', label: 'Actions', render: (t) => buildActions(t), class: 'dt-actions-col', width: '180px' }
@@ -1505,7 +1521,9 @@ const Transmittal = {
     const seqMap = new Map(sortedForSeq.map((t, i) => [t.id, i + 1]));
 
     const renderCard = (t) => {
-      const clientName = self.getClientName(t.clientId);
+      const client = window.apiClient?.clientCache?.getById ? window.apiClient.clientCache.getById(t.clientId) : null;
+      const clientName = client?.name || self.getClientName(t.clientId);
+      const clientDesc = renderClientWithEntity(clientName, client?.entity || t.entity);
       const itemCount = (t.items || []).length;
       const date = t.sentAt || t.createdAt;
 
@@ -1549,7 +1567,7 @@ const Transmittal = {
         progress,
         statusColor: statusColors[t.status] || '#cbd5e1',
         title: t.trackingNumber,
-        description: clientName,
+        description: clientDesc,
         detail: `${itemCount} item${itemCount === 1 ? '' : 's'}` + (detail ? ` • ${detail}` : ''),
         date: date ? formatDate(date) : '',
         priority: displayStatus,
@@ -1776,7 +1794,11 @@ const Transmittal = {
       });
       const left = el('div');
       left.appendChild(el('div', { class: 'list-item-title', text: t.trackingNumber }));
-      left.appendChild(el('div', { class: 'list-item-meta', text: this.getClientName(t.clientId) + ' • ' + this.getWorkRequestTitle(t.workRequestId) + ' • ' + String((t.items || []).length) + ' items' }));
+      const metaEl = el('div', { class: 'list-item-meta' });
+      const client = window.apiClient?.clientCache?.getById ? window.apiClient.clientCache.getById(t.clientId) : null;
+      metaEl.appendChild(renderClientWithEntity(client?.name || this.getClientName(t.clientId), client?.entity || t.entity));
+      metaEl.appendChild(document.createTextNode(' • ' + this.getWorkRequestTitle(t.workRequestId) + ' • ' + String((t.items || []).length) + ' items'));
+      left.appendChild(metaEl);
       item.appendChild(left);
       const actionWrap = el('div', { style: 'display:flex;gap:4px;align-items:center;flex-shrink:0;' });
       if (this.canEditTransmittal(t)) {
@@ -2365,8 +2387,8 @@ const Transmittal = {
 
     // Meta
     const meta = el('div', { class: 'invoice-meta' });
-    meta.appendChild(el('p', { text: 'Work Request: ' + this.getWorkRequestTitle(t.workRequestId) }));
-    meta.appendChild(el('p', { text: 'Client: ' + await this.getClientName(t.clientId) }));
+    const client = window.apiClient?.clientCache?.getById ? window.apiClient.clientCache.getById(t.clientId) : null;
+    meta.appendChild(el('p', {}, ['Client: ', renderClientWithEntity(client?.name || this.getClientName(t.clientId), client?.entity || t.entity)]));
     if (t.sentAt) {
       const senderName = await this.getUserName(t.sentBy);
       meta.appendChild(el('p', { text: 'Sent: ' + formatDate(t.sentAt) + ' by ' + senderName }));
@@ -3831,7 +3853,13 @@ const Transmittal = {
         category,
         title: t.trackingNumber || '(no tracking)',
         meta: [
-          { icon: ArchivePage.icons.client, text: this.getClientName(t.clientId) },
+          {
+            icon: ArchivePage.icons.client,
+            text: (() => {
+              const client = window.apiClient?.clientCache?.getById ? window.apiClient.clientCache.getById(t.clientId) : null;
+              return renderClientWithEntity(client?.name || this.getClientName(t.clientId), client?.entity || t.entity);
+            })()
+          },
           { icon: ArchivePage.icons.status, text: t.status || '—' },
           { icon: ArchivePage.icons.date, text: formatDate(t.updatedAt) }
         ],
@@ -3902,7 +3930,13 @@ const Transmittal = {
         category: 'rejected',
         title: `Transmittal Request ${wrTitle ? '— ' + wrTitle : ''}`,
         meta: [
-          { icon: ArchivePage.icons.client, text: this.getClientName(r.clientId) },
+          {
+            icon: ArchivePage.icons.client,
+            text: (() => {
+              const client = window.apiClient?.clientCache?.getById ? window.apiClient.clientCache.getById(r.clientId) : null;
+              return renderClientWithEntity(client?.name || this.getClientName(r.clientId), client?.entity || r.entity);
+            })()
+          },
           { icon: ArchivePage.icons.date, text: formatDate(r.reviewedAt || r.updatedAt || r.requestedAt) },
           { icon: ArchivePage.icons.status, text: `Reason: ${r.rejectionReason || 'Rejected'}` }
         ],

@@ -4406,7 +4406,9 @@ const Workflow = {
             ]),
             el('div', { class: 'detail-info-item' }, [
               el('span', { class: 'detail-info-label', text: 'Client' }),
-              el('span', { class: 'detail-info-value', text: client?.name || 'Unknown Client' })
+              el('span', { class: 'detail-info-value' }, [
+                renderClientWithEntity(client?.name || 'Unknown Client', client?.entity || wr.entity)
+              ])
             ])
           );
 
@@ -5665,7 +5667,15 @@ const Workflow = {
           return cell;
         }
       },
-      { key: 'clientId', label: 'Client', width: '20%', render: (wr) => window.apiClient.clientCache.getById(wr.clientId)?.name || '—' },
+      {
+        key: 'clientId',
+        label: 'Client',
+        width: '20%',
+        render: (wr) => {
+          const client = window.apiClient.clientCache.getById(wr.clientId);
+          return renderClientWithEntity(client?.name || '—', client?.entity || wr.entity);
+        }
+      },
       { key: 'priority', label: 'Priority', render: (wr) => DataTable.priorityCell(wr.priority), width: '110px' },
       {
         key: 'status',
@@ -5836,7 +5846,7 @@ const Workflow = {
         progress,
         statusColor: phase.color,
         title: wr.title,
-        description: client?.name || '—',
+        description: renderClientWithEntity(client?.name || '—', client?.entity || wr.entity),
         detail: (wr.description || '').trim(),
         date: wr.dueDate ? formatDate(wr.dueDate) : '',
         priority: priorityConfig.label,
@@ -6035,7 +6045,9 @@ const Workflow = {
         }
         if (groupBy === 'client') {
           const client = window.apiClient.clientCache.getById(wr.clientId);
-          return client?.name || 'No Client';
+          const entity = client?.entity || wr.entity;
+          const entitySuffix = (Auth.activeEntity === 'ALL' && entity) ? ` (${entity})` : '';
+          return (client?.name || 'No Client') + entitySuffix;
         }
         if (groupBy === 'priority') {
           const p = (wr.priority || '').toString().trim().toLowerCase();
@@ -6164,8 +6176,8 @@ const Workflow = {
         } else {
           avatar = el('div', { class: 'board-group-avatar' });
           if (groupBy === 'client') {
-            const client = (window.apiClient.clientCache._clients || []).filter(c => c.name === name)[0];
-            displayName = client?.name || name;
+            const client = (window.apiClient.clientCache._clients || []).find(c => c.name === name || `${c.name} (${c.entity})` === name);
+            displayName = client?.name || name.replace(/\s*\((ATA|LTA)\)$/, '');
           }
           avatar.textContent = getInitials(displayName);
           avatar.style.backgroundColor = groupColor(displayName);
@@ -6174,7 +6186,14 @@ const Workflow = {
 
         const nameWrap = el('div', { class: 'board-group-name-wrap' });
         const nameLine = el('div', { class: 'board-group-name' });
-        nameLine.appendChild(document.createTextNode(displayName + ' '));
+        if (groupBy === 'client') {
+          const client = (window.apiClient.clientCache._clients || []).find(c => c.name === name || `${c.name} (${c.entity})` === name);
+          const groupEntity = client?.entity || (name.match(/\((ATA|LTA)\)$/)?.[1] || null);
+          nameLine.appendChild(renderClientWithEntity(displayName, groupEntity));
+          nameLine.appendChild(document.createTextNode(' '));
+        } else {
+          nameLine.appendChild(document.createTextNode(displayName + ' '));
+        }
         nameLine.appendChild(el('span', {
           class: 'board-group-count',
           text: '(' + groupWrs.length + ' item' + (groupWrs.length === 1 ? '' : 's') + ')'
@@ -6312,7 +6331,10 @@ const Workflow = {
       }
       textCol.appendChild(titleDiv);
       
-      textCol.appendChild(el('div', { class: 'list-item-meta', text: (client?.name || '—') + ' | Due: ' + (wr.dueDate ? formatDate(wr.dueDate) : '—') }));
+      const metaDiv = el('div', { class: 'list-item-meta' });
+      metaDiv.appendChild(renderClientWithEntity(client?.name || '—', client?.entity || wr.entity));
+      metaDiv.appendChild(document.createTextNode(' | Due: ' + (wr.dueDate ? formatDate(wr.dueDate) : '—')));
+      textCol.appendChild(metaDiv);
       
       const badgeRow = el('div', { style: 'display: flex; gap: 6px; margin-top: 4px;' });
       badgeRow.appendChild(this.getPriorityBadgeForWr(wr));
@@ -14317,7 +14339,7 @@ const Workflow = {
       const client = window.apiClient.clientCache.getById(t.clientId);
       const assigneeUser = t.assignedTo ? window.apiClient.userCache.getById(t.assignedTo) : null;
       const tags = [
-        { text: client?.name || 'No Client', type: 'client' },
+        { text: renderClientWithEntity(client?.name || 'No Client', client?.entity || t.entity), type: 'client' },
         { text: t.schedule || '—', type: 'schedule', value: t.schedule, style: 'text-transform: capitalize;' },
       ];
       if (assigneeUser) {
@@ -14756,7 +14778,7 @@ const Workflow = {
         category,
         title: wr.title || '(untitled)',
         meta: [
-          { icon: ArchivePage.icons.client, text: client?.name || '—' },
+          { icon: ArchivePage.icons.client, text: renderClientWithEntity(client?.name || '—', client?.entity || wr.entity) },
           { icon: ArchivePage.icons.status, text: wr.status || '—' },
           { icon: ArchivePage.icons.date, text: formatDate(wr.updatedAt) }
         ],
@@ -14826,7 +14848,7 @@ const Workflow = {
         category: 'rejected',
         title: title,
         meta: [
-          { icon: ArchivePage.icons.client, text: wr ? (window.apiClient.clientCache.getById(wr.clientId)?.name || '—') : '—' },
+          { icon: ArchivePage.icons.client, text: wr ? renderClientWithEntity(window.apiClient.clientCache.getById(wr.clientId)?.name || '—', wr) : '—' },
           { icon: ArchivePage.icons.date, text: formatDate(pc.reviewedAt || pc.updatedAt || pc.requestedAt) },
           { icon: ArchivePage.icons.status, text: pc.rejectionReason ? `Reason: ${pc.rejectionReason}` : 'Rejected' }
         ],
