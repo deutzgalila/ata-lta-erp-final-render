@@ -2002,7 +2002,7 @@ const Transmittal = {
     if (initialWRId) wrSel.value = initialWRId;
 
     // Itemized document list — Notion-style editable list
-    form.appendChild(el('h3', { class: 'notion-section-heading', text: 'Transmittal Items' }));
+    form.appendChild(el('h3', { class: 'notion-section-heading is-required', text: 'Transmittal Items' }));
     const itemsSection = el('div', { class: 'notion-line-items' });
     const itemsList = el('div', { class: 'notion-line-item-list', id: 'transmittal-items-list' });
     itemsSection.appendChild(itemsList);
@@ -2085,16 +2085,24 @@ const Transmittal = {
     const itemsList = document.getElementById('transmittal-items-list');
 
     const items = [];
+    let hasPartialItem = false;
     itemsList.querySelectorAll('.notion-line-item-row').forEach(row => {
       const desc = row.querySelector('.item-description')?.value.trim();
       const type = row.querySelector('.item-doc-type')?.value;
       if (desc && type) {
         items.push({ description: desc, documentType: type });
+      } else if (desc || type) {
+        hasPartialItem = true;
       }
     });
 
+    if (hasPartialItem) {
+      Workflow.showMessage('Validation Error', 'Each transmittal item must have both a document type and a description.', 'warning');
+      return;
+    }
+
     if (items.length === 0) {
-      Workflow.showMessage('Item Error', 'Please add at least one item.', 'danger');
+      Workflow.showMessage('Validation Error', 'Please add at least one transmittal item.', 'warning');
       return;
     }
 

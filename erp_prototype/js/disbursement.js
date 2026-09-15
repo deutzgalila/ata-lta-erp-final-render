@@ -2344,8 +2344,8 @@ const Disbursement = {
     form.appendChild(descSection);
 
     // Receipt upload
-    const receiptGroup = el('div', { class: 'notion-freeform' });
-    receiptGroup.appendChild(el('label', { class: 'notion-section-label', text: 'Receipt' }));
+    const receiptGroup = el('div', { class: 'notion-freeform is-required' });
+    receiptGroup.appendChild(el('label', { class: 'notion-section-label is-required', text: 'Receipt' }));
 
     const dropzone = el('div', { class: 'notion-popover-dropzone', style: 'cursor: pointer; margin-bottom: 8px;' });
     dropzone.innerHTML = `
@@ -2361,6 +2361,7 @@ const Disbursement = {
     const handleFile = (file) => {
       errorLabel.textContent = '';
       statusLabel.innerHTML = '';
+      dropzone.style.borderColor = '';
       if (!file) return;
 
       const limit = 50 * 1024 * 1024;
@@ -2589,11 +2590,15 @@ const Disbursement = {
 
     const existing = isNew ? null : await this.loadDisbursement(this.detailId);
 
-    // On create, a receipt must be attached (or already provided via a fulfilled operations request).
+    // A receipt must be attached (or already provided via a fulfilled operations request / existing record).
     const hasExistingReceipt = !isNew && (existing?.receiptFilename || null);
     const hasPrefilledReceipt = isNew && (this._prefilledOpReq?.receiptFilename || null);
-    if (isNew && !receiptFile && !hasPrefilledReceipt) {
+    if (!receiptFile && !hasExistingReceipt && !hasPrefilledReceipt) {
       Workflow.showMessage('Validation Error', 'Please attach a receipt for this disbursement.', 'warning');
+      const dropzone = form.querySelector('.notion-popover-dropzone');
+      if (dropzone) {
+        dropzone.style.borderColor = 'var(--color-danger)';
+      }
       return;
     }
 

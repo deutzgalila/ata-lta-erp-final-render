@@ -733,7 +733,11 @@ h3 {
 .profile-form-group.is-required .pw-header-row > label:not(:has(.required-indicator))::after,
 label.is-required:not(:has(.required-indicator))::after,
 label.required:not(:has(.required-indicator))::after,
-.notion-section-label.is-required:not(:has(.required-indicator))::after {
+.notion-section-label.is-required:not(:has(.required-indicator))::after,
+.notion-section-heading.is-required:not(:has(.required-indicator))::after,
+.form-section.is-required > :is(h3, h4, label):not(:has(.required-indicator))::after,
+h3.is-required:not(:has(.required-indicator))::after,
+h4.is-required:not(:has(.required-indicator))::after {
   content: "*";
   display: inline-block;
   color: var(--color-danger, #ef4444);
@@ -769,7 +773,11 @@ label.required:not(:has(.required-indicator))::after,
 [data-theme="dark"] .profile-form-group.is-required .pw-header-row > label:not(:has(.required-indicator))::after,
 [data-theme="dark"] label.is-required:not(:has(.required-indicator))::after,
 [data-theme="dark"] label.required:not(:has(.required-indicator))::after,
-[data-theme="dark"] .notion-section-label.is-required:not(:has(.required-indicator))::after {
+[data-theme="dark"] .notion-section-label.is-required:not(:has(.required-indicator))::after,
+[data-theme="dark"] .notion-section-heading.is-required:not(:has(.required-indicator))::after,
+[data-theme="dark"] .form-section.is-required > :is(h3, h4, label):not(:has(.required-indicator))::after,
+[data-theme="dark"] h3.is-required:not(:has(.required-indicator))::after,
+[data-theme="dark"] h4.is-required:not(:has(.required-indicator))::after {
   color: #f87171;
   opacity: 0.9;
 }

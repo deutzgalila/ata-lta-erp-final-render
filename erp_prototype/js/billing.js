@@ -3460,7 +3460,7 @@ const Billing = {
 
     // Line Items — Notion-style editable list
     form.appendChild(
-      el("h3", { class: "notion-section-heading", text: "Line Items" }),
+      el("h3", { class: "notion-section-heading is-required", text: "Line Items" }),
     );
     const itemsSection = el("div", { class: "notion-line-items" });
     const itemsList = el("div", {

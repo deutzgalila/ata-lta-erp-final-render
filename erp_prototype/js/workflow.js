@@ -3210,8 +3210,8 @@ const Workflow = {
     form.appendChild(numGroup);
 
     // ---------- Line Items ----------
-    const itemsSection = el('div', { class: 'form-section', style: 'margin-top: 4px;' });
-    itemsSection.appendChild(el('h4', { text: 'Line Items' }));
+    const itemsSection = el('div', { class: 'form-section is-required', style: 'margin-top: 4px;' });
+    itemsSection.appendChild(el('h4', { class: 'is-required', text: 'Line Items' }));
     const itemsList = el('div', { id: 'modal-line-item-rows' });
     itemsSection.appendChild(itemsList);
 
@@ -3297,15 +3297,30 @@ const Workflow = {
       const rows = form.querySelectorAll('.line-item-row');
       const lineItems = [];
       let subtotal = 0;
+      let hasPartialItem = false;
       rows.forEach(row => {
-        const amt = parseFloat(row.querySelector('.item-amt').value) || 0;
-        subtotal += amt;
-        lineItems.push({
-          type: row.querySelector('.item-type').value,
-          description: row.querySelector('.item-desc').value.trim(),
-          amount: amt
-        });
+        const desc = row.querySelector('.item-desc')?.value.trim() || '';
+        const amt = parseFloat(row.querySelector('.item-amt')?.value) || 0;
+        if (desc && amt > 0) {
+          subtotal += amt;
+          lineItems.push({
+            type: row.querySelector('.item-type').value,
+            description: desc,
+            amount: amt
+          });
+        } else if (desc || amt > 0) {
+          hasPartialItem = true;
+        }
       });
+
+      if (hasPartialItem) {
+        this.showMessage('Validation Error', 'Each line item must have both a description and a valid amount greater than zero.', 'warning');
+        return;
+      }
+      if (lineItems.length === 0) {
+        this.showMessage('Validation Error', 'Please add at least one line item with a description and a valid amount.', 'warning');
+        return;
+      }
 
       const record = {
         invoiceNumber: data.invoiceNumber,
@@ -3467,9 +3482,9 @@ const Workflow = {
       });
     });
 
-    // ---------- Receipt (optional) ----------
-    const receiptGroup = el('div', { class: 'form-group' });
-    receiptGroup.appendChild(el('label', { text: 'Receipt (optional)' }));
+    // ---------- Receipt ----------
+    const receiptGroup = el('div', { class: 'form-group is-required' });
+    receiptGroup.appendChild(el('label', { text: 'Receipt' }));
 
     const dropzone = el('div', { class: 'notion-popover-dropzone', style: 'cursor: pointer; margin-bottom: 8px;' });
     dropzone.innerHTML = `
@@ -3485,6 +3500,7 @@ const Workflow = {
     const handleFile = (file) => {
       errorLabel.textContent = '';
       statusLabel.innerHTML = '';
+      dropzone.style.borderColor = '';
       if (!file) return;
 
       const limit = 50 * 1024 * 1024;
@@ -3559,6 +3575,13 @@ const Workflow = {
       const data = Object.fromEntries(new FormData(form).entries());
       const receiptInput = form.querySelector('input[name="receipt"]');
       const receiptFile = receiptInput?.files?.[0];
+
+      if (!receiptFile) {
+        this.showMessage('Validation Error', 'Please attach a receipt for this disbursement.', 'warning');
+        const dropzone = form.querySelector('.notion-popover-dropzone');
+        if (dropzone) dropzone.style.borderColor = 'var(--color-danger)';
+        return;
+      }
 
       let receiptS3Key = null;
       let receiptFilename = null;
@@ -3655,7 +3678,7 @@ const Workflow = {
     form.appendChild(clientGroup);
 
     // ---------- Work Request (read-only, auto-filled) ----------
-    const wrGroup = el('div', { class: 'form-group' });
+    const wrGroup = el('div', { class: 'form-group is-required' });
     wrGroup.appendChild(el('label', { text: 'Work Request' }));
     wrGroup.appendChild(el('input', {
       type: 'text',
@@ -3679,9 +3702,9 @@ const Workflow = {
     tnGroup.appendChild(tnInput);
     form.appendChild(tnGroup);
 
-    // ---------- Itemized Document List ----------
-    const itemsSection = el('div', { class: 'form-section', style: 'margin-top: 4px;' });
-    itemsSection.appendChild(el('h4', { text: 'Document Items' }));
+    // ---------- Transmittal Items ----------
+    const itemsSection = el('div', { class: 'form-section is-required', style: 'margin-top: 4px;' });
+    itemsSection.appendChild(el('h4', { class: 'is-required', text: 'Transmittal Items' }));
 
     // Column headers
     const headerLabelStyle = 'font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.03em; padding-left: 13px;';
@@ -3764,16 +3787,24 @@ const Workflow = {
       // Collect items
       const rows = itemsList.querySelectorAll('.line-item-row');
       const items = [];
+      let hasPartialItem = false;
       rows.forEach(row => {
         const desc = row.querySelector('.item-desc')?.value?.trim();
         const docType = row.querySelector('.item-type')?.value;
         if (desc && docType) {
           items.push({ description: desc, documentType: docType });
+        } else if (desc || docType) {
+          hasPartialItem = true;
         }
       });
 
+      if (hasPartialItem) {
+        this.showMessage('Validation Error', 'Each transmittal item must have both a document type and a description.', 'warning');
+        return;
+      }
+
       if (items.length === 0) {
-        this.showMessage('Validation Error', 'Please add at least one document item with a description.', 'warning');
+        this.showMessage('Validation Error', 'Please add at least one transmittal item with a document type and description.', 'warning');
         return;
       }
 
