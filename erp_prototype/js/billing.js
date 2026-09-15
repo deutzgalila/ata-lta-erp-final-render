@@ -3230,16 +3230,16 @@ const Billing = {
     propsGrid.appendChild(clientGroup);
 
     // Work Request link
-    const wrGroup = el("div", { class: "notion-prop" });
+    const wrGroup = el("div", { class: "notion-prop is-required" });
     wrGroup.appendChild(
       el("label", {
         html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg> Work Request',
       }),
     );
-    const wrSelAttrs = { name: "workRequestId", class: "notion-prop-select" };
+    const wrSelAttrs = { name: "workRequestId", class: "notion-prop-select", required: true };
     if (prefill && prefill.workRequestId) wrSelAttrs.disabled = true;
     const wrSel = el("select", wrSelAttrs);
-    wrSel.appendChild(el("option", { value: "", text: "— None —" }));
+    wrSel.appendChild(el("option", { value: "", text: "— Select Work Request —" }));
     const wrs = window.apiClient.workRequestCache.getActiveByEntity(entity);
     const activeWrIds = new Set(wrs.map((wr) => wr.id));
     const existingWr = inv?.workRequestId
@@ -3668,6 +3668,14 @@ const Billing = {
     }
 
     const data = Object.fromEntries(new FormData(form).entries());
+    if (!data.workRequestId) {
+      Workflow.showMessage(
+        "Validation Error",
+        "Please select a work request.",
+        "warning",
+      );
+      return;
+    }
     const activeEntity = Auth.activeEntity;
     // Resolve a concrete entity for the optimistic record. The backend resolves the
     // actual entity from the request header / client, but the local cache matching
@@ -4022,7 +4030,7 @@ const Billing = {
     const form = el("form", { class: "form-stacked" });
 
     // 1. Select Work Request
-    const wrGroup = el("div", { class: "form-group" });
+    const wrGroup = el("div", { class: "form-group is-required" });
     wrGroup.appendChild(el("label", { text: "Select Work Request" }));
     const wrSelect = el("select", {
       name: "workRequestId",

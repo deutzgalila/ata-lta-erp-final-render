@@ -3150,7 +3150,7 @@ const Workflow = {
     form.appendChild(clientGroup);
 
     // ---------- Work Request (read-only, auto-filled) ----------
-    const wrGroup = el('div', { class: 'form-group' });
+    const wrGroup = el('div', { class: 'form-group is-required' });
     wrGroup.appendChild(el('label', { text: 'Work Request' }));
     const wrDisplay = el('input', {
       type: 'text',
@@ -3380,7 +3380,7 @@ const Workflow = {
     form.appendChild(clientGroup);
 
     // ---------- Work Request (read-only, auto-filled) ----------
-    const wrGroup = el('div', { class: 'form-group' });
+    const wrGroup = el('div', { class: 'form-group is-required' });
     wrGroup.appendChild(el('label', { text: 'Work Request' }));
     wrGroup.appendChild(el('input', {
       type: 'text',
