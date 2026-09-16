@@ -958,7 +958,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           showIcon.classList.toggle('hidden', isPassword);
           hideIcon.classList.toggle('hidden', !isPassword);
         }
-        passwordInput.focus();
       });
     }
 
