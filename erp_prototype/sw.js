@@ -227,18 +227,7 @@ async function networkFirst(request) {
   const cacheKey = isApi ? getApiCacheKey(request) : null;
 
   try {
-    const response = await fetch(request);
-    if (request.method === 'GET' && response && response.ok && isApi && cacheKey) {
-      try {
-        const cache = await caches.open(API_CACHE);
-        const cloned = response.clone();
-        const headers = new Headers(cloned.headers);
-        headers.set('x-sw-cached-at', Date.now().toString());
-        const wrapped = new Response(cloned.body, { status: cloned.status, statusText: cloned.statusText, headers });
-        await cache.put(cacheKey, wrapped);
-      } catch (err) {}
-    }
-    return response;
+    return await fetch(request);
   } catch (e) {
     if (isApi) {
       if (cacheKey) {
