@@ -395,13 +395,19 @@ const App = {
         Clients.editingId = null;
       }
 
-      // If the current route has subpaths (e.g. #billing/detail/123), reset to the base route (e.g. #billing)
+      // If the current route has detail/form subpaths (e.g. #billing/detail/123), reset to the base route (e.g. #billing).
+      // Module-level sub-tabs like #admin/audit or #admin/pending are preserved.
       const rawHash = location.hash || '#dashboard';
-      const baseHash = rawHash.split('?')[0].split('/')[0];
+      const pathParts = rawHash.split('?')[0].split('/');
+      const baseHash = pathParts[0];
+      let targetRoute = baseHash;
+      if (baseHash === '#admin' && (pathParts[1] === 'audit' || pathParts[1] === 'pending' || pathParts[1] === 'users')) {
+        targetRoute = `${baseHash}/${pathParts[1]}`;
+      }
 
       // Let triggerSyncReload reset the hash (when needed) and re-route once,
       // avoiding a duplicate handleRoute from both hashchange and a direct call.
-      await triggerSyncReload(baseHash);
+      await triggerSyncReload(targetRoute);
     };
   },
 

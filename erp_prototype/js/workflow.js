@@ -4516,7 +4516,11 @@ const Workflow = {
       container.appendChild(contentContainer);
 
       if (this.view === 'list') {
-        contentContainer.appendChild(this.renderList());
+        if (!this.hasCachedData(Auth.activeEntity)) {
+          contentContainer.innerHTML = Utils.getSkeletonForView('operations');
+        } else {
+          contentContainer.appendChild(this.renderList());
+        }
       } else {
         contentContainer.innerHTML = Utils.getSkeletonForView('operations');
       }
@@ -4539,7 +4543,10 @@ const Workflow = {
             tabNav = freshTabNav;
           }
 
-          if (this.view === 'templates') {
+          if (this.view === 'list') {
+            contentContainer.innerHTML = '';
+            contentContainer.appendChild(this.renderList());
+          } else if (this.view === 'templates') {
             contentContainer.innerHTML = '';
             contentContainer.appendChild(await this.renderTemplates());
           } else if (this.view === 'archive') {
