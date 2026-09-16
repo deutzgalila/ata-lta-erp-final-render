@@ -471,16 +471,15 @@
         return !this._loadedAt || (Date.now() - this._loadedAt > this.TTL_MS);
       },
       async ensure() {
-        if (this._users && !this._stale()) return this._users;
+        if (this._users && this._loadedAt && !this._stale()) return this._users;
         if (this._promise) return this._promise;
         this._promise = window.apiClient.me.team().then(res => {
           this._users = res.data || [];
           this._loadedAt = Date.now();
           return this._users;
         }).catch(err => {
-          this._users = [];
-          this._loadedAt = Date.now();
-          return this._users;
+          // Do not stamp _loadedAt on error/abort so subsequent calls can retry cleanly
+          return this._users || [];
         }).finally(() => {
           this._promise = null;
         });
@@ -501,6 +500,7 @@
       invalidate() {
         this._users = null;
         this._loadedAt = null;
+        this._promise = null;
       }
     },
 
@@ -513,20 +513,22 @@
         return !this._loadedAt || (Date.now() - this._loadedAt > this.TTL_MS);
       },
       async ensure() {
-        if (this._clients && !this._stale()) return this._clients;
+        if (this._clients && this._loadedAt && !this._stale()) return this._clients;
         if (this._promise) return this._promise;
         this._promise = window.apiClient.clients.list({}).then(res => {
           this._clients = (res.data || []).map(c => this._normalize(c));
           this._loadedAt = Date.now();
           return this._clients;
         }).catch(err => {
-          this._clients = [];
-          this._loadedAt = Date.now();
-          return this._clients;
+          // Do not stamp _loadedAt on error/abort so subsequent calls can retry cleanly
+          return this._clients || [];
         }).finally(() => {
           this._promise = null;
         });
         return this._promise;
+      },
+      getAll() {
+        return [...(this._clients || [])];
       },
       _normalize(client) {
         if (!client) return client;
@@ -551,6 +553,7 @@
       invalidate() {
         this._clients = null;
         this._loadedAt = null;
+        this._promise = null;
       }
     },
 
@@ -563,16 +566,15 @@
         return !this._loadedAt || (Date.now() - this._loadedAt > this.TTL_MS);
       },
       async ensure() {
-        if (this._wrs && !this._stale()) return this._wrs;
+        if (this._wrs && this._loadedAt && !this._stale()) return this._wrs;
         if (this._promise) return this._promise;
         this._promise = window.apiClient.workRequests.list({ includeTasks: true }).then(res => {
           this._wrs = res.data || [];
           this._loadedAt = Date.now();
           return this._wrs;
         }).catch(err => {
-          this._wrs = [];
-          this._loadedAt = Date.now();
-          return this._wrs;
+          // Do not stamp _loadedAt on error/abort so subsequent calls can retry cleanly
+          return this._wrs || [];
         }).finally(() => {
           this._promise = null;
         });
@@ -595,6 +597,7 @@
       invalidate() {
         this._wrs = null;
         this._loadedAt = null;
+        this._promise = null;
       }
     },
 
@@ -607,16 +610,15 @@
         return !this._loadedAt || (Date.now() - this._loadedAt > this.TTL_MS);
       },
       async ensure() {
-        if (this._transmittals && !this._stale()) return this._transmittals;
+        if (this._transmittals && this._loadedAt && !this._stale()) return this._transmittals;
         if (this._promise) return this._promise;
         this._promise = window.apiClient.transmittals.list().then(res => {
           this._transmittals = res.data || [];
           this._loadedAt = Date.now();
           return this._transmittals;
         }).catch(err => {
-          this._transmittals = [];
-          this._loadedAt = Date.now();
-          return this._transmittals;
+          // Do not stamp _loadedAt on error/abort so subsequent calls can retry cleanly
+          return this._transmittals || [];
         }).finally(() => {
           this._promise = null;
         });
@@ -643,6 +645,7 @@
       invalidate() {
         this._transmittals = null;
         this._loadedAt = null;
+        this._promise = null;
       }
     },
 

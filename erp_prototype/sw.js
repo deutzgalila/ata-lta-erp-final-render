@@ -10,7 +10,7 @@
  * a bundler), those URLs are added to the app-shell cache. Otherwise a static
  * fallback list is used.
  */
-const CACHE_VERSION = 'v17';
+const CACHE_VERSION = 'v18';
 const SHELL_CACHE = `erp-shell-${CACHE_VERSION}`;
 const API_CACHE = `erp-api-${CACHE_VERSION}`;
 
@@ -59,8 +59,9 @@ const SAFE_API_PATHS = [
   // Only exact list/count endpoints are safe for stale-while-revalidate.
   // Detail / related subresources must always hit the network so mutations
   // are visible immediately after a hard refresh.
+  // Note: /v1/clients is entity-dependent and handled via networkFirst to
+  // prevent cross-entity (ATA vs LTA) cache collisions.
   /^\/v1\/me$/,
-  /^\/v1\/clients$/,
   /^\/v1\/clients\/counts$/,
   /^\/v1\/work-requests$/,
   /^\/v1\/work-requests\/counts$/,
