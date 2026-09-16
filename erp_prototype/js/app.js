@@ -943,10 +943,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const loginForm = document.getElementById('login-form');
   if (loginForm) {
+    const passwordToggleBtn = document.getElementById('password-toggle-btn');
+    const passwordInput = document.getElementById('password');
+    if (passwordToggleBtn && passwordInput) {
+      passwordToggleBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const isPassword = passwordInput.type === 'password';
+        passwordInput.type = isPassword ? 'text' : 'password';
+        passwordToggleBtn.setAttribute('title', isPassword ? 'Hide password' : 'Show password');
+        passwordToggleBtn.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+        const showIcon = passwordToggleBtn.querySelector('.eye-show');
+        const hideIcon = passwordToggleBtn.querySelector('.eye-hide');
+        if (showIcon && hideIcon) {
+          showIcon.classList.toggle('hidden', isPassword);
+          hideIcon.classList.toggle('hidden', !isPassword);
+        }
+      });
+    }
+
     loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const emailInput = document.getElementById('email');
-      const passwordInput = document.getElementById('password');
       const submitBtn = loginForm.querySelector('button[type="submit"]');
       const errorEl = document.getElementById('login-error');
 
@@ -959,6 +976,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Disable inputs and button
       emailInput.disabled = true;
       passwordInput.disabled = true;
+      if (passwordToggleBtn) passwordToggleBtn.disabled = true;
       if (submitBtn) {
         submitBtn.disabled = true;
         submitBtn.textContent = 'Signing In...';
@@ -971,6 +989,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Re-enable inputs and button
       emailInput.disabled = false;
       passwordInput.disabled = false;
+      if (passwordToggleBtn) passwordToggleBtn.disabled = false;
       if (submitBtn) {
         submitBtn.disabled = false;
         submitBtn.textContent = 'Sign In';
