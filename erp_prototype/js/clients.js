@@ -1602,7 +1602,7 @@ const Clients = {
     const clientSel = el('select', { class: 'notion-line-item-type', name: 'rc-client-' + idx, style: 'flex: 1 1 auto; min-width: 160px;' });
     clientSel.appendChild(el('option', { value: '', text: '— Select Client —' }));
     let allClients = [];
-    if (typeof ClientsData !== 'undefined' && Array.isArray(ClientsData.getAllClients()) && ClientsData.getAllClients().length > 0) {
+    if (typeof ClientsData !== 'undefined' && ClientsData.hasData() && Array.isArray(ClientsData.getAllClients()) && ClientsData.getAllClients().length > 0) {
       allClients = ClientsData.getAllClients();
     }
     if (allClients.length === 0 && window.apiClient?.clientCache) {

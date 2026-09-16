@@ -172,8 +172,12 @@ async function cacheFirst(request) {
 function getApiCacheKey(request) {
   const url = new URL(request.url);
   const entity = request.headers.get('x-active-entity');
+  const authorization = request.headers.get('authorization');
   if (entity) {
     url.searchParams.set('__entity', entity.toUpperCase());
+  }
+  if (authorization) {
+    url.searchParams.set('__authorization', authorization);
   }
   return url.toString();
 }
