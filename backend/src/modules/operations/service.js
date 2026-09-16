@@ -414,7 +414,7 @@ const createWorkRequest = async ({ entityId, data, user }) => {
   return getWorkRequestById({ id, entityId, user });
 };
 
-const getWorkRequestById = async ({ id, entityId, user }) => {
+const getWorkRequestById = async ({ id, entityId, user, includeTasks = false }) => {
   const { data, error } = await supabaseAdmin
     .from('work_requests')
     .select('*')
@@ -436,7 +436,21 @@ const getWorkRequestById = async ({ id, entityId, user }) => {
   if (!canViewWorkRequest(data, user, taskMap)) return null;
 
   const entityCode = await resolveEntityCode(entityId);
-  return toApiWorkRequest(data, entityCode);
+  const wr = toApiWorkRequest(data, entityCode);
+
+  if (includeTasks) {
+    const taskRows = taskMap.get(id) || [];
+    const extras = await loadTaskExtras(taskRows.map((t) => t.id));
+    wr.tasks = taskRows.map((t) =>
+      toApiTask(t, {
+        checklist: extras.checklist.get(t.id) || [],
+        timeLogs: extras.timeLogs.get(t.id) || [],
+        taskDocuments: extras.taskDocuments.get(t.id) || [],
+      })
+    );
+  }
+
+  return wr;
 };
 
 const updateWorkRequest = async ({ id, entityId, data, user }) => {

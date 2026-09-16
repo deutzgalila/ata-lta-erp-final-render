@@ -283,11 +283,10 @@ const Auth = {
   canViewWr(wr) {
     if (!this.user) return false;
     if (this.user.role === 'Admin') return true;
-    // Managerial users (Management department or legacy Manager role) can view
-    // work requests they own or are directly involved in.
-    if (this.isManagerial()) {
-      return wr && (wr.submittedBy === this.user.id || wr.requestedBy === this.user.id);
-    }
+    // Managerial users (Management department or legacy Manager role) are
+    // back-office: the backend serves them every work request (isBackOffice),
+    // so the frontend must not bounce their detail views to the list.
+    if (this.isManagerial()) return !!wr;
     // Staff-level users can see work requests they are assigned to via tasks.
     if (!wr) return false;
     
@@ -309,9 +308,7 @@ const Auth = {
   canViewWrWithTasks(wr, taskMap) {
     if (!this.user) return false;
     if (this.user.role === 'Admin') return true;
-    if (this.isManagerial()) {
-      return wr && (wr.submittedBy === this.user.id || wr.requestedBy === this.user.id);
-    }
+    if (this.isManagerial()) return !!wr;
     if (!wr) return false;
     const tasks = wr.isPendingApproval ? (wr.tasks || []) : (taskMap[wr.id] || []);
     return tasks.some(t => {

@@ -1784,6 +1784,10 @@ const Dashboard = {
 
     if (isExpanded) {
       const details = el('div', { class: 'sidebar-item-details' });
+      // Hoisted so the shared "View" button below can reference it for both
+      // 'wr' and 'db' item types (previously block-scoped to the 'wr' branch,
+      // which made the button click throw a ReferenceError and do nothing).
+      let myTasks = [];
 
       if (type === 'wr') {
         const client = item.clientId ? window.apiClient.clientCache.getById(item.clientId) : null;
@@ -1793,7 +1797,7 @@ const Dashboard = {
         details.appendChild(this.renderDetailRow('Status', item.status));
         details.appendChild(this.renderDetailRow('Assigned', assigned ? assigned.name : '—'));
 
-        const myTasks = (this._dataCache?.tasks || []).filter(t => t.workRequestId === item.id && t.assigneeId === Auth.user?.id && t.status !== 'Completed');
+        myTasks = (this._dataCache?.tasks || []).filter(t => t.workRequestId === item.id && t.assigneeId === Auth.user?.id && t.status !== 'Completed');
         if (myTasks.length > 0) {
           const taskWrap = el('div', { class: 'detail-desc', style: 'border-left-color: var(--color-warning);' });
           taskWrap.appendChild(el('strong', { text: `My Incomplete Tasks (${myTasks.length}):` }));
@@ -1829,7 +1833,7 @@ const Dashboard = {
       const viewBtn = el('button', { class: 'btn btn-primary btn-xs btn-block', style: 'margin-top:12px;', text: btnText });
       viewBtn.onclick = async (e) => {
         e.stopPropagation();
-        const firstIncomplete = myTasks?.[0]?.id || null;
+        const firstIncomplete = myTasks[0]?.id || null;
         await this._routeToItem(type, item, firstIncomplete);
       };
       details.appendChild(viewBtn);

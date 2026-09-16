@@ -10,7 +10,7 @@
  * a bundler), those URLs are added to the app-shell cache. Otherwise a static
  * fallback list is used.
  */
-const CACHE_VERSION = 'v21';
+const CACHE_VERSION = 'v22';
 const SHELL_CACHE = `erp-shell-${CACHE_VERSION}`;
 const API_CACHE = `erp-api-${CACHE_VERSION}`;
 
@@ -59,11 +59,12 @@ const SAFE_API_PATHS = [
   // Only exact list/count endpoints are safe for stale-while-revalidate.
   // Note: /v1/work-requests and /v1/clients are dynamic and entity-dependent,
   // handled via networkFirst to eliminate ghost bugs and cache collisions.
+  // /v1/reports/dashboard is deliberately excluded: its calendar payload is
+  // user-specific (visibility-filtered) and must always come from the network.
   /^\/v1\/me$/,
   /^\/v1\/clients\/counts$/,
   /^\/v1\/work-requests\/counts$/,
   /^\/v1\/reports\/analytics$/,
-  /^\/v1\/reports\/dashboard$/,
 ];
 
 function isSameOrigin(url) {

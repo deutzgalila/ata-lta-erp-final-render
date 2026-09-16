@@ -740,7 +740,10 @@
       ),
       invalidateCounts: () => invalidateCountCache('workRequests.counts'),
       create: (data) => post('/work-requests', data).then((res) => { invalidateCountCache('workRequests.counts'); return res; }),
-      get: (id) => get(`/work-requests/${id}`),
+      get: (id, params) => {
+        const q = params ? new URLSearchParams(params).toString() : '';
+        return get(`/work-requests/${id}${q ? '?' + q : ''}`);
+      },
       update: (id, data, options) => put(`/work-requests/${id}`, data, options).then((res) => { invalidateCountCache('workRequests.counts'); return res; }),
       archive: (id) => post(`/work-requests/${id}/archive`).then((res) => { invalidateCountCache('workRequests.counts'); return res; }),
       unarchive: (id) => post(`/work-requests/${id}/unarchive`).then((res) => { invalidateCountCache('workRequests.counts'); return res; }),

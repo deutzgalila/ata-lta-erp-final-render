@@ -433,6 +433,47 @@ const WorkflowData = {
   getAllTasks() { return this._tasks || []; },
   getWorkRequestById(id) { return (this._workRequests || []).find(r => r.id === id) || null; },
   getTaskById(id) { return (this._tasks || []).find(t => t.id === id) || null; },
+
+  /**
+   * Fetch a single work request from the API and merge it (plus its embedded
+   * tasks) into the local caches. Used by the detail view when the WR is not
+   * in the list cache — deep links (audit log, dashboard) can target archived
+   * or previously-unloaded records. The server enforces visibility, returning
+   * null/404 for records the user may not see.
+   */
+  async fetchWorkRequestById(id) {
+    if (!id || this._isTempId(id)) return null;
+    try {
+      const res = await window.apiClient.workRequests.get(id, { _t: Date.now() });
+      if (!res || !res.data) return null;
+      const wr = this.normalizeWorkRequest(res.data);
+      wr.tasks = (wr.tasks || []).map(t => {
+        const normalized = this.normalizeTask(t);
+        normalized.workRequestId = wr.id;
+        return normalized;
+      });
+
+      if (!Array.isArray(this._workRequests)) this._workRequests = [];
+      const wrIdx = this._workRequests.findIndex(r => r.id === wr.id);
+      if (wrIdx >= 0) this._workRequests[wrIdx] = wr;
+      else this._workRequests.push(wr);
+
+      if (!Array.isArray(this._tasks)) this._tasks = [];
+      const fetchedTaskIds = new Set(wr.tasks.map(t => t.id));
+      // Drop stale cached tasks for this WR that the server no longer returns.
+      this._tasks = this._tasks.filter(t =>
+        !(t.workRequestId === wr.id && !fetchedTaskIds.has(t.id) && !this._isTempId(t.id)));
+      wr.tasks.forEach(t => {
+        const tIdx = this._tasks.findIndex(x => x.id === t.id);
+        if (tIdx >= 0) this._tasks[tIdx] = t;
+        else this._tasks.push(t);
+      });
+      return wr;
+    } catch (err) {
+      // 404 = not found or not visible to this user; treat as unavailable.
+      return null;
+    }
+  },
   getWorkRequestsWhere(predicate) { return (this._workRequests || []).filter(predicate); },
   getTasksWhere(predicate) { return (this._tasks || []).filter(predicate); },
 
@@ -4399,6 +4440,13 @@ const Workflow = {
               wr.submittedBy = pc.submittedBy;
               wr.status = 'Draft';
             }
+          }
+          if (!wr) {
+            // Deep-link cache miss (audit log, dashboard link, archived or
+            // never-listed record): fall back to a direct fetch. The server
+            // enforces visibility and returns 404 for inaccessible records.
+            wr = await WorkflowData.fetchWorkRequestById(this.detailWrId);
+            if (routeId !== App._routeId) return;
           }
           if (!wr || !Auth.canViewWr(wr)) {
             this.view = 'list';
