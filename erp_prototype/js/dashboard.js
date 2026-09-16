@@ -1869,6 +1869,7 @@ const Dashboard = {
 
   hasCachedData(entity) {
     if (!this._dataCache) return false;
+    if (this._dataCache.userId && Auth.user?.id && this._dataCache.userId !== Auth.user.id) return false;
     if (entity && this._dataCache.entity !== entity) return false;
     if (!this._dataCache.loadedAt) return false;
     return (Date.now() - this._dataCache.loadedAt) < this.CACHE_TTL_MS;
@@ -1990,6 +1991,7 @@ const Dashboard = {
       tasks,
       loadedAt: Date.now(),
       entity: active,
+      userId: Auth.user?.id || null,
     };
   },
 

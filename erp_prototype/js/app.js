@@ -362,20 +362,16 @@ const App = {
       Auth.switchEntity(newEntity);
       this.updateEntityBadge();
 
-      // When switching into consolidated mode, reset persisted filters so stale
+      // When switching entities, reset legacy unscoped sessionStorage filters so stale
       // per-entity filters (client, status, assignee, etc.) don't hide records
-      // from the other entity. The backend falls back to the user's first real
-      // entity for non-report modules, so starting with a clean filter state is
-      // the safest UX.
-      if (newEntity === 'ALL') {
-        try {
-          Object.keys(sessionStorage).forEach((key) => {
-            if (key.startsWith('erp_filters_') || key.startsWith('erp_group_') || key.startsWith('erp_sort_')) {
-              sessionStorage.removeItem(key);
-            }
-          });
-        } catch (e) { /* ignore storage errors */ }
-      }
+      // across entities.
+      try {
+        Object.keys(sessionStorage).forEach((key) => {
+          if (key.startsWith('erp_filters_') || key.startsWith('erp_group_') || key.startsWith('erp_sort_')) {
+            sessionStorage.removeItem(key);
+          }
+        });
+      } catch (e) { /* ignore storage errors */ }
 
       // Clean up module states for any detail/form view
       if (typeof Workflow !== 'undefined') {
@@ -434,6 +430,9 @@ const App = {
   },
 
   setupRouting() {
+    if (this._routingWired) return;
+    this._routingWired = true;
+
     window.addEventListener('hashchange', () => {
       if (this._suppressHashChange) {
         this._suppressHashChange = false;
@@ -444,6 +443,9 @@ const App = {
   },
 
   setupNavigation() {
+    if (this._navigationWired) return;
+    this._navigationWired = true;
+
     document.querySelectorAll('nav a[data-module]').forEach(link => {
       link.addEventListener('click', (e) => {
         e.preventDefault();
@@ -479,6 +481,9 @@ const App = {
     const headerActions = document.querySelector('.header-actions');
     if (!toggle || !sidebar) return;
 
+    if (this._responsiveMenuWired) return;
+    this._responsiveMenuWired = true;
+
     toggle.addEventListener('click', () => {
       sidebar.classList.toggle('open');
       if (headerActions) headerActions.classList.toggle('show');
@@ -502,6 +507,9 @@ const App = {
       sidebar.classList.add('collapsed');
       btn.title = 'Expand sidebar';
     }
+
+    if (this._sidebarCollapseWired) return;
+    this._sidebarCollapseWired = true;
 
     btn.addEventListener('click', () => {
       sidebar.classList.toggle('collapsed');
@@ -559,12 +567,8 @@ const App = {
       const dropdown = document.getElementById('user-menu-dropdown');
       if (dropdown) dropdown.classList.add('hidden');
       Auth.logout();
-      document.getElementById('app-shell').classList.add('hidden');
-      document.getElementById('login-screen').classList.remove('hidden');
-      const form = document.getElementById('login-form');
-      if (form) form.reset();
-      const errorEl = document.getElementById('login-error');
-      if (errorEl) errorEl.classList.add('hidden');
+      window.location.hash = '#dashboard';
+      window.location.reload();
     });
   },
 
@@ -832,9 +836,8 @@ const App = {
 
   restoreFilters(module) {
     const key = this._getFilterStorageKey(module);
-    const legacyKey = `erp_filters_${module}`;
     try {
-      const stored = localStorage.getItem(key) || sessionStorage.getItem(legacyKey);
+      const stored = localStorage.getItem(key);
       return stored ? JSON.parse(stored) : null;
     } catch (e) { return null; }
   },
