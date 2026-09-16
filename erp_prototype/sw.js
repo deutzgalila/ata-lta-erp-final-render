@@ -224,10 +224,22 @@ async function staleWhileRevalidate(request) {
 async function networkFirst(request) {
   const url = new URL(request.url);
   const isApi = url.pathname.startsWith('/v1/');
+  const isClientsList = url.pathname === '/v1/clients';
   const cacheKey = isApi ? getApiCacheKey(request) : null;
 
   try {
-    return await fetch(request);
+    const response = await fetch(request);
+    if (request.method === 'GET' && response && response.ok && isClientsList && cacheKey) {
+      try {
+        const cache = await caches.open(API_CACHE);
+        const cloned = response.clone();
+        const headers = new Headers(cloned.headers);
+        headers.set('x-sw-cached-at', Date.now().toString());
+        const wrapped = new Response(cloned.body, { status: cloned.status, statusText: cloned.statusText, headers });
+        await cache.put(cacheKey, wrapped);
+      } catch (err) {}
+    }
+    return response;
   } catch (e) {
     if (isApi) {
       if (cacheKey) {
