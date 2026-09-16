@@ -237,10 +237,10 @@ app.get('/readyz', async (req, res) => {
   }
 });
 
-const isProd = process.env.NODE_ENV === 'production';
+const isStrictRateLimit = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'test';
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: isProd ? 10 : 500, // Max 10 attempts per IP in prod, 500 in dev/staging/QA
+  max: isStrictRateLimit ? 10 : 500, // Max 10 attempts per IP in prod/test, 500 in dev/staging/QA
   standardHeaders: true,
   legacyHeaders: false,
   message: {

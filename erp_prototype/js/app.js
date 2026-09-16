@@ -132,6 +132,9 @@ const App = {
     this.initTheme();
     this.setupThemeToggle();
     this.renderShell();
+    if (typeof CommandPalette !== 'undefined' && typeof CommandPalette._injectNavTrigger === 'function') {
+      CommandPalette._injectNavTrigger();
+    }
     this.setupRouting();
     this.setupNavigation();
     this.setupResponsiveMenu();
@@ -811,15 +814,27 @@ const App = {
     }
   },
 
+  _getFilterStorageKey(module) {
+    const userId = (window.Auth && window.Auth.user && window.Auth.user.id) || 'default';
+    const entity = (window.Auth && window.Auth.activeEntity) || 'ALL';
+    return `erp_filters_${userId}_${entity}_${module}`;
+  },
+
   saveFilters(module, filterMap) {
-    const key = `erp_filters_${module}`;
-    try { sessionStorage.setItem(key, JSON.stringify(filterMap)); } catch (e) { /* ignore */ }
+    const key = this._getFilterStorageKey(module);
+    const legacyKey = `erp_filters_${module}`;
+    try {
+      const dataStr = JSON.stringify(filterMap);
+      localStorage.setItem(key, dataStr);
+      sessionStorage.setItem(legacyKey, dataStr);
+    } catch (e) { /* ignore */ }
   },
 
   restoreFilters(module) {
-    const key = `erp_filters_${module}`;
+    const key = this._getFilterStorageKey(module);
+    const legacyKey = `erp_filters_${module}`;
     try {
-      const stored = sessionStorage.getItem(key);
+      const stored = localStorage.getItem(key) || sessionStorage.getItem(legacyKey);
       return stored ? JSON.parse(stored) : null;
     } catch (e) { return null; }
   },
@@ -834,8 +849,59 @@ const App = {
   },
 
   clearSavedFilters(module) {
-    const key = `erp_filters_${module}`;
-    try { sessionStorage.removeItem(key); } catch (e) { /* ignore */ }
+    const key = this._getFilterStorageKey(module);
+    const legacyKey = `erp_filters_${module}`;
+    try {
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(legacyKey);
+    } catch (e) { /* ignore */ }
+  },
+
+  saveFilterPreset(module, presetName, filterMap) {
+    if (!presetName) return;
+    const key = `erp_presets_${module}`;
+    try {
+      const existing = JSON.parse(localStorage.getItem(key) || '{}');
+      existing[presetName] = filterMap;
+      localStorage.setItem(key, JSON.stringify(existing));
+      if (typeof showToast === 'function') {
+        showToast('Filter Preset Saved', `Preset "${presetName}" saved successfully.`, 'success');
+      }
+    } catch (e) {
+      console.warn('Failed to save filter preset', e);
+    }
+  },
+
+  listFilterPresets(module) {
+    const key = `erp_presets_${module}`;
+    try {
+      return JSON.parse(localStorage.getItem(key) || '{}');
+    } catch (e) { return {}; }
+  },
+
+  applyFilterPreset(module, presetName) {
+    const presets = this.listFilterPresets(module);
+    if (presets[presetName]) {
+      this.saveFilters(module, presets[presetName]);
+      this.handleRoute();
+      if (typeof showToast === 'function') {
+        showToast('Filter Preset Applied', `Applied "${presetName}" preset.`, 'info');
+      }
+      return true;
+    }
+    return false;
+  },
+
+  deleteFilterPreset(module, presetName) {
+    const key = `erp_presets_${module}`;
+    try {
+      const existing = JSON.parse(localStorage.getItem(key) || '{}');
+      delete existing[presetName];
+      localStorage.setItem(key, JSON.stringify(existing));
+      if (typeof showToast === 'function') {
+        showToast('Preset Deleted', `Removed preset "${presetName}".`, 'info');
+      }
+    } catch (e) { /* ignore */ }
   },
 
   saveGroupBy(module, groupBy) {

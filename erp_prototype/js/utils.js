@@ -2495,7 +2495,45 @@ async function triggerSyncReload(hash, messageConfig) {
     }
   }
 
+  // Invalidate Service Worker API Cache
+  try {
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: 'INVALIDATE_API_CACHE' });
+    }
+  } catch (e) { /* ignore */ }
+
+  // Broadcast cross-tab synchronization event
+  try {
+    if (typeof BroadcastChannel !== 'undefined') {
+      const syncBc = new BroadcastChannel('erp_concurrency_sync');
+      syncBc.postMessage({ type: 'CACHE_INVALIDATED', hash, timestamp: Date.now() });
+      syncBc.close();
+    }
+  } catch (e) { /* ignore */ }
+
   sessionStorage.removeItem('is_syncing');
+}
+
+// Cross-Tab Concurrency Synchronization Listener
+if (typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined') {
+  try {
+    const tabSyncChannel = new BroadcastChannel('erp_concurrency_sync');
+    tabSyncChannel.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'CACHE_INVALIDATED') {
+        if (typeof window.apiClient !== 'undefined') {
+          if (window.apiClient.workRequestCache) window.apiClient.workRequestCache.invalidate();
+          if (window.apiClient.clientCache) window.apiClient.clientCache.invalidate();
+          if (window.apiClient.userCache) window.apiClient.userCache.invalidate();
+        }
+        if (typeof WorkflowData !== 'undefined' && typeof WorkflowData.invalidate === 'function') {
+          WorkflowData.invalidate();
+        }
+        if (typeof Dashboard !== 'undefined' && typeof Dashboard.invalidateCache === 'function') {
+          Dashboard.invalidateCache();
+        }
+      }
+    });
+  } catch (e) { /* ignore */ }
 }
 
 /**

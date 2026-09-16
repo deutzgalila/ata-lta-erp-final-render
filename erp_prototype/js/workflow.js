@@ -825,6 +825,7 @@ const WorkflowData = {
       console.error('Cannot update task without work request id', id, changes);
       return existing;
     }
+    const previousSnapshot = existing ? JSON.parse(JSON.stringify(existing)) : null;
     const updated = { ...(existing || {}), ...changes, id };
     if (existing) Object.assign(existing, changes);
     try {
@@ -859,6 +860,11 @@ const WorkflowData = {
       }
     } catch (e) {
       console.error('Failed to update task', e);
+      if (existing && previousSnapshot) {
+        Object.assign(existing, previousSnapshot);
+      }
+      this.invalidateRelatedForTask(id);
+      throw e;
     }
     this.invalidateRelatedForTask(id);
     this._needsFreshFetch = true;
@@ -2880,12 +2886,13 @@ const Workflow = {
     }
   },
 
-  toggleChecklistItem(task, itemId, isCompleted) {
+  async toggleChecklistItem(task, itemId, isCompleted, cbElement = null) {
     if (!task) return;
     const checklist = task.checklist || [];
     const item = checklist.find(c => c.id === itemId);
     if (!item) return;
 
+    const previousCompleted = !!item.completed;
     item.completed = !!isCompleted;
     if (!isCompleted) {
       checklist.forEach(other => {
@@ -2895,7 +2902,18 @@ const Workflow = {
       });
     }
 
-    WorkflowData.updateTask(task.id, { checklist: checklist, updatedAt: new Date().toISOString() });
+    try {
+      await WorkflowData.updateTask(task.id, { checklist: checklist, updatedAt: new Date().toISOString() });
+    } catch (err) {
+      console.warn('[Workflow.toggleChecklistItem] Rollback triggered due to error:', err);
+      item.completed = previousCompleted;
+      if (cbElement) {
+        cbElement.checked = previousCompleted;
+      }
+      if (typeof showToast === 'function') {
+        showToast('Checklist Sync Failed', 'Unable to sync checklist change with server. Reverting.', 'error');
+      }
+    }
   },
 
   ensureTaskChecklistNormalized(task, persist = false) {
@@ -3039,7 +3057,7 @@ const Workflow = {
             subCb.addEventListener('click', (e) => e.stopPropagation());
             subCb.addEventListener('change', (e) => {
               e.stopPropagation();
-              this.toggleChecklistItem(t, item.id, subCb.checked);
+              this.toggleChecklistItem(t, item.id, subCb.checked, subCb);
               App.handleRoute();
             });
             subRow.appendChild(subCb);
@@ -6679,7 +6697,7 @@ const Workflow = {
 
             if (!wr || !wr.isPendingApproval) {
               cb.addEventListener('change', () => {
-                this.toggleChecklistItem(task, item.id, cb.checked);
+                this.toggleChecklistItem(task, item.id, cb.checked, cb);
                 this.showTaskSidePane(taskId, triggerElement);
                 App.handleRoute(); // Refresh background
               });
@@ -10211,7 +10229,7 @@ const Workflow = {
 
               cb.addEventListener('change', async (e) => {
                 e.stopPropagation();
-                this.toggleChecklistItem(t, item.id, cb.checked);
+                await this.toggleChecklistItem(t, item.id, cb.checked, cb);
                 await renderChecklist();
               });
 

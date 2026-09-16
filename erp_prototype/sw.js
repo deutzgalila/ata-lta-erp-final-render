@@ -10,7 +10,7 @@
  * a bundler), those URLs are added to the app-shell cache. Otherwise a static
  * fallback list is used.
  */
-const CACHE_VERSION = 'v18';
+const CACHE_VERSION = 'v19';
 const SHELL_CACHE = `erp-shell-${CACHE_VERSION}`;
 const API_CACHE = `erp-api-${CACHE_VERSION}`;
 
@@ -57,13 +57,10 @@ const APP_SHELL_URLS = new Set([...SHELL_URLS, ...MANIFEST_URLS]);
 
 const SAFE_API_PATHS = [
   // Only exact list/count endpoints are safe for stale-while-revalidate.
-  // Detail / related subresources must always hit the network so mutations
-  // are visible immediately after a hard refresh.
-  // Note: /v1/clients is entity-dependent and handled via networkFirst to
-  // prevent cross-entity (ATA vs LTA) cache collisions.
+  // Note: /v1/work-requests and /v1/clients are dynamic and entity-dependent,
+  // handled via networkFirst to eliminate ghost bugs and cache collisions.
   /^\/v1\/me$/,
   /^\/v1\/clients\/counts$/,
-  /^\/v1\/work-requests$/,
   /^\/v1\/work-requests\/counts$/,
   /^\/v1\/reports\/analytics$/,
   /^\/v1\/reports\/dashboard$/,
@@ -151,6 +148,11 @@ self.addEventListener('activate', event => {
 self.addEventListener('message', event => {
   if (event.data === 'SKIP_WAITING') {
     self.skipWaiting();
+  }
+  if (event.data === 'CLEAR_API_CACHE' || (event.data && (event.data.type === 'INVALIDATE_API_CACHE' || event.data.type === 'CLEAR_API_CACHE'))) {
+    caches.delete(API_CACHE).then(() => {
+      console.log('[SW] API_CACHE invalidated successfully.');
+    });
   }
 });
 

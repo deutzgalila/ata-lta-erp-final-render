@@ -2681,14 +2681,133 @@ const Users = {
     const hasDetails = Object.keys(d).length > 0 || (typeof l.details === 'string' && l.details.trim());
 
     if (hasDetails) {
-      const detailsBox = el('div', { style: 'display:flex; flex-direction:column; gap:6px;' });
-      detailsBox.appendChild(el('h4', { text: 'Audit Payload Details', style: 'margin:0; font-size:12px; text-transform:uppercase; color:var(--color-text-muted, #6b7280); font-weight:600;' }));
-      
-      const pre = el('pre', {
+      const detailsBox = el('div', { style: 'display:flex; flex-direction:column; gap:8px;' });
+
+      // Build visual diff entries
+      const diffEntries = [];
+      if (typeof d === 'object') {
+        if (d.changes && typeof d.changes === 'object') {
+          for (const [k, v] of Object.entries(d.changes)) {
+            const oldVal = v?.from !== undefined ? v.from : (v?.old !== undefined ? v.old : (v?.before !== undefined ? v.before : '—'));
+            const newVal = v?.to !== undefined ? v.to : (v?.new !== undefined ? v.new : (v?.after !== undefined ? v.after : JSON.stringify(v)));
+            diffEntries.push({ field: k, oldVal: String(oldVal), newVal: String(newVal) });
+          }
+        } else if (d.before && d.after && typeof d.before === 'object' && typeof d.after === 'object') {
+          const allKeys = new Set([...Object.keys(d.before), ...Object.keys(d.after)]);
+          allKeys.forEach(k => {
+            const b = d.before[k];
+            const a = d.after[k];
+            if (JSON.stringify(b) !== JSON.stringify(a)) {
+              diffEntries.push({ field: k, oldVal: String(b !== undefined ? b : '—'), newVal: String(a !== undefined ? a : '—') });
+            }
+          });
+        } else {
+          // Check common pair fields
+          const commonPairs = [
+            { oldK: 'previousStatus', newK: 'status', label: 'Status' },
+            { oldK: 'oldStatus', newK: 'newStatus', label: 'Status' },
+            { oldK: 'previousAssignee', newK: 'assignee', label: 'Assignee' },
+            { oldK: 'oldPriority', newK: 'priority', label: 'Priority' },
+            { oldK: 'previousAmount', newK: 'amount', label: 'Amount' },
+            { oldK: 'fromPhase', newK: 'toPhase', label: 'Phase Routing' }
+          ];
+          commonPairs.forEach(p => {
+            if (d[p.oldK] !== undefined || d[p.newK] !== undefined) {
+              diffEntries.push({ field: p.label, oldVal: String(d[p.oldK] || '—'), newVal: String(d[p.newK] || '—') });
+            }
+          });
+
+          if (diffEntries.length === 0) {
+            // General property list
+            for (const [k, v] of Object.entries(d)) {
+              if (['id', 'recordId', 'workRequestId', 'clientId', 'userId'].includes(k)) continue;
+              const niceKey = k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+              const valStr = typeof v === 'object' ? JSON.stringify(v) : String(v);
+              diffEntries.push({ field: niceKey, oldVal: '—', newVal: valStr });
+            }
+          }
+        }
+      }
+
+      // Header with view switcher
+      const dHeader = el('div', { style: 'display:flex; justify-content:space-between; align-items:center;' });
+      dHeader.appendChild(el('h4', { text: 'Audit Change Details', style: 'margin:0; font-size:12px; text-transform:uppercase; color:var(--color-text-muted, #6b7280); font-weight:600;' }));
+
+      const switchWrap = el('div', { style: 'display:flex; gap:4px;' });
+      const visualBtn = el('button', { class: 'btn btn-primary btn-xs', text: 'Visual Diff', style: 'padding: 2px 8px; font-size: 11px;' });
+      const rawBtn = el('button', { class: 'btn btn-secondary btn-xs', text: 'Raw JSON', style: 'padding: 2px 8px; font-size: 11px;' });
+      switchWrap.appendChild(visualBtn);
+      switchWrap.appendChild(rawBtn);
+      dHeader.appendChild(switchWrap);
+      detailsBox.appendChild(dHeader);
+
+      // 1. Visual Diff View
+      const diffContainer = el('div', { class: 'audit-diff-view' });
+      if (diffEntries.length > 0) {
+        const table = el('table', { style: 'width:100%; border-collapse:collapse; font-size:12px; border:1px solid var(--color-border, #e5e7eb); border-radius:6px; overflow:hidden;' });
+        const thead = el('thead', { style: 'background:var(--color-bg-subtle, #f8fafc); border-bottom:1px solid var(--color-border, #e5e7eb); text-align:left;' });
+        thead.innerHTML = `
+          <tr>
+            <th style="padding:6px 10px; font-weight:600; color:var(--color-text-muted, #64748b);">FIELD / PROPERTY</th>
+            <th style="padding:6px 10px; font-weight:600; color:var(--color-text-muted, #64748b);">PREVIOUS VALUE</th>
+            <th style="padding:6px 10px; font-weight:600; color:var(--color-text-muted, #64748b);">UPDATED VALUE</th>
+          </tr>
+        `;
+        table.appendChild(thead);
+        const tbody = el('tbody');
+        diffEntries.forEach(de => {
+          const tr = el('tr', { style: 'border-bottom:1px solid var(--color-border, #f1f5f9);' });
+          const tdField = el('td', { style: 'padding:6px 10px; font-weight:500;', text: de.field });
+          const tdOld = el('td', { style: 'padding:6px 10px;' });
+          if (de.oldVal !== '—') {
+            tdOld.appendChild(el('span', { 
+              text: de.oldVal, 
+              style: 'display:inline-block; padding:2px 6px; border-radius:4px; background:#fee2e2; color:#991b1b; text-decoration:line-through; font-family:monospace;' 
+            }));
+          } else {
+            tdOld.appendChild(el('span', { text: '—', style: 'color:var(--color-text-muted, #94a3b8);' }));
+          }
+
+          const tdNew = el('td', { style: 'padding:6px 10px;' });
+          tdNew.appendChild(el('span', { 
+            text: de.newVal, 
+            style: 'display:inline-block; padding:2px 6px; border-radius:4px; background:#dcfce7; color:#166534; font-weight:600; font-family:monospace;' 
+          }));
+
+          tr.appendChild(tdField);
+          tr.appendChild(tdOld);
+          tr.appendChild(tdNew);
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        diffContainer.appendChild(table);
+      } else {
+        diffContainer.appendChild(el('div', { text: 'No property-level changes recorded for this entry.', style: 'font-size:12px; color:var(--color-text-muted, #64748b); font-style:italic; padding:8px 0;' }));
+      }
+      detailsBox.appendChild(diffContainer);
+
+      // 2. Raw JSON View (hidden by default)
+      const rawContainer = el('pre', {
+        class: 'hidden',
         style: 'background: var(--color-bg-subtle, #f8fafc); border: 1px solid var(--color-border, #e5e7eb); border-radius: 6px; padding: 10px 12px; font-family: monospace; font-size: 12px; max-height: 220px; overflow: auto; white-space: pre-wrap; word-break: break-word;',
         text: typeof l.details === 'object' ? JSON.stringify(l.details, null, 2) : String(l.details)
       });
-      detailsBox.appendChild(pre);
+      detailsBox.appendChild(rawContainer);
+
+      // Tab switcher event handlers
+      visualBtn.addEventListener('click', () => {
+        visualBtn.className = 'btn btn-primary btn-xs';
+        rawBtn.className = 'btn btn-secondary btn-xs';
+        diffContainer.classList.remove('hidden');
+        rawContainer.classList.add('hidden');
+      });
+      rawBtn.addEventListener('click', () => {
+        rawBtn.className = 'btn btn-primary btn-xs';
+        visualBtn.className = 'btn btn-secondary btn-xs';
+        rawContainer.classList.remove('hidden');
+        diffContainer.classList.add('hidden');
+      });
+
       body.appendChild(detailsBox);
     }
 
