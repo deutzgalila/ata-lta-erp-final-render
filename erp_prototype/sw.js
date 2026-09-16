@@ -169,9 +169,19 @@ async function cacheFirst(request) {
   }
 }
 
+function getApiCacheKey(request) {
+  const url = new URL(request.url);
+  const entity = request.headers.get('x-active-entity');
+  if (entity) {
+    url.searchParams.set('__entity', entity.toUpperCase());
+  }
+  return url.toString();
+}
+
 async function staleWhileRevalidate(request) {
+  const cacheKey = getApiCacheKey(request);
   const cache = await caches.open(API_CACHE);
-  const cached = await cache.match(request);
+  const cached = await cache.match(cacheKey);
 
   // A request that already carries a cache-buster should bypass the cache
   // entirely so callers can force a fresh response.
@@ -187,7 +197,7 @@ async function staleWhileRevalidate(request) {
         const headers = new Headers(cloned.headers);
         headers.set('x-sw-cached-at', Date.now().toString());
         const wrapped = new Response(cloned.body, { status: cloned.status, statusText: cloned.statusText, headers });
-        cache.put(request, wrapped);
+        await cache.put(cacheKey, wrapped);
       }
       return response;
     } catch (e) {
@@ -214,25 +224,30 @@ async function staleWhileRevalidate(request) {
 async function networkFirst(request) {
   const url = new URL(request.url);
   const isApi = url.pathname.startsWith('/v1/');
+  const cacheKey = isApi ? getApiCacheKey(request) : null;
+
   try {
     const response = await fetch(request);
-    if (request.method === 'GET' && response && response.ok && isApi) {
-      caches.open(API_CACHE).then(cache => {
+    if (request.method === 'GET' && response && response.ok && isApi && cacheKey) {
+      try {
+        const cache = await caches.open(API_CACHE);
         const cloned = response.clone();
         const headers = new Headers(cloned.headers);
         headers.set('x-sw-cached-at', Date.now().toString());
         const wrapped = new Response(cloned.body, { status: cloned.status, statusText: cloned.statusText, headers });
-        cache.put(request, wrapped).catch(() => {});
-      }).catch(() => {});
+        await cache.put(cacheKey, wrapped);
+      } catch (err) {}
     }
     return response;
   } catch (e) {
     if (isApi) {
-      try {
-        const apiCache = await caches.open(API_CACHE);
-        const cached = await apiCache.match(request);
-        if (cached) return cached;
-      } catch (err) {}
+      if (cacheKey) {
+        try {
+          const apiCache = await caches.open(API_CACHE);
+          const cached = await apiCache.match(cacheKey);
+          if (cached) return cached;
+        } catch (err) {}
+      }
       return new Response(JSON.stringify({ error: 'Network unavailable' }), {
         status: 503,
         headers: { 'Content-Type': 'application/json' },
