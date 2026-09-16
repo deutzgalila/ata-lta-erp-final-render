@@ -466,23 +466,29 @@
       _users: null,
       _promise: null,
       _loadedAt: null,
+      _generation: 0,
       TTL_MS: 5 * 60 * 1000,
       _stale() {
         return !this._loadedAt || (Date.now() - this._loadedAt > this.TTL_MS);
       },
       async ensure() {
-        if (this._users && !this._stale()) return this._users;
+        if (this._users && this._loadedAt && !this._stale()) return this._users;
         if (this._promise) return this._promise;
+        const currentGen = this._generation;
         this._promise = window.apiClient.me.team().then(res => {
+          if (this._generation !== currentGen) {
+            return this._users || [];
+          }
           this._users = res.data || [];
           this._loadedAt = Date.now();
           return this._users;
         }).catch(err => {
-          this._users = [];
-          this._loadedAt = Date.now();
-          return this._users;
+          // Do not stamp _loadedAt on error/abort so subsequent calls can retry cleanly
+          return this._users || [];
         }).finally(() => {
-          this._promise = null;
+          if (this._generation === currentGen) {
+            this._promise = null;
+          }
         });
         return this._promise;
       },
@@ -499,8 +505,10 @@
         return this._users.find(u => u && typeof u.name === 'string' && u.name.trim().toLowerCase() === target) || null;
       },
       invalidate() {
+        this._generation++;
         this._users = null;
         this._loadedAt = null;
+        this._promise = null;
       }
     },
 
@@ -508,25 +516,34 @@
       _clients: null,
       _promise: null,
       _loadedAt: null,
+      _generation: 0,
       TTL_MS: 5 * 60 * 1000,
       _stale() {
         return !this._loadedAt || (Date.now() - this._loadedAt > this.TTL_MS);
       },
       async ensure() {
-        if (this._clients && !this._stale()) return this._clients;
+        if (this._clients && this._loadedAt && !this._stale()) return this._clients;
         if (this._promise) return this._promise;
+        const currentGen = this._generation;
         this._promise = window.apiClient.clients.list({}).then(res => {
+          if (this._generation !== currentGen) {
+            return this._clients || [];
+          }
           this._clients = (res.data || []).map(c => this._normalize(c));
           this._loadedAt = Date.now();
           return this._clients;
         }).catch(err => {
-          this._clients = [];
-          this._loadedAt = Date.now();
-          return this._clients;
+          // Do not stamp _loadedAt on error/abort so subsequent calls can retry cleanly
+          return this._clients || [];
         }).finally(() => {
-          this._promise = null;
+          if (this._generation === currentGen) {
+            this._promise = null;
+          }
         });
         return this._promise;
+      },
+      getAll() {
+        return [...(this._clients || [])];
       },
       _normalize(client) {
         if (!client) return client;
@@ -549,8 +566,10 @@
         return this._clients.find(c => c.name === name) || null;
       },
       invalidate() {
+        this._generation++;
         this._clients = null;
         this._loadedAt = null;
+        this._promise = null;
       }
     },
 
@@ -558,23 +577,29 @@
       _wrs: null,
       _promise: null,
       _loadedAt: null,
+      _generation: 0,
       TTL_MS: 5 * 60 * 1000,
       _stale() {
         return !this._loadedAt || (Date.now() - this._loadedAt > this.TTL_MS);
       },
       async ensure() {
-        if (this._wrs && !this._stale()) return this._wrs;
+        if (this._wrs && this._loadedAt && !this._stale()) return this._wrs;
         if (this._promise) return this._promise;
+        const currentGen = this._generation;
         this._promise = window.apiClient.workRequests.list({ includeTasks: true }).then(res => {
+          if (this._generation !== currentGen) {
+            return this._wrs || [];
+          }
           this._wrs = res.data || [];
           this._loadedAt = Date.now();
           return this._wrs;
         }).catch(err => {
-          this._wrs = [];
-          this._loadedAt = Date.now();
-          return this._wrs;
+          // Do not stamp _loadedAt on error/abort so subsequent calls can retry cleanly
+          return this._wrs || [];
         }).finally(() => {
-          this._promise = null;
+          if (this._generation === currentGen) {
+            this._promise = null;
+          }
         });
         return this._promise;
       },
@@ -593,8 +618,10 @@
         return this._wrs.find(wr => wr.title === title) || null;
       },
       invalidate() {
+        this._generation++;
         this._wrs = null;
         this._loadedAt = null;
+        this._promise = null;
       }
     },
 
@@ -602,23 +629,29 @@
       _transmittals: null,
       _promise: null,
       _loadedAt: null,
+      _generation: 0,
       TTL_MS: 5 * 60 * 1000,
       _stale() {
         return !this._loadedAt || (Date.now() - this._loadedAt > this.TTL_MS);
       },
       async ensure() {
-        if (this._transmittals && !this._stale()) return this._transmittals;
+        if (this._transmittals && this._loadedAt && !this._stale()) return this._transmittals;
         if (this._promise) return this._promise;
+        const currentGen = this._generation;
         this._promise = window.apiClient.transmittals.list().then(res => {
+          if (this._generation !== currentGen) {
+            return this._transmittals || [];
+          }
           this._transmittals = res.data || [];
           this._loadedAt = Date.now();
           return this._transmittals;
         }).catch(err => {
-          this._transmittals = [];
-          this._loadedAt = Date.now();
-          return this._transmittals;
+          // Do not stamp _loadedAt on error/abort so subsequent calls can retry cleanly
+          return this._transmittals || [];
         }).finally(() => {
-          this._promise = null;
+          if (this._generation === currentGen) {
+            this._promise = null;
+          }
         });
         return this._promise;
       },
@@ -641,8 +674,10 @@
         return (this._transmittals || []).filter(t => (t.work_request_id || t.workRequestId) === wrId);
       },
       invalidate() {
+        this._generation++;
         this._transmittals = null;
         this._loadedAt = null;
+        this._promise = null;
       }
     },
 
