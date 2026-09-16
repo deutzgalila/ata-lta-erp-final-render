@@ -615,6 +615,8 @@ const App = {
     // form inline in the main content area (PaneMode.FULL_PAGE behavior) and set the module
     // editing state so that module.render() can display the form directly.
     if (baseHash === '#operations') {
+      const qParams = new URLSearchParams(parts[1] || '');
+      Workflow.targetTaskId = qParams.get('taskId') || null;
       if (pathParts[1] === 'detail' && pathParts[2]) {
         Workflow.view = 'detail';
         Workflow.detailWrId = pathParts[2];
@@ -1002,9 +1004,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         await App.init();
       } else {
         if (errorEl) {
-          errorEl.textContent = loginResult === 'disabled'
-            ? 'Your account has been disabled. Please contact the administrator.'
-            : 'Invalid email or password.';
+          if (loginResult === 'rate_limited') {
+            errorEl.textContent = 'Too many authentication attempts. Please wait 15 minutes before trying again.';
+          } else if (loginResult === 'disabled') {
+            errorEl.textContent = 'Your account has been disabled. Please contact the administrator.';
+          } else {
+            errorEl.textContent = 'Invalid email or password.';
+          }
           errorEl.classList.remove('hidden');
         }
       }

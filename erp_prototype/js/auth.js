@@ -100,6 +100,12 @@ const Auth = {
       if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         console.error('[Auth.login] failed:', e);
       }
+      if (e?.status === 429 || (e?.message && e.message.toLowerCase().includes('too many'))) {
+        return 'rate_limited';
+      }
+      if (e?.status === 403 || (e?.message && e.message.toLowerCase().includes('disabled'))) {
+        return 'disabled';
+      }
       return false;
     }
   },

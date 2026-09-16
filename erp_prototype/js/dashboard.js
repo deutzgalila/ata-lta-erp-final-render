@@ -66,7 +66,7 @@ const Dashboard = {
     }
   },
 
-  async _routeToItem(type, item) {
+  async _routeToItem(type, item, taskId = null) {
     this._switchToItemEntity(item);
 
     // Drop the dashboard cache so a return visit loads data for the new entity.
@@ -78,7 +78,8 @@ const Dashboard = {
       Disbursement.invalidateCache();
     }
 
-    const hash = type === 'wr' ? '#operations/detail/' + item.id : '#disbursement/detail/' + item.id;
+    const taskQuery = (type === 'wr' && taskId) ? '?taskId=' + taskId : '';
+    const hash = type === 'wr' ? '#operations/detail/' + item.id + taskQuery : '#disbursement/detail/' + item.id;
 
     // Use normal hash navigation. This lets the router handle the route exactly
     // once through the hashchange listener, avoiding the hash-suppression bug
@@ -397,9 +398,13 @@ const Dashboard = {
     left.innerHTML = `<span style="font-size: 1.25rem;">⏰</span> <div><strong>End of Day Reminder:</strong> You have ${tasksNeedingLogs.length} incomplete assigned task(s) but haven't submitted your daily time log for them yet. Please log your time before finishing your day.</div>`;
     banner.appendChild(left);
 
+    const firstTask = tasksNeedingLogs[0];
+    const targetHash = (firstTask && firstTask.workRequestId)
+      ? `#operations/detail/${firstTask.workRequestId}?taskId=${firstTask.id}`
+      : '#operations';
     const right = el('button', { class: 'btn btn-primary btn-sm', text: 'Go to Tasks' });
     right.onclick = () => {
-      location.hash = '#operations';
+      location.hash = targetHash;
       App.handleRoute();
     };
     banner.appendChild(right);
@@ -1794,7 +1799,16 @@ const Dashboard = {
           taskWrap.appendChild(el('strong', { text: `My Incomplete Tasks (${myTasks.length}):` }));
           const ul = el('ul', { style: 'margin: 4px 0 0 16px; padding: 0;' });
           myTasks.forEach(t => {
-            ul.appendChild(el('li', { text: t.title }));
+            const li = el('li', {
+              style: 'cursor: pointer; color: var(--color-primary); text-decoration: underline; margin-bottom: 3px;',
+              text: t.title,
+              title: 'Click to open and highlight this task'
+            });
+            li.onclick = async (e) => {
+              e.stopPropagation();
+              await this._routeToItem(type, item, t.id);
+            };
+            ul.appendChild(li);
           });
           taskWrap.appendChild(ul);
           details.appendChild(taskWrap);
@@ -1815,7 +1829,8 @@ const Dashboard = {
       const viewBtn = el('button', { class: 'btn btn-primary btn-xs btn-block', style: 'margin-top:12px;', text: btnText });
       viewBtn.onclick = async (e) => {
         e.stopPropagation();
-        await this._routeToItem(type, item);
+        const firstIncomplete = myTasks?.[0]?.id || null;
+        await this._routeToItem(type, item, firstIncomplete);
       };
       details.appendChild(viewBtn);
 

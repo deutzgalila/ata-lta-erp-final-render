@@ -377,6 +377,56 @@ const Users = {
     return recIdStr.length > 20 ? recIdStr.slice(0, 8) + '...' : recIdStr;
   },
 
+  _getItemRouteLink(l) {
+    if (!l) return null;
+    const d = (typeof l.details === 'object' && l.details !== null) ? l.details : {};
+    const recId = d.recordId || d.record_id || d.id || d.parentRecordId || l.recordId || l.record_id;
+    const actionLower = (l.action || '').toLowerCase();
+    const tableLower = (l.tableName || l.table_name || '').toLowerCase();
+
+    // 1. Work Request
+    if (tableLower.includes('work') || tableLower.includes('request') || actionLower.includes('work') || actionLower.includes('request')) {
+      const wrId = recId || d.workRequestId || d.work_request_id;
+      if (wrId) return { href: `#operations/detail/${wrId}` };
+    }
+
+    // 2. Task
+    if (tableLower.includes('task') || actionLower.includes('task')) {
+      const wrId = d.workRequestId || d.work_request_id || d.parentRecordId;
+      const taskId = d.taskId || recId;
+      if (wrId) {
+        return { href: `#operations/detail/${wrId}${taskId ? '?taskId=' + taskId : ''}` };
+      }
+    }
+
+    // 3. Billing / Invoice
+    if (tableLower.includes('billing') || tableLower.includes('invoice') || actionLower.includes('invoice') || actionLower.includes('billing')) {
+      return { href: '#billing' };
+    }
+
+    // 4. Disbursement
+    if (tableLower.includes('disbursement') || actionLower.includes('disbursement')) {
+      return { href: '#billing' };
+    }
+
+    // 5. Transmittal
+    if (tableLower.includes('transmittal') || actionLower.includes('transmittal')) {
+      return { href: '#transmittals' };
+    }
+
+    // 6. Client
+    if (tableLower.includes('client') || actionLower.includes('client')) {
+      return { href: '#clients' };
+    }
+
+    // 7. User
+    if (tableLower.includes('user') || actionLower.includes('user')) {
+      return { href: '#users' };
+    }
+
+    return null;
+  },
+
   /**
    * Map a date-bucket label to an ISO from/to range for server-side filtering.
    */
@@ -2497,14 +2547,30 @@ const Users = {
       const seqNum = (l.id && logSequenceMap.get(l.id)) || (idx + 1);
       const itemTarget = this._getItemIdentifier(l);
       const actionDisplay = this._formatAuditAction(l);
+      const itemLink = this._getItemRouteLink(l);
+
+      const itemTag = itemLink
+        ? {
+            text: itemTarget,
+            type: 'item',
+            className: 'jira-backlog-tag-item',
+            node: el('a', {
+              href: itemLink.href,
+              text: itemTarget,
+              style: 'color: inherit; text-decoration: underline; font-weight: 500; cursor: pointer;',
+              title: `Navigate to ${itemTarget}`
+            })
+          }
+        : { text: itemTarget, type: 'item', className: 'jira-backlog-tag-item' };
 
       return {
         id: l.id || idx,
+        raw: l,
         keyText: 'AUR-' + String(seqNum).padStart(3, '0'),
         iconHtml: avatarIcon,
         tags: [
           { text: actionDisplay, type: 'action', className: 'jira-backlog-tag-action ' + getActionClass(l.action || actionDisplay) },
-          { text: itemTarget, type: 'item', className: 'jira-backlog-tag-item' },
+          itemTag,
           { text: l.entity || 'ATA', type: 'entity', className: 'badge badge-' + ((l.entity || 'ATA') === 'ATA' ? 'ata' : 'lta') },
           { text: userName, type: 'client' },
           { text: formatDate(l.timestamp) + ' ' + ts.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' }), type: 'schedule' }
@@ -2523,6 +2589,16 @@ const Users = {
       selectable: false,
       titleColumnWidth: '0px',
       leadColumnLabel: 'ID',
+      rowActions: (item) => [
+        {
+          text: 'Details',
+          className: 'btn btn-secondary btn-xs',
+          title: 'View audit entry details',
+          onClick: () => {
+            this.showAuditLogDetailsModal(item.raw);
+          }
+        }
+      ],
       pagination: { pageSize: 20, currentPage },
       onPageChange: onPageChange || ((newPage) => {
         this.refreshAuditLog(container, activeFilters, searchQuery, sortOrder, newPage, onPageChange);
@@ -2537,6 +2613,123 @@ const Users = {
     });
 
     container.appendChild(backlog);
+  },
+
+  showAuditLogDetailsModal(l) {
+    if (!l) return;
+    const user = window.apiClient?.userCache?.getById(l.userId);
+    const userName = user ? user.name : (l.userName || l.userId || 'Unknown');
+    const userEmail = user ? user.email : (l.userEmail || '');
+    const ts = new Date(l.timestamp || l.created_at || Date.now());
+    const actionDisplay = this._formatAuditAction(l);
+    const itemTarget = this._getItemIdentifier(l);
+    const itemLink = this._getItemRouteLink(l);
+
+    const body = el('div', { class: 'audit-log-details-modal', style: 'display:flex; flex-direction:column; gap:16px;' });
+
+    const summaryCard = el('div', { 
+      style: 'background: var(--color-surface, #fff); border: 1px solid var(--color-border, #e5e7eb); border-radius: 8px; padding: 14px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px;' 
+    });
+
+    const createDetailField = (label, valNode) => {
+      const field = el('div', { style: 'display: flex; flex-direction: column; gap: 2px;' });
+      field.appendChild(el('span', { text: label, style: 'font-size: 11px; color: var(--color-text-muted, #6b7280); text-transform: uppercase; font-weight: 600;' }));
+      field.appendChild(typeof valNode === 'string' ? el('span', { text: valNode, style: 'font-weight: 500;' }) : valNode);
+      return field;
+    };
+
+    summaryCard.appendChild(createDetailField('Action', el('span', { 
+      class: 'jira-backlog-tag-action', 
+      text: actionDisplay,
+      style: 'display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: 600;'
+    })));
+
+    summaryCard.appendChild(createDetailField('Entity', el('span', { 
+      class: 'badge badge-' + ((l.entity || 'ATA') === 'ATA' ? 'ata' : 'lta'),
+      text: l.entity || 'ATA'
+    })));
+
+    summaryCard.appendChild(createDetailField('User', el('span', { text: `${userName}${userEmail ? ' (' + userEmail + ')' : ''}` })));
+    summaryCard.appendChild(createDetailField('Timestamp', formatDate(l.timestamp || l.created_at) + ' ' + ts.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })));
+
+    let recordVal;
+    if (itemLink) {
+      recordVal = el('a', {
+        href: itemLink.href,
+        text: `${itemTarget} ↗`,
+        style: 'color: var(--color-primary, #2563eb); text-decoration: underline; font-weight: 600;',
+        title: 'Navigate to record'
+      });
+      recordVal.addEventListener('click', () => {
+        const overlay = document.querySelector('.modal-overlay');
+        if (overlay) overlay.remove();
+      });
+    } else {
+      recordVal = el('span', { text: itemTarget, style: 'font-weight: 500;' });
+    }
+    summaryCard.appendChild(createDetailField('Target Record', recordVal));
+
+    summaryCard.appendChild(createDetailField('Table / Category', l.tableName || l.table_name || 'General'));
+
+    if (l.ipAddress || l.ip_address) {
+      summaryCard.appendChild(createDetailField('IP Address', l.ipAddress || l.ip_address));
+    }
+
+    body.appendChild(summaryCard);
+
+    const d = (typeof l.details === 'object' && l.details !== null) ? l.details : {};
+    const hasDetails = Object.keys(d).length > 0 || (typeof l.details === 'string' && l.details.trim());
+
+    if (hasDetails) {
+      const detailsBox = el('div', { style: 'display:flex; flex-direction:column; gap:6px;' });
+      detailsBox.appendChild(el('h4', { text: 'Audit Payload Details', style: 'margin:0; font-size:12px; text-transform:uppercase; color:var(--color-text-muted, #6b7280); font-weight:600;' }));
+      
+      const pre = el('pre', {
+        style: 'background: var(--color-bg-subtle, #f8fafc); border: 1px solid var(--color-border, #e5e7eb); border-radius: 6px; padding: 10px 12px; font-family: monospace; font-size: 12px; max-height: 220px; overflow: auto; white-space: pre-wrap; word-break: break-word;',
+        text: typeof l.details === 'object' ? JSON.stringify(l.details, null, 2) : String(l.details)
+      });
+      detailsBox.appendChild(pre);
+      body.appendChild(detailsBox);
+    }
+
+    const footer = el('div', { style: 'display:flex; justify-content:flex-end; gap:8px; margin-top:8px;' });
+    if (itemLink) {
+      const openBtn = el('a', {
+        class: 'btn btn-primary btn-sm',
+        href: itemLink.href,
+        text: 'View Record ↗'
+      });
+      openBtn.addEventListener('click', () => {
+        const overlay = document.querySelector('.modal-overlay');
+        if (overlay) overlay.remove();
+      });
+      footer.appendChild(openBtn);
+    }
+    const closeBtn = el('button', { class: 'btn btn-secondary btn-sm', text: 'Close' });
+    closeBtn.addEventListener('click', () => {
+      const overlay = document.querySelector('.modal-overlay');
+      if (overlay) overlay.remove();
+    });
+    footer.appendChild(closeBtn);
+    body.appendChild(footer);
+
+    if (typeof Workflow !== 'undefined' && typeof Workflow.showModal === 'function') {
+      Workflow.showModal('Audit Log Entry Details', body);
+    } else {
+      const overlay = el('div', { class: 'modal-overlay' });
+      const modal = el('div', { class: 'modal', style: 'max-width: 600px; width: 90%;' });
+      const mHeader = el('div', { class: 'modal-header' });
+      mHeader.appendChild(el('h3', { class: 'modal-title', text: 'Audit Log Entry Details' }));
+      const mClose = el('button', { class: 'btn btn-secondary btn-sm', text: '✕' });
+      mClose.addEventListener('click', () => overlay.remove());
+      mHeader.appendChild(mClose);
+      modal.appendChild(mHeader);
+      const mBody = el('div', { class: 'modal-body' });
+      mBody.appendChild(body);
+      modal.appendChild(mBody);
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
+    }
   },
 
   // ============================================================
@@ -2628,13 +2821,15 @@ const Users = {
           raw: pc
         });
       } else if (pc.table === 'invoices' && (isAdmin || isAccounting)) {
+        const wrId = data.workRequestId || data.work_request_id;
+        const wr = wrId ? window.apiClient?.workRequestCache?.getById(wrId) : null;
         billingToRelease.push({
           type: 'change',
           kind: 'billingInvoiceCreation',
           id: pc.id,
           recordId: data.id || pc.parentRecordId,
           title: `Invoice: ${data.invoiceNumber || data.id || '—'}`,
-          description: isNew ? 'New invoice awaiting approval' : 'Invoice edit awaiting approval',
+          description: wr ? `For WR: ${wr.title}` : (isNew ? 'New invoice awaiting approval' : 'Invoice edit awaiting approval'),
           amount: data.total || null,
           submittedBy: pc.submittedBy,
           submitter,
@@ -2643,13 +2838,15 @@ const Users = {
           raw: pc
         });
       } else if (pc.table === 'disbursements' && (isAdmin || isAccounting)) {
+        const wrId = data.workRequestId || data.work_request_id;
+        const wr = wrId ? window.apiClient?.workRequestCache?.getById(wrId) : null;
         disbursementToRelease.push({
           type: 'change',
           kind: 'disbursementCreation',
           id: pc.id,
           recordId: data.id || pc.parentRecordId,
-          title: `Expense: ${data.category || '—'}`,
-          description: isNew ? 'New expense awaiting approval' : 'Expense edit awaiting approval',
+          title: `Expense: ${data.category || data.voucherNumber || '—'}`,
+          description: wr ? `For WR: ${wr.title}` : (isNew ? 'New expense awaiting approval' : 'Expense edit awaiting approval'),
           amount: data.amount || null,
           submittedBy: pc.submittedBy,
           submitter,
@@ -2658,13 +2855,15 @@ const Users = {
           raw: pc
         });
       } else if (pc.table === 'transmittals' && isAdmin) {
+        const wrId = data.workRequestId || data.work_request_id;
+        const wr = wrId ? window.apiClient?.workRequestCache?.getById(wrId) : null;
         transmittalSent.push({
           type: 'change',
           kind: 'transmittalSent',
           id: pc.id,
           recordId: data.id || pc.parentRecordId,
           title: `Transmittal: ${data.trackingNumber || data.transmittalNumber || data.id || '—'}`,
-          description: isNew ? 'New transmittal awaiting approval' : 'Transmittal edit awaiting approval',
+          description: wr ? `For WR: ${wr.title}` : (isNew ? 'New transmittal awaiting approval' : 'Transmittal edit awaiting approval'),
           amount: null,
           submittedBy: pc.submittedBy,
           submitter,
@@ -2708,13 +2907,15 @@ const Users = {
 
       if (normReq.type === 'billing' && (isAdmin || isAccounting)) {
         const invNum = normReq.invoiceNumber ? ` (${normReq.invoiceNumber})` : '';
+        const wrId = normReq.workRequestId || normReq.work_request_id;
+        const wr = wrId ? window.apiClient?.workRequestCache?.getById(wrId) : null;
         billingToRelease.push({
           type: 'operations_request',
           kind: 'billingRouting',
           id: normReq.id,
           recordId: normReq.invoiceId || normReq.workRequestId,
           title: `Billing Request${invNum}`,
-          description: normReq.notes || 'Request to route invoice to Paid phase',
+          description: wr ? `For WR: ${wr.title}` : (normReq.notes || 'Request to route invoice to Paid phase'),
           amount: normReq.amount || null,
           submittedBy: normReq.requestedBy,
           submitter,
@@ -2723,13 +2924,15 @@ const Users = {
           raw: normReq
         });
       } else if (normReq.type === 'disbursement' && (isAdmin || isAccounting)) {
+        const wrId = normReq.workRequestId || normReq.work_request_id;
+        const wr = wrId ? window.apiClient?.workRequestCache?.getById(wrId) : null;
         disbursementToRelease.push({
           type: 'operations_request',
           kind: 'disbursementRequest',
           id: normReq.id,
           recordId: normReq.workRequestId,
           title: `Disbursement Request: ${normReq.category || '—'}`,
-          description: normReq.notes || 'Disbursement request awaiting approval',
+          description: wr ? `For WR: ${wr.title}` : (normReq.notes || 'Disbursement request awaiting approval'),
           amount: normReq.amount || null,
           submittedBy: normReq.requestedBy,
           submitter,
@@ -2738,13 +2941,15 @@ const Users = {
           raw: normReq
         });
       } else if (normReq.type === 'transmittal' && isAdmin) {
+        const wrId = normReq.workRequestId || normReq.work_request_id;
+        const wr = wrId ? window.apiClient?.workRequestCache?.getById(wrId) : null;
         transmittalSent.push({
           type: 'operations_request',
           kind: 'transmittalRequest',
           id: normReq.id,
           recordId: normReq.workRequestId,
           title: `Transmittal Request`,
-          description: normReq.notes || 'Transmittal request awaiting approval',
+          description: wr ? `For WR: ${wr.title}` : (normReq.notes || 'Transmittal request awaiting approval'),
           amount: null,
           submittedBy: normReq.requestedBy,
           submitter,
@@ -4100,6 +4305,20 @@ const Users = {
     if (pc.isOperationsRequest) {
       const typeLabel = proposed.type ? (proposed.type.charAt(0).toUpperCase() + proposed.type.slice(1)) : 'None';
       propertyGrid.appendChild(createPropertyRow('Request type', Icons.status, el('span', { text: typeLabel })));
+
+      // Work Request origin link
+      const wrId = proposed.workRequestId || proposed.work_request_id || proposed.parentRecordId;
+      const wr = wrId ? window.apiClient.workRequestCache.getById(wrId) : null;
+      const wrVal = wr
+        ? el('a', { class: 'notion-property-value-link', href: `#operations/detail/${wr.id}`, text: wr.title || wrId })
+        : (wrId ? el('a', { class: 'notion-property-value-link', href: `#operations/detail/${wrId}`, text: wrId }) : el('span', { text: 'None' }));
+      propertyGrid.appendChild(createPropertyRow('Work request', Icons.workRequest, wrVal));
+
+      // Client origin
+      const clientId = proposed.clientId || proposed.client_id || (wr ? wr.clientId : null);
+      const client = clientId ? window.apiClient.clientCache.getById(clientId) : null;
+      propertyGrid.appendChild(createPropertyRow('Client', Icons.client, el('span', { text: client ? client.name : (clientId || 'Not set') })));
+
       if (proposed.amount) {
         propertyGrid.appendChild(createPropertyRow('Amount', Icons.amount, el('span', { text: formatPHP(proposed.amount), style: 'font-weight: 700;' })));
       }
@@ -4169,8 +4388,12 @@ const Users = {
       const client = proposed.clientId ? window.apiClient.clientCache.getById(proposed.clientId) : null;
       propertyGrid.appendChild(createPropertyRow('Client', Icons.client, el('span', { text: client ? client.name : 'Not set' })));
 
-      const wr = proposed.workRequestId ? window.apiClient.workRequestCache.getById(proposed.workRequestId) : null;
-      propertyGrid.appendChild(createPropertyRow('Work request', Icons.workRequest, el('span', { text: wr ? wr.title : 'None' })));
+      const wrId = proposed.workRequestId || proposed.work_request_id;
+      const wr = wrId ? window.apiClient.workRequestCache.getById(wrId) : null;
+      const wrVal = wr 
+        ? el('a', { class: 'notion-property-value-link', href: `#operations/detail/${wr.id}`, text: wr.title || wrId })
+        : el('span', { text: wrId || 'None' });
+      propertyGrid.appendChild(createPropertyRow('Work request', Icons.workRequest, wrVal));
 
       propertyGrid.appendChild(createPropertyRow('Issue date', Icons.dueDate, el('span', { text: formatDate(proposed.issueDate) })));
       propertyGrid.appendChild(createPropertyRow('Due date', Icons.dueDate, el('span', { text: formatDate(proposed.dueDate) })));
@@ -4180,8 +4403,12 @@ const Users = {
       const client = proposed.clientId ? window.apiClient.clientCache.getById(proposed.clientId) : null;
       propertyGrid.appendChild(createPropertyRow('Client', Icons.client, el('span', { text: client ? client.name : 'Not set' })));
 
-      const wr = proposed.workRequestId ? window.apiClient.workRequestCache.getById(proposed.workRequestId) : null;
-      propertyGrid.appendChild(createPropertyRow('Work request', Icons.workRequest, el('span', { text: wr ? wr.title : 'None' })));
+      const wrId = proposed.workRequestId || proposed.work_request_id;
+      const wr = wrId ? window.apiClient.workRequestCache.getById(wrId) : null;
+      const wrVal = wr 
+        ? el('a', { class: 'notion-property-value-link', href: `#operations/detail/${wr.id}`, text: wr.title || wrId })
+        : el('span', { text: wrId || 'None' });
+      propertyGrid.appendChild(createPropertyRow('Work request', Icons.workRequest, wrVal));
 
       propertyGrid.appendChild(createPropertyRow('Date', Icons.dueDate, el('span', { text: formatDate(proposed.date) })));
       propertyGrid.appendChild(createPropertyRow('Status', Icons.status, el('span', { class: 'badge badge-info', text: proposed.status || 'Draft' })));
@@ -4200,6 +4427,14 @@ const Users = {
     } else if (pc.table === 'disbursements') {
       const client = proposed.clientId ? window.apiClient.clientCache.getById(proposed.clientId) : null;
       propertyGrid.appendChild(createPropertyRow('Client', Icons.client, el('span', { text: client ? client.name : 'Not set' })));
+
+      const wrId = proposed.workRequestId || proposed.work_request_id;
+      const wr = wrId ? window.apiClient.workRequestCache.getById(wrId) : null;
+      const wrVal = wr
+        ? el('a', { class: 'notion-property-value-link', href: `#operations/detail/${wr.id}`, text: wr.title || wrId })
+        : (wrId ? el('a', { class: 'notion-property-value-link', href: `#operations/detail/${wrId}`, text: wrId }) : el('span', { text: 'None' }));
+      propertyGrid.appendChild(createPropertyRow('Work request', Icons.workRequest, wrVal));
+
       propertyGrid.appendChild(createPropertyRow('Amount', Icons.amount, el('span', { text: formatPHP(proposed.amount), style: 'font-weight: 700;' })));
       propertyGrid.appendChild(createPropertyRow('Payment method', Icons.document, el('span', { text: proposed.paymentMethod || 'None' })));
       propertyGrid.appendChild(createPropertyRow('Status', Icons.status, el('span', { class: 'badge badge-info', text: proposed.status || 'Draft' })));

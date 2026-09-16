@@ -18419,6 +18419,30 @@ table.data-table th.dt-cell--right {
   }
 }
 
+/* -------------------------------------------------- */
+/* Task Row Deep-Linking & Highlight                  */
+/* -------------------------------------------------- */
+.task-row--highlighted {
+  border-left: 4px solid var(--color-primary, #2563eb) !important;
+  background-color: color-mix(in oklab, var(--color-primary, #2563eb) 12%, transparent) !important;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-primary, #2563eb) 35%, transparent) !important;
+  transition: all 0.3s ease-in-out;
+  animation: taskRowHighlightPulse 2s ease-in-out 3;
+}
+
+@keyframes taskRowHighlightPulse {
+  0% {
+    box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-primary, #2563eb) 35%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in oklab, var(--color-primary, #2563eb) 60%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-primary, #2563eb) 35%, transparent);
+  }
+}
+
+
 
 
 

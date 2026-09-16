@@ -8536,6 +8536,38 @@ const Workflow = {
     container.searchQuery = '';
     container.employeeFilter = null;
 
+    // Load and render active Operations Requests for this Work Request
+    let pendingOpsReqs = [];
+    try {
+      if (window.apiClient?.operationsRequests?.list) {
+        const opRes = await window.apiClient.operationsRequests.list({ workRequestId: wr.id, status: 'pending' });
+        pendingOpsReqs = opRes?.data || [];
+      }
+    } catch (e) {
+      console.warn('[Workflow.renderDetail] failed to load pending operations requests', e);
+    }
+
+    if (pendingOpsReqs.length > 0) {
+      const banner = el('div', {
+        class: 'alert-banner pending-requests-banner',
+        style: 'background: color-mix(in oklab, var(--color-warning) 12%, transparent); border: 1px solid var(--color-warning); border-radius: 12px; padding: 12px 16px; margin-bottom: 16px;'
+      });
+      const bHeader = el('div', { style: 'font-weight: 600; display: flex; align-items: center; gap: 8px; margin-bottom: 6px; color: var(--color-text);' });
+      bHeader.innerHTML = `<span style="font-size: 1.1rem;">⏳</span> Pending Operations Requests for this Work Request:`;
+      banner.appendChild(bHeader);
+
+      pendingOpsReqs.forEach(req => {
+        const row = el('div', { style: 'display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem; padding: 4px 0;' });
+        const reqType = req.type ? req.type.toUpperCase() : 'REQUEST';
+        const submitter = window.apiClient?.userCache?.getById ? window.apiClient.userCache.getById(req.requestedBy) : null;
+        const subName = submitter ? submitter.name : 'Staff';
+        row.innerHTML = `<span><strong>${reqType} Request:</strong> ${escapeHtml(req.notes || 'Awaiting review')} <span style="color: var(--color-text-muted); font-size: 0.8125rem;">(Requested by ${escapeHtml(subName)} on ${formatDate(req.requestedAt)})</span></span>`;
+        row.appendChild(el('span', { class: 'badge badge-warning', text: 'Pending' }));
+        banner.appendChild(row);
+      });
+      container.appendChild(banner);
+    }
+
     // Lifecycle Card Redesign
     const lifecycleCard = el('div', { class: 'lifecycle-card' });
     const lifecycleHeader = el('div', { class: 'lifecycle-header' });
@@ -9659,10 +9691,22 @@ const Workflow = {
         const hours = getTaskTotalHours(t);
         totalHours += hours;
 
+        const targetTaskId = this.targetTaskId || (new URLSearchParams(location.hash.split('?')[1] || '')).get('taskId');
+        const isTargetTask = Boolean(targetTaskId && (t.id === targetTaskId || String(t.id) === String(targetTaskId)));
+        if (isTargetTask) {
+          this.expandedTaskIds.add(t.id);
+        }
         const expanded = this.expandedTaskIds.has(t.id);
         const selected = container.selectedTaskIds.has(t.id);
-        const rowEl = el('div', { class: classNames('task-row', expanded && 'expanded', selected && 'selected', this.getCompletedClass(t)) });
+        const rowEl = el('div', { class: classNames('task-row', expanded && 'expanded', selected && 'selected', isTargetTask && 'task-row--highlighted', this.getCompletedClass(t)) });
         rowEl.dataset.id = t.id;
+        if (isTargetTask) {
+          setTimeout(() => {
+            if (rowEl.isConnected) {
+              rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 300);
+        }
 
         // 1. Checkbox cell
         const cellCheckbox = el('div', { class: 'cell' });
