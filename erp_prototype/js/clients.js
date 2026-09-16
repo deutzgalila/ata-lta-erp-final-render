@@ -1315,12 +1315,28 @@ const Clients = {
         if (!isAbortError(e)) console.error('Failed to load client form', e);
       }
     }
+    let userCacheEnsured = false;
+    let clientCacheEnsured = false;
     await Promise.all([
-      window.apiClient.userCache.ensure(),
-      window.apiClient.clientCache.ensure(),
-      window.apiClient.workRequestCache.ensure()
+      window.apiClient?.userCache?.ensure
+        ? window.apiClient.userCache.ensure().then(() => {
+            userCacheEnsured = typeof window.apiClient.userCache._stale === 'function'
+              ? !window.apiClient.userCache._stale()
+              : true;
+          }).catch(() => {})
+        : Promise.resolve(),
+      window.apiClient?.clientCache?.ensure
+        ? window.apiClient.clientCache.ensure().then(() => {
+            clientCacheEnsured = typeof window.apiClient.clientCache._stale === 'function'
+              ? !window.apiClient.clientCache._stale()
+              : true;
+          }).catch(() => {})
+        : Promise.resolve(),
+      window.apiClient?.workRequestCache?.ensure
+        ? window.apiClient.workRequestCache.ensure().catch(() => {})
+        : Promise.resolve()
     ]);
-    if ((window.apiClient?.userCache?.getAll?.() || []).length === 0 && window.apiClient?.me?.team) {
+    if (!userCacheEnsured && window.apiClient?.me?.team) {
       try {
         const teamRes = await window.apiClient.me.team();
         if (teamRes?.data && Array.isArray(teamRes.data) && window.apiClient.userCache) {
@@ -1329,7 +1345,7 @@ const Clients = {
         }
       } catch (e) {}
     }
-    if ((!window.apiClient?.clientCache?._clients || window.apiClient.clientCache._clients.length === 0) && window.apiClient?.clients?.list) {
+    if (!clientCacheEnsured && window.apiClient?.clients?.list) {
       try {
         const clRes = await window.apiClient.clients.list({});
         if (clRes?.data && Array.isArray(clRes.data) && window.apiClient.clientCache) {

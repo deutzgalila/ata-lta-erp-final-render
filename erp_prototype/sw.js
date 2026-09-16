@@ -212,12 +212,41 @@ async function staleWhileRevalidate(request) {
 }
 
 async function networkFirst(request) {
+  const url = new URL(request.url);
+  const isApi = url.pathname.startsWith('/v1/');
   try {
-    return await fetch(request);
+    const response = await fetch(request);
+    if (request.method === 'GET' && response && response.ok && isApi) {
+      caches.open(API_CACHE).then(cache => {
+        const cloned = response.clone();
+        const headers = new Headers(cloned.headers);
+        headers.set('x-sw-cached-at', Date.now().toString());
+        const wrapped = new Response(cloned.body, { status: cloned.status, statusText: cloned.statusText, headers });
+        cache.put(request, wrapped).catch(() => {});
+      }).catch(() => {});
+    }
+    return response;
   } catch (e) {
-    const cache = await caches.open(SHELL_CACHE);
-    const cached = await cache.match(request);
-    return cached || new Response('Offline: resource unavailable', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+    if (isApi) {
+      try {
+        const apiCache = await caches.open(API_CACHE);
+        const cached = await apiCache.match(request);
+        if (cached) return cached;
+      } catch (err) {}
+      return new Response(JSON.stringify({ error: 'Network unavailable' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    try {
+      const shellCache = await caches.open(SHELL_CACHE);
+      const cached = await shellCache.match(request);
+      if (cached) return cached;
+    } catch (err) {}
+    return new Response('Offline: resource unavailable', {
+      status: 503,
+      headers: { 'Content-Type': 'text/plain' },
+    });
   }
 }
 
