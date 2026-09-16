@@ -564,12 +564,6 @@ const Users = {
     this._datesResolved = false;
   },
 
-  hasCachedData() {
-    const now = Date.now();
-    const cacheAge = now - (this._pendingPreloadTs || 0);
-    return cacheAge < 15 * 1000 && Array.isArray(this._cachedMyPending);
-  },
-
   async render(routeId) {
     const isAdmin = Auth.user.role === 'Admin';
     const canManageUsers = isAdmin;
@@ -1404,8 +1398,10 @@ const Users = {
     if (isAdmin) {
       return this._usersLoaded && Array.isArray(this.users);
     }
-    // For non-admins/staff, the cache is warm if we have preloaded myPending lists
-    return Array.isArray(this._cachedMyPending);
+    // For non-admins/staff, the cache is warm if we have preloaded myPending lists within 15s TTL
+    const now = Date.now();
+    const cacheAge = now - (this._pendingPreloadTs || 0);
+    return cacheAge < 15 * 1000 && Array.isArray(this._cachedMyPending);
   },
 
   renderUsersSection() {
