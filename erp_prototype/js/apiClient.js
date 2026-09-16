@@ -344,9 +344,9 @@
   const isAbortError = (err) => {
     if (!err) return false;
     if (err.name === 'AbortError') return true;
-    if (err.message === 'route-change' || err.reason === 'route-change') return true;
+    if (err.message === 'route-change' || err.message === 'sync-reload' || err.reason === 'route-change' || err.reason === 'sync-reload') return true;
     const str = String(err.message || err.reason || err || '').toLowerCase();
-    return str.includes('aborted') || str.includes('route-change') || str.includes('cancel');
+    return str.includes('aborted') || str.includes('route-change') || str.includes('sync-reload') || str.includes('cancel');
   };
 
   const cachedCount = (cacheKey, fetcher, fallback) => {

@@ -1391,6 +1391,7 @@ const Users = {
     this._activeSkipGeneration = 0;
     this._pendingPreloadTs = 0;
     this._countTs.myRequests = 0;
+    this.container = null;
   },
 
   hasCachedData(entity) {
@@ -2407,7 +2408,7 @@ const Users = {
         const res = await window.apiClient.admin.listAudit({ limit: pageSize, offset });
         const page = (res?.data || []).map(r => this._normalizeAuditLog(r));
         allLogs = allLogs.concat(page);
-        if (!res?.meta?.hasMore || page.length === 0) break;
+        if (!res?.meta?.hasMore || page.length === 0 || allLogs.length >= 200) break;
         offset += pageSize;
       }
     } catch (err) {

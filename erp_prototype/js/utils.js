@@ -204,12 +204,12 @@ function isAbortError(e) {
   if (e.name === 'AbortError') return true;
   if (typeof e === 'string') {
     const s = e.toLowerCase();
-    return s === 'route-change' || s.includes('aborterror') || s.includes('aborted') || s.includes('cancel');
+    return s === 'route-change' || s === 'sync-reload' || s.includes('aborterror') || s.includes('aborted') || s.includes('cancel');
   }
   const msg = typeof e.message === 'string' ? e.message.toLowerCase() : '';
-  if (msg === 'route-change' || msg.includes('aborterror') || msg.includes('aborted') || msg.includes('cancel')) return true;
+  if (msg === 'route-change' || msg === 'sync-reload' || msg.includes('aborterror') || msg.includes('aborted') || msg.includes('cancel')) return true;
   const reason = typeof e.reason === 'string' ? e.reason.toLowerCase() : '';
-  if (reason === 'route-change' || reason.includes('aborterror') || reason.includes('aborted') || reason.includes('cancel')) return true;
+  if (reason === 'route-change' || reason === 'sync-reload' || reason.includes('aborterror') || reason.includes('aborted') || reason.includes('cancel')) return true;
   return false;
 }
 if (typeof window !== 'undefined') {
