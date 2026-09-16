@@ -2411,6 +2411,7 @@ const Users = {
         offset += pageSize;
       }
     } catch (err) {
+      if (isAbortError(err)) return;
       console.error('[Users.refreshAuditLog] failed to load audit log', err);
       Utils.clearSkeleton(container);
       container.appendChild(renderEmptyState('Unable to load audit log', null, { variant: 'zero-state' }));
