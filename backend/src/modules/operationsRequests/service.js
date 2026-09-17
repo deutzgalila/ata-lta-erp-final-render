@@ -59,6 +59,9 @@ const listRequests = async ({ entityId, filters = {} }) => {
   return { data: data || [], count: count || 0 };
 };
 
+// In-flight mutex map to guarantee idempotency against concurrent double-submits
+const inFlightRequests = new Map();
+
 /**
  * Create a new operations request.
  * @param {object} params
@@ -68,66 +71,81 @@ const listRequests = async ({ entityId, filters = {} }) => {
  * @returns {Promise<object>}
  */
 const createRequest = async ({ entityId, userId, data }) => {
-  // Deduplication guard against rapid double-clicks (within 5 seconds)
-  const fiveSecondsAgo = new Date(Date.now() - 5000).toISOString();
-  let dupQuery = supabaseAdmin
-    .from('operations_requests')
-    .select('*, clients(name), work_requests(title)')
-    .eq('entity_id', entityId)
-    .eq('type', data.type)
-    .eq('requested_by', userId)
-    .eq('status', 'pending')
-    .gte('created_at', fiveSecondsAgo);
+  const dedupeKey = `${entityId}:${userId}:${data.type}:${data.workRequestId || ''}:${data.linkedTaskId || ''}`;
 
-  if (data.workRequestId) dupQuery = dupQuery.eq('work_request_id', data.workRequestId);
-  if (data.linkedTaskId) dupQuery = dupQuery.eq('linked_task_id', data.linkedTaskId);
-
-  const { data: existingDups } = await dupQuery.limit(1);
-  if (existingDups && existingDups.length > 0) {
-    return existingDups[0];
+  if (inFlightRequests.has(dedupeKey)) {
+    return inFlightRequests.get(dedupeKey);
   }
 
-  const row = {
-    entity_id: entityId,
-    type: data.type,
-    work_request_id: data.workRequestId || null,
-    client_id: data.clientId || null,
-    linked_task_id: data.linkedTaskId || null,
-    requested_by: userId,
-    amount: data.amount ?? null,
-    status: 'pending',
-    notes: data.notes || null,
-    rejection_reason: null,
-    fulfilled_by: null,
-    fulfilled_at: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
+  const creationPromise = (async () => {
+    try {
+      // Deduplication guard against rapid double-clicks (within 5 seconds)
+      const fiveSecondsAgo = new Date(Date.now() - 5000).toISOString();
+      let dupQuery = supabaseAdmin
+        .from('operations_requests')
+        .select('*, clients(name), work_requests(title)')
+        .eq('entity_id', entityId)
+        .eq('type', data.type)
+        .eq('requested_by', userId)
+        .eq('status', 'pending')
+        .gte('created_at', fiveSecondsAgo);
 
-  const { data: request, error } = await supabaseAdmin
-    .from('operations_requests')
-    .insert(row)
-    .select()
-    .single();
+      if (data.workRequestId) dupQuery = dupQuery.eq('work_request_id', data.workRequestId);
+      if (data.linkedTaskId) dupQuery = dupQuery.eq('linked_task_id', data.linkedTaskId);
 
-  if (error) {
-    throw new AppError({
-      statusCode: 500,
-      title: 'Database Error',
-      detail: `Failed to create operations request: ${error.message || String(error)}`,
-    });
-  }
+      const { data: existingDups } = await dupQuery.limit(1);
+      if (existingDups && existingDups.length > 0) {
+        return existingDups[0];
+      }
 
-  await auditService.log({
-    action: 'operations_request.create',
-    table: 'operations_requests',
-    recordId: request.id,
-    entity: entityId,
-    userId,
-    details: { type: data.type, amount: data.amount, status: 'pending' },
-  });
+      const row = {
+        entity_id: entityId,
+        type: data.type,
+        work_request_id: data.workRequestId || null,
+        client_id: data.clientId || null,
+        linked_task_id: data.linkedTaskId || null,
+        requested_by: userId,
+        amount: data.amount ?? null,
+        status: 'pending',
+        notes: data.notes || null,
+        rejection_reason: null,
+        fulfilled_by: null,
+        fulfilled_at: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
 
-  return request;
+      const { data: request, error } = await supabaseAdmin
+        .from('operations_requests')
+        .insert(row)
+        .select()
+        .single();
+
+      if (error) {
+        throw new AppError({
+          statusCode: 500,
+          title: 'Database Error',
+          detail: `Failed to create operations request: ${error.message || String(error)}`,
+        });
+      }
+
+      await auditService.log({
+        action: 'operations_request.create',
+        table: 'operations_requests',
+        recordId: request.id,
+        entity: entityId,
+        userId,
+        details: { type: data.type, amount: data.amount, status: 'pending' },
+      });
+
+      return request;
+    } finally {
+      inFlightRequests.delete(dedupeKey);
+    }
+  })();
+
+  inFlightRequests.set(dedupeKey, creationPromise);
+  return creationPromise;
 };
 
 /**

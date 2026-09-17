@@ -1646,8 +1646,8 @@ const Users = {
     }
 
     if (r.status === 'pending') {
-      const footerActions = el('div', { class: 'side-pane-form-footer', style: 'display:flex; gap:8px; justify-content:flex-end;' });
-      const canApprove = Auth.user?.role === 'Admin' || Auth.canApproveChange('invoices');
+      const isSelfSubmission = r.requestedBy === Auth.user?.id;
+      const canApprove = (Auth.user?.role === 'Admin' || Auth.canApproveChange('invoices')) && (!isSelfSubmission || Auth.user?.role === 'Admin');
       if (canApprove) {
         const approveBtn = el('button', { class: 'btn btn-success', text: 'Approve Request' });
         approveBtn.addEventListener('click', () => {

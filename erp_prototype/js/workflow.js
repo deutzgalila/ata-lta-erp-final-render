@@ -746,7 +746,12 @@ const WorkflowData = {
     const normalized = this.normalizeWorkRequest(record);
     if (!normalized.tasks) normalized.tasks = [];
     if (!Array.isArray(this._workRequests)) this._workRequests = [];
-    this._workRequests.push(normalized);
+    const existingIdx = this._workRequests.findIndex(r => r.id === normalized.id);
+    if (existingIdx >= 0) {
+      this._workRequests[existingIdx] = normalized;
+    } else {
+      this._workRequests.push(normalized);
+    }
     // Mark the cache as fresh for the active entity so WorkflowData.ensure()
     // does not fire a server fetch and overwrite the optimistic record before
     // the list has a chance to render it.
@@ -763,11 +768,21 @@ const WorkflowData = {
   _addOptimisticTask(record) {
     const normalized = this.normalizeTask(record);
     if (!Array.isArray(this._tasks)) this._tasks = [];
-    this._tasks.push(normalized);
+    const existingTaskIdx = this._tasks.findIndex(t => t.id === normalized.id);
+    if (existingTaskIdx >= 0) {
+      this._tasks[existingTaskIdx] = normalized;
+    } else {
+      this._tasks.push(normalized);
+    }
     const wr = this.getWorkRequestById(normalized.workRequestId);
     if (wr) {
       if (!Array.isArray(wr.tasks)) wr.tasks = [];
-      wr.tasks.push(normalized);
+      const existingWrTaskIdx = wr.tasks.findIndex(t => t.id === normalized.id);
+      if (existingWrTaskIdx >= 0) {
+        wr.tasks[existingWrTaskIdx] = normalized;
+      } else {
+        wr.tasks.push(normalized);
+      }
       // Keep the parent WR cache fresh so a subsequent ensure() does not wipe it.
       this._entity = this._getActiveEntity();
     }

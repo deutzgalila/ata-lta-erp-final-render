@@ -755,6 +755,14 @@ function buildCompactBoardCard(opts) {
       }
     });
 
+    card.addEventListener('dragstart', () => {
+      isDown = false;
+    });
+
+    card.addEventListener('dragend', () => {
+      isDown = false;
+    });
+
     card.addEventListener('click', e => {
       if (e.target.closest('button, .action-menu, .card-v2-menu, a')) return;
       const now = Date.now();

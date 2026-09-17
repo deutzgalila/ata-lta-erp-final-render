@@ -313,6 +313,10 @@ const KanbanBoard = {
     }
 
     function handleDragStart(e) {
+      if (e.target && e.target.closest && e.target.closest('button, .action-menu, .card-v2-menu, a, input, select, textarea')) {
+        e.preventDefault();
+        return;
+      }
       dragSrcId = this.dataset.itemId;
       this.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
@@ -830,6 +834,10 @@ const KanbanBoard = {
     };
 
     const handleDragStart = function(e) {
+      if (e.target && e.target.closest && e.target.closest('button, .action-menu, .card-v2-menu, a, input, select, textarea')) {
+        e.preventDefault();
+        return;
+      }
       dragSrcId = this.dataset.itemId;
       this.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
