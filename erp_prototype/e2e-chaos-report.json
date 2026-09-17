@@ -1,6 +1,6 @@
 {
   "targetUrl": "http://localhost:8080",
-  "startedAt": "2026-09-17T16:11:03.502Z",
+  "startedAt": "2026-09-17T16:57:16.907Z",
   "testCases": {
     "AUTH-01": {
       "name": "Show/Hide Password Toggle on Login Form",
@@ -8,7 +8,7 @@
       "details": {
         "toggleWorks": true
       },
-      "timestamp": "2026-09-17T16:11:03.886Z"
+      "timestamp": "2026-09-17T16:57:17.325Z"
     },
     "AUTH-02": {
       "name": "Invalid Credentials Error Handling",
@@ -16,14 +16,14 @@
       "details": {
         "errorText": "Invalid email or password."
       },
-      "timestamp": "2026-09-17T16:11:05.231Z"
+      "timestamp": "2026-09-17T16:57:17.674Z"
     },
     "RBAC-ADMIN": {
       "name": "Role Auth & Scoping: Admin",
       "passed": true,
       "details": {
-        "loggedInUser": "lorein@ata-lta.ph",
-        "name": "Lorein Wong",
+        "loggedInUser": "dev-admin@ata-lta.ph",
+        "name": "Dev Administrator",
         "optionsList": [
           "Consolidated View",
           "ATA Accounting",
@@ -31,7 +31,7 @@
         ],
         "entityScopeCorrect": true
       },
-      "timestamp": "2026-09-17T16:11:07.975Z"
+      "timestamp": "2026-09-17T16:57:19.896Z"
     },
     "RBAC-MANAGER": {
       "name": "Role Auth & Scoping: Manager",
@@ -46,7 +46,7 @@
         ],
         "entityScopeCorrect": true
       },
-      "timestamp": "2026-09-17T16:11:12.122Z"
+      "timestamp": "2026-09-17T16:57:26.662Z"
     },
     "RBAC-OPERATIONS": {
       "name": "Role Auth & Scoping: Operations",
@@ -60,7 +60,7 @@
         ],
         "entityScopeCorrect": true
       },
-      "timestamp": "2026-09-17T16:11:16.720Z"
+      "timestamp": "2026-09-17T16:57:29.609Z"
     },
     "RBAC-ACCOUNTING": {
       "name": "Role Auth & Scoping: Accounting",
@@ -74,7 +74,7 @@
         ],
         "entityScopeCorrect": true
       },
-      "timestamp": "2026-09-17T16:11:21.222Z"
+      "timestamp": "2026-09-17T16:57:32.428Z"
     },
     "RBAC-DOCS": {
       "name": "Role Auth & Scoping: Documentation",
@@ -88,7 +88,7 @@
         ],
         "entityScopeCorrect": true
       },
-      "timestamp": "2026-09-17T16:11:25.736Z"
+      "timestamp": "2026-09-17T16:57:35.376Z"
     },
     "NAV-01": {
       "name": "Navigation across all 8 primary modules",
@@ -103,13 +103,13 @@
         "reports": "rendered",
         "admin": "rendered"
       },
-      "timestamp": "2026-09-17T16:11:36.598Z"
+      "timestamp": "2026-09-17T16:57:44.639Z"
     },
     "NAV-02": {
       "name": "Entity Switcher Smooth Transition (ATA, LTA, ALL)",
       "passed": true,
       "details": {},
-      "timestamp": "2026-09-17T16:11:39.623Z"
+      "timestamp": "2026-09-17T16:57:47.665Z"
     },
     "CHAOS-WR-01": {
       "name": "Work Request Creation Form Debouncing & Button Disabling Guard",
@@ -119,7 +119,7 @@
         "disablesSubmitBtn": true,
         "showsSavingText": true
       },
-      "timestamp": "2026-09-17T16:11:40.627Z"
+      "timestamp": "2026-09-17T16:57:48.668Z"
     },
     "CHAOS-UI-01": {
       "name": "Card Click Resilience against HTML5 Drag-and-Drop micro-drag",
@@ -128,7 +128,7 @@
         "hasDisplacementCheck": true,
         "hasFunction": true
       },
-      "timestamp": "2026-09-17T16:11:40.628Z"
+      "timestamp": "2026-09-17T16:57:48.669Z"
     },
     "CHAOS-CLIENT-01": {
       "name": "Client Form POC population & Cross-Entity Relationship Support",
@@ -139,9 +139,9 @@
         "hasLtaOption": true,
         "hasValidRelations": true,
         "populatesPoc": true,
-        "clientOptionsCount": 6
+        "clientOptionsCount": 9
       },
-      "timestamp": "2026-09-17T16:11:41.633Z"
+      "timestamp": "2026-09-17T16:57:53.850Z"
     },
     "CHAOS-BILL-01": {
       "name": "Invoice Auto-Increment Entity Fallback & Submission Debounce",
@@ -150,9 +150,9 @@
         "fallbacksFromAll": true,
         "safeQueryLimit": true,
         "debouncesSubmit": true,
-        "generatedAta": "ATA-SI-2026-001"
+        "generatedAta": "ATA-SI-2026-005"
       },
-      "timestamp": "2026-09-17T16:11:42.795Z"
+      "timestamp": "2026-09-17T16:57:55.045Z"
     },
     "CHAOS-AUDIT-01": {
       "name": "Admin Audit Log Row Click Modal Trigger",
@@ -161,7 +161,7 @@
         "hasOnRowClick": true,
         "renderedRows": 20
       },
-      "timestamp": "2026-09-17T16:11:43.999Z"
+      "timestamp": "2026-09-17T16:57:56.250Z"
     },
     "CHAOS-DASH-01": {
       "name": "Dashboard Calendar Work Request Worker Scoping Isolation",
@@ -170,7 +170,7 @@
         "scopesByAuthCanViewWr": true,
         "scopesByAuthCanViewDisbursement": true
       },
-      "timestamp": "2026-09-17T16:11:49.239Z"
+      "timestamp": "2026-09-17T16:58:01.109Z"
     },
     "CACHE-01": {
       "name": "Service Worker Active Registration and Storage Isolation",
@@ -179,7 +179,37 @@
         "swActive": true,
         "swScope": "http://localhost:8080/"
       },
-      "timestamp": "2026-09-17T16:11:49.240Z"
+      "timestamp": "2026-09-17T16:58:01.110Z"
+    },
+    "CHAOS-OPREQ-01": {
+      "name": "Operations Request Modals Debouncing & Double-Click Guard (Workflow, Billing, Disbursement, Transmittal)",
+      "passed": true,
+      "details": {
+        "wfHasDebounce": true,
+        "billHasDebounce": true,
+        "disbHasDebounce": true,
+        "transHasDebounce": true
+      },
+      "timestamp": "2026-09-17T16:58:02.314Z"
+    },
+    "CHAOS-TX-01": {
+      "name": "Transmittal Auto-Increment Entity Resolution & Safe Query Limit",
+      "passed": true,
+      "details": {
+        "resolvesAll": true,
+        "safeLimit": true,
+        "genTrackingAll": "ATA-TX-2026-001",
+        "validPrefix": true
+      },
+      "timestamp": "2026-09-17T16:58:02.522Z"
+    },
+    "CHAOS-DISB-01": {
+      "name": "Disbursement Self-Approval Barrier & Enforcement",
+      "passed": true,
+      "details": {
+        "preventsSelfApproval": true
+      },
+      "timestamp": "2026-09-17T16:58:02.523Z"
     }
   },
   "consoleErrors": [
@@ -190,26 +220,6 @@
         "line": 106,
         "column": 16,
         "lineNumber": 106,
-        "columnNumber": 16
-      }
-    },
-    {
-      "text": "[apiClient] count fetch failed for operationsRequests.counts:ATA TypeError: Failed to fetch\n    at request (http://localhost:8080/js/apiClient.js?v=2.3.10:191:23)\n    at get (http://localhost:8080/js/apiClient.js?v=2.3.10:305:21)\n    at cachedCount.data.total (http://localhost:8080/js/apiClient.js?v=2.3.10:794:15)\n    at cachedCount (http://localhost:8080/js/apiClient.js?v=2.3.10:359:12)\n    at Object.counts (http://localhost:8080/js/apiClient.js?v=2.3.10:792:29)\n    at Object.updateSidebarNotifications (http://localhost:8080/js/app.js?v=2.3.10:215:43)\n    at Object.handleRoute (http://localhost:8080/js/app.js?v=2.3.10:798:12)",
-      "location": {
-        "url": "http://localhost:8080/js/apiClient.js?v=2.3.10",
-        "line": 364,
-        "column": 16,
-        "lineNumber": 364,
-        "columnNumber": 16
-      }
-    },
-    {
-      "text": "[apiClient] count fetch failed for disbursements.counts:ATA TypeError: Failed to fetch\n    at request (http://localhost:8080/js/apiClient.js?v=2.3.10:191:23)\n    at get (http://localhost:8080/js/apiClient.js?v=2.3.10:305:21)\n    at cachedCount.data.active (http://localhost:8080/js/apiClient.js?v=2.3.10:845:15)\n    at cachedCount (http://localhost:8080/js/apiClient.js?v=2.3.10:359:12)\n    at Object.counts (http://localhost:8080/js/apiClient.js?v=2.3.10:843:29)\n    at Object.updateSidebarNotifications (http://localhost:8080/js/app.js?v=2.3.10:214:38)\n    at Object.handleRoute (http://localhost:8080/js/app.js?v=2.3.10:798:12)",
-      "location": {
-        "url": "http://localhost:8080/js/apiClient.js?v=2.3.10",
-        "line": 364,
-        "column": 16,
-        "lineNumber": 364,
         "columnNumber": 16
       }
     },
@@ -234,180 +244,68 @@
       }
     },
     {
-      "text": "[App.handleRoute] sidebar notifications failed TypeError: Failed to fetch\n    at request (http://localhost:8080/js/apiClient.js?v=2.3.10:191:23)\n    at get (http://localhost:8080/js/apiClient.js?v=2.3.10:305:21)\n    at Object.list (http://localhost:8080/js/apiClient.js?v=2.3.10:933:16)\n    at Object.getPendingForUser (http://localhost:8080/js/pendingChanges.js?v=2.3.10:236:44)\n    at Object.updateSidebarNotifications (http://localhost:8080/js/app.js?v=2.3.10:250:35)\n    at async Object.init (http://localhost:8080/js/app.js?v=2.3.10:153:5)\n    at async HTMLFormElement.<anonymous> (http://localhost:8080/js/app.js?v=2.3.10:1083:9)",
+      "text": "[apiClient] count fetch failed for disbursements.counts:ATA TypeError: Failed to fetch\n    at request (http://localhost:8080/js/apiClient.js?v=2.3.10:191:23)\n    at get (http://localhost:8080/js/apiClient.js?v=2.3.10:305:21)\n    at cachedCount.data.active (http://localhost:8080/js/apiClient.js?v=2.3.10:845:15)\n    at cachedCount (http://localhost:8080/js/apiClient.js?v=2.3.10:359:12)\n    at Object.counts (http://localhost:8080/js/apiClient.js?v=2.3.10:843:29)\n    at Object.updateSidebarNotifications (http://localhost:8080/js/app.js?v=2.3.10:214:38)\n    at Object.handleRoute (http://localhost:8080/js/app.js?v=2.3.10:798:12)",
       "location": {
-        "url": "http://localhost:8080/js/app.js?v=2.3.10",
-        "line": 799,
-        "column": 18,
-        "lineNumber": 799,
-        "columnNumber": 18
+        "url": "http://localhost:8080/js/apiClient.js?v=2.3.10",
+        "line": 364,
+        "column": 16,
+        "lineNumber": 364,
+        "columnNumber": 16
       }
     },
     {
-      "text": "Failed to query invoices in getPendingForUser route-change",
+      "text": "[apiClient] count fetch failed for operationsRequests.counts:ATA TypeError: Failed to fetch\n    at request (http://localhost:8080/js/apiClient.js?v=2.3.10:191:23)\n    at get (http://localhost:8080/js/apiClient.js?v=2.3.10:305:21)\n    at cachedCount.data.total (http://localhost:8080/js/apiClient.js?v=2.3.10:794:15)\n    at cachedCount (http://localhost:8080/js/apiClient.js?v=2.3.10:359:12)\n    at Object.counts (http://localhost:8080/js/apiClient.js?v=2.3.10:792:29)\n    at Object.updateSidebarNotifications (http://localhost:8080/js/app.js?v=2.3.10:215:43)\n    at Object.handleRoute (http://localhost:8080/js/app.js?v=2.3.10:798:12)",
+      "location": {
+        "url": "http://localhost:8080/js/apiClient.js?v=2.3.10",
+        "line": 364,
+        "column": 16,
+        "lineNumber": 364,
+        "columnNumber": 16
+      }
+    },
+    {
+      "text": "Failed to query disbursements in getPendingForUser TypeError: Failed to fetch\n    at request (http://localhost:8080/js/apiClient.js?v=2.3.10:191:23)\n    at get (http://localhost:8080/js/apiClient.js?v=2.3.10:305:21)\n    at Object.list (http://localhost:8080/js/apiClient.js?v=2.3.10:841:16)\n    at Object.getPendingForUser (http://localhost:8080/js/pendingChanges.js?v=2.3.10:242:49)\n    at async Object.updateSidebarNotifications (http://localhost:8080/js/app.js?v=2.3.10:250:14)\n    at async Object.init (http://localhost:8080/js/app.js?v=2.3.10:153:5)\n    at async HTMLFormElement.<anonymous> (http://localhost:8080/js/app.js?v=2.3.10:1083:9)",
       "location": {
         "url": "http://localhost:8080/js/pendingChanges.js?v=2.3.10",
-        "line": 291,
-        "column": 14,
-        "lineNumber": 291,
-        "columnNumber": 14
+        "line": 265,
+        "column": 28,
+        "lineNumber": 265,
+        "columnNumber": 28
       }
     },
     {
-      "text": "Failed to query invoices in getPendingForUser route-change",
+      "text": "Failed to query disbursements in getPendingForUser TypeError: Failed to fetch\n    at request (http://localhost:8080/js/apiClient.js?v=2.3.10:191:23)\n    at get (http://localhost:8080/js/apiClient.js?v=2.3.10:305:21)\n    at Object.list (http://localhost:8080/js/apiClient.js?v=2.3.10:841:16)\n    at Object.getPendingForUser (http://localhost:8080/js/pendingChanges.js?v=2.3.10:242:49)\n    at async Object.updateSidebarNotifications (http://localhost:8080/js/app.js?v=2.3.10:250:14)\n    at async Object.init (http://localhost:8080/js/app.js?v=2.3.10:153:5)\n    at async HTMLFormElement.<anonymous> (http://localhost:8080/js/app.js?v=2.3.10:1083:9)",
       "location": {
         "url": "http://localhost:8080/js/pendingChanges.js?v=2.3.10",
-        "line": 291,
+        "line": 265,
+        "column": 28,
+        "lineNumber": 265,
+        "columnNumber": 28
+      }
+    },
+    {
+      "pageError": "route-change",
+      "stack": ""
+    },
+    {
+      "pageError": "route-change",
+      "stack": ""
+    },
+    {
+      "text": "[Users.countMyRequests] failed to load operations request count route-change",
+      "location": {
+        "url": "http://localhost:8080/js/users.js?v=2.3.10?v=1789664263035",
+        "line": 62,
         "column": 14,
-        "lineNumber": 291,
-        "columnNumber": 14
-      }
-    },
-    {
-      "text": "Failed to query disbursements in getPendingForUser route-change",
-      "location": {
-        "url": "http://localhost:8080/js/pendingChanges.js?v=2.3.10",
-        "line": 263,
-        "column": 14,
-        "lineNumber": 263,
-        "columnNumber": 14
-      }
-    },
-    {
-      "text": "[App.handleRoute] sidebar notifications failed TypeError: Failed to fetch\n    at request (http://localhost:8080/js/apiClient.js?v=2.3.10:191:23)\n    at get (http://localhost:8080/js/apiClient.js?v=2.3.10:305:21)\n    at Object.list (http://localhost:8080/js/apiClient.js?v=2.3.10:933:16)\n    at Object.getPendingForUser (http://localhost:8080/js/pendingChanges.js?v=2.3.10:236:44)\n    at Object.updateSidebarNotifications (http://localhost:8080/js/app.js?v=2.3.10:250:35)\n    at async Object.init (http://localhost:8080/js/app.js?v=2.3.10:153:5)\n    at async HTMLFormElement.<anonymous> (http://localhost:8080/js/app.js?v=2.3.10:1083:9)",
-      "location": {
-        "url": "http://localhost:8080/js/app.js?v=2.3.10",
-        "line": 799,
-        "column": 18,
-        "lineNumber": 799,
-        "columnNumber": 18
-      }
-    },
-    {
-      "text": "Failed to query invoices in getPendingForUser route-change",
-      "location": {
-        "url": "http://localhost:8080/js/pendingChanges.js?v=2.3.10",
-        "line": 291,
-        "column": 14,
-        "lineNumber": 291,
-        "columnNumber": 14
-      }
-    },
-    {
-      "text": "Failed to query invoices in getPendingForUser route-change",
-      "location": {
-        "url": "http://localhost:8080/js/pendingChanges.js?v=2.3.10",
-        "line": 291,
-        "column": 14,
-        "lineNumber": 291,
-        "columnNumber": 14
-      }
-    },
-    {
-      "text": "Failed to query invoices in getPendingForUser route-change",
-      "location": {
-        "url": "http://localhost:8080/js/pendingChanges.js?v=2.3.10",
-        "line": 291,
-        "column": 14,
-        "lineNumber": 291,
-        "columnNumber": 14
-      }
-    },
-    {
-      "text": "[App.handleRoute] sidebar notifications failed TypeError: Failed to fetch\n    at request (http://localhost:8080/js/apiClient.js?v=2.3.10:191:23)\n    at get (http://localhost:8080/js/apiClient.js?v=2.3.10:305:21)\n    at Object.list (http://localhost:8080/js/apiClient.js?v=2.3.10:933:16)\n    at Object.getPendingForUser (http://localhost:8080/js/pendingChanges.js?v=2.3.10:236:44)\n    at Object.updateSidebarNotifications (http://localhost:8080/js/app.js?v=2.3.10:250:35)\n    at async Object.init (http://localhost:8080/js/app.js?v=2.3.10:153:5)\n    at async HTMLFormElement.<anonymous> (http://localhost:8080/js/app.js?v=2.3.10:1083:9)",
-      "location": {
-        "url": "http://localhost:8080/js/app.js?v=2.3.10",
-        "line": 799,
-        "column": 18,
-        "lineNumber": 799,
-        "columnNumber": 18
-      }
-    },
-    {
-      "text": "Failed to query disbursements in getPendingForUser route-change",
-      "location": {
-        "url": "http://localhost:8080/js/pendingChanges.js?v=2.3.10",
-        "line": 263,
-        "column": 14,
-        "lineNumber": 263,
-        "columnNumber": 14
-      }
-    },
-    {
-      "text": "[App.handleRoute] sidebar notifications failed TypeError: Failed to fetch\n    at request (http://localhost:8080/js/apiClient.js?v=2.3.10:191:23)\n    at get (http://localhost:8080/js/apiClient.js?v=2.3.10:305:21)\n    at Object.list (http://localhost:8080/js/apiClient.js?v=2.3.10:933:16)\n    at Object.getPendingForUser (http://localhost:8080/js/pendingChanges.js?v=2.3.10:236:44)\n    at Object.updateSidebarNotifications (http://localhost:8080/js/app.js?v=2.3.10:250:35)\n    at async Object.init (http://localhost:8080/js/app.js?v=2.3.10:153:5)\n    at async HTMLFormElement.<anonymous> (http://localhost:8080/js/app.js?v=2.3.10:1083:9)",
-      "location": {
-        "url": "http://localhost:8080/js/app.js?v=2.3.10",
-        "line": 799,
-        "column": 18,
-        "lineNumber": 799,
-        "columnNumber": 18
-      }
-    },
-    {
-      "text": "Failed to query invoices in getPendingForUser route-change",
-      "location": {
-        "url": "http://localhost:8080/js/pendingChanges.js?v=2.3.10",
-        "line": 291,
-        "column": 14,
-        "lineNumber": 291,
-        "columnNumber": 14
-      }
-    },
-    {
-      "text": "Failed to query invoices in getPendingForUser route-change",
-      "location": {
-        "url": "http://localhost:8080/js/pendingChanges.js?v=2.3.10",
-        "line": 291,
-        "column": 14,
-        "lineNumber": 291,
-        "columnNumber": 14
-      }
-    },
-    {
-      "text": "Failed to query invoices in getPendingForUser route-change",
-      "location": {
-        "url": "http://localhost:8080/js/pendingChanges.js?v=2.3.10",
-        "line": 291,
-        "column": 14,
-        "lineNumber": 291,
-        "columnNumber": 14
-      }
-    },
-    {
-      "text": "Failed to query invoices in getAllPending sync-reload",
-      "location": {
-        "url": "http://localhost:8080/js/pendingChanges.js?v=2.3.10",
-        "line": 226,
-        "column": 14,
-        "lineNumber": 226,
-        "columnNumber": 14
-      }
-    },
-    {
-      "text": "Failed to query invoices in getPendingForUser route-change",
-      "location": {
-        "url": "http://localhost:8080/js/pendingChanges.js?v=2.3.10",
-        "line": 291,
-        "column": 14,
-        "lineNumber": 291,
-        "columnNumber": 14
-      }
-    },
-    {
-      "text": "Failed to query invoices in getPendingForUser route-change",
-      "location": {
-        "url": "http://localhost:8080/js/pendingChanges.js?v=2.3.10",
-        "line": 291,
-        "column": 14,
-        "lineNumber": 291,
+        "lineNumber": 62,
         "columnNumber": 14
       }
     }
   ],
   "summary": {
-    "total": 16,
-    "passed": 16,
+    "total": 19,
+    "passed": 19,
     "failed": 0
   },
-  "completedAt": "2026-09-17T16:11:49.276Z"
+  "completedAt": "2026-09-17T16:58:02.560Z"
 }

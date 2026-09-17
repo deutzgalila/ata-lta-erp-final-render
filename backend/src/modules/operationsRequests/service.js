@@ -68,6 +68,25 @@ const listRequests = async ({ entityId, filters = {} }) => {
  * @returns {Promise<object>}
  */
 const createRequest = async ({ entityId, userId, data }) => {
+  // Deduplication guard against rapid double-clicks (within 5 seconds)
+  const fiveSecondsAgo = new Date(Date.now() - 5000).toISOString();
+  let dupQuery = supabaseAdmin
+    .from('operations_requests')
+    .select('*, clients(name), work_requests(title)')
+    .eq('entity_id', entityId)
+    .eq('type', data.type)
+    .eq('requested_by', userId)
+    .eq('status', 'pending')
+    .gte('created_at', fiveSecondsAgo);
+
+  if (data.workRequestId) dupQuery = dupQuery.eq('work_request_id', data.workRequestId);
+  if (data.linkedTaskId) dupQuery = dupQuery.eq('linked_task_id', data.linkedTaskId);
+
+  const { data: existingDups } = await dupQuery.limit(1);
+  if (existingDups && existingDups.length > 0) {
+    return existingDups[0];
+  }
+
   const row = {
     entity_id: entityId,
     type: data.type,
@@ -81,6 +100,8 @@ const createRequest = async ({ entityId, userId, data }) => {
     rejection_reason: null,
     fulfilled_by: null,
     fulfilled_at: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   };
 
   const { data: request, error } = await supabaseAdmin

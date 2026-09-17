@@ -2361,8 +2361,10 @@ const Transmittal = {
 
     const overlay = Workflow.showModal('Request Transmittal', wrapper);
 
+    let isSubmittingTransReq = false;
     overlay.querySelector('#btn-cancel-trans-opreq').addEventListener('click', () => overlay.remove());
     overlay.querySelector('#btn-save-trans-opreq').addEventListener('click', async () => {
+      if (isSubmittingTransReq) return;
       const wrId = wrSelect.value;
       if (!wrId) {
         Workflow.showMessage('Validation Error', 'Please select a work request.', 'warning');
@@ -2380,22 +2382,38 @@ const Transmittal = {
         notes
       };
 
-      Workflow.runBlockingArchiveAction({
-        title: 'Submitting Transmittal Request',
-        message: 'Please wait while your transmittal request is being submitted...',
-        apiCall: async () => {
-          return await window.apiClient.operationsRequests.create(record);
-        },
-        successTitle: 'Request Submitted',
-        successMessage: 'Your transmittal request has been submitted to Documentation for review.',
-        errorTitle: 'Request Failed',
-        onSuccess: async (res) => {
-          overlay.remove();
-        },
-        onAfterConfirm: async () => {
-          App.handleRoute();
+      const submitBtn = overlay.querySelector('#btn-save-trans-opreq');
+      const origHtml = submitBtn ? submitBtn.innerHTML : null;
+      isSubmittingTransReq = true;
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Submitting...';
+      }
+
+      try {
+        await Workflow.runBlockingArchiveAction({
+          title: 'Submitting Transmittal Request',
+          message: 'Please wait while your transmittal request is being submitted...',
+          apiCall: async () => {
+            return await window.apiClient.operationsRequests.create(record);
+          },
+          successTitle: 'Request Submitted',
+          successMessage: 'Your transmittal request has been submitted to Documentation for review.',
+          errorTitle: 'Request Failed',
+          onSuccess: async (res) => {
+            overlay.remove();
+          },
+          onAfterConfirm: async () => {
+            App.handleRoute();
+          }
+        });
+      } finally {
+        isSubmittingTransReq = false;
+        if (submitBtn && origHtml) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = origHtml;
         }
-      });
+      }
     });
   },
 
@@ -2663,10 +2681,15 @@ const Transmittal = {
     form.appendChild(submitBtn);
 
     const overlay = Workflow.showModal('Acknowledge Transmittal Receipt', form);
+    let isSubmitting = false;
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (isSubmitting) return;
       if (!validateRequiredFields(form)) return;
+      isSubmitting = true;
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Confirming...';
       const receivedByName = form.querySelector('[name="receivedBy"]')?.value.trim();
       overlay.remove();
       await this._acknowledgeTransmittal(id, receivedByName);
