@@ -2105,7 +2105,18 @@ const Transmittal = {
   },
 
   async submitForm(form) {
-    if (!validateRequiredFields(form)) return;
+    if (this._isSubmittingTransmittal) return;
+    const submitBtn = form.querySelector('button[type="submit"]') || form.querySelector('.btn-primary') || document.querySelector('button[form="transmittal-form"]');
+    const originalBtnHtml = submitBtn ? submitBtn.innerHTML : null;
+    this._isSubmittingTransmittal = true;
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.classList.add('loading');
+      submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving...';
+    }
+
+    try {
+      if (!validateRequiredFields(form)) return;
     const isResubmitting = typeof PendingChanges !== 'undefined' && PendingChanges.editingPendingId;
 
     const entity = Auth.activeEntity;
@@ -2299,6 +2310,14 @@ const Transmittal = {
       const skipGen = this._startSkipFetchGeneration();
       await closeFormPanelAndRoute(targetRoute, msgConfig);
       this._clearActiveSkipGeneration(skipGen);
+    }
+    } finally {
+      this._isSubmittingTransmittal = false;
+      if (submitBtn && originalBtnHtml) {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('loading');
+        submitBtn.innerHTML = originalBtnHtml;
+      }
     }
   },
 

@@ -3400,10 +3400,27 @@ const Billing = {
       }
       updateTasks();
       updateTransmittals();
+      if (!inv) {
+        const derivedEntity = wr?.entity || (entity !== 'ALL' ? entity : 'ATA');
+        this.nextInvoiceNumber(derivedEntity, this.currentListPage || 1)
+          .then((n) => {
+            if (numInput) numInput.value = n;
+          })
+          .catch(() => {});
+      }
     });
 
     clientSel.addEventListener("change", () => {
       updateTransmittals();
+      if (!inv) {
+        const selClient = allClients.find((c) => c.id === clientSel.value);
+        const derivedEntity = selClient?.entity || (entity !== 'ALL' ? entity : 'ATA');
+        this.nextInvoiceNumber(derivedEntity, this.currentListPage || 1)
+          .then((n) => {
+            if (numInput) numInput.value = n;
+          })
+          .catch(() => {});
+      }
     });
 
     updateTasks();
@@ -3618,18 +3635,21 @@ const Billing = {
   },
 
   async _legacyNextInvoiceNumber(entity, page = 1) {
+    let resolvedEntity = entity;
+    if (!resolvedEntity || resolvedEntity === "ALL") {
+      resolvedEntity = (typeof Auth !== "undefined" && (Auth.user?.entities || []).find(e => e !== "ALL")) || "ATA";
+    }
     const year = new Date().getFullYear();
-    const prefix = entity + "-SI-" + year + "-";
+    const prefix = resolvedEntity + "-SI-" + year + "-";
     try {
-      // Scan only the current/most-recent page for the latest sequential number.
       const list = await this.fetchInvoices({
         page,
-        limit: 1,
+        limit: 500,
         sortBy: "createdAt",
         sortOrder: "desc",
         includeDeleted: true,
       });
-      const maxNum = list
+      const maxNum = (list || [])
         .filter(
           (inv) => inv.invoiceNumber && inv.invoiceNumber.startsWith(prefix),
         )
@@ -3646,7 +3666,18 @@ const Billing = {
   },
 
   async submitForm(form) {
-    if (!validateRequiredFields(form)) return;
+    if (this._isSubmittingBilling) return;
+    const submitBtn = form.querySelector('button[type="submit"]') || form.querySelector('.btn-primary') || document.querySelector('button[form="invoice-form"]');
+    const originalBtnHtml = submitBtn ? submitBtn.innerHTML : null;
+    this._isSubmittingBilling = true;
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.classList.add('loading');
+      submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving...';
+    }
+
+    try {
+      if (!validateRequiredFields(form)) return;
     const isResubmitting =
       typeof PendingChanges !== "undefined" && PendingChanges.editingPendingId;
 
@@ -3970,6 +4001,14 @@ const Billing = {
           await triggerSyncReload(targetRoute, msgConfig);
         },
       });
+    }
+    } finally {
+      this._isSubmittingBilling = false;
+      if (submitBtn && originalBtnHtml) {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('loading');
+        submitBtn.innerHTML = originalBtnHtml;
+      }
     }
   },
 

@@ -2901,11 +2901,12 @@ const Users = {
         itemTagNode = el('a', {
           href: itemLink.href,
           text: itemTarget,
-          style: 'color: inherit; text-decoration: underline; font-weight: 500; cursor: pointer;',
+          style: 'color: var(--color-primary, #2563eb); text-decoration: underline; font-weight: 500; cursor: pointer;',
           title: `Navigate to ${itemTarget}`
         });
         itemTagNode.addEventListener('click', (e) => {
           e.preventDefault();
+          e.stopPropagation();
           this._navigateToItemLink(l, itemLink.href);
         });
       }
@@ -2945,6 +2946,9 @@ const Users = {
       selectable: false,
       titleColumnWidth: '0px',
       leadColumnLabel: 'ID',
+      onRowClick: (item) => {
+        this.showAuditLogDetailsModal(item.raw);
+      },
       rowActions: (item) => [
         {
           text: 'Details',
@@ -5878,6 +5882,9 @@ const Users = {
           title: `View Work Request: ${displayText}`
         });
         a.addEventListener('click', () => {
+          if (typeof SidePaneInstance !== 'undefined' && SidePaneInstance.isOpen) {
+            SidePaneInstance.close();
+          }
           if (wrRecord.entity && Auth.activeEntity !== 'ALL' && Auth.activeEntity !== wrRecord.entity) {
             Auth.activeEntity = wrRecord.entity;
             sessionStorage.setItem('active_entity', wrRecord.entity);
@@ -5886,33 +5893,51 @@ const Users = {
         return a;
       }
       if (fallbackTitle) {
-        return el('a', {
+        const a = el('a', {
           class: 'notion-property-value-link',
           href: fallbackId ? `#operations/detail/${fallbackId}` : '#operations',
           text: fallbackTitle
         });
+        a.addEventListener('click', () => {
+          if (typeof SidePaneInstance !== 'undefined' && SidePaneInstance.isOpen) {
+            SidePaneInstance.close();
+          }
+        });
+        return a;
       }
       if (fallbackId) {
         const label = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(fallbackId)
           ? `Work Request (${fallbackId.slice(0, 8)}...)`
           : fallbackId;
-        return el('a', {
+        const a = el('a', {
           class: 'notion-property-value-link',
           href: `#operations/detail/${fallbackId}`,
           text: label
         });
+        a.addEventListener('click', () => {
+          if (typeof SidePaneInstance !== 'undefined' && SidePaneInstance.isOpen) {
+            SidePaneInstance.close();
+          }
+        });
+        return a;
       }
       return el('span', { style: 'color: var(--color-text-muted); font-style: italic;', text: 'None' });
     }
 
     function makeClientLink(clientRecord, fallbackId) {
       if (clientRecord) {
-        return el('a', {
+        const a = el('a', {
           class: 'notion-property-value-link',
           href: '#clients',
           text: clientRecord.name,
           title: `Client: ${clientRecord.name}${clientRecord.tin ? ' (TIN: ' + clientRecord.tin + ')' : ''}`
         });
+        a.addEventListener('click', () => {
+          if (typeof SidePaneInstance !== 'undefined' && SidePaneInstance.isOpen) {
+            SidePaneInstance.close();
+          }
+        });
+        return a;
       }
       if (fallbackId) {
         return el('span', { text: fallbackId });

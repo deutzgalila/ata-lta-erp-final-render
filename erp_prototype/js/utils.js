@@ -242,11 +242,15 @@ function isTempId(id) {
  * in sync with the server-side sequence.
  */
 async function nextInvoiceNumber(entity) {
+  let resolvedEntity = entity;
+  if (!resolvedEntity || resolvedEntity === 'ALL') {
+    resolvedEntity = (typeof Auth !== 'undefined' && (Auth.user?.entities || []).find(e => e !== 'ALL')) || 'ATA';
+  }
   const year = new Date().getFullYear();
-  const prefix = entity + '-SI-' + year + '-';
+  const prefix = resolvedEntity + '-SI-' + year + '-';
   try {
     const api = (typeof window !== 'undefined' && window.apiClient) || null;
-    const res = api ? await api.invoices.list({ limit: 100, sortBy: 'createdAt', sortOrder: 'desc', includeDeleted: true }, { headers: { 'X-Active-Entity': entity } }) : null;
+    const res = api ? await api.invoices.list({ limit: 500, sortBy: 'createdAt', sortOrder: 'desc', includeDeleted: true }, { headers: { 'X-Active-Entity': resolvedEntity } }) : null;
     const list = res?.data || [];
     const maxNum = list.reduce((max, inv) => {
       const numStr = inv.invoice_number || inv.invoiceNumber || '';
@@ -714,7 +718,43 @@ function buildCompactBoardCard(opts) {
   card.appendChild(footer);
 
   if (typeof opts.onClick === 'function') {
-    card.addEventListener('click', opts.onClick);
+    let startX = 0;
+    let startY = 0;
+    let isDown = false;
+    let lastClickTime = 0;
+
+    card.addEventListener('mousedown', e => {
+      if (e.target.closest('button, .action-menu, .card-v2-menu, a')) return;
+      startX = e.clientX;
+      startY = e.clientY;
+      isDown = true;
+    });
+
+    card.addEventListener('mouseup', e => {
+      if (!isDown) return;
+      isDown = false;
+      if (e.target.closest('button, .action-menu, .card-v2-menu, a')) return;
+      const dx = Math.abs(e.clientX - startX);
+      const dy = Math.abs(e.clientY - startY);
+      // If movement is under 8px, it was a click, not a drag.
+      // This ensures cards remain 100% clickable even if HTML5 dragstart swallows the native click.
+      if (dx < 8 && dy < 8) {
+        const now = Date.now();
+        if (now - lastClickTime > 300) {
+          lastClickTime = now;
+          opts.onClick(e);
+        }
+      }
+    });
+
+    card.addEventListener('click', e => {
+      if (e.target.closest('button, .action-menu, .card-v2-menu, a')) return;
+      const now = Date.now();
+      if (now - lastClickTime > 300) {
+        lastClickTime = now;
+        opts.onClick(e);
+      }
+    });
   }
 
   return card;
@@ -2428,7 +2468,8 @@ window.Utils = {
   clearSkeleton,
   nextInvoiceNumber,
   nextTrackingNumber,
-  generateTrackingNumber
+  generateTrackingNumber,
+  buildCompactBoardCard
 };
 
 /**
@@ -4160,6 +4201,16 @@ const JiraBacklogList = {
           });
           row.appendChild(actionsNode);
         }
+      }
+
+      if (typeof options.onRowClick === 'function') {
+        row.style.cursor = 'pointer';
+        row.addEventListener('click', (e) => {
+          if (e.target.closest('button, input, a, .jira-backlog-row-checkbox-wrap, .jira-backlog-row-actions')) {
+            return;
+          }
+          options.onRowClick(item, e);
+        });
       }
 
       list.appendChild(row);
