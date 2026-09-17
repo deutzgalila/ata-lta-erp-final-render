@@ -453,54 +453,73 @@ const listWorkRequests = async ({
   };
 };
 
+// In-flight mutex map to guarantee idempotency against concurrent double-submits
+const inFlightWorkRequests = new Map();
+
 const createWorkRequest = async ({ entityId, data, user }) => {
-  // Deduplication guard against rapid double-clicks (within 5 seconds)
-  const fiveSecondsAgo = new Date(Date.now() - 5000).toISOString();
-  let dupQuery = supabaseAdmin
-    .from('work_requests')
-    .select('id')
-    .eq('entity_id', entityId)
-    .eq('client_id', data.clientId)
-    .eq('title', data.title)
-    .is('deleted_at', null)
-    .gte('created_at', fiveSecondsAgo);
-
   const reqBy = data.requestedBy || user?.id;
-  if (reqBy) {
-    dupQuery = dupQuery.eq('requested_by', reqBy);
+  const titleClean = (data.title || '').trim();
+  const dedupeKey = `${entityId}:${reqBy || ''}:${data.clientId || ''}:${titleClean}`;
+
+  if (inFlightWorkRequests.has(dedupeKey)) {
+    return inFlightWorkRequests.get(dedupeKey);
   }
 
-  const { data: existingDups } = await dupQuery.limit(1);
-  if (existingDups && existingDups.length > 0) {
-    return getWorkRequestById({ id: existingDups[0].id, entityId, user });
-  }
+  const creationPromise = (async () => {
+    try {
+      // Deduplication guard against rapid double-clicks (within 5 seconds)
+      const fiveSecondsAgo = new Date(Date.now() - 5000).toISOString();
+      let dupQuery = supabaseAdmin
+        .from('work_requests')
+        .select('id')
+        .eq('entity_id', entityId)
+        .eq('client_id', data.clientId)
+        .eq('title', data.title)
+        .is('deleted_at', null)
+        .gte('created_at', fiveSecondsAgo);
 
-  const id = data.id && isValidUUID(data.id) ? data.id : randomUUID();
-  const now = new Date().toISOString();
-  const record = {
-    id,
-    entity_id: entityId,
-    client_id: data.clientId,
-    title: data.title,
-    description: data.description || null,
-    status: data.status || 'Draft',
-    priority: data.priority || 'Normal',
-    requested_by: data.requestedBy || user.id,
-    due_date: data.dueDate || null,
-    created_at: now,
-    updated_at: now,
-  };
+      if (reqBy) {
+        dupQuery = dupQuery.eq('requested_by', reqBy);
+      }
 
-  const { error } = await supabaseAdmin.from('work_requests').insert(record);
-  if (error) {
-    throw new AppError({
-      statusCode: 500,
-      title: 'Database Error',
-      detail: 'Unable to create work request',
-    });
-  }
+      const { data: existingDups } = await dupQuery.limit(1);
+      if (existingDups && existingDups.length > 0) {
+        return getWorkRequestById({ id: existingDups[0].id, entityId, user });
+      }
 
-  return getWorkRequestById({ id, entityId, user });
+      const id = data.id && isValidUUID(data.id) ? data.id : randomUUID();
+      const now = new Date().toISOString();
+      const record = {
+        id,
+        entity_id: entityId,
+        client_id: data.clientId,
+        title: data.title,
+        description: data.description || null,
+        status: data.status || 'Draft',
+        priority: data.priority || 'Normal',
+        requested_by: data.requestedBy || user.id,
+        due_date: data.dueDate || null,
+        created_at: now,
+        updated_at: now,
+      };
+
+      const { error } = await supabaseAdmin.from('work_requests').insert(record);
+      if (error) {
+        throw new AppError({
+          statusCode: 500,
+          title: 'Database Error',
+          detail: 'Unable to create work request',
+        });
+      }
+
+      return getWorkRequestById({ id, entityId, user });
+    } finally {
+      inFlightWorkRequests.delete(dedupeKey);
+    }
+  })();
+
+  inFlightWorkRequests.set(dedupeKey, creationPromise);
+  return creationPromise;
 };
 
 const getWorkRequestById = async ({ id, entityId, user, includeTasks = false }) => {
