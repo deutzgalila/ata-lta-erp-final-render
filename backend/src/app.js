@@ -238,7 +238,15 @@ app.get('/readyz', async (req, res) => {
   }
 });
 
-const isStrictRateLimit = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'test';
+const isStagingOrDev =
+  process.env.STAGING === 'true' ||
+  process.env.APP_ENV === 'staging' ||
+  process.env.APP_ENV === 'uat' ||
+  (process.env.FRONTEND_URL && (process.env.FRONTEND_URL.includes('staging') || process.env.FRONTEND_URL.includes('uat'))) ||
+  (process.env.RENDER_SERVICE_NAME && (process.env.RENDER_SERVICE_NAME.includes('staging') || process.env.RENDER_SERVICE_NAME.includes('uat'))) ||
+  process.env.NODE_ENV === 'development';
+
+const isStrictRateLimit = !isStagingOrDev && (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'test');
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: isStrictRateLimit ? 10 : 500, // Max 10 attempts per IP in prod/test, 500 in dev/staging/QA

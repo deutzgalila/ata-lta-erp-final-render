@@ -4518,7 +4518,7 @@ const Workflow = {
       opLink.addEventListener('click', () => { location.hash = '#operations'; });
       h1.appendChild(opLink);
       h1.appendChild(el('span', { class: 'breadcrumb-sep', text: ' / ' }));
-      const titleTextNode = document.createTextNode('Loading...');
+      const titleTextNode = el('span', { class: 'wr-title-badge', text: 'Loading...' });
       h1.appendChild(titleTextNode);
       titleBar.appendChild(h1);
       
