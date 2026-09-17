@@ -4241,8 +4241,10 @@ const Billing = {
       .querySelector("#btn-cancel-opreq")
       .addEventListener("click", () => overlay.remove());
 
+    let isSubmittingReq = false;
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
+      if (isSubmittingReq) return;
 
       const wrId = wrSelect.value;
       if (!wrId) {
@@ -4280,23 +4282,39 @@ const Billing = {
         receiptFilename: receiptFile ? receiptFile.name : null,
       };
 
-      Workflow.runBlockingArchiveAction({
-        title: "Submitting Billing Request",
-        message: "Please wait while your billing request is being submitted...",
-        apiCall: async () => {
-          return await window.apiClient.operationsRequests.create(record);
-        },
-        successTitle: "Request Submitted",
-        successMessage:
-          "Your invoice request has been submitted to Accounting for review.",
-        errorTitle: "Request Failed",
-        onSuccess: async (res) => {
-          overlay.remove();
-        },
-        onAfterConfirm: async () => {
-          App.handleRoute();
-        },
-      });
+      const submitBtn = footer.querySelector('button[type="submit"]') || form.querySelector('button[type="submit"]');
+      const origHtml = submitBtn ? submitBtn.innerHTML : null;
+      isSubmittingReq = true;
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Submitting...';
+      }
+
+      try {
+        await Workflow.runBlockingArchiveAction({
+          title: "Submitting Billing Request",
+          message: "Please wait while your billing request is being submitted...",
+          apiCall: async () => {
+            return await window.apiClient.operationsRequests.create(record);
+          },
+          successTitle: "Request Submitted",
+          successMessage:
+            "Your invoice request has been submitted to Accounting for review.",
+          errorTitle: "Request Failed",
+          onSuccess: async (res) => {
+            overlay.remove();
+          },
+          onAfterConfirm: async () => {
+            App.handleRoute();
+          },
+        });
+      } finally {
+        isSubmittingReq = false;
+        if (submitBtn && origHtml) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = origHtml;
+        }
+      }
     });
   },
 

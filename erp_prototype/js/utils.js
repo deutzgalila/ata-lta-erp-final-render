@@ -267,11 +267,15 @@ async function nextInvoiceNumber(entity) {
 }
 
 async function nextTrackingNumber(entity) {
+  let resolvedEntity = entity;
+  if (!resolvedEntity || resolvedEntity === 'ALL') {
+    resolvedEntity = (typeof Auth !== 'undefined' && (Auth.user?.entities || []).find(e => e !== 'ALL')) || 'ATA';
+  }
   const year = new Date().getFullYear();
-  const prefix = entity + '-TX-' + year + '-';
+  const prefix = resolvedEntity + '-TX-' + year + '-';
   try {
     const api = (typeof window !== 'undefined' && window.apiClient) || null;
-    const res = api ? await api.transmittals.list({ limit: 100, includeDeleted: true }, { headers: { 'X-Active-Entity': entity } }) : null;
+    const res = api ? await api.transmittals.list({ limit: 500, includeDeleted: true }, { headers: { 'X-Active-Entity': resolvedEntity } }) : null;
     const list = res?.data || [];
     const maxNum = list.reduce((max, t) => {
       const numStr = t.tracking_number || t.trackingNumber || '';
@@ -282,7 +286,7 @@ async function nextTrackingNumber(entity) {
     }, 0);
     return prefix + String(maxNum + 1).padStart(3, '0');
   } catch (e) {
-    console.error('[nextTrackingNumber] failed to load transmittals', e);
+    if (!isAbortError(e)) console.error('[nextTrackingNumber] failed to load transmittals', e);
     return prefix + '001';
   }
 }
@@ -293,8 +297,12 @@ async function nextTrackingNumber(entity) {
  * used from the operations workflow without requiring the transmittal bundle.
  */
 function generateTrackingNumber(entity) {
+  let resolvedEntity = entity;
+  if (!resolvedEntity || resolvedEntity === 'ALL') {
+    resolvedEntity = (typeof Auth !== 'undefined' && (Auth.user?.entities || []).find(e => e !== 'ALL')) || 'ATA';
+  }
   const year = new Date().getFullYear();
-  const prefix = entity + '-TX-' + year + '-';
+  const prefix = resolvedEntity + '-TX-' + year + '-';
   const suffix = String(Math.floor(Math.random() * 900) + 100).padStart(3, '0');
   return prefix + suffix;
 }

@@ -4374,10 +4374,12 @@ const Workflow = {
     const label = type === 'billing' ? 'Billing' : type === 'disbursement' ? 'Disbursement' : 'Transmittal';
     const overlay = this.showModal(`Submit Request for ${label}`, wrapper);
 
+    let isSubmittingOpreq = false;
     overlay.querySelector('#btn-cancel-opreq').addEventListener('click', () => overlay.remove());
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (isSubmittingOpreq) return;
 
       const record = {
         type,
@@ -4452,22 +4454,38 @@ const Workflow = {
         record.linkedTaskId = form.querySelector('[name="linkedTaskId"]')?.value || (preselectedTask ? preselectedTask.id : null) || null;
       }
 
-      this.runBlockingArchiveAction({
-        title: 'Submitting Request',
-        message: `Please wait while your request for ${label} is being submitted...`,
-        apiCall: async () => {
-          return await window.apiClient.operationsRequests.create(record);
-        },
-        successTitle: 'Request Submitted',
-        successMessage: `Your request for ${label} has been submitted to Accounting/Documentation for review.`,
-        errorTitle: 'Request Failed',
-        onSuccess: async (res) => {
-          overlay.remove();
-        },
-        onAfterConfirm: async () => {
-          App.handleRoute();
+      const submitBtn = footer.querySelector('button[type="submit"]') || form.querySelector('button[type="submit"]');
+      const origHtml = submitBtn ? submitBtn.innerHTML : null;
+      isSubmittingOpreq = true;
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Submitting...';
+      }
+
+      try {
+        await this.runBlockingArchiveAction({
+          title: 'Submitting Request',
+          message: `Please wait while your request for ${label} is being submitted...`,
+          apiCall: async () => {
+            return await window.apiClient.operationsRequests.create(record);
+          },
+          successTitle: 'Request Submitted',
+          successMessage: `Your request for ${label} has been submitted to Accounting/Documentation for review.`,
+          errorTitle: 'Request Failed',
+          onSuccess: async (res) => {
+            overlay.remove();
+          },
+          onAfterConfirm: async () => {
+            App.handleRoute();
+          }
+        });
+      } finally {
+        isSubmittingOpreq = false;
+        if (submitBtn && origHtml) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = origHtml;
         }
-      });
+      }
     });
   },
 
@@ -9466,14 +9484,20 @@ const Workflow = {
         const submitBtn = el('button', { type: 'submit', class: 'btn btn-primary', text: 'Save Logs' });
         form.appendChild(submitBtn);
         const overlay = this.showModal('Bulk Log Time', form, null);
+        let isSubmitting = false;
         form.addEventListener('submit', (e) => {
           e.preventDefault();
+          if (isSubmitting) return;
           const dateVal = dateInput.value;
           const start = startInput.value;
           const end = endInput.value;
           const noteVal = noteInput.value;
 
           if (!dateVal || !start || !end) return;
+
+          isSubmitting = true;
+          submitBtn.disabled = true;
+          submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving...';
 
           const [sh, sm] = start.split(':').map(Number);
           const [eh, em] = end.split(':').map(Number);
@@ -13283,14 +13307,20 @@ const Workflow = {
     form.appendChild(submitBtn);
 
     const overlay = this.showModal('Add Time Log', form, null);
+    let isSubmitting = false;
     form.addEventListener('submit', (e) => {
       e.preventDefault();
+      if (isSubmitting) return;
       const dateVal = dateInput.value;
       const start = startInput.value;
       const end = endInput.value;
       const noteVal = noteInput.value;
 
       if (!dateVal || !start || !end) return;
+
+      isSubmitting = true;
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving...';
 
       const [sh, sm] = start.split(':').map(Number);
       const [eh, em] = end.split(':').map(Number);
@@ -14398,52 +14428,70 @@ const Workflow = {
         PendingChanges.editingPendingId = null;
       }
     });
+    let isSubmitting = false;
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (isSubmitting) return;
       if (!validateRequiredFields(form)) return;
-      const groundWorkerName = gwDropdown.searchText.trim();
-      const groundWorkerId = gwDropdown.value || null;
-      const data = Object.fromEntries(new FormData(form).entries());
-      const allExistingIds = existingTasks.map(t => t.id);
-      const predecessors = selectedPreds.includes('*') ? allExistingIds : selectedPreds;
 
-      const res = await this.resolveAssignee(groundWorkerName, groundWorkerId);
-      let resolvedName = res.name;
-      if (!resolvedName && res.id) {
-        const u = window.apiClient?.userCache?.getById?.(res.id);
-        const gw = typeof this._getGroundWorkerById === 'function' ? this._getGroundWorkerById(res.id) : null;
-        resolvedName = u?.name || gw?.name || null;
+      const origHtml = submitBtn ? submitBtn.innerHTML : null;
+      isSubmitting = true;
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving...';
       }
 
-      const runResult = await this.runBlockingArchiveAction({
-        title: 'Saving Task',
-        message: `Please wait while "${task.title || 'the task'}" is being updated...`,
-        apiCall: async () => {
-          await WorkflowData.updateTask(task.id, {
-            title: data.title.trim(),
-            assigneeId: res.id,
-            assigneeName: resolvedName,
-            coAssignees: isDraft ? coAssignees.filter(Boolean) : task.coAssignees || [],
-            priority: data.priority || 'Priority',
-            dueDate: data.dueDate || '',
-            predecessors: predecessors,
-            checklist: checklistItems,
-            updatedAt: new Date().toISOString()
-          });
-          const updated = WorkflowData.getTaskById(task.id);
-          this._syncTaskToCaches(updated);
-          return { data: updated };
-        },
-        successTitle: 'Task Saved',
-        successMessage: 'Task has been successfully updated.',
-        errorTitle: 'Failed to Save Task'
-      });
+      try {
+        const groundWorkerName = gwDropdown.searchText.trim();
+        const groundWorkerId = gwDropdown.value || null;
+        const data = Object.fromEntries(new FormData(form).entries());
+        const allExistingIds = existingTasks.map(t => t.id);
+        const predecessors = selectedPreds.includes('*') ? allExistingIds : selectedPreds;
 
-      if (runResult.success) {
-        this._invalidateCountsAndSidebar();
+        const res = await this.resolveAssignee(groundWorkerName, groundWorkerId);
+        let resolvedName = res.name;
+        if (!resolvedName && res.id) {
+          const u = window.apiClient?.userCache?.getById?.(res.id);
+          const gw = typeof this._getGroundWorkerById === 'function' ? this._getGroundWorkerById(res.id) : null;
+          resolvedName = u?.name || gw?.name || null;
+        }
+
+        const runResult = await this.runBlockingArchiveAction({
+          title: 'Saving Task',
+          message: `Please wait while "${task.title || 'the task'}" is being updated...`,
+          apiCall: async () => {
+            await WorkflowData.updateTask(task.id, {
+              title: data.title.trim(),
+              assigneeId: res.id,
+              assigneeName: resolvedName,
+              coAssignees: isDraft ? coAssignees.filter(Boolean) : task.coAssignees || [],
+              priority: data.priority || 'Priority',
+              dueDate: data.dueDate || '',
+              predecessors: predecessors,
+              checklist: checklistItems,
+              updatedAt: new Date().toISOString()
+            });
+            const updated = WorkflowData.getTaskById(task.id);
+            this._syncTaskToCaches(updated);
+            return { data: updated };
+          },
+          successTitle: 'Task Saved',
+          successMessage: 'Task has been successfully updated.',
+          errorTitle: 'Failed to Save Task'
+        });
+
+        if (runResult.success) {
+          this._invalidateCountsAndSidebar();
+        }
+        overlay.remove();
+        if (onSaved) onSaved();
+      } finally {
+        isSubmitting = false;
+        if (submitBtn && origHtml) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = origHtml;
+        }
       }
-      overlay.remove();
-      if (onSaved) onSaved();
     });
   },
 

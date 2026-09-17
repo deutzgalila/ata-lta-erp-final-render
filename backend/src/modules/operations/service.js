@@ -454,6 +454,27 @@ const listWorkRequests = async ({
 };
 
 const createWorkRequest = async ({ entityId, data, user }) => {
+  // Deduplication guard against rapid double-clicks (within 5 seconds)
+  const fiveSecondsAgo = new Date(Date.now() - 5000).toISOString();
+  let dupQuery = supabaseAdmin
+    .from('work_requests')
+    .select('id')
+    .eq('entity_id', entityId)
+    .eq('client_id', data.clientId)
+    .eq('title', data.title)
+    .is('deleted_at', null)
+    .gte('created_at', fiveSecondsAgo);
+
+  const reqBy = data.requestedBy || user?.id;
+  if (reqBy) {
+    dupQuery = dupQuery.eq('requested_by', reqBy);
+  }
+
+  const { data: existingDups } = await dupQuery.limit(1);
+  if (existingDups && existingDups.length > 0) {
+    return getWorkRequestById({ id: existingDups[0].id, entityId, user });
+  }
+
   const id = data.id && isValidUUID(data.id) ? data.id : randomUUID();
   const now = new Date().toISOString();
   const record = {

@@ -421,6 +421,81 @@ async function runVerification() {
       cacheVerification
     );
 
+    // -------------------------------------------------------------
+    // TEST 12: Operations Request Modals Debouncing & Button Disabling
+    // -------------------------------------------------------------
+    await page.goto(`${TARGET_URL}/#disbursement`);
+    await page.waitForTimeout(1200);
+
+    const opreqDebounce = await page.evaluate(() => {
+      const wfCode = (typeof Workflow !== 'undefined' && Workflow.submitOperationsRequest?.toString()) || '';
+      const billCode = (typeof Billing !== 'undefined' && Billing.showRequestInvoiceModal?.toString()) || '';
+      const disbCode = (typeof Disbursement !== 'undefined' && Disbursement.showRequestDisbursementModal?.toString()) || '';
+      const transCode = (typeof Transmittal !== 'undefined' && Transmittal.showRequestTransmittalModal?.toString()) || '';
+
+      return {
+        wfHasDebounce: !!wfCode && wfCode.includes('isSubmittingOpreq'),
+        billHasDebounce: !!billCode && billCode.includes('isSubmittingReq'),
+        disbHasDebounce: !!disbCode && disbCode.includes('isSubmittingDisbReq'),
+        transHasDebounce: !!transCode && transCode.includes('isSubmittingTransReq'),
+      };
+    });
+    recordTest(
+      'CHAOS-OPREQ-01',
+      'Operations Request Modals Debouncing & Double-Click Guard (Workflow, Billing, Disbursement, Transmittal)',
+      opreqDebounce.wfHasDebounce && opreqDebounce.billHasDebounce && opreqDebounce.disbHasDebounce && opreqDebounce.transHasDebounce,
+      opreqDebounce
+    );
+
+    // -------------------------------------------------------------
+    // TEST 13: Transmittal Auto-Increment Entity Resolution (ALL → ATA)
+    // -------------------------------------------------------------
+    const txAnalysis = await page.evaluate(async () => {
+      const txCode = typeof Utils !== 'undefined' ? Utils.nextTrackingNumber?.toString() : '';
+      const resolvesAll = txCode.includes('ALL') && txCode.includes('resolvedEntity');
+      const safeLimit = txCode.includes('limit: 500');
+
+      let genTrackingAll = null;
+      try {
+        if (typeof Utils !== 'undefined' && Utils.nextTrackingNumber) {
+          genTrackingAll = await Utils.nextTrackingNumber('ALL');
+        }
+      } catch (e) {
+        genTrackingAll = e.message;
+      }
+
+      return {
+        resolvesAll,
+        safeLimit,
+        genTrackingAll,
+        validPrefix: typeof genTrackingAll === 'string' && !genTrackingAll.startsWith('ALL-TX-') && genTrackingAll.includes('-TX-')
+      };
+    });
+    recordTest(
+      'CHAOS-TX-01',
+      'Transmittal Auto-Increment Entity Resolution & Safe Query Limit',
+      txAnalysis.resolvesAll && txAnalysis.safeLimit && txAnalysis.validPrefix,
+      txAnalysis
+    );
+
+    // -------------------------------------------------------------
+    // TEST 14: Disbursement Self-Approval Prevention
+    // -------------------------------------------------------------
+    const disbSelfApprove = await page.evaluate(() => {
+      const disbCode = typeof Disbursement !== 'undefined' ? Disbursement.renderDetail?.toString() : '';
+      const pcCode = typeof PendingChanges !== 'undefined' ? PendingChanges.canApproveChange?.toString() : '';
+      const preventsSelfApproval = disbCode.includes('isSelfApprover') && pcCode.includes('pc.submittedBy === Auth.user?.id');
+      return {
+        preventsSelfApproval
+      };
+    });
+    recordTest(
+      'CHAOS-DISB-01',
+      'Disbursement Self-Approval Barrier & Enforcement',
+      disbSelfApprove.preventsSelfApproval,
+      disbSelfApprove
+    );
+
   } catch (err) {
     console.error('Fatal Verification Error:', err);
     recordTest('FATAL', 'Verification Suite Execution', false, { error: err.message, stack: err.stack });

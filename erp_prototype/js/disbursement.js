@@ -2841,8 +2841,10 @@ const Disbursement = {
 
     const overlay = Workflow.showModal('Request Disbursement', wrapper);
 
+    let isSubmittingDisbReq = false;
     overlay.querySelector('#btn-cancel-disb-opreq').addEventListener('click', () => overlay.remove());
     overlay.querySelector('#btn-save-disb-opreq').addEventListener('click', async () => {
+      if (isSubmittingDisbReq) return;
       const wrId = wrSelect.value;
       if (!wrId) {
         Workflow.showMessage('Validation Error', 'Please select a work request.', 'warning');
@@ -2859,22 +2861,38 @@ const Disbursement = {
         notes
       };
 
-      Workflow.runBlockingArchiveAction({
-        title: 'Submitting Disbursement Request',
-        message: 'Please wait while your disbursement request is being submitted...',
-        apiCall: async () => {
-          return await window.apiClient.operationsRequests.create(record);
-        },
-        successTitle: 'Request Submitted',
-        successMessage: 'Your disbursement request has been submitted to Accounting for review.',
-        errorTitle: 'Request Failed',
-        onSuccess: async (res) => {
-          overlay.remove();
-        },
-        onAfterConfirm: async () => {
-          App.handleRoute();
+      const submitBtn = overlay.querySelector('#btn-save-disb-opreq');
+      const origHtml = submitBtn ? submitBtn.innerHTML : null;
+      isSubmittingDisbReq = true;
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Submitting...';
+      }
+
+      try {
+        await Workflow.runBlockingArchiveAction({
+          title: 'Submitting Disbursement Request',
+          message: 'Please wait while your disbursement request is being submitted...',
+          apiCall: async () => {
+            return await window.apiClient.operationsRequests.create(record);
+          },
+          successTitle: 'Request Submitted',
+          successMessage: 'Your disbursement request has been submitted to Accounting for review.',
+          errorTitle: 'Request Failed',
+          onSuccess: async (res) => {
+            overlay.remove();
+          },
+          onAfterConfirm: async () => {
+            App.handleRoute();
+          }
+        });
+      } finally {
+        isSubmittingDisbReq = false;
+        if (submitBtn && origHtml) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = origHtml;
         }
-      });
+      }
     });
   },
 
