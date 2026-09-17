@@ -657,24 +657,33 @@ const Users = {
     const isManager = hasManagement || Auth.isManagerial();
     const hasAccounting = departments.includes('Accounting') || Auth.user?.role === 'Accounting';
 
+    let rawView = this.view;
+    if (rawView === 'my-requests') rawView = 'myRequests';
+    if (rawView === 'my-pending') rawView = 'myPending';
+    if (rawView === 'pending-approvals' || rawView === 'pendingApprovals') rawView = 'pending';
+    this.view = rawView;
+
     if (this.lastUserId !== Auth.user.id) {
       this.lastUserId = Auth.user.id;
       const urlAdminView = ((location.hash || '').match(/^#admin\/([^/?]+)/) || [])[1] || null;
+      let mappedUrlView = urlAdminView;
+      if (mappedUrlView === 'my-requests') mappedUrlView = 'myRequests';
+      if (mappedUrlView === 'my-pending') mappedUrlView = 'myPending';
+      if (mappedUrlView === 'pending-approvals' || mappedUrlView === 'pendingApprovals') mappedUrlView = 'pending';
+
       if (canManageUsers) {
         const validAdminViews = ['users', 'audit', 'pending'];
-        if (urlAdminView && (validAdminViews.includes(urlAdminView) || this.sidePeekId)) {
-          this.view = urlAdminView;
+        if (mappedUrlView && (validAdminViews.includes(mappedUrlView) || this.sidePeekId)) {
+          this.view = mappedUrlView;
         } else {
           this.view = 'users';
         }
       } else {
-        const showRequestsTab = hasOperations || hasManagement;
         const showPendingTab = hasManagement || hasAccounting || Auth.isManagerial();
-        const validViews = ['myPending'];
-        if (showRequestsTab) validViews.push('myRequests');
+        const validViews = ['myPending', 'myRequests'];
         if (showPendingTab) validViews.push('pending');
-        if (urlAdminView && validViews.includes(urlAdminView)) {
-          this.view = urlAdminView;
+        if (mappedUrlView && validViews.includes(mappedUrlView)) {
+          this.view = mappedUrlView;
         } else {
           this.view = 'myPending';
         }
@@ -688,10 +697,8 @@ const Users = {
         (location.hash || '').startsWith(`#admin/${this.view}/`);
       if (!validAdminViews.includes(this.view) && !isUrlDrivenDetail) this.view = 'users';
     } else {
-      const showRequestsTab = hasOperations || hasManagement;
       const showPendingTab = hasManagement || hasAccounting || Auth.isManagerial();
-      const validViews = ['myPending'];
-      if (showRequestsTab) validViews.push('myRequests');
+      const validViews = ['myPending', 'myRequests'];
       if (showPendingTab) validViews.push('pending');
 
       if (!validViews.includes(this.view)) {
@@ -718,6 +725,11 @@ const Users = {
     }
 
     if (this.container && !wasFullPage && !isUserFullPage && !isFullPage) {
+      const titleH1 = this.container.querySelector('.page-title-bar-v2 .page-title-h1');
+      if (titleH1) {
+        titleH1.textContent = isAdmin ? 'Admin' : 'My Submissions';
+      }
+
       const tabNav = this.container.querySelector('.module-tab-nav');
       if (tabNav) {
         const freshTabNav = this.renderTabNav();
@@ -1119,7 +1131,7 @@ const Users = {
     const hasOperations = departments.includes('Operations');
     const hasManagement = departments.includes('Management');
     const hasAccounting = departments.includes('Accounting') || Auth.user?.role === 'Accounting';
-    const showRequestsTab = hasOperations || hasManagement;
+    const showRequestsTab = true; // All staff roles can submit operations requests (billing, disbursement, transmittal)
     if (showRequestsTab) {
       tabs.push({ key: 'myRequests', label: 'My Requests', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>', count: this._counts.myRequests });
     }
@@ -6517,11 +6529,11 @@ const Users = {
 
       tr.appendChild(el('td', { text: this._requestTypeLabel(r.type) }));
 
-      const wr = window.apiClient.workRequestCache.getById(r.workRequestId);
-      tr.appendChild(el('td', { text: wr ? wr.title : '—' }));
+      const wrTitle = r.work_requests?.title || (window.apiClient?.workRequestCache?.getById ? window.apiClient.workRequestCache.getById(r.workRequestId)?.title : null) || '—';
+      tr.appendChild(el('td', { text: wrTitle }));
 
-      const client = window.apiClient.clientCache.getById(r.clientId);
-      tr.appendChild(el('td', { text: client ? client.name : '—' }));
+      const clientName = r.clients?.name || (window.apiClient?.clientCache?.getById ? window.apiClient.clientCache.getById(r.clientId)?.name : null) || '—';
+      tr.appendChild(el('td', { text: clientName }));
 
       tr.appendChild(el('td', { text: formatDate(r.requestedAt) }));
 
@@ -6588,8 +6600,8 @@ const Users = {
 
     let cardNumber = 1;
     const renderCard = (r) => {
-      const wr = window.apiClient.workRequestCache.getById(r.workRequestId);
-      const client = window.apiClient.clientCache.getById(r.clientId);
+      const wrTitle = r.work_requests?.title || (window.apiClient?.workRequestCache?.getById ? window.apiClient.workRequestCache.getById(r.workRequestId)?.title : '') || '';
+      const clientName = r.clients?.name || (window.apiClient?.clientCache?.getById ? window.apiClient.clientCache.getById(r.clientId)?.name : '') || '—';
       const statusPriorityMap = {
         'pending': 'card-v2-priority-medium',
         'fulfilled': 'card-v2-priority-low',
@@ -6610,8 +6622,8 @@ const Users = {
         progress: progressMap[r.status] || 0,
         statusColor: statusColors[r.status] || '#cbd5e1',
         title: self._requestTypeLabel(r.type),
-        description: client ? client.name : '—',
-        detail: (wr ? wr.title : '') + (detail ? ' • ' + detail : ''),
+        description: clientName,
+        detail: (wrTitle ? wrTitle : '') + (detail ? ' • ' + detail : ''),
         date: r.requestedAt ? formatDate(r.requestedAt) : '',
         priority: r.status.charAt(0).toUpperCase() + r.status.slice(1),
         priorityClass: statusPriorityMap[r.status] || 'card-v2-priority-normal',
@@ -6673,11 +6685,11 @@ const Users = {
       const item = el('div', { class: 'list-item' });
       const left = el('div');
       left.appendChild(el('div', { class: 'list-item-title', text: self._requestTypeLabel(r.type) }));
-      const wr = window.apiClient.workRequestCache.getById(r.workRequestId);
-      const client = window.apiClient.clientCache.getById(r.clientId);
+      const wrTitle = r.work_requests?.title || (window.apiClient?.workRequestCache?.getById ? window.apiClient.workRequestCache.getById(r.workRequestId)?.title : '') || '';
+      const clientName = r.clients?.name || (window.apiClient?.clientCache?.getById ? window.apiClient.clientCache.getById(r.clientId)?.name : '') || '';
       const metaParts = [
-        client ? client.name : '',
-        wr ? wr.title : '',
+        clientName,
+        wrTitle,
         r.status.charAt(0).toUpperCase() + r.status.slice(1),
         r.requestedAt ? formatDate(r.requestedAt) : ''
       ].filter(Boolean);
