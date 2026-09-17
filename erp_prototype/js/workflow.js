@@ -8635,7 +8635,22 @@ const Workflow = {
         const submitter = window.apiClient?.userCache?.getById ? window.apiClient.userCache.getById(req.requestedBy) : null;
         const subName = submitter ? submitter.name : 'Staff';
         row.innerHTML = `<span><strong>${reqType} Request:</strong> ${escapeHtml(req.notes || 'Awaiting review')} <span style="color: var(--color-text-muted); font-size: 0.8125rem;">(Requested by ${escapeHtml(subName)} on ${formatDate(req.requestedAt)})</span></span>`;
-        row.appendChild(el('span', { class: 'badge badge-warning', text: 'Pending' }));
+        const rightWrap = el('div', { style: 'display: flex; align-items: center; gap: 8px;' });
+        rightWrap.appendChild(el('span', { class: 'badge badge-warning', text: 'Pending' }));
+        const reviewBtn = el('button', {
+          class: 'btn btn-secondary btn-sm',
+          text: 'Review',
+          style: 'padding: 2px 8px; font-size: 0.75rem;'
+        });
+        reviewBtn.addEventListener('click', () => {
+          if (window.Users && typeof window.Users.openRequestDetailSidePeek === 'function') {
+            window.Users.openRequestDetailSidePeek(req);
+          } else {
+            location.hash = `#admin/pending/${req.id}`;
+          }
+        });
+        rightWrap.appendChild(reviewBtn);
+        row.appendChild(rightWrap);
         banner.appendChild(row);
       });
       container.appendChild(banner);
