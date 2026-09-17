@@ -3964,7 +3964,7 @@ const Users = {
     });
 
     const renderInsightContent = (ctx) => {
-      insightBox.innerHTML = '';
+      insightBox.replaceChildren();
       if (!ctx || !ctx.fields || ctx.fields.length === 0) {
         insightBox.style.display = 'none';
         return;
@@ -3982,13 +3982,45 @@ const Users = {
       }
 
       const header = el('div', { class: 'audit-insight-header' });
-      header.innerHTML = `
-        <div class="audit-insight-title">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-          <span>${escapeHtml(ctx.category || 'Business Context')}</span>
-        </div>
-        <span class="audit-insight-badge">${escapeHtml(ctx.badge || 'Record Insights')}</span>
-      `;
+      const titleBox = el('div', { class: 'audit-insight-title' });
+
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('width', '15');
+      svg.setAttribute('height', '15');
+      svg.setAttribute('viewBox', '0 0 24 24');
+      svg.setAttribute('fill', 'none');
+      svg.setAttribute('stroke', 'currentColor');
+      svg.setAttribute('stroke-width', '2');
+      svg.setAttribute('stroke-linecap', 'round');
+      svg.setAttribute('stroke-linejoin', 'round');
+
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', '12');
+      circle.setAttribute('cy', '12');
+      circle.setAttribute('r', '10');
+      svg.appendChild(circle);
+
+      const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line1.setAttribute('x1', '12');
+      line1.setAttribute('y1', '16');
+      line1.setAttribute('x2', '12');
+      line1.setAttribute('y2', '12');
+      svg.appendChild(line1);
+
+      const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line2.setAttribute('x1', '12');
+      line2.setAttribute('y1', '8');
+      line2.setAttribute('x2', '12.01');
+      line2.setAttribute('y2', '8');
+      svg.appendChild(line2);
+
+      titleBox.appendChild(svg);
+      titleBox.appendChild(el('span', { text: ctx.category || 'Business Context' }));
+
+      const badge = el('span', { class: 'audit-insight-badge', text: ctx.badge || 'Record Insights' });
+
+      header.appendChild(titleBox);
+      header.appendChild(badge);
       insightBox.appendChild(header);
 
       const grid = el('div', { class: 'audit-insight-grid' });
@@ -4059,7 +4091,7 @@ const Users = {
     if (immediateCtx && immediateCtx.fields && immediateCtx.fields.length > 0) {
       renderInsightContent(immediateCtx);
     } else {
-      insightBox.innerHTML = '<span class="audit-insight-label" style="font-style: italic;">Loading record context...</span>';
+      insightBox.replaceChildren(el('span', { class: 'audit-insight-label', text: 'Loading record context...', style: 'font-style: italic;' }));
     }
 
     this._resolveAuditContext(l).then(asyncCtx => {
@@ -4135,13 +4167,11 @@ const Users = {
       if (diffEntries.length > 0) {
         const table = el('table', { class: 'audit-diff-table' });
         const thead = el('thead');
-        thead.innerHTML = `
-          <tr>
-            <th>FIELD / PROPERTY</th>
-            <th>PREVIOUS VALUE</th>
-            <th>UPDATED VALUE</th>
-          </tr>
-        `;
+        const trHeader = el('tr');
+        trHeader.appendChild(el('th', { text: 'FIELD / PROPERTY' }));
+        trHeader.appendChild(el('th', { text: 'PREVIOUS VALUE' }));
+        trHeader.appendChild(el('th', { text: 'UPDATED VALUE' }));
+        thead.appendChild(trHeader);
         table.appendChild(thead);
         const tbody = el('tbody');
         diffEntries.forEach(de => {
