@@ -466,6 +466,11 @@ const Clients = {
 
   async render(routeId) {
     if (!this.activeTab) this.activeTab = 'active';
+    // QoL 4.2: a ?tab= hash param deep-links the Archive tab.
+    if (typeof App !== 'undefined' && typeof App.getRouteQuery === 'function') {
+      const tabParam = App.getRouteQuery().get('tab');
+      if (tabParam === 'archived' || tabParam === 'active') this.activeTab = tabParam;
+    }
     const container = el('div', { class: 'page clients-tab-page' });
 
     // Full-page form route (#clients/form/new or #clients/form/:id) renders inline
@@ -564,6 +569,13 @@ const Clients = {
       style: 'width: 100%; padding-left: 36px; max-width: 320px;'
     });
 
+    // QoL 4.2: restore a search carried in the hash (?q=...) so refresh and
+    // shared links keep the filtered view.
+    if (typeof App !== 'undefined' && typeof App.getRouteQuery === 'function') {
+      const initialQ = App.getRouteQuery().get('q');
+      if (initialQ) search.value = initialQ;
+    }
+
     searchWrapper.appendChild(searchIcon);
     searchWrapper.appendChild(search);
     filters.appendChild(searchWrapper);
@@ -621,6 +633,11 @@ const Clients = {
 
     search.addEventListener('input', debounce(async () => {
       const q = search.value.trim();
+      // QoL 4.2: keep the hash query in sync (silent replace — typing must not
+      // spam history entries).
+      if (typeof App !== 'undefined' && typeof App.syncRouteQuery === 'function') {
+        App.syncRouteQuery({ q: q || null }, { replace: true });
+      }
       if (this.activeTab === 'active') {
         listContainer.innerHTML = Utils.getSkeletonForView('clients');
         this.renderList(listContainer, q);
@@ -728,6 +745,11 @@ const Clients = {
         this._archivePage = 1;
       }
       this.activeTab = key;
+      // QoL 4.2: discrete tab switches get their own history entry so Back
+      // returns to the previous tab.
+      if (typeof App !== 'undefined' && typeof App.syncRouteQuery === 'function') {
+        App.syncRouteQuery({ tab: key === 'active' ? null : key }, { replace: false });
+      }
       App.handleRoute();
     });
 
@@ -1815,6 +1837,7 @@ const Clients = {
           }
           this.editingId = null;
           const targetRoute = isResubmitting ? '#admin' : '#clients';
+          markPaneFormClean();
           await closeFormPanelAndRoute(targetRoute);
         },
         onAfterConfirm: async () => {
@@ -1875,6 +1898,7 @@ const Clients = {
         }
         this.editingId = null;
         const targetRoute = isResubmitting ? '#admin' : '#clients';
+        markPaneFormClean();
         await closeFormPanelAndRoute(targetRoute);
       },
       onAfterConfirm: async () => {

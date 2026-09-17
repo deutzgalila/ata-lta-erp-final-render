@@ -2101,6 +2101,18 @@ const Transmittal = {
     });
     row.appendChild(remBtn);
 
+    // QoL 6.2: Tab on the last field of the last row appends the next row.
+    descInput.addEventListener('keydown', (e) => {
+      if (e.key !== 'Tab' || e.shiftKey) return;
+      const rowsNow = container.querySelectorAll('.notion-line-item-row');
+      if (rowsNow[rowsNow.length - 1] !== row) return;
+      if (!descInput.value.trim()) return;
+      e.preventDefault();
+      this.addItemRow(container);
+      const allRows = container.querySelectorAll('.notion-line-item-row');
+      allRows[allRows.length - 1]?.querySelector('.item-doc-type')?.focus();
+    });
+
     container.appendChild(row);
   },
 
@@ -2124,25 +2136,39 @@ const Transmittal = {
     const isNew = !this.detailId;
     const itemsList = document.getElementById('transmittal-items-list');
 
+    // Inline validation — flag offending items instead of a blocking modal
+    clearFieldErrors(form);
     const items = [];
     let hasPartialItem = false;
-    itemsList.querySelectorAll('.notion-line-item-row').forEach(row => {
-      const desc = row.querySelector('.item-description')?.value.trim();
-      const type = row.querySelector('.item-doc-type')?.value;
+    const itemRows = itemsList.querySelectorAll('.notion-line-item-row');
+    itemRows.forEach(row => {
+      const descField = row.querySelector('.item-description');
+      const typeField = row.querySelector('.item-doc-type');
+      const desc = descField?.value.trim();
+      const type = typeField?.value;
       if (desc && type) {
         items.push({ description: desc, documentType: type });
       } else if (desc || type) {
         hasPartialItem = true;
+        if (!type) showFieldError(typeField, 'Select a document type.');
+        if (!desc) showFieldError(descField, 'Description is required.');
       }
     });
 
     if (hasPartialItem) {
-      Workflow.showMessage('Validation Error', 'Each transmittal item must have both a document type and a description.', 'warning');
+      focusFirstInvalidField(form);
       return;
     }
 
     if (items.length === 0) {
-      Workflow.showMessage('Validation Error', 'Please add at least one transmittal item.', 'warning');
+      const firstRow = itemRows[0];
+      if (firstRow) {
+        showFieldError(firstRow.querySelector('.item-doc-type'), 'Select a document type.');
+        showFieldError(firstRow.querySelector('.item-description'), 'Add at least one item.');
+        focusFirstInvalidField(form);
+      } else {
+        Workflow.showMessage('Validation Error', 'Please add at least one transmittal item.', 'warning');
+      }
       return;
     }
 
@@ -2257,6 +2283,7 @@ const Transmittal = {
       });
 
       if (runResult.success) {
+        markPaneFormClean();
         await closeFormPanelAndRoute(targetRoute);
       } else {
         App.handleRoute();
@@ -2365,9 +2392,11 @@ const Transmittal = {
     overlay.querySelector('#btn-cancel-trans-opreq').addEventListener('click', () => overlay.remove());
     overlay.querySelector('#btn-save-trans-opreq').addEventListener('click', async () => {
       if (isSubmittingTransReq) return;
+      clearFieldErrors(overlay);
       const wrId = wrSelect.value;
       if (!wrId) {
-        Workflow.showMessage('Validation Error', 'Please select a work request.', 'warning');
+        showFieldError(wrSelect, 'Select a work request.');
+        focusFirstInvalidField(overlay);
         return;
       }
       const wr = window.apiClient.workRequestCache.getById(wrId);

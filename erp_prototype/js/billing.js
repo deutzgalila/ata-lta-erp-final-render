@@ -3610,6 +3610,18 @@ const Billing = {
     });
     row.appendChild(removeBtn);
 
+    // QoL 6.2: Tab on the last field of the last row appends the next row.
+    amtIn.addEventListener("keydown", (e) => {
+      if (e.key !== "Tab" || e.shiftKey) return;
+      const rowsNow = container.querySelectorAll(".notion-line-item-row");
+      if (rowsNow[rowsNow.length - 1] !== row) return;
+      if (!descIn.value.trim() && !amtIn.value.trim()) return;
+      e.preventDefault();
+      this.addLineItemRow(container);
+      const allRows = container.querySelectorAll(".notion-line-item-row");
+      allRows[allRows.length - 1]?.querySelector(".item-desc")?.focus();
+    });
+
     container.appendChild(row);
   },
 
@@ -3681,43 +3693,48 @@ const Billing = {
     const isResubmitting =
       typeof PendingChanges !== "undefined" && PendingChanges.editingPendingId;
 
-    // Validate line items: at least one complete row, no partially-filled rows.
+    // Validate line items inline: at least one complete row, no partially-filled rows.
+    clearFieldErrors(form);
     const itemRows = form.querySelectorAll(".notion-line-item-row");
     let validItemCount = 0;
     let hasPartialItem = false;
     itemRows.forEach((row) => {
-      const desc = row.querySelector(".item-desc")?.value.trim() || "";
-      const amt = parseFloat(row.querySelector(".item-amt")?.value) || 0;
+      const descField = row.querySelector(".item-desc");
+      const amtField = row.querySelector(".item-amt");
+      const desc = descField?.value.trim() || "";
+      const amt = parseFloat(amtField?.value) || 0;
       if (desc && amt > 0) {
         validItemCount++;
       } else if (desc || amt > 0) {
         hasPartialItem = true;
+        if (!desc) showFieldError(descField, "Description is required.");
+        if (!(amt > 0)) showFieldError(amtField, "Enter an amount greater than zero.");
       }
     });
     if (hasPartialItem) {
-      Workflow.showMessage(
-        "Validation Error",
-        "Each line item must have both a description and a valid amount greater than zero.",
-        "warning",
-      );
+      focusFirstInvalidField(form);
       return;
     }
     if (validItemCount === 0) {
-      Workflow.showMessage(
-        "Validation Error",
-        "Please add at least one line item with a description and a valid amount.",
-        "warning",
-      );
+      const firstRow = itemRows[0];
+      if (firstRow) {
+        showFieldError(firstRow.querySelector(".item-desc"), "Add at least one line item.");
+        showFieldError(firstRow.querySelector(".item-amt"), "Enter an amount greater than zero.");
+        focusFirstInvalidField(form);
+      } else {
+        Workflow.showMessage(
+          "Validation Error",
+          "Please add at least one line item with a description and a valid amount.",
+          "warning",
+        );
+      }
       return;
     }
 
     const data = Object.fromEntries(new FormData(form).entries());
     if (!data.workRequestId) {
-      Workflow.showMessage(
-        "Validation Error",
-        "Please select a work request.",
-        "warning",
-      );
+      showFieldError(form.querySelector('[name="workRequestId"]'), "Select a work request.");
+      focusFirstInvalidField(form);
       return;
     }
     const activeEntity = Auth.activeEntity;
@@ -3891,6 +3908,7 @@ const Billing = {
             Dashboard.invalidateCache();
           }
           this._endSkipGeneration(skipGeneration);
+          markPaneFormClean();
           await closeFormPanelAndRoute(targetRoute);
         },
       });
@@ -3982,6 +4000,7 @@ const Billing = {
           this.prefilledRequestId = null;
           this.prefilledWrId = null;
           this.prefilledClientId = null;
+          markPaneFormClean();
           await closeFormPanelAndRoute(targetRoute);
         },
         onAfterConfirm: async () => {
@@ -4247,12 +4266,10 @@ const Billing = {
       if (isSubmittingReq) return;
 
       const wrId = wrSelect.value;
+      clearFieldErrors(form);
       if (!wrId) {
-        Workflow.showMessage(
-          "Validation Error",
-          "Please select a work request.",
-          "warning",
-        );
+        showFieldError(wrSelect, "Select a work request.");
+        focusFirstInvalidField(form);
         return;
       }
       const wr = window.apiClient.workRequestCache.getById(wrId);
@@ -4260,11 +4277,8 @@ const Billing = {
       const amtStr = amtIn.value;
       const amount = parseFloat(amtStr.replace(/[₱$,\s]/g, "")) || 0;
       if (amount <= 0) {
-        Workflow.showMessage(
-          "Validation Error",
-          "Please enter a valid billing amount.",
-          "warning",
-        );
+        showFieldError(amtIn, "Enter a valid billing amount greater than zero.");
+        focusFirstInvalidField(form);
         return;
       }
 

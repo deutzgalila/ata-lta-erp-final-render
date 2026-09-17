@@ -336,6 +336,232 @@ function clearFieldErrors(form) {
   form.querySelectorAll('.input-error').forEach(el => el.classList.remove('input-error'));
 }
 
+/**
+ * Scroll to and focus the first invalid field in a container. Call after
+ * marking fields with showFieldError() so users land directly on the problem
+ * instead of hunting for it (replaces blocking validation modals).
+ */
+function focusFirstInvalidField(container) {
+  if (!container) return;
+  const firstError =
+    container.querySelector('.input-error input, .input-error select, .input-error textarea') ||
+    container.querySelector('input.input-error, select.input-error, textarea.input-error') ||
+    container.querySelector('.input-error');
+  if (!firstError) return;
+  try {
+    firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (typeof firstError.focus === 'function' && !firstError.classList.contains('mdp-wrapper') && !firstError.classList.contains('mtp-wrapper')) {
+      firstError.focus({ preventScroll: true });
+    }
+  } catch (e) { /* ignore focus/scroll failures */ }
+}
+
+/**
+ * Mark a submit button as busy: disables it, shows a spinner and an optional
+ * label. Returns a restore function.
+ */
+function setButtonLoading(btn, label = 'Saving…') {
+  if (!btn || btn.dataset.loading === 'true') return () => {};
+  btn.dataset.loading = 'true';
+  btn.dataset.originalHtml = btn.innerHTML;
+  btn.dataset.originalDisabled = btn.disabled ? 'true' : 'false';
+  btn.disabled = true;
+  btn.classList.add('is-loading');
+  btn.innerHTML = '<span class="btn-spinner" aria-hidden="true"></span> ' + escapeHtml(label);
+  return () => {
+    if (!btn || btn.dataset.loading !== 'true') return;
+    delete btn.dataset.loading;
+    btn.disabled = btn.dataset.originalDisabled === 'true';
+    delete btn.dataset.originalDisabled;
+    if (btn.dataset.originalHtml !== undefined) {
+      btn.innerHTML = btn.dataset.originalHtml;
+      delete btn.dataset.originalHtml;
+    }
+    btn.classList.remove('is-loading');
+  };
+}
+
+/**
+ * Build an ATA/LTA entity pill toggle used on create forms while the
+ * consolidated (ALL) view is active, so the target entity is unmistakable.
+ * Returns { el: HTMLElement, getValue: () => string }.
+ */
+function buildEntityPillToggle(opts = {}) {
+  const entities = (opts.entities && opts.entities.length ? opts.entities : ['ATA', 'LTA']);
+  let current = entities.includes(opts.value) ? opts.value : entities[0];
+  const root = el('div', { class: 'entity-pill-toggle', role: 'radiogroup', 'aria-label': 'Target entity' });
+  entities.forEach(ent => {
+    const pill = el('button', {
+      type: 'button',
+      class: 'entity-pill' + (ent === current ? ' active' : ''),
+      text: ent === 'ATA' ? 'ATA Accounting' : (ent === 'LTA' ? 'LTA Accounting' : ent)
+    });
+    pill.setAttribute('aria-pressed', ent === current ? 'true' : 'false');
+    pill.addEventListener('click', () => {
+      if (current === ent) return;
+      current = ent;
+      root.querySelectorAll('.entity-pill').forEach(p => {
+        const isActive = p === pill;
+        p.classList.toggle('active', isActive);
+        p.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      });
+      if (typeof opts.onChange === 'function') opts.onChange(ent);
+    });
+    root.appendChild(pill);
+  });
+  return { el: root, getValue: () => current };
+}
+
+/* ── Dirty-form guard + session draft caching ─────────────────────────── */
+
+const FORM_DRAFT_PREFIX = 'erp_draft_';
+
+function _serializeFormState(form) {
+  const state = {};
+  if (!form) return state;
+  form.querySelectorAll('input[name], select[name], textarea[name]').forEach(field => {
+    const name = field.name;
+    if (!name || field.type === 'file' || field.type === 'password') return;
+    if (field.type === 'checkbox' || field.type === 'radio') {
+      if (field.checked) state[name] = field.type === 'checkbox' ? true : field.value;
+    } else {
+      state[name] = field.value;
+    }
+  });
+  return state;
+}
+
+function _restoreFormState(form, state) {
+  if (!form || !state || typeof state !== 'object') return;
+  Object.entries(state).forEach(([name, value]) => {
+    form.querySelectorAll(`[name="${CSS.escape(name)}"]`).forEach(field => {
+      if (field.type === 'file' || field.type === 'password') return;
+      if (field.type === 'checkbox') {
+        field.checked = value === true;
+        field.dispatchEvent(new Event('change', { bubbles: true }));
+      } else if (field.type === 'radio') {
+        if (field.value === value) {
+          field.checked = true;
+          field.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      } else if ('value' in field) {
+        field.value = value;
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+        field.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+  });
+}
+
+/**
+ * Attach the dirty-form guard to a <form> (or form-like container) rendered
+ * inside the global side pane. Tracks mutations vs. a baseline snapshot so
+ * Escape/backdrop dismissal can be intercepted with a discard prompt, and
+ * optionally caches a sessionStorage draft so a tab reload does not wipe
+ * in-progress entries.
+ *
+ * @param {HTMLElement} form
+ * @param {Object} [opts]
+ * @param {string} [opts.draftKey] - sessionStorage key suffix for draft caching
+ * @param {boolean} [opts.restoreDraft] - auto-restore a cached draft (default true)
+ * @returns {{ markClean: Function, detach: Function }}
+ */
+function attachPaneFormGuard(form, opts = {}) {
+  const pane = window.SidePaneInstance;
+  if (!form || !pane) return { markClean: () => {}, detach: () => {} };
+
+  const draftKey = opts.draftKey ? FORM_DRAFT_PREFIX + opts.draftKey : null;
+  const restoreDraft = opts.restoreDraft !== false;
+
+  // Restore any cached draft BEFORE taking the baseline: a restored draft is
+  // unsaved user work and must count as dirty.
+  let restoredDraft = null;
+  if (draftKey && restoreDraft) {
+    try {
+      const raw = sessionStorage.getItem(draftKey);
+      if (raw) restoredDraft = JSON.parse(raw);
+    } catch (e) { /* ignore corrupt drafts */ }
+  }
+  if (restoredDraft && typeof restoredDraft === 'object' && Object.keys(restoredDraft).length > 0) {
+    _restoreFormState(form, restoredDraft);
+  }
+
+  const state = {
+    form,
+    draftKey,
+    baseline: JSON.stringify(_serializeFormState(form)),
+    dirty: !!restoredDraft,
+    saveTimer: null,
+  };
+  pane._formGuard = state;
+
+  const onMutate = (e) => {
+    if (e.target && e.target.name && (e.target.type === 'file' || e.target.type === 'password')) return;
+    state.dirty = JSON.stringify(_serializeFormState(form)) !== state.baseline;
+    if (draftKey) {
+      clearTimeout(state.saveTimer);
+      state.saveTimer = setTimeout(() => {
+        try {
+          if (state.dirty) sessionStorage.setItem(draftKey, JSON.stringify(_serializeFormState(form)));
+          else sessionStorage.removeItem(draftKey);
+        } catch (err) { /* storage full/blocked — ignore */ }
+      }, 400);
+    }
+  };
+  form.addEventListener('input', onMutate);
+  form.addEventListener('change', onMutate);
+
+  const markClean = () => {
+    state.dirty = false;
+    state.baseline = JSON.stringify(_serializeFormState(form));
+    if (draftKey) { try { sessionStorage.removeItem(draftKey); } catch (e) {} }
+  };
+  const detach = () => {
+    form.removeEventListener('input', onMutate);
+    form.removeEventListener('change', onMutate);
+    clearTimeout(state.saveTimer);
+    if (pane._formGuard === state) pane._formGuard = null;
+  };
+  state.markClean = markClean;
+  state.detach = detach;
+  return { markClean, detach };
+}
+window.attachPaneFormGuard = attachPaneFormGuard;
+
+/**
+ * Mark the active side-pane form guard clean. Call right before the pane is
+ * closed after a *successful* save so the dirty-form guard does not prompt.
+ */
+function markPaneFormClean() {
+  const pane = window.SidePaneInstance;
+  if (pane && pane._formGuard && typeof pane._formGuard.markClean === 'function') {
+    try { pane._formGuard.markClean(); } catch (e) { /* ignore */ }
+  }
+}
+window.markPaneFormClean = markPaneFormClean;
+
+/** Show a lightweight bottom-sheet prompt asking to discard unsaved changes. */
+function showDiscardChangesPrompt({ onDiscard, onKeep }) {
+  document.querySelectorAll('.discard-guard-overlay').forEach(o => o.remove());
+  const overlay = el('div', { class: 'discard-guard-overlay' });
+  const sheet = el('div', { class: 'discard-guard-sheet', role: 'alertdialog', 'aria-modal': 'true' });
+  sheet.appendChild(el('div', { class: 'discard-guard-title', text: 'Unsaved changes' }));
+  sheet.appendChild(el('p', { class: 'discard-guard-body', text: 'You have unsaved changes. Discard them or keep editing?' }));
+  const actions = el('div', { class: 'discard-guard-actions' });
+  const keepBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Keep editing' });
+  const discardBtn = el('button', { class: 'btn btn-danger btn-sm', text: 'Discard changes' });
+  keepBtn.addEventListener('click', () => { overlay.remove(); if (onKeep) onKeep(); });
+  discardBtn.addEventListener('click', () => { overlay.remove(); if (onDiscard) onDiscard(); });
+  actions.appendChild(keepBtn);
+  actions.appendChild(discardBtn);
+  sheet.appendChild(actions);
+  overlay.appendChild(sheet);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); if (onKeep) onKeep(); } });
+  document.body.appendChild(overlay);
+  try { keepBtn.focus(); } catch (e) {}
+}
+window.showDiscardChangesPrompt = showDiscardChangesPrompt;
+
 function validateRequiredFields(form) {
   const required = form.querySelectorAll('[required]');
   let valid = true;
@@ -1344,6 +1570,7 @@ class SidePane {
     this.isResizing = false;
     this._ignoreNextClick = false;
     this._forceMode = null;
+    this._formGuard = null;
     this.init();
   }
 
@@ -1446,6 +1673,12 @@ class SidePane {
 
   open(opts = {}) {
     const mode = this.resolveMode(opts);
+    // New content replaces any previously guarded form.
+    if (this._formGuard) {
+      const guard = this._formGuard;
+      this._formGuard = null;
+      if (typeof guard.detach === 'function') guard.detach();
+    }
     this.viewContext = opts.viewContext || null;
     this.recordId = opts.recordId || null;
     this.triggerElement = opts.triggerElement || null;
@@ -1853,6 +2086,27 @@ class SidePane {
 
   close(opts = {}) {
     if (!this.isOpen()) return;
+
+    // Dirty-form guard: intercept dismissal when the pane hosts a form with
+    // unsaved changes. Silent closes (mode switches) and forced closes
+    // (discard confirmed or programmatic after a successful save) bypass this.
+    if (this._formGuard && this._formGuard.dirty && !opts.silent && !opts.force) {
+      showDiscardChangesPrompt({
+        onDiscard: () => {
+          if (this._formGuard && this._formGuard.draftKey) {
+            try { sessionStorage.removeItem(this._formGuard.draftKey); } catch (e) {}
+          }
+          this.close({ ...opts, force: true });
+        },
+      });
+      return;
+    }
+    if (this._formGuard) {
+      const guard = this._formGuard;
+      this._formGuard = null;
+      if (typeof guard.detach === 'function') guard.detach();
+    }
+
     this.overlay.classList.remove('open');
     this.pane.classList.remove('open');
     this.hideViewMenu();
@@ -2151,7 +2405,7 @@ function buildFormViewSwitcher({
  * @param {string} [opts.fullPageRoute] - hash route for full-page / new-tab, e.g. '#clients/form/new'
  * @param {string} [opts.newTabRoute] - optional override for new-tab URL
  */
-function openFormPanel({ icon, title, formContent, formId, actions, mode, viewContext, fullPageRoute, newTabRoute }) {
+function openFormPanel({ icon, title, formContent, formId, actions, mode, viewContext, fullPageRoute, newTabRoute, draftKey, restoreDraft }) {
   const context = viewContext || (formId ? formId.replace(/-form$/, '') : 'form');
 
   if (mode === PaneMode.FULL_PAGE || mode === PaneMode.NEW_TAB) {
@@ -2215,6 +2469,18 @@ function openFormPanel({ icon, title, formContent, formId, actions, mode, viewCo
       fullPageRoute,
       newTabRoute
     });
+
+    // Dirty-form guard (QoL 2.2): intercept Escape/backdrop dismissal with a
+    // discard prompt and cache an in-progress draft. Draft *restore* stays
+    // opt-in per form — a shared per-module key could leak values across
+    // different records.
+    const paneForm = wrapper.querySelector('form');
+    if (paneForm) {
+      attachPaneFormGuard(paneForm, {
+        draftKey: draftKey || context,
+        restoreDraft: restoreDraft === true
+      });
+    }
   }
 
   focusFormTitle(wrapper);
@@ -2487,7 +2753,15 @@ window.Utils = {
   nextInvoiceNumber,
   nextTrackingNumber,
   generateTrackingNumber,
-  buildCompactBoardCard
+  buildCompactBoardCard,
+  showFieldError,
+  clearFieldErrors,
+  focusFirstInvalidField,
+  setButtonLoading,
+  buildEntityPillToggle,
+  attachPaneFormGuard,
+  markPaneFormClean,
+  showDiscardChangesPrompt
 };
 
 /**
@@ -2634,6 +2908,12 @@ if (typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined') {
  * @param {Object} [messageConfig] - Optional toast success message config.
  */
 async function closeFormPanelAndRoute(hash, messageConfig) {
+  // Success submits pass a messageConfig — mark the pane form clean first so
+  // the dirty-form guard does not prompt after a successful save. Cancel flows
+  // (no messageConfig) intentionally keep the guard active.
+  if (messageConfig && window.SidePaneInstance && window.SidePaneInstance._formGuard) {
+    try { window.SidePaneInstance._formGuard.markClean?.(); } catch (e) { /* ignore */ }
+  }
   if (window.SidePaneInstance && typeof window.SidePaneInstance.close === 'function') {
     window.SidePaneInstance.close();
   }

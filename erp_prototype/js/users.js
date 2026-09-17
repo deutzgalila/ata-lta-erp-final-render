@@ -6498,6 +6498,17 @@ const Users = {
 
     wrapper.appendChild(reviewCard);
 
+    // QoL 5.1: for updates, show the side-by-side Current vs Proposed diff so
+    // approvers can spot what changed without opening the record separately.
+    if (pc.parentRecordId && !pc.isOperationsRequest && typeof PendingChanges !== 'undefined' && typeof PendingChanges.renderDiffTable === 'function') {
+      const diffSection = el('div', { class: 'admin-review-diff' });
+      diffSection.appendChild(el('h3', { class: 'notion-sub-section-title', text: 'Proposed Changes' }));
+      const diffBody = el('div');
+      PendingChanges.renderDiffTable(pc, diffBody);
+      diffSection.appendChild(diffBody);
+      wrapper.appendChild(diffSection);
+    }
+
     // 6. Actions Footer
     const actions = el('div', {
       class: isSidePeek ? 'side-pane-form-footer' : '',
