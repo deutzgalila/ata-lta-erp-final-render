@@ -2468,7 +2468,8 @@ window.Utils = {
   clearSkeleton,
   nextInvoiceNumber,
   nextTrackingNumber,
-  generateTrackingNumber
+  generateTrackingNumber,
+  buildCompactBoardCard
 };
 
 /**
