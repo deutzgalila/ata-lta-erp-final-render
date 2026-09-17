@@ -2275,7 +2275,8 @@ const Workflow = {
     // multiple times from within Processing / Testing. WRs already in Billing/Disbursement
     // are treated as ready to complete if all financial requirements are satisfied.
     const stages = ['Draft', 'Pre-processing', 'Processing', 'Completed', 'Cancelled'];
-    const currentIdx = stages.indexOf(wr.status);
+    const effectiveStatus = (wr.status === 'In Progress' || wr.status === 'Pre-processing') ? 'Pre-processing' : wr.status;
+    const currentIdx = stages.indexOf(effectiveStatus);
     let nextPhase = stages[currentIdx + 1];
 
     if (wr.status === 'Cancelled' || wr.status === 'Completed') return { canTransition: false, reason: 'Request is already in a terminal state.' };
@@ -2283,7 +2284,7 @@ const Workflow = {
     let canTransition = true;
     let missing = [];
 
-    switch (wr.status) {
+    switch (effectiveStatus) {
       case 'Draft':
         if (!wr.clientId) { canTransition = false; missing.push('Client assignment'); }
         if (tasks.length === 0) {
@@ -7651,7 +7652,7 @@ const Workflow = {
   renderProgressBar(status) {
     // Four-stage lifecycle inside work request detail.
     const stages = ['Work Request', 'Pre-processing', 'Processing', 'Documentation'];
-    const map = { 'Draft': 0, 'Pre-processing': 1, 'Processing': 2, 'Billing': 2, 'Disbursement': 2, 'Completed': 3, 'Cancelled': 3 };
+    const map = { 'Draft': 0, 'Pre-processing': 1, 'In Progress': 1, 'Processing': 2, 'Billing': 2, 'Disbursement': 2, 'Completed': 3, 'Cancelled': 3 };
     const current = map[status] ?? 0;
     const wrap = el('div', { class: 'workflow-progress' });
     stages.forEach((s, i) => {
@@ -8820,6 +8821,7 @@ const Workflow = {
     const phaseColors = {
       'Draft': '#6b6b6b',
       'Pre-processing': '#2f6feb',
+      'In Progress': '#2f6feb',
       'Processing': '#eab308',
       'Billing': '#f59e0b',
       'Disbursement': '#f59e0b',
@@ -10158,8 +10160,8 @@ const Workflow = {
         rowEl.appendChild(cellChecklist);
 
         // 7. Linked Records cell
-        const cellLinked = el('div', { class: 'cell' });
-        const linkedWrap = el('div', { style: 'display:flex; flex-direction:column; gap:4px;' });
+        const cellLinked = el('div', { class: 'cell cell-linked' });
+        const linkedWrap = el('div', { style: 'display:flex; flex-direction:column; gap:4px; min-width:0; max-width:100%;' });
         
         const taskRelated = WorkflowData.getRelatedForTask(t.id);
         let linkedInv = taskRelated.invoices ? taskRelated.invoices[0] : null;
@@ -14410,7 +14412,7 @@ const Workflow = {
   renderModernProgressBar(status) {
     // Four-stage lifecycle inside work request detail (Billing/Disbursement are no longer phases).
     const stages = ['Work Request', 'Pre-processing', 'Processing', 'Documentation'];
-    const map = { 'Draft': 0, 'Pre-processing': 1, 'Processing': 2, 'Billing': 2, 'Disbursement': 2, 'Completed': 3, 'Cancelled': 3 };
+    const map = { 'Draft': 0, 'Pre-processing': 1, 'In Progress': 1, 'Processing': 2, 'Billing': 2, 'Disbursement': 2, 'Completed': 3, 'Cancelled': 3 };
     const currentIdx = map[status] ?? 0;
 
     const tracker = el('div', { class: 'stage-tracker', 'aria-label': 'Work request stage' });
