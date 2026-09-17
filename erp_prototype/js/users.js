@@ -1314,10 +1314,13 @@ const Users = {
       return c;
     };
 
-    const wr = await resolveWr(r.workRequestId);
-    const clientId = r.clientId || (wr ? wr.clientId : null);
+    const wrId = r.workRequestId || r.work_request_id;
+    const wr = await resolveWr(wrId);
+    const clientId = r.clientId || r.client_id || (wr ? wr.clientId : null);
     const client = await resolveClient(clientId);
-    const submitter = await resolveUser(r.requestedBy);
+    const requestedBy = r.requestedBy || r.requested_by;
+    const submitter = await resolveUser(requestedBy);
+    const requestedAt = r.requestedAt || r.requested_at || r.created_at || r.createdAt;
 
     const wrapper = el('div', { class: 'form-stacked notion-form', style: 'padding: var(--spacing-xs); display: flex; flex-direction: column; gap: var(--spacing-md);' });
 
@@ -1332,11 +1335,11 @@ const Users = {
       ]),
       el('div', { style: 'display:flex; justify-content:space-between; align-items:center;' }, [
         el('span', { text: 'Submitted By', style: 'font-size:0.75rem; color:var(--color-text-muted); font-weight:600; text-transform:uppercase;' }),
-        el('span', { text: submitter ? `${submitter.name}${submitterRole ? ' (' + submitterRole + ')' : ''}` : (r.requestedBy || '—'), style: 'font-weight:500;' })
+        el('span', { text: submitter ? `${submitter.name}${submitterRole ? ' (' + submitterRole + ')' : ''}` : (requestedBy || '—'), style: 'font-weight:500;' })
       ]),
       el('div', { style: 'display:flex; justify-content:space-between; align-items:center;' }, [
         el('span', { text: 'Submitted At', style: 'font-size:0.75rem; color:var(--color-text-muted); font-weight:600; text-transform:uppercase;' }),
-        el('span', { text: formatDate(r.requestedAt), style: 'font-weight:500;' })
+        el('span', { text: formatDate(requestedAt), style: 'font-weight:500;' })
       ])
     ]);
     wrapper.appendChild(infoBox);
@@ -1384,7 +1387,7 @@ const Users = {
       });
       addProp('Work Request', wrLink);
     } else {
-      addProp('Work Request', document.createTextNode(r.workRequestId || '—'));
+      addProp('Work Request', document.createTextNode(wrId || '—'));
     }
 
     // Helper for receipt preview
