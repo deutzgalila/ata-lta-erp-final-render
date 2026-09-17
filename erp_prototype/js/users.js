@@ -475,6 +475,16 @@ const Users = {
       return { href: '#admin/users' };
     }
 
+    // 8. Operations Request
+    if (tableLower.includes('operations_request') || actionLower.includes('operations_request') || tableLower.includes('operation_request')) {
+      const wrId = d.workRequestId || d.work_request_id;
+      const taskId = d.linkedTaskId || d.linked_task_id;
+      if (wrId) {
+        return { href: `#operations/detail/${wrId}${taskId ? '?taskId=' + taskId : ''}` };
+      }
+      return { href: Auth.user?.role === 'Admin' ? '#admin/pending-approvals' : '#admin/my-requests' };
+    }
+
     return null;
   },
 
@@ -484,8 +494,8 @@ const Users = {
    * entity-scoped detail fetch would 404 and the router would fall back to
    * the module list.
    */
-  _navigateToItemLink(l, href) {
-    const targetEntity = (l?.entity || '').toUpperCase();
+  _navigateToItemLink(l, href, recordEntity) {
+    const targetEntity = (recordEntity || l?.entity || '').toUpperCase();
     if (
       (targetEntity === 'ATA' || targetEntity === 'LTA') &&
       typeof Auth !== 'undefined' &&
@@ -2379,7 +2389,8 @@ const Users = {
     await Promise.all([
       window.apiClient.userCache.ensure(),
       window.apiClient.clientCache.ensure(),
-      window.apiClient.workRequestCache.ensure()
+      window.apiClient.workRequestCache.ensure(),
+      window.apiClient.transmittalCache?.ensure ? window.apiClient.transmittalCache.ensure() : Promise.resolve()
     ]);
 
     const canViewAllAudit = Auth.can('audit:view_all');
@@ -2704,6 +2715,75 @@ const Users = {
     const actionLower = (l.action || '').toLowerCase();
     const tableLower = (l.tableName || l.table_name || '').toLowerCase();
 
+    const resolveWr = (id) => {
+      if (!id) return null;
+      if (typeof WorkflowData !== 'undefined' && typeof WorkflowData.getWorkRequestById === 'function') {
+        const wr = WorkflowData.getWorkRequestById(id);
+        if (wr) return wr;
+      }
+      if (window.apiClient?.workRequestCache?.getById) {
+        const wr = window.apiClient.workRequestCache.getById(id);
+        if (wr) return wr;
+      }
+      return null;
+    };
+
+    const resolveTask = (taskId, parentWr) => {
+      if (!taskId) return null;
+      if (typeof WorkflowData !== 'undefined' && typeof WorkflowData.getTaskById === 'function') {
+        const t = WorkflowData.getTaskById(taskId);
+        if (t) return t;
+      }
+      if (parentWr?.tasks) {
+        const t = parentWr.tasks.find(tk => tk.id === taskId);
+        if (t) return t;
+      }
+      if (window.apiClient?.workRequestCache?._wrs) {
+        for (const wr of window.apiClient.workRequestCache._wrs) {
+          const t = (wr.tasks || []).find(tk => tk.id === taskId);
+          if (t) return t;
+        }
+      }
+      return null;
+    };
+
+    const resolveTransmittal = (id) => {
+      if (!id) return null;
+      if (this._auditTransmittalCache?.has(id)) return this._auditTransmittalCache.get(id);
+      if (window.apiClient?.transmittalCache?.getById) {
+        const t = window.apiClient.transmittalCache.getById(id);
+        if (t) return t;
+      }
+      if (typeof Transmittal !== 'undefined' && Array.isArray(Transmittal._items)) {
+        const t = Transmittal._items.find(i => i.id === id || i.trackingNumber === id || i.tracking_number === id);
+        if (t) return t;
+      }
+      return null;
+    };
+
+    const resolveDisbursement = (id) => {
+      if (!id) return null;
+      if (this._auditDisbursementCache?.has(id)) return this._auditDisbursementCache.get(id);
+      if (typeof Disbursement !== 'undefined' && Array.isArray(Disbursement._items)) {
+        const db = Disbursement._items.find(i => i.id === id);
+        if (db) return db;
+      }
+      return null;
+    };
+
+    const resolveInvoice = (id) => {
+      if (!id) return null;
+      if (this._auditInvoiceCache?.has(id)) return this._auditInvoiceCache.get(id);
+      if (typeof Billing !== 'undefined') {
+        if (Billing._detailCache && Billing._detailCache[id]) return Billing._detailCache[id];
+        if (Array.isArray(Billing._listCache)) {
+          const inv = Billing._listCache.find(i => i.id === id);
+          if (inv) return inv;
+        }
+      }
+      return null;
+    };
+
     const context = {
       category: 'Business Context',
       badge: 'Record Context',
@@ -2739,12 +2819,7 @@ const Users = {
 
       const wrId = d.workRequestId || d.work_request_id || d.parentRecordId || taskObj?.workRequestId;
       if (!parentWr && wrId) {
-        if (typeof WorkflowData !== 'undefined' && typeof WorkflowData.getWorkRequestById === 'function') {
-          parentWr = WorkflowData.getWorkRequestById(wrId);
-        }
-        if (!parentWr && window.apiClient?.workRequestCache?.getById) {
-          parentWr = window.apiClient.workRequestCache.getById(wrId);
-        }
+        parentWr = resolveWr(wrId);
       }
 
       const taskName = d.name || d.title || taskObj?.title || taskObj?.name || 'Task';
@@ -2823,6 +2898,58 @@ const Users = {
         });
       }
 
+      // Check for Linked Items for this task
+      const wrRel = parentWr?.id && typeof WorkflowData !== 'undefined' && WorkflowData._relatedByWr ? WorkflowData._relatedByWr.get(parentWr.id) : null;
+      const taskRel = typeof WorkflowData !== 'undefined' && WorkflowData._relatedByTask ? WorkflowData._relatedByTask.get(taskId) : null;
+
+      // Linked Disbursements for this task
+      const taskDisbs = (taskRel?.disbursements || [])
+        .concat((wrRel?.disbursements || []).filter(db => db.linkedTaskId === taskId))
+        .concat(typeof Disbursement !== 'undefined' && Array.isArray(Disbursement._items) ? Disbursement._items.filter(db => db.linkedTaskId === taskId) : [])
+        .filter((db, i, arr) => arr.findIndex(x => x.id === db.id) === i);
+      if (taskDisbs.length > 0) {
+        if (taskDisbs.length === 1) {
+          context.fields.push({
+            label: 'Linked Disbursement',
+            value: taskDisbs[0].disbursementNumber || taskDisbs[0].disbursement_number || `DB-${taskDisbs[0].id.slice(0, 6)}`,
+            isLink: true,
+            href: `#disbursement/detail/${taskDisbs[0].id}`
+          });
+        } else {
+          context.fields.push({
+            label: 'Linked Disbursements',
+            links: taskDisbs.map(db => ({
+              text: db.disbursementNumber || db.disbursement_number || `DB-${db.id.slice(0, 6)}`,
+              href: `#disbursement/detail/${db.id}`
+            }))
+          });
+        }
+      }
+
+      // Linked Invoices for this task
+      const taskInvs = (taskRel?.invoices || [])
+        .concat((wrRel?.invoices || []).filter(inv => inv.linkedTaskId === taskId))
+        .concat(typeof Billing !== 'undefined' && Array.isArray(Billing._listCache) ? Billing._listCache.filter(inv => inv.linkedTaskId === taskId) : [])
+        .filter((inv, i, arr) => arr.findIndex(x => x.id === inv.id) === i);
+      if (taskInvs.length > 0) {
+        if (taskInvs.length === 1) {
+          context.fields.push({
+            label: 'Linked Invoice',
+            value: taskInvs[0].invoiceNumber || taskInvs[0].invoice_number || `INV-${taskInvs[0].id.slice(0, 6)}`,
+            isLink: true,
+            href: `#billing/detail/${taskInvs[0].id}`
+          });
+        } else {
+          context.fields.push({
+            label: 'Linked Invoices',
+            links: taskInvs.map(inv => ({
+              text: inv.invoiceNumber || inv.invoice_number || `INV-${inv.id.slice(0, 6)}`,
+              href: `#billing/detail/${inv.id}`
+            }))
+          });
+        }
+      }
+
       return context;
     }
 
@@ -2831,14 +2958,7 @@ const Users = {
       context.category = 'Operations Context';
       context.badge = 'Work Request';
 
-      let wr = null;
-      if (typeof WorkflowData !== 'undefined' && typeof WorkflowData.getWorkRequestById === 'function') {
-        wr = WorkflowData.getWorkRequestById(recId);
-      }
-      if (!wr && window.apiClient?.workRequestCache?.getById) {
-        wr = window.apiClient.workRequestCache.getById(recId);
-      }
-
+      const wr = resolveWr(recId);
       const wrTitle = d.title || d.name || wr?.title || 'Work Request';
       context.fields.push({
         label: 'Work Request Title',
@@ -2892,6 +3012,79 @@ const Users = {
         });
       }
 
+      // Linked Items from related cache or list stores
+      const wrRel = recId && typeof WorkflowData !== 'undefined' && WorkflowData._relatedByWr ? WorkflowData._relatedByWr.get(recId) : null;
+
+      // Linked Invoices
+      const relInvoices = (wrRel?.invoices || [])
+        .concat(typeof Billing !== 'undefined' && Array.isArray(Billing._listCache) ? Billing._listCache.filter(inv => inv.workRequestId === recId) : [])
+        .filter((inv, i, arr) => arr.findIndex(x => x.id === inv.id) === i);
+      if (relInvoices.length > 0) {
+        if (relInvoices.length === 1) {
+          context.fields.push({
+            label: 'Linked Invoice',
+            value: relInvoices[0].invoiceNumber || relInvoices[0].invoice_number || `INV-${relInvoices[0].id.slice(0, 6)}`,
+            isLink: true,
+            href: `#billing/detail/${relInvoices[0].id}`
+          });
+        } else {
+          context.fields.push({
+            label: 'Linked Invoices',
+            links: relInvoices.map(inv => ({
+              text: inv.invoiceNumber || inv.invoice_number || `INV-${inv.id.slice(0, 6)}`,
+              href: `#billing/detail/${inv.id}`
+            }))
+          });
+        }
+      }
+
+      // Linked Disbursements
+      const relDisbs = (wrRel?.disbursements || [])
+        .concat(typeof Disbursement !== 'undefined' && Array.isArray(Disbursement._items) ? Disbursement._items.filter(db => db.linkedWorkRequestId === recId) : [])
+        .filter((db, i, arr) => arr.findIndex(x => x.id === db.id) === i);
+      if (relDisbs.length > 0) {
+        if (relDisbs.length === 1) {
+          context.fields.push({
+            label: 'Linked Disbursement',
+            value: relDisbs[0].disbursementNumber || relDisbs[0].disbursement_number || `DB-${relDisbs[0].id.slice(0, 6)}`,
+            isLink: true,
+            href: `#disbursement/detail/${relDisbs[0].id}`
+          });
+        } else {
+          context.fields.push({
+            label: 'Linked Disbursements',
+            links: relDisbs.map(db => ({
+              text: db.disbursementNumber || db.disbursement_number || `DB-${db.id.slice(0, 6)}`,
+              href: `#disbursement/detail/${db.id}`
+            }))
+          });
+        }
+      }
+
+      // Linked Transmittals
+      const relTrans = (wrRel?.transmittals || [])
+        .concat(typeof Transmittal !== 'undefined' && Array.isArray(Transmittal._items) ? Transmittal._items.filter(tx => tx.workRequestId === recId) : [])
+        .concat(window.apiClient?.transmittalCache?._transmittals ? window.apiClient.transmittalCache._transmittals.filter(tx => (tx.work_request_id || tx.workRequestId) === recId) : [])
+        .filter((tx, i, arr) => arr.findIndex(x => x.id === tx.id) === i);
+      if (relTrans.length > 0) {
+        if (relTrans.length === 1) {
+          context.fields.push({
+            label: 'Linked Transmittal',
+            value: relTrans[0].trackingNumber || relTrans[0].tracking_number || `TX-${relTrans[0].id.slice(0, 6)}`,
+            isLink: true,
+            href: `#transmittal/detail/${relTrans[0].id}`
+          });
+        } else {
+          context.fields.push({
+            label: 'Linked Transmittals',
+            links: relTrans.map(tx => ({
+              text: tx.trackingNumber || tx.tracking_number || `TX-${tx.id.slice(0, 6)}`,
+              href: `#transmittal/detail/${tx.id}`
+            }))
+          });
+        }
+      }
+
       return context;
     }
 
@@ -2900,12 +3093,8 @@ const Users = {
       context.category = 'Finance & Expense Context';
       context.badge = 'Disbursement';
 
-      let disb = null;
-      if (typeof Disbursement !== 'undefined' && Array.isArray(Disbursement._items)) {
-        disb = Disbursement._items.find(i => i.id === recId);
-      }
-
-      const disbNo = d.disbursementNumber || d.disbursement_number || d.name || disb?.disbursementNumber;
+      const disb = resolveDisbursement(recId);
+      const disbNo = d.disbursementNumber || d.disbursement_number || d.name || disb?.disbursementNumber || disb?.disbursement_number;
       if (disbNo) {
         context.fields.push({
           label: 'Disbursement Number',
@@ -2920,7 +3109,7 @@ const Users = {
         context.fields.push({ label: 'Payee / Recipient', value: payee });
       }
 
-      const amount = d.amount !== undefined ? d.amount : disb?.amount;
+      const amount = d.amount !== undefined && d.amount !== null ? d.amount : disb?.amount;
       if (amount !== undefined && amount !== null && amount !== '') {
         context.fields.push({
           label: 'Amount',
@@ -2933,7 +3122,7 @@ const Users = {
         context.fields.push({ label: 'Expense Category', value: category });
       }
 
-      const method = d.paymentMethod || d.payment_method || disb?.paymentMethod;
+      const method = d.paymentMethod || d.payment_method || disb?.paymentMethod || disb?.payment_method;
       if (method) {
         context.fields.push({ label: 'Payment Method', value: method });
       }
@@ -2947,21 +3136,59 @@ const Users = {
         });
       }
 
-      const wrId = d.workRequestId || d.linkedWorkRequestId || disb?.workRequestId || disb?.linkedWorkRequestId;
+      const clientId = d.clientId || d.client_id || disb?.clientId || disb?.client_id;
+      if (clientId) {
+        const client = window.apiClient?.clientCache?.getById ? window.apiClient.clientCache.getById(clientId) : null;
+        if (client?.name) context.fields.push({ label: 'Linked Client', value: client.name });
+      }
+
+      // Linked Work Request
+      const wrId = d.workRequestId || d.work_request_id || d.linkedWorkRequestId || d.linked_work_request_id || disb?.workRequestId || disb?.linkedWorkRequestId || disb?.linked_work_request_id;
+      let linkedWr = null;
       if (wrId) {
-        const wr = window.apiClient?.workRequestCache?.getById ? window.apiClient.workRequestCache.getById(wrId) : null;
+        linkedWr = resolveWr(wrId);
         context.fields.push({
           label: 'Linked Work Request',
-          value: wr?.title || `WR-${wrId.slice(0, 8)}`,
+          value: linkedWr?.title || linkedWr?.trackingNumber || `WR-${wrId.slice(0, 8)}`,
           isLink: true,
           href: `#operations/detail/${wrId}`
         });
       }
 
-      const clientId = d.clientId || disb?.clientId;
-      if (clientId) {
-        const client = window.apiClient?.clientCache?.getById ? window.apiClient.clientCache.getById(clientId) : null;
-        if (client?.name) context.fields.push({ label: 'Linked Client', value: client.name });
+      // Linked Task
+      const taskId = d.linkedTaskId || d.linked_task_id || disb?.linkedTaskId || disb?.linked_task_id;
+      if (taskId) {
+        const task = resolveTask(taskId, linkedWr);
+        context.fields.push({
+          label: 'Linked Task',
+          value: task?.title || task?.name || `Task (${taskId.slice(0, 8)}...)`,
+          isLink: true,
+          href: `#operations/detail/${wrId || task?.workRequestId || ''}?taskId=${taskId}`
+        });
+      }
+
+      // Linked Invoice
+      const invoiceId = d.linkedInvoiceId || d.linked_invoice_id || disb?.linkedInvoiceId || disb?.linked_invoice_id;
+      if (invoiceId) {
+        const inv = resolveInvoice(invoiceId);
+        context.fields.push({
+          label: 'Linked Invoice',
+          value: inv?.invoiceNumber || inv?.invoice_number || `Invoice (${invoiceId.slice(0, 8)}...)`,
+          isLink: true,
+          href: `#billing/detail/${invoiceId}`
+        });
+      }
+
+      // Linked Transmittal
+      const transmittalId = d.linkedTransmittalId || d.linked_transmittal_id || disb?.linkedTransmittalId || disb?.linked_transmittal_id;
+      if (transmittalId) {
+        const trans = resolveTransmittal(transmittalId);
+        context.fields.push({
+          label: 'Linked Transmittal',
+          value: trans?.trackingNumber || trans?.tracking_number || `Transmittal (${transmittalId.slice(0, 8)}...)`,
+          isLink: true,
+          href: `#transmittal/detail/${transmittalId}`
+        });
       }
 
       return context;
@@ -2972,13 +3199,8 @@ const Users = {
       context.category = 'Billing & Invoice Context';
       context.badge = 'Invoice';
 
-      let inv = null;
-      if (typeof Billing !== 'undefined') {
-        inv = (Billing._detailCache && Billing._detailCache[recId]) ||
-              (Array.isArray(Billing._listCache) ? Billing._listCache.find(i => i.id === recId) : null);
-      }
-
-      const invNo = d.invoiceNumber || d.invoice_number || d.name || inv?.invoiceNumber;
+      const inv = resolveInvoice(recId);
+      const invNo = d.invoiceNumber || d.invoice_number || d.name || inv?.invoiceNumber || inv?.invoice_number;
       if (invNo) {
         context.fields.push({
           label: 'Invoice Number',
@@ -2988,7 +3210,7 @@ const Users = {
         });
       }
 
-      const clientId = d.clientId || d.client_id || inv?.clientId;
+      const clientId = d.clientId || d.client_id || inv?.clientId || inv?.client_id;
       const client = clientId && window.apiClient?.clientCache?.getById
         ? window.apiClient.clientCache.getById(clientId)
         : null;
@@ -2996,18 +3218,7 @@ const Users = {
         context.fields.push({ label: 'Billed Client', value: `${client.name} (${client.entity || inv?.entity || l.entity || 'ATA'})` });
       }
 
-      const wrId = d.workRequestId || d.work_request_id || inv?.workRequestId;
-      if (wrId) {
-        const wr = window.apiClient?.workRequestCache?.getById ? window.apiClient.workRequestCache.getById(wrId) : null;
-        context.fields.push({
-          label: 'Linked Work Request',
-          value: wr?.title || `WR-${wrId.slice(0, 8)}`,
-          isLink: true,
-          href: `#operations/detail/${wrId}`
-        });
-      }
-
-      const total = d.totalAmount || d.amount || inv?.totalAmount || inv?.amount;
+      const total = d.totalAmount || d.amount || inv?.totalAmount || inv?.total_amount || inv?.amount;
       if (total !== undefined && total !== null && total !== '') {
         context.fields.push({
           label: 'Invoice Amount',
@@ -3024,9 +3235,79 @@ const Users = {
         });
       }
 
-      const dueDate = d.dueDate || d.due_date || inv?.dueDate;
+      const dueDate = d.dueDate || d.due_date || inv?.dueDate || inv?.due_date;
       if (dueDate) {
         context.fields.push({ label: 'Payment Due Date', value: typeof formatDate === 'function' ? formatDate(dueDate) : String(dueDate).slice(0, 10) });
+      }
+
+      // Linked Work Request
+      const wrId = d.workRequestId || d.work_request_id || inv?.workRequestId || inv?.work_request_id;
+      let linkedWr = null;
+      if (wrId) {
+        linkedWr = resolveWr(wrId);
+        context.fields.push({
+          label: 'Linked Work Request',
+          value: linkedWr?.title || linkedWr?.trackingNumber || `WR-${wrId.slice(0, 8)}`,
+          isLink: true,
+          href: `#operations/detail/${wrId}`
+        });
+      }
+
+      // Linked Task
+      const taskId = d.linkedTaskId || d.linked_task_id || inv?.linkedTaskId || inv?.linked_task_id;
+      if (taskId) {
+        const task = resolveTask(taskId, linkedWr);
+        context.fields.push({
+          label: 'Linked Task',
+          value: task?.title || task?.name || `Task (${taskId.slice(0, 8)}...)`,
+          isLink: true,
+          href: `#operations/detail/${wrId || inv?.workRequestId || task?.workRequestId || ''}?taskId=${taskId}`
+        });
+      }
+
+      // Linked Transmittal
+      const transmittalId = d.linkedTransmittalId || d.linked_transmittal_id || inv?.linkedTransmittalId || inv?.linked_transmittal_id;
+      if (transmittalId) {
+        const trans = resolveTransmittal(transmittalId);
+        context.fields.push({
+          label: 'Linked Transmittal',
+          value: trans?.trackingNumber || trans?.tracking_number || `Transmittal (${transmittalId.slice(0, 8)}...)`,
+          isLink: true,
+          href: `#transmittal/detail/${transmittalId}`
+        });
+      }
+
+      // Linked Disbursements
+      const wrRel = wrId && typeof WorkflowData !== 'undefined' && WorkflowData._relatedByWr ? WorkflowData._relatedByWr.get(wrId) : null;
+      const linkedDisbs = (wrRel?.disbursements || [])
+        .concat(typeof Disbursement !== 'undefined' && Array.isArray(Disbursement._items) ? Disbursement._items.filter(db => db.linkedInvoiceId === recId) : [])
+        .filter((db, i, arr) => arr.findIndex(x => x.id === db.id) === i);
+      if (linkedDisbs.length > 0) {
+        if (linkedDisbs.length === 1) {
+          context.fields.push({
+            label: 'Linked Disbursement',
+            value: linkedDisbs[0].disbursementNumber || linkedDisbs[0].disbursement_number || `DB-${linkedDisbs[0].id.slice(0, 6)}`,
+            isLink: true,
+            href: `#disbursement/detail/${linkedDisbs[0].id}`
+          });
+        } else {
+          context.fields.push({
+            label: 'Linked Disbursements',
+            links: linkedDisbs.map(db => ({
+              text: db.disbursementNumber || db.disbursement_number || `DB-${db.id.slice(0, 6)}`,
+              href: `#disbursement/detail/${db.id}`
+            }))
+          });
+        }
+      }
+
+      // Payment Summary
+      if (inv?.payments && Array.isArray(inv.payments) && inv.payments.length > 0) {
+        const paidTotal = typeof inv.paidAmount === 'number' ? inv.paidAmount : inv.payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+        context.fields.push({
+          label: 'Payment Progress',
+          value: `${inv.payments.length} payment(s) (${typeof formatCurrency === 'function' ? formatCurrency(paidTotal) : '₱' + Number(paidTotal).toLocaleString('en-PH', { minimumFractionDigits: 2 })} paid)`
+        });
       }
 
       return context;
@@ -3037,12 +3318,8 @@ const Users = {
       context.category = 'Transmittal Record Context';
       context.badge = 'Transmittal';
 
-      let trans = null;
-      if (typeof Transmittal !== 'undefined' && Array.isArray(Transmittal._items)) {
-        trans = Transmittal._items.find(i => i.id === recId);
-      }
-
-      const txNo = d.trackingNumber || d.tracking_number || d.name || trans?.trackingNumber;
+      const trans = resolveTransmittal(recId);
+      const txNo = d.trackingNumber || d.tracking_number || d.name || trans?.trackingNumber || trans?.tracking_number;
       if (txNo) {
         context.fields.push({
           label: 'Tracking Number',
@@ -3052,12 +3329,12 @@ const Users = {
         });
       }
 
-      const recipient = d.recipientName || d.recipient || trans?.recipientName || trans?.recipient;
+      const recipient = d.recipientName || d.recipient_name || d.recipient || trans?.recipientName || trans?.recipient_name || trans?.recipient;
       if (recipient) {
         context.fields.push({ label: 'Recipient', value: recipient });
       }
 
-      const type = d.transmittalType || d.type || trans?.transmittalType || trans?.type;
+      const type = d.transmittalType || d.transmittal_type || d.type || trans?.transmittalType || trans?.transmittal_type || trans?.type;
       if (type) {
         context.fields.push({ label: 'Transmittal Type', value: type });
       }
@@ -3071,16 +3348,151 @@ const Users = {
         });
       }
 
-      const clientId = d.clientId || trans?.clientId;
+      const clientId = d.clientId || d.client_id || trans?.clientId || trans?.client_id;
       if (clientId) {
         const client = window.apiClient?.clientCache?.getById ? window.apiClient.clientCache.getById(clientId) : null;
         if (client?.name) context.fields.push({ label: 'Linked Client', value: client.name });
       }
 
+      // Linked Work Request
+      const wrId = d.workRequestId || d.work_request_id || trans?.workRequestId || trans?.work_request_id;
+      if (wrId) {
+        const wr = resolveWr(wrId);
+        context.fields.push({
+          label: 'Linked Work Request',
+          value: wr?.title || wr?.trackingNumber || `WR-${wrId.slice(0, 8)}`,
+          isLink: true,
+          href: `#operations/detail/${wrId}`
+        });
+      }
+
+      // Linked Invoices
+      const wrRel = wrId && typeof WorkflowData !== 'undefined' && WorkflowData._relatedByWr ? WorkflowData._relatedByWr.get(wrId) : null;
+      const linkedInvs = (wrRel?.invoices || [])
+        .concat(typeof Billing !== 'undefined' && Array.isArray(Billing._listCache) ? Billing._listCache.filter(i => i.linkedTransmittalId === recId) : [])
+        .filter((inv, i, arr) => arr.findIndex(x => x.id === inv.id) === i);
+      if (linkedInvs.length > 0) {
+        if (linkedInvs.length === 1) {
+          context.fields.push({
+            label: 'Linked Invoice',
+            value: linkedInvs[0].invoiceNumber || linkedInvs[0].invoice_number || `INV-${linkedInvs[0].id.slice(0, 6)}`,
+            isLink: true,
+            href: `#billing/detail/${linkedInvs[0].id}`
+          });
+        } else {
+          context.fields.push({
+            label: 'Linked Invoices',
+            links: linkedInvs.map(inv => ({
+              text: inv.invoiceNumber || inv.invoice_number || `INV-${inv.id.slice(0, 6)}`,
+              href: `#billing/detail/${inv.id}`
+            }))
+          });
+        }
+      }
+
+      // Linked Disbursements
+      const linkedDisbs = (wrRel?.disbursements || [])
+        .concat(typeof Disbursement !== 'undefined' && Array.isArray(Disbursement._items) ? Disbursement._items.filter(db => db.linkedTransmittalId === recId) : [])
+        .filter((db, i, arr) => arr.findIndex(x => x.id === db.id) === i);
+      if (linkedDisbs.length > 0) {
+        if (linkedDisbs.length === 1) {
+          context.fields.push({
+            label: 'Linked Disbursement',
+            value: linkedDisbs[0].disbursementNumber || linkedDisbs[0].disbursement_number || `DB-${linkedDisbs[0].id.slice(0, 6)}`,
+            isLink: true,
+            href: `#disbursement/detail/${linkedDisbs[0].id}`
+          });
+        } else {
+          context.fields.push({
+            label: 'Linked Disbursements',
+            links: linkedDisbs.map(db => ({
+              text: db.disbursementNumber || db.disbursement_number || `DB-${db.id.slice(0, 6)}`,
+              href: `#disbursement/detail/${db.id}`
+            }))
+          });
+        }
+      }
+
+      // Transmitted Items
+      const items = d.items || trans?.items || trans?.transmittal_items;
+      if (Array.isArray(items) && items.length > 0) {
+        context.fields.push({
+          label: 'Transmitted Items',
+          value: `${items.length} item(s) (${items.map(it => it.description || it.documentType || it.document_type || 'Doc').slice(0, 2).join(', ')}${items.length > 2 ? '...' : ''})`
+        });
+      }
+
       return context;
     }
 
-    // 6. User Management
+    // 6. Operations Requests
+    if (tableLower.includes('operations_request') || actionLower.includes('operations_request') || tableLower.includes('operation_request')) {
+      context.category = 'Operations Request Context';
+      context.badge = 'Operations Request';
+
+      const type = d.type || d.requestType || 'Request';
+      context.fields.push({ label: 'Request Type', value: type, badgeClass: 'badge badge-secondary' });
+
+      const status = d.status || 'Pending';
+      context.fields.push({ label: 'Status', value: status, badgeClass: 'badge badge-primary' });
+
+      const amount = d.amount;
+      if (amount !== undefined && amount !== null && amount !== '') {
+        context.fields.push({
+          label: 'Amount',
+          value: typeof formatCurrency === 'function' ? formatCurrency(amount) : `₱${Number(amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
+        });
+      }
+
+      const wrId = d.workRequestId || d.work_request_id;
+      let wr = null;
+      if (wrId) {
+        wr = resolveWr(wrId);
+        context.fields.push({
+          label: 'Linked Work Request',
+          value: wr?.title || `WR-${wrId.slice(0, 8)}`,
+          isLink: true,
+          href: `#operations/detail/${wrId}`
+        });
+      }
+
+      const taskId = d.linkedTaskId || d.linked_task_id;
+      if (taskId) {
+        const task = resolveTask(taskId, wr);
+        context.fields.push({
+          label: 'Linked Task',
+          value: task?.title || `Task (${taskId.slice(0, 8)}...)`,
+          isLink: true,
+          href: `#operations/detail/${wrId || task?.workRequestId || ''}?taskId=${taskId}`
+        });
+      }
+
+      const invoiceId = d.invoiceId || d.invoice_id || d.linkedInvoiceId;
+      if (invoiceId) {
+        const inv = resolveInvoice(invoiceId);
+        context.fields.push({
+          label: 'Linked Invoice',
+          value: inv?.invoiceNumber || d.invoiceNumber || `Invoice (${invoiceId.slice(0, 8)}...)`,
+          isLink: true,
+          href: `#billing/detail/${invoiceId}`
+        });
+      }
+
+      const disbId = d.disbursementId || d.disbursement_id || d.linkedDisbursementId;
+      if (disbId) {
+        const db = resolveDisbursement(disbId);
+        context.fields.push({
+          label: 'Linked Disbursement',
+          value: db?.disbursementNumber || d.disbursementNumber || `Disbursement (${disbId.slice(0, 8)}...)`,
+          isLink: true,
+          href: `#disbursement/detail/${disbId}`
+        });
+      }
+
+      return context;
+    }
+
+    // 7. User Management
     if (tableLower.includes('user') || actionLower.includes('user')) {
       context.category = 'User Account Context';
       context.badge = 'User';
@@ -3105,7 +3517,7 @@ const Users = {
       return context;
     }
 
-    // 7. Client Management
+    // 8. Client Management
     if (tableLower.includes('client') || actionLower.includes('client')) {
       context.category = 'Client Profile Context';
       context.badge = 'Client';
@@ -3129,12 +3541,88 @@ const Users = {
 
   async _resolveAuditContext(l) {
     if (!l) return null;
+    const d = (typeof l.details === 'object' && l.details !== null) ? l.details : {};
+    const recId = d.recordId || d.record_id || d.id || d.parentRecordId || l.recordId || l.record_id;
+    const actionLower = (l.action || '').toLowerCase();
+    const tableLower = (l.tableName || l.table_name || '').toLowerCase();
+
     try {
-      await Promise.all([
+      const tasks = [
         window.apiClient?.userCache?.ensure ? window.apiClient.userCache.ensure() : Promise.resolve(),
         window.apiClient?.clientCache?.ensure ? window.apiClient.clientCache.ensure() : Promise.resolve(),
-        window.apiClient?.workRequestCache?.ensure ? window.apiClient.workRequestCache.ensure() : Promise.resolve()
-      ]);
+        window.apiClient?.workRequestCache?.ensure ? window.apiClient.workRequestCache.ensure() : Promise.resolve(),
+        window.apiClient?.transmittalCache?.ensure ? window.apiClient.transmittalCache.ensure() : Promise.resolve()
+      ];
+
+      // Work Request: fetch related records
+      if (tableLower.includes('work') || tableLower.includes('request') || actionLower.includes('work') || actionLower.includes('request')) {
+        if (recId && typeof WorkflowData !== 'undefined' && typeof WorkflowData.loadRelatedForWorkRequest === 'function') {
+          tasks.push(WorkflowData.loadRelatedForWorkRequest(recId).catch(() => null));
+        }
+      } else if (tableLower.includes('task') || actionLower.includes('task')) {
+        const taskId = d.taskId || d.task_id || recId;
+        if (taskId && typeof WorkflowData !== 'undefined' && typeof WorkflowData.loadRelatedForTask === 'function') {
+          tasks.push(WorkflowData.loadRelatedForTask(taskId).catch(() => null));
+        }
+      } else if (tableLower.includes('disbursement') || actionLower.includes('disbursement')) {
+        if (recId && window.apiClient?.disbursements?.get) {
+          tasks.push(
+            window.apiClient.disbursements.get(recId)
+              .then(res => {
+                if (res?.data) {
+                  this._auditDisbursementCache = this._auditDisbursementCache || new Map();
+                  this._auditDisbursementCache.set(recId, res.data);
+                  const wrId = res.data.linked_work_request_id || res.data.linkedWorkRequestId;
+                  if (wrId && typeof WorkflowData !== 'undefined' && typeof WorkflowData.loadRelatedForWorkRequest === 'function') {
+                    return WorkflowData.loadRelatedForWorkRequest(wrId).catch(() => null);
+                  }
+                }
+              })
+              .catch(() => null)
+          );
+        }
+      } else if (tableLower.includes('invoice') || tableLower.includes('billing') || actionLower.includes('invoice') || actionLower.includes('billing')) {
+        if (recId && window.apiClient?.invoices?.get) {
+          tasks.push(
+            window.apiClient.invoices.get(recId)
+              .then(res => {
+                if (res?.data) {
+                  this._auditInvoiceCache = this._auditInvoiceCache || new Map();
+                  this._auditInvoiceCache.set(recId, res.data);
+                  const wrId = res.data.work_request_id || res.data.workRequestId;
+                  if (wrId && typeof WorkflowData !== 'undefined' && typeof WorkflowData.loadRelatedForWorkRequest === 'function') {
+                    return WorkflowData.loadRelatedForWorkRequest(wrId).catch(() => null);
+                  }
+                }
+              })
+              .catch(() => null)
+          );
+        }
+      } else if (tableLower.includes('transmittal') || actionLower.includes('transmittal')) {
+        if (recId && window.apiClient?.transmittals?.get) {
+          tasks.push(
+            window.apiClient.transmittals.get(recId)
+              .then(res => {
+                if (res?.data) {
+                  this._auditTransmittalCache = this._auditTransmittalCache || new Map();
+                  this._auditTransmittalCache.set(recId, res.data);
+                  const wrId = res.data.work_request_id || res.data.workRequestId;
+                  if (wrId && typeof WorkflowData !== 'undefined' && typeof WorkflowData.loadRelatedForWorkRequest === 'function') {
+                    return WorkflowData.loadRelatedForWorkRequest(wrId).catch(() => null);
+                  }
+                }
+              })
+              .catch(() => null)
+          );
+        }
+      } else if (tableLower.includes('operations_request') || actionLower.includes('operations_request') || tableLower.includes('operation_request')) {
+        const wrId = d.workRequestId || d.work_request_id;
+        if (wrId && typeof WorkflowData !== 'undefined' && typeof WorkflowData.loadRelatedForWorkRequest === 'function') {
+          tasks.push(WorkflowData.loadRelatedForWorkRequest(wrId).catch(() => null));
+        }
+      }
+
+      await Promise.all(tasks);
     } catch (e) {
       // ignore
     }
@@ -3241,7 +3729,27 @@ const Users = {
         }));
 
         let valEl;
-        if (f.isLink && f.href) {
+        if (Array.isArray(f.links) && f.links.length > 0) {
+          valEl = el('div', { style: 'display: flex; flex-wrap: wrap; gap: 6px; align-items: center;' });
+          f.links.forEach((lk, idx) => {
+            const linkTag = el('a', {
+              href: lk.href,
+              text: `${lk.text || lk.label} ↗`,
+              style: 'color: var(--color-primary, #2563eb); text-decoration: underline; font-weight: 600; word-break: break-word;',
+              title: lk.hint || 'Navigate to record'
+            });
+            linkTag.addEventListener('click', (e) => {
+              e.preventDefault();
+              const overlay = document.querySelector('.modal-overlay');
+              if (overlay) overlay.remove();
+              this._navigateToItemLink(l, lk.href, lk.entity);
+            });
+            valEl.appendChild(linkTag);
+            if (idx < f.links.length - 1) {
+              valEl.appendChild(el('span', { text: ',', style: 'color: var(--color-text-muted, #64748b);' }));
+            }
+          });
+        } else if (f.isLink && f.href) {
           valEl = el('a', {
             href: f.href,
             text: `${f.value} ↗`,
@@ -3252,7 +3760,7 @@ const Users = {
             e.preventDefault();
             const overlay = document.querySelector('.modal-overlay');
             if (overlay) overlay.remove();
-            this._navigateToItemLink(l, f.href);
+            this._navigateToItemLink(l, f.href, f.entity);
           });
         } else if (f.badgeClass) {
           valEl = el('span', {
