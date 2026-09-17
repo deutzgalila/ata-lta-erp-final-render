@@ -252,7 +252,9 @@ async function nextInvoiceNumber(entity) {
     const api = (typeof window !== 'undefined' && window.apiClient) || null;
     const res = api ? await api.invoices.list({ limit: 500, sortBy: 'createdAt', sortOrder: 'desc', includeDeleted: true }, { headers: { 'X-Active-Entity': resolvedEntity } }) : null;
     const list = res?.data || [];
-    const maxNum = list.reduce((max, inv) => {
+    const localInvoices = (typeof WorkflowData !== 'undefined' && WorkflowData.invoices) || [];
+    const combined = [...list, ...localInvoices];
+    const maxNum = combined.reduce((max, inv) => {
       const numStr = inv.invoice_number || inv.invoiceNumber || '';
       if (!numStr.startsWith(prefix)) return max;
       const parts = numStr.split('-');

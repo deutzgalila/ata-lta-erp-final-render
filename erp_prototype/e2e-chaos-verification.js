@@ -16,7 +16,7 @@ const TEST_AUTH_PASSWORD = process.env.TEST_PASSWORD || process.env.STAGING_TEST
 const ROLES_TO_TEST = [
   {
     key: 'admin',
-    email: process.env.TEST_ADMIN_EMAIL || 'lorein@ata-lta.ph',
+    email: process.env.TEST_ADMIN_EMAIL || 'dev-admin@ata-lta.ph',
     password: process.env.TEST_ADMIN_PASSWORD || TEST_AUTH_PASSWORD,
     role: 'Admin',
     isManagerial: true
@@ -187,7 +187,7 @@ async function runVerification() {
     // -------------------------------------------------------------
     // TEST 4: Admin Module Navigation & Entity Switcher
     // -------------------------------------------------------------
-    await loginUser(page, process.env.TEST_ADMIN_EMAIL || 'lorein@ata-lta.ph', process.env.TEST_ADMIN_PASSWORD || TEST_AUTH_PASSWORD);
+    await loginUser(page, process.env.TEST_ADMIN_EMAIL || 'dev-admin@ata-lta.ph', process.env.TEST_ADMIN_PASSWORD || TEST_AUTH_PASSWORD);
     const modules = ['dashboard', 'clients', 'operations', 'billing', 'disbursement', 'transmittal', 'reports', 'admin'];
     let allNavPassed = true;
     const navDetails = {};
@@ -494,6 +494,55 @@ async function runVerification() {
       'Disbursement Self-Approval Barrier & Enforcement',
       disbSelfApprove.preventsSelfApproval,
       disbSelfApprove
+    );
+
+    // -------------------------------------------------------------
+    // TEST 15: Work Request Detail Header Outline Badge
+    // -------------------------------------------------------------
+    const wrBadgeAnalysis = await page.evaluate(() => {
+      const wfCode = typeof Workflow !== 'undefined' ? (Workflow.render?.toString() || '') : '';
+      const hasWrTitleBadge = wfCode.includes('wr-title-badge');
+      return {
+        hasWrTitleBadge
+      };
+    });
+    recordTest(
+      'CHAOS-WR-02',
+      'Work Request Detail Header Outline Badge Styling',
+      wrBadgeAnalysis.hasWrTitleBadge,
+      wrBadgeAnalysis
+    );
+
+    // -------------------------------------------------------------
+    // TEST 16: Idempotency & Replay Protection Header Presence
+    // -------------------------------------------------------------
+    const idempotencyAnalysis = await page.evaluate(async () => {
+      let interceptedHeader = null;
+      const originalFetch = window.fetch;
+      window.fetch = async (url, init) => {
+        interceptedHeader = (init?.headers && init.headers['Idempotency-Key']) || (init?.headers instanceof Headers ? init.headers.get('Idempotency-Key') : null);
+        return new Response(JSON.stringify({ data: { id: 'test-idemp' } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      };
+      try {
+        if (window.apiClient?.post) {
+          await window.apiClient.post('/idempotency-test', { foo: 'bar' }).catch(() => {});
+        }
+      } finally {
+        window.fetch = originalFetch;
+      }
+      return {
+        hasIdempotencyKey: !!interceptedHeader,
+        interceptedHeader
+      };
+    });
+    recordTest(
+      'CHAOS-API-01',
+      'Client Idempotency Key Generation on Mutating Requests',
+      idempotencyAnalysis.hasIdempotencyKey,
+      idempotencyAnalysis
     );
 
   } catch (err) {

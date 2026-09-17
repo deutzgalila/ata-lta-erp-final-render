@@ -1975,7 +1975,7 @@ const Dashboard = {
               tasks: (raw.tasks || []).map(t => ({ ...t, workRequestId: raw.id })),
             };
           })
-          .filter(wr => wr.id && !existingIds.has(wr.id));
+          .filter(wr => wr.id && !existingIds.has(wr.id) && Auth.canViewWr(wr));
         workRequests.push(...calendarWrs);
       }
     } else {
@@ -2004,7 +2004,7 @@ const Dashboard = {
               tasks: (raw.tasks || []).map(t => ({ ...t, workRequestId: raw.id })),
             };
           })
-          .filter(wr => wr.id && !existingIds.has(wr.id));
+          .filter(wr => wr.id && !existingIds.has(wr.id) && Auth.canViewWr(wr));
         workRequests.push(...calendarWrs);
       }
     }

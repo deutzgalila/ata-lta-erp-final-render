@@ -302,7 +302,7 @@ const canViewWorkRequest = (wr, user, taskMap) => {
   if (!user) return false;
   if (user.role === 'Admin') return true;
   if (isBackOffice(user)) return true;
-  if (wr.submitted_by === user.id || wr.requested_by === user.id) return true;
+  if (wr.submitted_by === user.id || wr.requested_by === user.id || wr.assigned_to === user.id) return true;
   const tasks = taskMap.get(wr.id) || [];
   return tasks.some((t) => {
     if (t.assignee_id === user.id || t.assignee_name === user.name) return true;
@@ -375,7 +375,7 @@ const listWorkRequests = async ({
     const allWrIds = (data || []).map((r) => r.id);
     allTaskMap = await loadTasksForWorkRequests(allWrIds);
     visibleRows = (data || []).filter((row) => {
-      if (row.submitted_by === user.id || row.requested_by === user.id) return true;
+      if (row.submitted_by === user.id || row.requested_by === user.id || row.assigned_to === user.id) return true;
       const tasks = allTaskMap.get(row.id) || [];
       return tasks.some((t) => t.assignee_id === user.id || t.assignee_name === user.name);
     });
