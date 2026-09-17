@@ -1922,11 +1922,39 @@ const Dashboard = {
     let workRequests = [];
 
     if (isConsolidated) {
-      // In consolidated mode the dashboard endpoint returns calendar items from
-      // both entities. Build the work-request list from those instead of calling
-      // the entity-scoped list endpoint, which only supports a single entity.
+      // The dashboard report's calendar only covers overdue items plus the
+      // coming 30 days. The per-entity view builds its calendar from the full
+      // work-request list instead, so the consolidated view must do the same
+      // or any WR with no due date (or due beyond 30 days) silently vanishes
+      // from the calendar. The list endpoint is single-entity, so fetch each
+      // entity explicitly via header override (the consolidated gate on the
+      // backend already guarantees the user may access both).
+      const userEntities = (Auth.user?.entities || [])
+        .map(e => (e || '').toUpperCase())
+        .filter(e => e === 'ATA' || e === 'LTA');
+      const wrLists = await Promise.all(userEntities.map(ent =>
+        window.apiClient.workRequests.list({ includeTasks: true }, {
+          signal,
+          headers: { 'X-Active-Entity': ent },
+        }).catch(err => {
+          if (!isAbortError(err)) console.warn(`Work requests fetch failed for ${ent}:`, err);
+          return { data: [] };
+        })
+      ));
+      wrLists.forEach((res, idx) => {
+        const ent = userEntities[idx];
+        (res.data || []).forEach(wr => workRequests.push({
+          ...wr,
+          entity: (wr.entity || ent || active).toUpperCase(),
+          tasks: (wr.tasks || []).map(t => ({ ...t, workRequestId: wr.id })),
+        }));
+      });
+
+      // Merge any calendar-sourced work requests the lists did not include
+      // (e.g. freshly created items), without duplicating IDs.
       if (Array.isArray(dash.calendar)) {
-        workRequests = dash.calendar
+        const existingIds = new Set(workRequests.map(wr => wr.id));
+        const calendarWrs = dash.calendar
           .filter(ev => ev.type === 'wr')
           .map(ev => {
             const raw = ev.data || ev;
@@ -1937,10 +1965,11 @@ const Dashboard = {
               tasks: (raw.tasks || []).map(t => ({ ...t, workRequestId: raw.id })),
             };
           })
-          .filter(wr => wr.id);
+          .filter(wr => wr.id && !existingIds.has(wr.id));
+        workRequests.push(...calendarWrs);
       }
     } else {
-      const wrRes = await window.apiClient.workRequests.list({ includeTasks: true, signal }).catch(err => {
+      const wrRes = await window.apiClient.workRequests.list({ includeTasks: true }, { signal }).catch(err => {
         if (!isAbortError(err)) console.warn('Work requests fetch failed:', err);
         return { data: [] };
       });

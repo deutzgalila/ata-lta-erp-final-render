@@ -290,7 +290,10 @@
    */
   const get = (path, options = {}) => {
     const url = `${API_BASE_URL}${path}`;
-    const entity = getActiveEntity();
+    // Key on the EFFECTIVE entity: an explicit X-Active-Entity override (e.g.
+    // per-entity fetches while the consolidated view is active) must produce
+    // distinct cache/dedupe entries per entity.
+    const entity = options.headers?.['X-Active-Entity'] || getActiveEntity();
     const key = `GET ${url} ${entity || ''}`;
 
     // If the caller supplied their own signal, do not deduplicate; start fresh.
@@ -727,11 +730,11 @@
     },
 
     workRequests: {
-      list: (query = {}) => {
+      list: (query = {}, options = {}) => {
         const qs = new URLSearchParams();
         Object.entries(query).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') qs.append(k, v); });
         const q = qs.toString();
-        return get(`/work-requests${q ? '?' + q : ''}`);
+        return get(`/work-requests${q ? '?' + q : ''}`, options);
       },
       counts: (entityId) => cachedCount(
         `workRequests.counts:${entityId || getActiveEntity() || 'none'}`,
