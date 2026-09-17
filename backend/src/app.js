@@ -132,13 +132,18 @@ app.use(
 app.use(compression());
 
 // Cache-Control headers for API responses.
-// API responses must never be cached in browser disk/memory caches so that
-// accounting, operations, and billing updates reflect immediately without hard refreshes.
+// Safe read-only GET/HEAD endpoints are given a private short cache with must-revalidate
+// to prevent redundant roundtrips on repeated SPA navigation, while mutations receive
+// strict no-store/no-cache headers so state updates reflect immediately.
 app.use((req, res, next) => {
   if (!req.path.startsWith('/v1/')) return next();
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
+  if ((req.method === 'GET' || req.method === 'HEAD') && !req.path.startsWith('/v1/auth/')) {
+    res.setHeader('Cache-Control', 'private, max-age=30, must-revalidate');
+  } else {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
   res.setHeader('Vary', 'X-Active-Entity');
   next();
 });

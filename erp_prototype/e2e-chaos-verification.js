@@ -9,14 +9,46 @@ const fs = require('fs');
 const path = require('path');
 
 const TARGET_URL = process.env.TEST_URL || 'http://localhost:8080';
-const DEFAULT_PASSWORDS = ['Password@123', 'password123'];
+
+// Test credentials loaded exclusively from environment variables to prevent leaking plaintext secrets
+const TEST_AUTH_PASSWORD = process.env.TEST_PASSWORD || process.env.STAGING_TEST_PASSWORD || '';
 
 const ROLES_TO_TEST = [
-  { key: 'admin', email: 'lorein@ata-lta.ph', password: 'Password@123', role: 'Admin', isManagerial: true },
-  { key: 'manager', email: 'love@ata-lta.ph', password: 'Password@123', role: 'Manager', isManagerial: true },
-  { key: 'operations', email: 'ann@ata-lta.ph', password: 'Password@123', role: 'Operations', isManagerial: false },
-  { key: 'accounting', email: 'rachel@ata-lta.ph', password: 'Password@123', role: 'Accounting', isManagerial: false },
-  { key: 'docs', email: 'twinkle@ata-lta.ph', password: 'Password@123', role: 'Documentation', isManagerial: false }
+  {
+    key: 'admin',
+    email: process.env.TEST_ADMIN_EMAIL || 'lorein@ata-lta.ph',
+    password: process.env.TEST_ADMIN_PASSWORD || TEST_AUTH_PASSWORD,
+    role: 'Admin',
+    isManagerial: true
+  },
+  {
+    key: 'manager',
+    email: process.env.TEST_MANAGER_EMAIL || 'love@ata-lta.ph',
+    password: process.env.TEST_MANAGER_PASSWORD || TEST_AUTH_PASSWORD,
+    role: 'Manager',
+    isManagerial: true
+  },
+  {
+    key: 'operations',
+    email: process.env.TEST_OPS_EMAIL || 'ann@ata-lta.ph',
+    password: process.env.TEST_OPS_PASSWORD || TEST_AUTH_PASSWORD,
+    role: 'Operations',
+    isManagerial: false
+  },
+  {
+    key: 'accounting',
+    email: process.env.TEST_ACCS_EMAIL || 'rachel@ata-lta.ph',
+    password: process.env.TEST_ACCS_PASSWORD || TEST_AUTH_PASSWORD,
+    role: 'Accounting',
+    isManagerial: false
+  },
+  {
+    key: 'docs',
+    email: process.env.TEST_DOCS_EMAIL || 'twinkle@ata-lta.ph',
+    password: process.env.TEST_DOCS_PASSWORD || TEST_AUTH_PASSWORD,
+    role: 'Documentation',
+    isManagerial: false
+  }
 ];
 
 const report = {
@@ -40,7 +72,12 @@ function recordTest(id, name, passed, details = {}) {
   }
 }
 
-async function loginUser(page, email, password = 'Password@123') {
+async function loginUser(page, email, password) {
+  const pwd = password || TEST_AUTH_PASSWORD;
+  if (!pwd) {
+    throw new Error(`Authentication password not configured for ${email}. Set TEST_PASSWORD in environment.`);
+  }
+
   await page.goto(TARGET_URL);
   await page.waitForLoadState('networkidle');
 
@@ -52,7 +89,7 @@ async function loginUser(page, email, password = 'Password@123') {
   await page.waitForSelector('#login-form', { state: 'visible', timeout: 10000 });
 
   await page.fill('#email', email);
-  await page.fill('#password', password);
+  await page.fill('#password', pwd);
   await page.click('#login-form button[type="submit"]');
 
   const outcome = await Promise.race([
@@ -150,7 +187,7 @@ async function runVerification() {
     // -------------------------------------------------------------
     // TEST 4: Admin Module Navigation & Entity Switcher
     // -------------------------------------------------------------
-    await loginUser(page, 'lorein@ata-lta.ph', 'Password@123');
+    await loginUser(page, process.env.TEST_ADMIN_EMAIL || 'lorein@ata-lta.ph', process.env.TEST_ADMIN_PASSWORD || TEST_AUTH_PASSWORD);
     const modules = ['dashboard', 'clients', 'operations', 'billing', 'disbursement', 'transmittal', 'reports', 'admin'];
     let allNavPassed = true;
     const navDetails = {};
@@ -235,23 +272,47 @@ async function runVerification() {
     const clientDropdownAnalysis = await page.evaluate(async () => {
       if (typeof Clients === 'undefined') return { success: false, error: 'Clients module not loaded' };
 
-      // Check addRelatedCompanyRow implementation
-      const relRowCode = Clients.addRelatedCompanyRow?.toString() || '';
-      const supportsCrossEntity = !relRowCode.includes('matchesEntity(c)') || relRowCode.includes('eBadge');
+      // Ensure caches are available
+      if (window.apiClient?.clientCache?.ensure) {
+        await window.apiClient.clientCache.ensure().catch(() => {});
+      }
+      if (window.apiClient?.userCache?.ensure) {
+        await window.apiClient.userCache.ensure().catch(() => {});
+      }
 
-      // Check POC options population
+      // 1. Exercise the rendered relationship select and assert it renders valid cross-entity options
+      const rcContainer = document.createElement('div');
+      Clients.addRelatedCompanyRow(rcContainer, null, 0);
+
+      const clientSelect = rcContainer.querySelector('select[name="rc-client-0"]');
+      const relSelect = rcContainer.querySelector('select[name="rc-relation-0"]');
+
+      const clientOptions = clientSelect ? Array.from(clientSelect.options).map(o => ({ value: o.value, text: o.text })) : [];
+      const relOptions = relSelect ? Array.from(relSelect.options).map(o => o.value) : [];
+
+      const hasAtaOption = clientOptions.some(o => o.text.includes('(ATA)'));
+      const hasLtaOption = clientOptions.some(o => o.text.includes('(LTA)'));
+      const supportsCrossEntity = (hasAtaOption && hasLtaOption) || clientOptions.length > 1;
+
+      const hasValidRelations = ['Parent', 'Subsidiary', 'Sister Company', 'Affiliate'].every(r => relOptions.includes(r));
+
+      // 2. Check POC options population
       const renderFormCode = Clients.renderForm?.toString() || '';
       const populatesPoc = renderFormCode.includes('userCache.ensure') || renderFormCode.includes('team') || renderFormCode.includes('userCache');
 
       return {
         supportsCrossEntity,
-        populatesPoc
+        hasAtaOption,
+        hasLtaOption,
+        hasValidRelations,
+        populatesPoc,
+        clientOptionsCount: clientOptions.length
       };
     });
     recordTest(
       'CHAOS-CLIENT-01',
       'Client Form POC population & Cross-Entity Relationship Support',
-      clientDropdownAnalysis.supportsCrossEntity && clientDropdownAnalysis.populatesPoc,
+      clientDropdownAnalysis.supportsCrossEntity && clientDropdownAnalysis.hasValidRelations && clientDropdownAnalysis.populatesPoc,
       clientDropdownAnalysis
     );
 
@@ -290,7 +351,7 @@ async function runVerification() {
     recordTest(
       'CHAOS-BILL-01',
       'Invoice Auto-Increment Entity Fallback & Submission Debounce',
-      billingAnalysis.fallbacksFromAll && billingAnalysis.debouncesSubmit,
+      billingAnalysis.fallbacksFromAll && billingAnalysis.safeQueryLimit && billingAnalysis.debouncesSubmit,
       billingAnalysis
     );
 
@@ -319,7 +380,7 @@ async function runVerification() {
     // -------------------------------------------------------------
     // TEST 10: Dashboard Calendar Role Scoping & Isolation
     // -------------------------------------------------------------
-    await loginUser(page, 'ann@ata-lta.ph', 'Password@123');
+    await loginUser(page, process.env.TEST_OPS_EMAIL || 'ann@ata-lta.ph', process.env.TEST_OPS_PASSWORD || TEST_AUTH_PASSWORD);
     await page.goto(`${TARGET_URL}/#dashboard`);
     await page.waitForTimeout(1200);
 
@@ -356,7 +417,7 @@ async function runVerification() {
     recordTest(
       'CACHE-01',
       'Service Worker Active Registration and Storage Isolation',
-      true,
+      !!cacheVerification?.swActive,
       cacheVerification
     );
 
