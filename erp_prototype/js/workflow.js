@@ -8228,12 +8228,23 @@ const Workflow = {
   },
 
   async submitForm(form) {
-    const isResubmitting = typeof PendingChanges !== 'undefined' && PendingChanges.editingPendingId;
-    // Temporarily enable disabled fields so FormData picks them up
-    const disabledFields = form.querySelectorAll('[disabled]');
-    disabledFields.forEach(f => f.disabled = false);
-    if (!validateRequiredFields(form)) { disabledFields.forEach(f => f.disabled = true); return; }
-    if (!this.validateManualAssignees(form)) { disabledFields.forEach(f => f.disabled = true); return; }
+    if (this._isSubmittingWr) return;
+    const submitBtn = form.querySelector('button[type="submit"]') || form.querySelector('.btn-primary') || document.querySelector('button[form="wr-form"]');
+    const originalBtnHtml = submitBtn ? submitBtn.innerHTML : null;
+    this._isSubmittingWr = true;
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.classList.add('loading');
+      submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving...';
+    }
+
+    try {
+      const isResubmitting = typeof PendingChanges !== 'undefined' && PendingChanges.editingPendingId;
+      // Temporarily enable disabled fields so FormData picks them up
+      const disabledFields = form.querySelectorAll('[disabled]');
+      disabledFields.forEach(f => f.disabled = false);
+      if (!validateRequiredFields(form)) { disabledFields.forEach(f => f.disabled = true); return; }
+      if (!this.validateManualAssignees(form)) { disabledFields.forEach(f => f.disabled = true); return; }
     const data = Object.fromEntries(new FormData(form).entries());
     let entity = Auth.activeEntity;
     if (entity === 'ALL') {
@@ -8573,6 +8584,14 @@ const Workflow = {
 
     if (!runResult.success) {
       App.handleRoute();
+    }
+    } finally {
+      this._isSubmittingWr = false;
+      if (submitBtn && originalBtnHtml) {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('loading');
+        submitBtn.innerHTML = originalBtnHtml;
+      }
     }
   },
 
@@ -13895,86 +13914,105 @@ const Workflow = {
       predMenu.appendChild(optionEl);
     });
 
+    let isSubmitting = false;
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (isSubmitting) return;
       if (!validateRequiredFields(form)) return;
-      const groundWorkerName = gwDropdown.searchText.trim();
-      const groundWorkerId = gwDropdown.value || null;
-      const data = Object.fromEntries(new FormData(form).entries());
-      const allExistingIds = existingTasks.map(t => t.id);
-      const predecessors = selectedPreds.includes('*') ? allExistingIds : selectedPreds;
-
-      const res = await this.resolveAssignee(groundWorkerName, groundWorkerId);
-      let resolvedName = res.name;
-      if (!resolvedName && res.id) {
-        const u = window.apiClient?.userCache?.getById?.(res.id);
-        const gw = typeof this._getGroundWorkerById === 'function' ? this._getGroundWorkerById(res.id) : null;
-        resolvedName = u?.name || gw?.name || null;
+      const submitBtn = form.querySelector('button[type="submit"]') || document.querySelector('button[form="add-task-form"]');
+      const origHtml = submitBtn ? submitBtn.innerHTML : null;
+      isSubmitting = true;
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.classList.add('loading');
+        submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Adding...';
       }
+      try {
+        const groundWorkerName = gwDropdown.searchText.trim();
+        const groundWorkerId = gwDropdown.value || null;
+        const data = Object.fromEntries(new FormData(form).entries());
+        const allExistingIds = existingTasks.map(t => t.id);
+        const predecessors = selectedPreds.includes('*') ? allExistingIds : selectedPreds;
 
-      const newTask = {
-        id: generateId('t'),
-        workRequestId: wrId,
-        title: data.title.trim(),
-        requiredLinkType: reqLinkSel.value || '',
-        assigneeId: res.id,
-        assigneeName: resolvedName,
-        coAssignees: isDraft ? coAssignees.filter(Boolean) : [],
-        status: (resolvedName || coAssignees.length > 0) ? 'Assigned' : 'Draft',
-        priority: data.priority || 'Priority',
-        dueDate: data.dueDate || '',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        predecessors,
-        checklist: checklistItems.map(item => this.createChecklistItemData(item)),
-        timeLogs: [],
-        taskDocuments: [],
-        comments: []
-      };
+        const res = await this.resolveAssignee(groundWorkerName, groundWorkerId);
+        let resolvedName = res.name;
+        if (!resolvedName && res.id) {
+          const u = window.apiClient?.userCache?.getById?.(res.id);
+          const gw = typeof this._getGroundWorkerById === 'function' ? this._getGroundWorkerById(res.id) : null;
+          resolvedName = u?.name || gw?.name || null;
+        }
 
-      let submitResult = null;
+        const newTask = {
+          id: generateId('t'),
+          workRequestId: wrId,
+          title: data.title.trim(),
+          requiredLinkType: reqLinkSel.value || '',
+          assigneeId: res.id,
+          assigneeName: resolvedName,
+          coAssignees: isDraft ? coAssignees.filter(Boolean) : [],
+          status: (resolvedName || coAssignees.length > 0) ? 'Assigned' : 'Draft',
+          priority: data.priority || 'Priority',
+          dueDate: data.dueDate || '',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          predecessors,
+          checklist: checklistItems.map(item => this.createChecklistItemData(item)),
+          timeLogs: [],
+          taskDocuments: [],
+          comments: []
+        };
 
-      const runResult = await this.runBlockingArchiveAction({
-        title: 'Adding Task',
-        message: `Please wait while "${newTask.title || 'the task'}" is being added...`,
-        apiCall: async () => {
-          submitResult = await PendingChanges.submit('tasks', newTask, true);
-          if (submitResult.approved) {
-            // Optimistic insert so counts update immediately under the overlay.
-            WorkflowData._addOptimisticTask(newTask);
-            try {
-              if (submitResult.record) {
-                const serverTask = WorkflowData.normalizeTask(submitResult.record);
-                serverTask.workRequestId = newTask.workRequestId;
+        let submitResult = null;
+
+        const runResult = await this.runBlockingArchiveAction({
+          title: 'Adding Task',
+          message: `Please wait while "${newTask.title || 'the task'}" is being added...`,
+          apiCall: async () => {
+            submitResult = await PendingChanges.submit('tasks', newTask, true);
+            if (submitResult.approved) {
+              // Optimistic insert so counts update immediately under the overlay.
+              WorkflowData._addOptimisticTask(newTask);
+              try {
+                if (submitResult.record) {
+                  const serverTask = WorkflowData.normalizeTask(submitResult.record);
+                  serverTask.workRequestId = newTask.workRequestId;
+                  WorkflowData._removeTask(newTask.id);
+                  this._syncTaskToCaches(serverTask);
+                  return { data: serverTask };
+                }
+                const created = await WorkflowData.createTask(newTask);
+                this._syncTaskToCaches(created);
+                return { data: created };
+              } catch (e) {
+                console.error('Failed to add task', e);
                 WorkflowData._removeTask(newTask.id);
-                this._syncTaskToCaches(serverTask);
-                return { data: serverTask };
+                throw e;
               }
-              const created = await WorkflowData.createTask(newTask);
-              this._syncTaskToCaches(created);
-              return { data: created };
-            } catch (e) {
-              console.error('Failed to add task', e);
-              WorkflowData._removeTask(newTask.id);
-              throw e;
+            } else {
+              return { data: submitResult };
             }
-          } else {
-            return { data: submitResult };
-          }
-        },
-        successTitle: 'Task Added',
-        successMessage: () => submitResult && submitResult.approved
-          ? 'Task has been added to the work request.'
-          : 'Task addition has been submitted for Manager approval.',
-        errorTitle: 'Failed to Add Task'
-      });
+          },
+          successTitle: 'Task Added',
+          successMessage: () => submitResult && submitResult.approved
+            ? 'Task has been added to the work request.'
+            : 'Task addition has been submitted for Manager approval.',
+          errorTitle: 'Failed to Add Task'
+        });
 
-      if (runResult.success) {
-        if (typeof Dashboard !== 'undefined' && Dashboard.invalidateCache) Dashboard.invalidateCache();
-        this._invalidateCountsAndSidebar();
-        closeFormPanelAndRoute('#operations/detail/' + wrId);
-      } else {
-        App.handleRoute();
+        if (runResult.success) {
+          if (typeof Dashboard !== 'undefined' && Dashboard.invalidateCache) Dashboard.invalidateCache();
+          this._invalidateCountsAndSidebar();
+          closeFormPanelAndRoute('#operations/detail/' + wrId);
+        } else {
+          App.handleRoute();
+        }
+      } finally {
+        isSubmitting = false;
+        if (submitBtn && origHtml) {
+          submitBtn.disabled = false;
+          submitBtn.classList.remove('loading');
+          submitBtn.innerHTML = origHtml;
+        }
       }
     });
 

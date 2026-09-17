@@ -4596,6 +4596,15 @@ tbody tr:hover {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  padding: 3px 6px;
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 4px;
+}
+
+[data-theme="dark"] .board-card-v2.compact .card-v2-title {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 /* 3. Description (client name) */

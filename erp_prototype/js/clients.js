@@ -1608,11 +1608,10 @@ const Clients = {
     if (allClients.length === 0 && window.apiClient?.clientCache) {
       allClients = window.apiClient.clientCache.getAll?.() || window.apiClient.clientCache._clients || [];
     }
-    allClients.filter(c => {
-      return matchesEntity(c.entity, entity);
-    }).forEach(c => {
+    allClients.forEach(c => {
       if (this.editingId && c.id === this.editingId) return;
-      clientSel.appendChild(el('option', { value: c.id, text: c.name }));
+      const entityTag = c.entity ? ` (${c.entity})` : '';
+      clientSel.appendChild(el('option', { value: c.id, text: `${c.name}${entityTag}` }));
     });
     if (data && data.clientId) clientSel.value = data.clientId;
     const relSel = el('select', { class: 'notion-line-item-type', name: 'rc-relation-' + idx, style: 'flex: 0 0 150px;' });
@@ -1639,11 +1638,22 @@ const Clients = {
   },
 
   async submitForm(form) {
-    if (Auth.user?.role !== 'Admin') {
-      Workflow.showMessage('Access Denied', 'Only admin accounts can create or edit clients.', 'danger');
-      return;
+    if (this._isSubmittingClient) return;
+    const submitBtn = form.querySelector('button[type="submit"]') || form.querySelector('.btn-primary') || document.querySelector('button[form="client-form"]');
+    const originalBtnHtml = submitBtn ? submitBtn.innerHTML : null;
+    this._isSubmittingClient = true;
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.classList.add('loading');
+      submitBtn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving...';
     }
-    if (!validateRequiredFields(form)) return;
+
+    try {
+      if (Auth.user?.role !== 'Admin') {
+        Workflow.showMessage('Access Denied', 'Only admin accounts can create or edit clients.', 'danger');
+        return;
+      }
+      if (!validateRequiredFields(form)) return;
     const isResubmitting = typeof PendingChanges !== 'undefined' && PendingChanges.editingPendingId;
 
     const data = Object.fromEntries(new FormData(form).entries());
@@ -1883,6 +1893,14 @@ const Clients = {
         }
       }
     });
+    } finally {
+      this._isSubmittingClient = false;
+      if (submitBtn && originalBtnHtml) {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('loading');
+        submitBtn.innerHTML = originalBtnHtml;
+      }
+    }
   },
 
   async archiveClientDirectly(clientId) {

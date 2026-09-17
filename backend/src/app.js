@@ -132,18 +132,14 @@ app.use(
 app.use(compression());
 
 // Cache-Control headers for API responses.
-// GET /v1/* responses are cacheable for 30s to reduce redundant round-trips
-// during rapid SPA navigation. Mutations always get no-store.
+// API responses must never be cached in browser disk/memory caches so that
+// accounting, operations, and billing updates reflect immediately without hard refreshes.
 app.use((req, res, next) => {
   if (!req.path.startsWith('/v1/')) return next();
-  if (req.method === 'GET' || req.method === 'HEAD') {
-    res.setHeader('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
-    // The active entity is sent in a header, not the URL, so vary the cache by it.
-    // Without this, switching between ATA/LTA/ALL serves the previous entity's data.
-    res.setHeader('Vary', 'X-Active-Entity');
-  } else {
-    res.setHeader('Cache-Control', 'no-store');
-  }
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Vary', 'X-Active-Entity');
   next();
 });
 
