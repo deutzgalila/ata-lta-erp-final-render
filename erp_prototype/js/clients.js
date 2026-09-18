@@ -456,13 +456,17 @@ const Clients = {
         value: cd.value,
         label: cd.label || null
       })),
-      relatedCompanies: (client.relatedCompanies || client.related_companies || []).map(rc => ({
-        clientId: rc.clientId || rc.relatedClientId || rc.related_client_id,
-        relatedClientId: rc.clientId || rc.relatedClientId || rc.related_client_id,
-        relationType: rc.relationType || rc.relationship || rc.relation_type,
-        relationship: rc.relationType || rc.relationship || rc.relation_type,
-        id: rc.id
-      }))
+      relatedCompanies: (client.relatedCompanies || client.related_companies || []).map(rc => {
+        const targetId = rc.relatedClientId || rc.related_client_id || rc.clientId;
+        const rel = rc.relationship || rc.relationType || rc.relation_type || '';
+        return {
+          id: rc.id,
+          clientId: targetId,
+          relatedClientId: targetId,
+          relationType: rel,
+          relationship: rel
+        };
+      })
     };
   },
 
@@ -1091,8 +1095,9 @@ const Clients = {
 
       // 10. Related Companies
       const rcList = (client.relatedCompanies || []).map(rc => {
-        const rcClient = window.apiClient.clientCache.getById(rc.clientId);
-        return (rcClient?.name || '—') + ' (' + rc.relationType + ')';
+        const targetId = rc.relatedClientId || rc.related_client_id || rc.clientId;
+        const rcClient = window.apiClient.clientCache.getById(targetId);
+        return (rcClient?.name || '—') + ' (' + (rc.relationType || rc.relationship) + ')';
       }).join(', ') || '—';
       const tdRc = el('td', { text: rcList });
       tr.appendChild(tdRc);
@@ -1192,8 +1197,9 @@ const Clients = {
       }
 
       const relCos = (client.relatedCompanies || []).map(rc => {
-        const rcClient = window.apiClient.clientCache.getById(rc.clientId);
-        return (rcClient?.name || '—') + ' (' + rc.relationType + ')';
+        const targetId = rc.relatedClientId || rc.related_client_id || rc.clientId;
+        const rcClient = window.apiClient.clientCache.getById(targetId);
+        return (rcClient?.name || '—') + ' (' + (rc.relationType || rc.relationship) + ')';
       }).join(', ');
       addGridRow('Related Companies', relCos);
 
@@ -1648,8 +1654,8 @@ const Clients = {
       const entityTag = c.entity ? ` (${c.entity})` : '';
       clientSel.appendChild(el('option', { value: c.id, text: `${c.name}${entityTag}` }));
     });
-    if (data && (data.clientId || data.relatedClientId || data.related_client_id)) {
-      clientSel.value = data.clientId || data.relatedClientId || data.related_client_id;
+    if (data && (data.relatedClientId || data.related_client_id || data.clientId)) {
+      clientSel.value = data.relatedClientId || data.related_client_id || data.clientId;
     }
     const relSel = el('select', { class: 'notion-line-item-type', name: 'rc-relation-' + idx, style: 'flex: 0 0 150px;' });
     ['Parent', 'Subsidiary', 'Sister Company', 'Affiliate'].forEach(r => {
@@ -1760,10 +1766,15 @@ const Clients = {
     const rcContainer = document.getElementById('related-companies-container');
     if (rcContainer) {
       rcContainer.querySelectorAll('.notion-sub-row').forEach(row => {
-        const clientId = row.querySelector('select[name^="rc-client-"]')?.value;
+        const targetClientId = row.querySelector('select[name^="rc-client-"]')?.value;
         const relationType = row.querySelector('select[name^="rc-relation-"]')?.value;
-        if (clientId && relationType) {
-          relatedCompanies.push({ clientId, relationType });
+        if (targetClientId && relationType) {
+          relatedCompanies.push({
+            clientId: targetClientId,
+            relatedClientId: targetClientId,
+            relationType,
+            relationship: relationType
+          });
         }
       });
     }

@@ -568,13 +568,17 @@
             value: cd.value,
             label: cd.label || null
           })),
-          relatedCompanies: (client.relatedCompanies || client.related_companies || []).map(rc => ({
-            clientId: rc.clientId || rc.relatedClientId || rc.related_client_id,
-            relatedClientId: rc.clientId || rc.relatedClientId || rc.related_client_id,
-            relationType: rc.relationType || rc.relationship || rc.relation_type,
-            relationship: rc.relationType || rc.relationship || rc.relation_type,
-            id: rc.id
-          }))
+          relatedCompanies: (client.relatedCompanies || client.related_companies || []).map(rc => {
+            const targetId = rc.relatedClientId || rc.related_client_id || rc.clientId;
+            const rel = rc.relationship || rc.relationType || rc.relation_type || '';
+            return {
+              id: rc.id,
+              clientId: targetId,
+              relatedClientId: targetId,
+              relationType: rel,
+              relationship: rel
+            };
+          })
         };
       },
       getById(id) {
