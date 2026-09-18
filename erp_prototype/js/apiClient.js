@@ -556,10 +556,23 @@
         if (!client) return client;
         return {
           ...client,
-          relatedCompanies: (client.relatedCompanies || []).map(rc => ({
-            clientId: rc.relatedClientId || rc.clientId,
-            relationType: rc.relationship || rc.relationType,
-            relationship: rc.relationship || rc.relationType,
+          tradeName: client.tradeName || client.trade_name || '',
+          rdoCode: client.rdoCode || client.rdo_code || '',
+          contactUserId: client.contactUserId || client.contact_user_id || null,
+          contactPerson: client.contactPerson || client.contact_person || '',
+          retainer: client.retainer ?? client.isRetainer ?? false,
+          retainerFee: client.retainerFee != null ? client.retainerFee : (client.retainer_fee != null ? client.retainer_fee : null),
+          contactDetails: (client.contactDetails || client.contact_details || []).map(cd => ({
+            id: cd.id,
+            type: cd.type,
+            value: cd.value,
+            label: cd.label || null
+          })),
+          relatedCompanies: (client.relatedCompanies || client.related_companies || []).map(rc => ({
+            clientId: rc.clientId || rc.relatedClientId || rc.related_client_id,
+            relatedClientId: rc.clientId || rc.relatedClientId || rc.related_client_id,
+            relationType: rc.relationType || rc.relationship || rc.relation_type,
+            relationship: rc.relationType || rc.relationship || rc.relation_type,
             id: rc.id
           }))
         };

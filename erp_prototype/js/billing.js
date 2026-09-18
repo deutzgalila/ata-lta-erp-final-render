@@ -3175,7 +3175,18 @@ const Billing = {
 
     const entity = Auth.activeEntity;
     const activeId = invoiceId || this.detailId;
-    const inv = activeId ? this.getInvoiceById(activeId) : null;
+    let inv = activeId ? this.getInvoiceById(activeId) : null;
+    if (activeId && activeId !== "new" && (!inv || !inv.lineItems || inv.lineItems.length === 0)) {
+      try {
+        const res = await window.apiClient.invoices.get(activeId);
+        if (res?.data) {
+          inv = this.normalizeInvoice(res.data);
+          this._detailCache[activeId] = inv;
+        }
+      } catch (e) {
+        if (!isAbortError(e)) console.error("Failed to load invoice for editing", e);
+      }
+    }
     const opReq = this._prefilledOpReq || null;
     const prefill =
       this.pendingPrefill ||
