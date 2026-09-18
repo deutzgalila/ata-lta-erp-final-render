@@ -492,8 +492,16 @@ function attachPaneFormGuard(form, opts = {}) {
     baseline: JSON.stringify(_serializeFormState(form)),
     dirty: !!restoredDraft,
     saveTimer: null,
+    lastFocusedField: null,
   };
   pane._formGuard = state;
+
+  const onFocusIn = (e) => {
+    if (e.target && form.contains(e.target) && typeof e.target.focus === 'function') {
+      state.lastFocusedField = e.target;
+    }
+  };
+  form.addEventListener('focusin', onFocusIn);
 
   const onMutate = (e) => {
     if (e.target && e.target.name && (e.target.type === 'file' || e.target.type === 'password')) return;
@@ -519,6 +527,7 @@ function attachPaneFormGuard(form, opts = {}) {
   const detach = () => {
     form.removeEventListener('input', onMutate);
     form.removeEventListener('change', onMutate);
+    form.removeEventListener('focusin', onFocusIn);
     clearTimeout(state.saveTimer);
     if (pane._formGuard === state) pane._formGuard = null;
   };
@@ -543,6 +552,7 @@ window.markPaneFormClean = markPaneFormClean;
 /** Show a lightweight bottom-sheet prompt asking to discard unsaved changes. */
 function showDiscardChangesPrompt({ onDiscard, onKeep }) {
   document.querySelectorAll('.discard-guard-overlay').forEach(o => o.remove());
+  const previousFocus = document.activeElement;
   const overlay = el('div', { class: 'discard-guard-overlay' });
   const sheet = el('div', { class: 'discard-guard-sheet', role: 'alertdialog', 'aria-modal': 'true' });
   sheet.appendChild(el('div', { class: 'discard-guard-title', text: 'Unsaved changes' }));
@@ -550,13 +560,75 @@ function showDiscardChangesPrompt({ onDiscard, onKeep }) {
   const actions = el('div', { class: 'discard-guard-actions' });
   const keepBtn = el('button', { class: 'btn btn-primary btn-sm', text: 'Keep editing' });
   const discardBtn = el('button', { class: 'btn btn-danger btn-sm', text: 'Discard changes' });
-  keepBtn.addEventListener('click', () => { overlay.remove(); if (onKeep) onKeep(); });
-  discardBtn.addEventListener('click', () => { overlay.remove(); if (onDiscard) onDiscard(); });
+
+  let cleanedUp = false;
+  const cleanup = () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    document.removeEventListener('keydown', onKeyDown, true);
+    overlay.remove();
+  };
+
+  const handleKeep = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+    }
+    cleanup();
+    const targetField = (window.SidePaneInstance?._formGuard?.lastFocusedField && document.body.contains(window.SidePaneInstance._formGuard.lastFocusedField))
+      ? window.SidePaneInstance._formGuard.lastFocusedField
+      : (previousFocus && typeof previousFocus.focus === 'function' && document.body.contains(previousFocus) && previousFocus !== document.body ? previousFocus : null);
+
+    if (targetField && typeof targetField.focus === 'function') {
+      try {
+        targetField.focus();
+        if (typeof targetField.setSelectionRange === 'function' && (targetField.type === 'text' || targetField.type === 'search' || targetField.tagName === 'TEXTAREA')) {
+          const len = targetField.value ? targetField.value.length : 0;
+          targetField.setSelectionRange(len, len);
+        }
+      } catch (err) {}
+    } else if (window.SidePaneInstance?.pane) {
+      const firstInput = window.SidePaneInstance.pane.querySelector('input:not([type="hidden"]), textarea, select');
+      if (firstInput && typeof firstInput.focus === 'function') {
+        try { firstInput.focus(); } catch (err) {}
+      }
+    }
+    if (onKeep) onKeep();
+  };
+
+  const handleDiscard = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+    }
+    cleanup();
+    if (onDiscard) onDiscard();
+  };
+
+  const onKeyDown = (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+      handleKeep(e);
+    }
+  };
+
+  keepBtn.addEventListener('click', handleKeep);
+  discardBtn.addEventListener('click', handleDiscard);
   actions.appendChild(keepBtn);
   actions.appendChild(discardBtn);
   sheet.appendChild(actions);
   overlay.appendChild(sheet);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); if (onKeep) onKeep(); } });
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      handleKeep(e);
+    }
+  });
+
+  document.addEventListener('keydown', onKeyDown, true);
   document.body.appendChild(overlay);
   try { keepBtn.focus(); } catch (e) {}
 }
@@ -1596,7 +1668,7 @@ class SidePane {
 
     document.addEventListener('keydown', (e) => {
       if (!this.isOpen()) return;
-      if (document.querySelector('.document-preview-overlay, .modal-overlay, .modal')) return;
+      if (document.querySelector('.document-preview-overlay, .modal-overlay, .modal, .discard-guard-overlay')) return;
       if (e.key === 'Escape') {
         if (this.viewMenu && this.viewMenu.classList.contains('open')) {
           this.hideViewMenu();
@@ -1614,6 +1686,7 @@ class SidePane {
         this._ignoreNextClick = false;
         return;
       }
+      if (document.querySelector('.discard-guard-overlay')) return;
       const path = e.composedPath ? e.composedPath() : this.composedPathPolyfill(e.target);
       const isPreviewClick = path.some(el => el && el.classList && (
         el.classList.contains('document-preview-overlay') ||
@@ -1622,6 +1695,13 @@ class SidePane {
         el.classList.contains('document-preview-viewer')
       ));
       if (isPreviewClick) return;
+
+      const isDiscardGuardClick = path.some(el => el && el.classList && (
+        el.classList.contains('discard-guard-overlay') ||
+        el.classList.contains('discard-guard-sheet') ||
+        el.closest?.('.discard-guard-overlay')
+      ));
+      if (isDiscardGuardClick) return;
 
       const clickedInsidePane = path.some(el => el === this.pane || el === this.viewMenu);
       const clickedTrigger = path.some(el => {
@@ -1643,7 +1723,9 @@ class SidePane {
                el.classList.contains('sidebar-collapse-btn') ||
                el.classList.contains('notion-embed-popover') ||
                el.classList.contains('document-preview-overlay') ||
-               el.classList.contains('document-preview-pane');
+               el.classList.contains('document-preview-pane') ||
+               el.classList.contains('discard-guard-overlay') ||
+               el.classList.contains('discard-guard-sheet');
       });
       if (!clickedInsidePane && !clickedTrigger) this.close();
     });
@@ -2085,7 +2167,7 @@ class SidePane {
   }
 
   close(opts = {}) {
-    if (!this.isOpen()) return;
+    if (!this.isOpen()) return true;
 
     // Dirty-form guard: intercept dismissal when the pane hosts a form with
     // unsaved changes. Silent closes (mode switches) and forced closes
@@ -2097,9 +2179,17 @@ class SidePane {
             try { sessionStorage.removeItem(this._formGuard.draftKey); } catch (e) {}
           }
           this.close({ ...opts, force: true });
+          if (typeof opts.onDiscardConfirmed === 'function') {
+            try { opts.onDiscardConfirmed(); } catch (e) { console.error('onDiscardConfirmed error:', e); }
+          }
         },
+        onKeep: () => {
+          if (typeof opts.onKeepEditing === 'function') {
+            try { opts.onKeepEditing(); } catch (e) { console.error('onKeepEditing error:', e); }
+          }
+        }
       });
-      return;
+      return false;
     }
     if (this._formGuard) {
       const guard = this._formGuard;
@@ -2130,6 +2220,7 @@ class SidePane {
       this.onCloseCallback = null;
       cb();
     }
+    return true;
   }
 }
 
@@ -2915,7 +3006,21 @@ async function closeFormPanelAndRoute(hash, messageConfig) {
     try { window.SidePaneInstance._formGuard.markClean?.(); } catch (e) { /* ignore */ }
   }
   if (window.SidePaneInstance && typeof window.SidePaneInstance.close === 'function') {
-    window.SidePaneInstance.close();
+    const closed = window.SidePaneInstance.close({
+      onDiscardConfirmed: async () => {
+        const appRef = (typeof window !== 'undefined' && window.App) || (typeof App !== 'undefined' ? App : null);
+        if (appRef && typeof appRef.handleRoute === 'function') {
+          if (hash && location.hash !== hash) {
+            appRef._suppressHashChange = true;
+            location.hash = hash;
+          }
+          await appRef.handleRoute();
+        }
+      }
+    });
+    if (closed === false) {
+      return false;
+    }
   }
 
   if (messageConfig) {
