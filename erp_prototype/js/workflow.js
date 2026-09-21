@@ -13637,7 +13637,7 @@ const Workflow = {
     let checklistItems = [];
     let checklistFromTemplate = false;
     const isDraft = wr?.status === 'Draft';
-    const wrDeadline = wr?.dueDate || wr?.deadline || '';
+    const wrDeadline = String(wr?.dueDate || wr?.deadline || '').slice(0, 10);
 
     // ── Task Title free-form (Topmost) ──
     const titleSection = el('div', { class: 'notion-freeform notion-freeform--title' });
@@ -14119,7 +14119,8 @@ const Workflow = {
         dueInput.focus();
         return;
       }
-      if (wrDeadline && data.dueDate > wrDeadline) {
+      const taskDueDate = String(data.dueDate || '').slice(0, 10);
+      if (wrDeadline && taskDueDate > wrDeadline) {
         this.showMessage('Invalid Due Date', `Due date cannot exceed the Work Request deadline (${wrDeadline}).`, 'danger');
         dueInput.focus();
         return;
@@ -14305,6 +14306,7 @@ const Workflow = {
     if (!task) return;
     const wr = WorkflowData.getWorkRequestById(task.workRequestId);
     const isDraft = wr?.status === 'Draft';
+    const wrDeadline = String(wr?.dueDate || wr?.deadline || '').slice(0, 10);
 
     const form = el('form', { class: 'form-stacked' });
 
@@ -14473,9 +14475,11 @@ const Workflow = {
     await renderChecklist();
 
     // Due Date
+    const dueAttrs = { type: 'date', name: 'dueDate', value: task.dueDate ? String(task.dueDate).slice(0, 10) : '' };
+    if (wrDeadline) dueAttrs.max = wrDeadline;
     form.appendChild(el('div', { class: 'form-group' }, [
-      el('label', { text: 'Due Date' }),
-      el('input', { type: 'date', name: 'dueDate', value: task.dueDate || '' })
+      el('label', { html: 'Due Date' + (wrDeadline ? ` <span style="font-size:0.75rem; color:var(--color-text-muted);">(Max: ${wrDeadline})</span>` : '') }),
+      el('input', dueAttrs)
     ]));
 
     // Priority
@@ -14636,6 +14640,11 @@ const Workflow = {
         const groundWorkerName = gwDropdown.searchText.trim();
         const groundWorkerId = gwDropdown.value || null;
         const data = Object.fromEntries(new FormData(form).entries());
+        const taskDueDate = String(data.dueDate || '').slice(0, 10);
+        if (wrDeadline && taskDueDate && taskDueDate > wrDeadline) {
+          this.showMessage('Invalid Due Date', `Due date cannot exceed the Work Request deadline (${wrDeadline}).`, 'danger');
+          return;
+        }
         const allExistingIds = existingTasks.map(t => t.id);
         const predecessors = selectedPreds.includes('*') ? allExistingIds : selectedPreds;
 

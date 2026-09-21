@@ -912,18 +912,22 @@ const Billing = {
       container.classList.add("billing-tab-page");
       const isNew = !this.detailId || this.detailId === "new";
       let inv = isNew ? null : this.getInvoiceById(this.detailId);
+      let loadFailed = false;
       if (!isNew && (!inv || !inv.lineItems || inv.lineItems.length === 0)) {
         try {
           const res = await window.apiClient.invoices.get(this.detailId);
           if (res?.data) {
             inv = this.normalizeInvoice(res.data);
             this._detailCache[this.detailId] = inv;
+          } else {
+            loadFailed = true;
           }
         } catch (e) {
           if (!isAbortError(e)) console.error("Failed to load invoice for editing", e);
+          loadFailed = true;
         }
       }
-      if (!isNew && !inv) {
+      if (!isNew && (!inv || loadFailed)) {
         if (typeof showToast === "function") {
           showToast("Error", "The requested invoice could not be loaded.", "error");
         }
@@ -3198,18 +3202,22 @@ const Billing = {
     const activeId = invoiceId || this.detailId;
     const isNew = !activeId || activeId === "new";
     let inv = isNew ? null : this.getInvoiceById(activeId);
+    let loadFailed = false;
     if (!isNew && (!inv || !inv.lineItems || inv.lineItems.length === 0)) {
       try {
         const res = await window.apiClient.invoices.get(activeId);
         if (res?.data) {
           inv = this.normalizeInvoice(res.data);
           this._detailCache[activeId] = inv;
+        } else {
+          loadFailed = true;
         }
       } catch (e) {
         if (!isAbortError(e)) console.error("Failed to load invoice for editing", e);
+        loadFailed = true;
       }
     }
-    if (!isNew && !inv) {
+    if (!isNew && (!inv || loadFailed)) {
       if (typeof showToast === "function") {
         showToast("Error", "The requested invoice could not be loaded.", "error");
       }
@@ -4080,18 +4088,22 @@ const Billing = {
     await this._loadPrefilledOpReq();
     const isNew = !invoiceId || invoiceId === "new";
     let inv = isNew ? null : this.getInvoiceById(invoiceId);
+    let loadFailed = false;
     if (!isNew && (!inv || !inv.lineItems || inv.lineItems.length === 0)) {
       try {
         const res = await window.apiClient.invoices.get(invoiceId);
         if (res?.data) {
           inv = this.normalizeInvoice(res.data);
           this._detailCache[invoiceId] = inv;
+        } else {
+          loadFailed = true;
         }
       } catch (e) {
         if (!isAbortError(e)) console.error("Failed to load invoice for editing", e);
+        loadFailed = true;
       }
     }
-    if (!isNew && !inv) {
+    if (!isNew && (!inv || loadFailed)) {
       if (typeof showToast === "function") {
         showToast("Error", "The requested invoice could not be loaded.", "error");
       }
