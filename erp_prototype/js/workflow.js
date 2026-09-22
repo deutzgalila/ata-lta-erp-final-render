@@ -13660,6 +13660,10 @@ const Workflow = {
     const isDraft = wr?.status === 'Draft';
     const wrDeadline = String(wr?.dueDate || wr?.due_date || wr?.deadline || '').slice(0, 10);
     const today = manilaToday();
+    if (wrDeadline && wrDeadline < today) {
+      this.showMessage('Blocked', 'Cannot create tasks for an overdue Work Request. Please update the Work Request due date first.', 'danger');
+      return null;
+    }
 
     // ── Task Title free-form (Topmost) ──
     const titleSection = el('div', { class: 'notion-freeform notion-freeform--title' });
