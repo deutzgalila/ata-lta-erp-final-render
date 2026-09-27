@@ -15944,10 +15944,10 @@ const Workflow = {
         class: 'checklist-item-text form-control',
         placeholder: 'Checklist item description...',
         value: typeof itemData === 'object' && itemData ? (itemData.text || '') : (itemData || ''),
-        style: 'flex: 2;'
+        style: 'flex: 2 1 0; min-width: 0;'
       });
 
-      const catSel = el('select', { class: 'checklist-item-category form-control', style: 'flex: 1;' });
+      const catSel = el('select', { class: 'checklist-item-category form-control', style: 'flex: 1.1 1 0; min-width: 0;' });
       catSel.appendChild(el('option', { value: '', text: 'Sub-task' }));
       catSel.appendChild(el('option', { value: 'document', text: 'Document' }));
       if (typeof itemData === 'object' && itemData?.category === 'document') catSel.value = 'document';
@@ -15957,7 +15957,7 @@ const Workflow = {
         class: 'checklist-item-period form-control',
         placeholder: 'Period / Year (optional)',
         value: typeof itemData === 'object' && itemData ? (itemData.periodYear || '') : '',
-        style: 'flex: 1;'
+        style: 'flex: 1.1 1 0; min-width: 0;'
       });
 
       const delBtn = el('button', {
