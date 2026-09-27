@@ -722,5 +722,36 @@ describe('/v1/work-requests', () => {
       .set('Authorization', `Bearer ${manager1}`)
       .set('X-Active-Entity', 'ATA')
       .expect(200);
+
+    // 8. Role enforcement: assignedTo must have role 'Manager'
+    const invalidMgrRes = await request(app)
+      .post('/v1/work-requests')
+      .set('Authorization', `Bearer ${admin}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({
+        title: 'Project Invalid Manager',
+        clientId: client.id,
+        entity: 'ATA',
+        assignedTo: staff1Id, // staff1 has role 'Operations', not 'Manager'
+        coAssignees: [],
+      })
+      .expect(400);
+    expect(invalidMgrRes.body.title).toBe('Invalid Manager');
+
+    // 9. Role enforcement: coAssignees cannot be Manager or Admin
+    const invalidMemberRes = await request(app)
+      .post('/v1/work-requests')
+      .set('Authorization', `Bearer ${admin}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({
+        title: 'Project Invalid Member',
+        clientId: client.id,
+        entity: 'ATA',
+        assignedTo: manager1Id,
+        coAssignees: ['Manager Two'], // Manager Two has role 'Manager'
+      })
+      .expect(400);
+    expect(invalidMemberRes.body.title).toBe('Invalid Team Member');
   });
 });
+

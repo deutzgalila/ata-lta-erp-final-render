@@ -2295,7 +2295,7 @@ const Workflow = {
    * "Add employee: X" option and auto-registers it on selection/Enter/blur.
    * Returns the dropdown wrapper. `onChange` receives { assigneeId, assigneeName }.
    */
-  async createGroundWorkerDropdown({ selectedGroundWorkerName, selectedAssigneeId, onChange, placeholder = 'Employee...', maxWidth, className, priorityNames = [], allowClear = true, allowedNames = null } = {}) {
+  async createGroundWorkerDropdown({ selectedGroundWorkerName, selectedAssigneeId, onChange, placeholder = 'Employee...', maxWidth, className, priorityNames = [], allowClear = true, allowedNames = null, roleFilter = null } = {}) {
     await Promise.all([
       window.apiClient.userCache.ensure(),
       this._loadGroundWorkers()
@@ -2321,14 +2321,33 @@ const Workflow = {
         return false;
       };
 
-      const systemUserNames = systemUsers.map(u => u.name).filter(Boolean);
+      // Identify manager and admin names for filtering
+      const managerNamesLower = new Set(
+        systemUsers.filter(u => (u.role || '').toLowerCase() === 'manager').map(u => (u.name || '').trim().toLowerCase())
+      );
+      const adminNamesLower = new Set(
+        systemUsers.filter(u => (u.role || '').toLowerCase() === 'admin').map(u => (u.name || '').trim().toLowerCase())
+      );
+
+      // Filter system users based on roleFilter
+      let eligibleSystemUsers = systemUsers;
+      if (roleFilter === 'Manager') {
+        eligibleSystemUsers = systemUsers.filter(u => (u.role || '').toLowerCase() === 'manager');
+      } else if (roleFilter === 'nonManagerNonAdmin') {
+        eligibleSystemUsers = systemUsers.filter(u => {
+          const r = (u.role || '').toLowerCase();
+          return r !== 'manager' && r !== 'admin';
+        });
+      }
+
+      const systemUserNames = eligibleSystemUsers.map(u => u.name).filter(Boolean);
       const prioritySet = new Set([...(priorityNames || []), ...systemUserNames].filter(Boolean));
 
       const addedNames = new Set();
       const options = [];
 
-      // Priority 1: System users allowed access to the site (created via admin)
-      const sortedSystemUsers = [...systemUsers]
+      // Priority 1: Eligible system users
+      const sortedSystemUsers = [...eligibleSystemUsers]
         .filter(u => u.name && isAllowed(u.id, u.name))
         .sort((a, b) => a.name.localeCompare(b.name));
       sortedSystemUsers.forEach(u => {
@@ -2349,10 +2368,26 @@ const Workflow = {
             addedNames.add(lower);
           }
         });
+      } else if (roleFilter === 'Manager') {
+        // Under Manager dropdown: only show Manager (not including admin or other employees/ground workers)
       } else {
+        const filterExcludedRoles = (name) => {
+          if (roleFilter === 'nonManagerNonAdmin') {
+            const lower = (name || '').trim().toLowerCase();
+            if (managerNamesLower.has(lower) || adminNamesLower.has(lower)) return false;
+            for (const mgrName of managerNamesLower) {
+              if (mgrName.includes(lower) || lower.includes(mgrName)) return false;
+            }
+            for (const admName of adminNamesLower) {
+              if (admName.includes(lower) || lower.includes(admName)) return false;
+            }
+          }
+          return true;
+        };
+
         // Priority 2: Other priority names not in system users
         const otherPriorityNames = Array.from(prioritySet)
-          .filter(name => !addedNames.has(name.toLowerCase()))
+          .filter(name => filterExcludedRoles(name) && !addedNames.has(name.toLowerCase()))
           .sort((a, b) => a.localeCompare(b));
         otherPriorityNames.forEach(name => {
           const gw = groundWorkers.find(g => g.name.toLowerCase() === name.toLowerCase());
@@ -2362,7 +2397,7 @@ const Workflow = {
 
         // Priority 3: Other ground workers
         const otherGws = groundWorkers
-          .filter(gw => !addedNames.has(gw.name.toLowerCase()))
+          .filter(gw => filterExcludedRoles(gw.name) && !addedNames.has(gw.name.toLowerCase()))
           .sort((a, b) => a.name.localeCompare(b.name));
         otherGws.forEach(gw => {
           options.push({ value: gw.id, text: gw.name });
@@ -2373,7 +2408,7 @@ const Workflow = {
       return options;
     };
 
-    const isRestricted = Array.isArray(currentAllowedNames);
+    const isRestricted = Array.isArray(currentAllowedNames) || roleFilter === 'Manager' || roleFilter === 'nonManagerNonAdmin';
     const dropdown = createSearchableDropdown({
       placeholder,
       options: buildOptions(),
@@ -8256,6 +8291,7 @@ const Workflow = {
       className: 'notion-prop-dropdown wr-manager-dropdown',
       selectedGroundWorkerName: initialManagerName,
       selectedAssigneeId: initialManagerId,
+      roleFilter: 'Manager',
       allowClear: false,
       onChange: () => {
         syncTaskRowOptions();
@@ -8289,6 +8325,7 @@ const Workflow = {
     const teamMemberDropdown = await this.createGroundWorkerDropdown({
       placeholder: '+ Add Team Member *',
       className: 'wr-team-member-dropdown',
+      roleFilter: 'nonManagerNonAdmin',
       onChange: ({ assigneeName }) => {
         const name = assigneeName?.trim();
         if (!name) return;
@@ -8909,6 +8946,19 @@ const Workflow = {
         return;
       }
 
+      // Ensure selected Manager actually has the Manager role
+      const mgrUser = mgrData.id
+        ? window.apiClient?.userCache?.getById?.(mgrData.id)
+        : (window.apiClient?.userCache?._users || []).find(u => (u.name || '').toLowerCase() === (mgrData.name || '').toLowerCase());
+      if (mgrUser && (mgrUser.role || '').toLowerCase() !== 'manager') {
+        this.showMessage('Invalid Manager', `"${mgrUser.name}" does not have the Manager role. Please select an employee with the Manager role.`, 'danger');
+        form._projectTeam?.focusManager?.();
+        disabledFields.forEach(f => f.disabled = true);
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('loading'); submitBtn.innerHTML = originalBtnHtml; }
+        this._isSubmittingWr = false;
+        return;
+      }
+
       if (!teamMembers || teamMembers.length === 0) {
         this.showMessage('Required Field', 'Please add at least one Team Member to the Project Team.', 'danger');
         form._projectTeam?.focusTeamMembers?.();
@@ -8916,6 +8966,22 @@ const Workflow = {
         if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('loading'); submitBtn.innerHTML = originalBtnHtml; }
         this._isSubmittingWr = false;
         return;
+      }
+
+      // Ensure Team Members do not have the Manager or Admin role
+      for (const memberName of teamMembers) {
+        const memberUser = (window.apiClient?.userCache?._users || []).find(u => (u.name || '').toLowerCase() === (memberName || '').toLowerCase());
+        if (memberUser) {
+          const roleLower = (memberUser.role || '').toLowerCase();
+          if (roleLower === 'manager' || roleLower === 'admin') {
+            this.showMessage('Invalid Team Member', `"${memberUser.name}" has the ${memberUser.role} role and cannot be a team member. Only non-manager and non-admin employees are allowed.`, 'danger');
+            form._projectTeam?.focusTeamMembers?.();
+            disabledFields.forEach(f => f.disabled = true);
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('loading'); submitBtn.innerHTML = originalBtnHtml; }
+            this._isSubmittingWr = false;
+            return;
+          }
+        }
       }
 
       const allowedTeam = [mgrData.name, ...teamMembers].filter(Boolean);

@@ -461,6 +461,41 @@ const listWorkRequests = async ({
 // In-flight mutex map to guarantee idempotency against concurrent double-submits
 const inFlightWorkRequests = new Map();
 
+const validateProjectTeamRoles = async ({ assignedTo, coAssignees }) => {
+  if (assignedTo) {
+    const { data: assignedUser } = await supabaseAdmin
+      .from('users')
+      .select('id, name, role')
+      .eq('id', assignedTo)
+      .maybeSingle();
+    if (assignedUser && (assignedUser.role || '').toLowerCase() !== 'manager') {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Invalid Manager',
+        detail: `User "${assignedUser.name}" does not have the Manager role`,
+      });
+    }
+  }
+
+  if (coAssignees && Array.isArray(coAssignees) && coAssignees.length > 0) {
+    const { data: matchedUsers } = await supabaseAdmin
+      .from('users')
+      .select('id, name, role')
+      .in('name', coAssignees);
+    const invalidMember = (matchedUsers || []).find((u) => {
+      const r = (u.role || '').toLowerCase();
+      return r === 'admin' || r === 'manager';
+    });
+    if (invalidMember) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Invalid Team Member',
+        detail: `User "${invalidMember.name}" has the ${invalidMember.role} role and cannot be added as a team member`,
+      });
+    }
+  }
+};
+
 const createWorkRequest = async ({ entityId, data, user }) => {
   const reqBy = data.requestedBy || user?.id;
   const titleClean = (data.title || '').trim();
@@ -472,6 +507,8 @@ const createWorkRequest = async ({ entityId, data, user }) => {
 
   const creationPromise = (async () => {
     try {
+      await validateProjectTeamRoles({ assignedTo: data.assignedTo, coAssignees: data.coAssignees });
+
       // Deduplication guard against rapid double-clicks (within 5 seconds)
       const fiveSecondsAgo = new Date(Date.now() - 5000).toISOString();
       let dupQuery = supabaseAdmin
@@ -618,6 +655,13 @@ const updateWorkRequest = async ({ id, entityId, data, user }) => {
   if (data.archived !== undefined) updates.archived = data.archived;
   if (data.assignedTo !== undefined) updates.assigned_to = data.assignedTo;
   if (data.coAssignees !== undefined) updates.co_assignees = data.coAssignees;
+
+  if (data.assignedTo !== undefined || data.coAssignees !== undefined) {
+    await validateProjectTeamRoles({
+      assignedTo: data.assignedTo !== undefined ? data.assignedTo : existing.assignedTo,
+      coAssignees: data.coAssignees !== undefined ? data.coAssignees : existing.coAssignees,
+    });
+  }
 
   // OCC (Spec 2.2 / R-10): version-guard the update when the client declares
   // the version it read; zero matching rows means a concurrent edit landed
