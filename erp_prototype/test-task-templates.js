@@ -518,6 +518,91 @@ function record(testName, passed, details = '') {
     });
     record('Reset to defaults restores 9 system baseline templates', defaultCount >= 9, `Template count: ${defaultCount}`);
 
+    // ══════════════════════════════════════════════════════════════
+    // PART 7: Hover Checkbox, Multi-Selection & Floating Bulk Bar
+    // ══════════════════════════════════════════════════════════════
+    console.log('\n--- PART 7: Hover Checkbox & Batch Selection Bar ---');
+
+    // 1. Verify checkboxes exist on rows
+    const checkboxCount = await page.evaluate(() => {
+      return document.querySelectorAll('.jira-backlog-row .jira-backlog-row-checkbox').length;
+    });
+    record('Individual row checkboxes rendered on each template item', checkboxCount >= 9, `Count: ${checkboxCount}`);
+
+    // 2. Verify hover opacity
+    const initialOpacity = await page.evaluate(() => {
+      const chk = document.querySelector('.jira-backlog-row .jira-backlog-row-checkbox');
+      return chk ? window.getComputedStyle(chk).opacity : '0';
+    });
+    record('Row checkbox is hidden by default (opacity 0)', parseFloat(initialOpacity) === 0);
+
+    const firstRow = await page.$('.jira-backlog-row');
+    if (firstRow) {
+      await firstRow.hover();
+      await page.waitForTimeout(200);
+      const hoverOpacity = await page.evaluate(() => {
+        const chk = document.querySelector('.jira-backlog-row .jira-backlog-row-checkbox');
+        return chk ? window.getComputedStyle(chk).opacity : '0';
+      });
+      record('Row checkbox becomes visible on row hover (opacity 1)', parseFloat(hoverOpacity) === 1);
+    }
+
+    // 3. Select single row
+    await page.evaluate(() => {
+      const chk = document.querySelector('.jira-backlog-row .jira-backlog-row-checkbox');
+      if (chk) chk.click();
+    });
+    await page.waitForTimeout(300);
+
+    const isFirstSelected = await page.evaluate(() => {
+      const row = document.querySelector('.jira-backlog-row');
+      return row && row.classList.contains('selected');
+    });
+    record('Row receives .selected class when checked', isFirstSelected);
+
+    const bulkBarVisible = await page.evaluate(() => {
+      const bar = document.querySelector('.jira-backlog-bulk-bar');
+      return bar && !bar.classList.contains('hidden') && window.getComputedStyle(bar).display !== 'none';
+    });
+    record('Floating bulk bar is displayed when row is selected', bulkBarVisible);
+
+    const singleSelectedText = await page.evaluate(() => {
+      return document.querySelector('.jira-backlog-bulk-count')?.textContent?.trim();
+    });
+    record('Bulk bar displays "1 selected"', singleSelectedText === '1 selected', `Text: ${singleSelectedText}`);
+
+    // 4. Select All via header checkbox
+    await page.evaluate(() => {
+      const selectAll = document.querySelector('.jira-backlog-header-checkbox');
+      if (selectAll) selectAll.click();
+    });
+    await page.waitForTimeout(300);
+
+    const allSelectedCount = await page.evaluate(() => {
+      const chks = document.querySelectorAll('.jira-backlog-row .jira-backlog-row-checkbox');
+      return Array.from(chks).filter(c => c.checked).length;
+    });
+    record('Select All header checkbox selects all template rows', allSelectedCount >= 9, `Selected count: ${allSelectedCount}`);
+
+    // 5. Clear selection via bulk bar close button
+    await page.evaluate(() => {
+      const closeBtn = document.querySelector('.jira-backlog-bulk-close');
+      if (closeBtn) closeBtn.click();
+    });
+    await page.waitForTimeout(300);
+
+    const clearedCount = await page.evaluate(() => {
+      const chks = document.querySelectorAll('.jira-backlog-row .jira-backlog-row-checkbox');
+      return Array.from(chks).filter(c => c.checked).length;
+    });
+    record('Bulk bar close button clears all selected checkboxes', clearedCount === 0);
+
+    const bulkBarHidden = await page.evaluate(() => {
+      const bar = document.querySelector('.jira-backlog-bulk-bar');
+      return !bar || bar.classList.contains('hidden') || window.getComputedStyle(bar).display === 'none';
+    });
+    record('Bulk bar hides after selection is cleared', bulkBarHidden);
+
     await adminContext.close();
 
   } catch (err) {

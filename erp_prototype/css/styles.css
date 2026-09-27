@@ -15599,9 +15599,32 @@ html.loading-active #loading-screen:not(.hidden) {
   accent-color: var(--color-primary);
 }
 
+.jira-backlog-header-checkbox {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
 .jira-backlog-row:hover .jira-backlog-row-checkbox,
-.jira-backlog-row-checkbox:checked {
+.jira-backlog-row-checkbox:checked,
+.jira-backlog-row-checkbox:focus-visible {
   opacity: 1;
+}
+
+.jira-backlog-container.has-selection .jira-backlog-row-checkbox {
+  opacity: 0.6;
+}
+
+.jira-backlog-container.has-selection .jira-backlog-row:hover .jira-backlog-row-checkbox,
+.jira-backlog-container.has-selection .jira-backlog-row-checkbox:checked {
+  opacity: 1;
+}
+
+.jira-backlog-bulk-bar.hidden {
+  display: none !important;
 }
 
 .jira-backlog-row-icon {

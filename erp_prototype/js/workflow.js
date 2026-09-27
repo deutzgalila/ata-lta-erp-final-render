@@ -15757,11 +15757,20 @@ const Workflow = {
       emptyText: 'No standard task templates found',
       rowIdPrefix: 'STT',
       countLabel: 'template',
+      onRowClick: async (item) => {
+        if (Auth.user?.role !== 'Admin') return;
+        this.taskTemplateEditingId = item.id;
+        await this.openTaskTemplateForm();
+      },
       bulkActions: (selectedIds) => [
         {
           text: selectedIds.length === 1 ? 'Delete' : 'Bulk Delete',
           className: 'btn btn-danger btn-sm',
           onClick: (ids) => {
+            if (Auth.user?.role !== 'Admin') {
+              Utils.showToast('Access denied: Admin role required for task templates', 'error');
+              return;
+            }
             const title = ids.length === 1 ? 'Delete Template' : 'Delete Templates';
             const message = ids.length === 1
               ? 'Are you sure you want to delete this template?'
@@ -15770,22 +15779,27 @@ const Workflow = {
               title,
               message,
               async () => {
-                for (const id of ids) {
-                  await window.apiClient.operations.deleteTaskTemplate(id);
-                }
-                this._taskTemplates = (this._taskTemplates || []).filter(t => !ids.includes(String(t.id)));
-                this.standardTaskTemplates = this._taskTemplates;
-                Utils.showToast(`${ids.length} template(s) deleted`, 'success');
-                Workflow._refreshCounts();
-                this.updateTabNav();
-                if (this.view === 'task-templates') {
-                  const contentContainer = this.container?.querySelector('.page-content-section')?.parentNode || this.container?.querySelector('.operations-tab-page > div:last-child');
-                  if (contentContainer) {
-                    contentContainer.innerHTML = '';
-                    contentContainer.appendChild(await this.renderTaskTemplatesTab());
-                  } else {
-                    App.handleRoute();
+                try {
+                  await Promise.all(ids.map(id => window.apiClient.operations.deleteTaskTemplate(id)));
+                  this._taskTemplates = (this._taskTemplates || []).filter(t => !ids.includes(String(t.id)));
+                  this.standardTaskTemplates = this._taskTemplates;
+                  Utils.showToast(`${ids.length} template(s) deleted`, 'success');
+                  Workflow._refreshCounts();
+                  this.updateTabNav();
+                  if (this.view === 'task-templates') {
+                    const contentContainer = this.container?.querySelector('.page-content-section')?.parentNode ||
+                      this.container?.querySelector('.operations-tab-page > div:last-child') ||
+                      document.querySelector('.operations-tab-page > div:last-child');
+                    if (contentContainer) {
+                      contentContainer.innerHTML = '';
+                      contentContainer.appendChild(await this.renderTaskTemplatesTab());
+                    } else {
+                      App.handleRoute();
+                    }
                   }
+                } catch (err) {
+                  console.error('Failed to bulk delete templates:', err);
+                  Utils.showToast(err.message || 'Failed to delete template(s)', 'error');
                 }
               },
               'danger'
@@ -16000,6 +16014,10 @@ const Workflow = {
   },
 
   async submitTaskTemplateForm(form, checklistList, coAssignees) {
+    if (Auth.user?.role !== 'Admin') {
+      Utils.showToast('Access denied: Admin role required for task templates', 'error');
+      return;
+    }
     const title = form.querySelector('input[name="title"]')?.value?.trim();
     if (!title) {
       Utils.showToast('Please provide a template title', 'error');

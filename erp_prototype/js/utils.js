@@ -4413,6 +4413,8 @@ const JiraBacklogList = {
       ? el('input', {
           type: 'checkbox',
           class: 'jira-backlog-header-checkbox',
+          title: 'Select all',
+          'aria-label': 'Select all',
           style: 'margin-right: 8px; cursor: pointer; accent-color: var(--color-primary); width: 14px; height: 14px;'
         })
       : null;
@@ -4549,6 +4551,10 @@ const JiraBacklogList = {
         }
       });
 
+      if (container) {
+        container.classList.toggle('has-selection', selectedIds.length > 0);
+      }
+
       if (bulkBar) {
         const actionsList = typeof currentBulkActions === 'function' ? currentBulkActions(selectedIds) : currentBulkActions;
         const finalActions = actionsList || [];
@@ -4620,11 +4626,12 @@ const JiraBacklogList = {
 
       // Checkbox container (shows on hover, stays visible when checked)
       if (showCheckboxes) {
-        const checkboxWrap = el('div', { class: 'jira-backlog-row-checkbox-wrap' });
+        const checkboxWrap = el('div', { class: 'jira-backlog-row-checkbox-wrap', title: 'Select item' });
         const chk = el('input', {
           type: 'checkbox',
           class: 'jira-backlog-row-checkbox',
-          'data-id': item.id
+          'data-id': item.id,
+          'aria-label': `Select ${item.name || 'item'}`
         });
         checkBoxes.push(chk);
 
@@ -4639,6 +4646,7 @@ const JiraBacklogList = {
           }
         });
         checkboxWrap.appendChild(chk);
+        row.appendChild(checkboxWrap);
       } else if (hasColumns) {
         // Keep alignment by reserving the checkbox lead column when hidden in column mode.
         const checkboxSpacer = el('div', { class: 'jira-backlog-row-checkbox-wrap jira-backlog-row-checkbox-wrap--spacer' });
