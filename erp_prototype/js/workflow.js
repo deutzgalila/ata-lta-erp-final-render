@@ -14614,8 +14614,8 @@ const Workflow = {
     const fullPageRoute = isNew ? '#operations/taskTemplateForm/new' : `#operations/taskTemplateForm/${this.taskTemplateEditingId}`;
     openFormPanel({
       icon: '📋',
-      title: ' ',
-      formContent: await this.renderTaskTemplateForm({ hideHeader: mode !== PaneMode.SIDE_PEEK && mode !== null }),
+      title: isNew ? 'New Task Template' : (template?.title || 'Edit Task Template'),
+      formContent: await this.renderTaskTemplateForm({ hideHeader: true }),
       formId: 'task-template-form',
       mode,
       viewContext: 'task-template-form',
@@ -15723,12 +15723,24 @@ const Workflow = {
       const coAssigneeCount = (t.coAssignees || []).length;
 
       const tags = [
-        { text: linkTypeLabel !== 'None' ? `Link: ${linkTypeLabel}` : 'No Link Required', type: linkTypeLabel !== 'None' ? 'entity' : 'muted' },
-        { text: `${checklistCount} ${checklistCount === 1 ? 'item' : 'items'}`, type: 'points', title: 'Default checklist items' },
+        {
+          text: linkTypeLabel !== 'None' ? `Link: ${linkTypeLabel}` : 'No Link Required',
+          type: linkTypeLabel !== 'None' ? 'entity' : 'muted',
+          className: 'jira-backlog-tag-link-req'
+        },
+        {
+          text: coAssigneeCount > 0 ? `${coAssigneeCount} co-assignee${coAssigneeCount === 1 ? '' : 's'}` : '',
+          type: 'user',
+          className: 'jira-backlog-tag-coassignees' + (coAssigneeCount > 0 ? '' : ' jira-backlog-tag--placeholder'),
+          title: coAssigneeCount > 0 ? (t.coAssignees || []).join(', ') : 'No default co-assignees'
+        },
+        {
+          text: `${checklistCount} ${checklistCount === 1 ? 'item' : 'items'}`,
+          type: 'points',
+          className: 'jira-backlog-tag-items-count',
+          title: 'Default checklist items'
+        }
       ];
-      if (coAssigneeCount > 0) {
-        tags.push({ text: `${coAssigneeCount} co-assignee${coAssigneeCount === 1 ? '' : 's'}`, type: 'user', title: (t.coAssignees || []).join(', ') });
-      }
 
       return {
         id: t.id,
@@ -15848,7 +15860,6 @@ const Workflow = {
     const container = el('div', { class: 'template-form-container notion-form' });
     if (!opts.hideHeader) {
       const header = el('div', { class: 'notion-form-header', style: 'margin-bottom: 20px;' });
-      header.appendChild(el('div', { class: 'notion-form-icon', text: '📋', style: 'font-size: 28px; margin-bottom: 8px;' }));
       header.appendChild(el('h2', { class: 'notion-form-title', text: isNew ? 'New Task Template' : (template.title || 'Edit Task Template') }));
       container.appendChild(header);
     }
@@ -15923,10 +15934,10 @@ const Workflow = {
     const checklistHint = el('p', { class: 'text-muted text-sm', text: 'Items automatically generated when this template is picked during task creation.', style: 'margin-bottom: 12px; color: var(--color-text-muted); font-size: 13px;' });
     form.appendChild(checklistHint);
 
-    const checklistList = el('div', { id: 'template-checklist-rows', style: 'display: flex; flex-direction: column; gap: 8px;' });
+    const checklistList = el('div', { id: 'template-checklist-rows', class: 'template-checklist-rows' });
 
     const addChecklistRow = (itemData = null) => {
-      const row = el('div', { class: 'checklist-row', style: 'display: flex; align-items: center; gap: 8px; padding: 6px; background: var(--color-bg-secondary, #f8f9fa); border-radius: 6px;' });
+      const row = el('div', { class: 'checklist-row' });
 
       const textInput = el('input', {
         type: 'text',
@@ -15951,10 +15962,9 @@ const Workflow = {
 
       const delBtn = el('button', {
         type: 'button',
-        class: 'btn btn-danger btn-xs',
+        class: 'btn btn-danger btn-xs checklist-item-del-btn',
         text: '✕',
-        title: 'Remove item',
-        style: 'padding: 4px 8px; line-height: 1;'
+        title: 'Remove item'
       });
       delBtn.addEventListener('click', () => row.remove());
 

@@ -4693,6 +4693,8 @@ const JiraBacklogList = {
         let iconHtml = '';
         if (tag.type === 'client') {
           iconHtml = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px; vertical-align: middle;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+        } else if (tag.type === 'user') {
+          iconHtml = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px; vertical-align: middle;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
         } else if (tag.type === 'schedule') {
           iconHtml = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px; vertical-align: middle;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
         } else if (tag.type === 'category') {
@@ -4706,6 +4708,10 @@ const JiraBacklogList = {
         let textVal = tag.text;
         if (typeof textVal === 'string' && tag.type === 'amount' && textVal.startsWith('₱')) {
           textVal = textVal.substring(1).trim();
+        }
+
+        if (!textVal && !tag.node) {
+          iconHtml = '';
         }
 
         if (tag.node || isNode(tag.text)) {
