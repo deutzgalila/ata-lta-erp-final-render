@@ -536,16 +536,18 @@ function record(testName, passed, details = '') {
     });
     record('Row checkbox is hidden by default (opacity 0)', parseFloat(initialOpacity) === 0);
 
-    const firstRow = await page.$('.jira-backlog-row');
-    if (firstRow) {
-      await firstRow.hover();
-      await page.waitForTimeout(200);
-      const hoverOpacity = await page.evaluate(() => {
-        const chk = document.querySelector('.jira-backlog-row .jira-backlog-row-checkbox');
-        return chk ? window.getComputedStyle(chk).opacity : '0';
-      });
-      record('Row checkbox becomes visible on row hover (opacity 1)', parseFloat(hoverOpacity) === 1);
-    }
+    // Wait for any reset modal overlay to fully detach
+    await page.waitForSelector('.modal-overlay', { state: 'detached', timeout: 5000 }).catch(() => {});
+    await page.waitForTimeout(500);
+
+    const firstRowLocator = page.locator('.jira-backlog-row').first();
+    await firstRowLocator.hover();
+    await page.waitForTimeout(300);
+    const hoverOpacity = await page.evaluate(() => {
+      const chk = document.querySelector('.jira-backlog-row .jira-backlog-row-checkbox');
+      return chk ? window.getComputedStyle(chk).opacity : '0';
+    });
+    record('Row checkbox becomes visible on row hover (opacity 1)', parseFloat(hoverOpacity) === 1, `Opacity: ${hoverOpacity}`);
 
     // 3. Select single row
     await page.evaluate(() => {
