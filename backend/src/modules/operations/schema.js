@@ -43,6 +43,11 @@ const createWorkRequestSchema = z.object({
   entity: z.enum(['ATA', 'LTA', 'ALL']).optional(),
   status: z.string().max(50).optional(),
   requestedBy: z.string().uuid().optional(),
+  assignedTo: z.preprocess(
+    (val) => (val === '' || val === undefined ? null : val),
+    z.string().uuid().nullable().optional()
+  ),
+  coAssignees: z.array(z.string()).optional().default([]),
   dueDate: z.string().optional(),
   priority: z.string().max(50).optional(),
 });

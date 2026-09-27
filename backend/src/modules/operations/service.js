@@ -68,6 +68,7 @@ const toApiWorkRequest = (row, entityCode) => ({
   archived: row.archived ?? false,
   requestedBy: row.requested_by || null,
   assignedTo: row.assigned_to || null,
+  coAssignees: Array.isArray(row.co_assignees) ? row.co_assignees : (row.coAssignees || []),
   dueDate: row.due_date || null,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
@@ -177,12 +178,7 @@ const toApiTask = (row, { checklist = [], timeLogs = [], taskDocuments = [] } = 
 
 const isBackOffice = (user) => {
   if (!user) return false;
-  const depts = user.departments || [];
-  return (
-    user.role === 'Admin' ||
-    user.role === 'Manager' ||
-    depts.includes('Management')
-  );
+  return user.role === 'Admin';
 };
 
 const resolveAssigneeName = async (assigneeId, assigneeName) => {
@@ -301,11 +297,24 @@ const loadTaskExtras = async (taskIds) => {
 const canViewWorkRequest = (wr, user, taskMap) => {
   if (!user) return false;
   if (user.role === 'Admin') return true;
-  if (isBackOffice(user)) return true;
-  if (wr.submitted_by === user.id || wr.requested_by === user.id || wr.assigned_to === user.id) return true;
-  const tasks = taskMap.get(wr.id) || [];
+  if (
+    wr.submitted_by === user.id ||
+    wr.submittedBy === user.id ||
+    wr.requested_by === user.id ||
+    wr.requestedBy === user.id ||
+    wr.assigned_to === user.id ||
+    wr.assignedTo === user.id
+  ) {
+    return true;
+  }
+  const coAssignees = Array.isArray(wr.co_assignees) ? wr.co_assignees : (wr.coAssignees || []);
+  if (coAssignees.some((ca) => ca === user.id || ca === user.name)) return true;
+  const tasks = taskMap?.get ? (taskMap.get(wr.id) || []) : (wr.tasks || []);
   return tasks.some((t) => {
-    if (t.assignee_id === user.id || t.assignee_name === user.name) return true;
+    if (t.assignee_id === user.id || t.assigneeId === user.id || t.assignee_name === user.name || t.assigneeName === user.name) return true;
+    const taskCo = Array.isArray(t.co_assignees) ? t.co_assignees : (t.coAssignees || []);
+    if (taskCo.some((ca) => ca === user.id || ca === user.name)) return true;
+    if (Array.isArray(t.checklist) && t.checklist.some((item) => item.assignee_name === user.name || item.assigneeName === user.name || item.assignee_id === user.id || item.assigneeId === user.id)) return true;
     return false;
   });
 };
@@ -374,11 +383,7 @@ const listWorkRequests = async ({
   } else {
     const allWrIds = (data || []).map((r) => r.id);
     allTaskMap = await loadTasksForWorkRequests(allWrIds);
-    visibleRows = (data || []).filter((row) => {
-      if (row.submitted_by === user.id || row.requested_by === user.id || row.assigned_to === user.id) return true;
-      const tasks = allTaskMap.get(row.id) || [];
-      return tasks.some((t) => t.assignee_id === user.id || t.assignee_name === user.name);
-    });
+    visibleRows = (data || []).filter((row) => canViewWorkRequest(row, user, allTaskMap));
   }
 
   const withTasks = includeTasks === true || String(includeTasks).toLowerCase() === 'true';
@@ -498,6 +503,8 @@ const createWorkRequest = async ({ entityId, data, user }) => {
         status: data.status || 'Draft',
         priority: data.priority || 'Normal',
         requested_by: data.requestedBy || user.id,
+        assigned_to: data.assignedTo || null,
+        co_assignees: data.coAssignees || [],
         due_date: data.dueDate || null,
         created_at: now,
         updated_at: now,
@@ -609,6 +616,8 @@ const updateWorkRequest = async ({ id, entityId, data, user }) => {
   };
 
   if (data.archived !== undefined) updates.archived = data.archived;
+  if (data.assignedTo !== undefined) updates.assigned_to = data.assignedTo;
+  if (data.coAssignees !== undefined) updates.co_assignees = data.coAssignees;
 
   // OCC (Spec 2.2 / R-10): version-guard the update when the client declares
   // the version it read; zero matching rows means a concurrent edit landed

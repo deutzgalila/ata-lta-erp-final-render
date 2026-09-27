@@ -19598,3 +19598,58 @@ body.entity-consolidated .topbar {
   background: var(--color-surface);
   border-color: var(--color-border);
 }
+
+/* Work Request Project Team (Manager + Team Members) */
+.required-asterisk {
+  color: var(--color-danger, #ef4444);
+  font-weight: bold;
+  margin-left: 2px;
+}
+
+.wr-manager-prop,
+.wr-team-members-prop {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wr-team-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 24px;
+}
+
+.wr-team-chips:empty {
+  display: none;
+}
+
+.wr-team-chips .co-assignee-chip {
+  background: var(--color-primary-light, #eff6ff);
+  color: var(--color-primary, #2563eb);
+  border: 1px solid var(--color-primary-border, #bfdbfe);
+  border-radius: var(--radius-pill, 9999px);
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+[data-theme="dark"] .wr-team-chips .co-assignee-chip {
+  background: rgba(99, 102, 241, 0.15) !important;
+  color: var(--color-primary, #a5b4fc) !important;
+  border-color: rgba(99, 102, 241, 0.3) !important;
+}
+
+.wr-team-chips .co-assignee-chip-remove {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0 2px;
+  color: var(--color-primary, #3b82f6);
+}
+
+.wr-team-chips .co-assignee-chip-remove:hover {
+  color: var(--color-danger, #ef4444);
+}

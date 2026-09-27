@@ -110,10 +110,18 @@ const WorkflowData = {
   normalizeWorkRequest(wr) {
     if (!wr) return wr;
     const dueDate = wr.dueDate || wr.due_date || null;
+    const assignedTo = wr.assignedTo || wr.assigned_to || null;
+    const coAssignees = Array.isArray(wr.coAssignees)
+      ? wr.coAssignees
+      : (Array.isArray(wr.co_assignees) ? wr.co_assignees : []);
     return {
       ...wr,
       dueDate,
       due_date: dueDate,
+      assignedTo,
+      assigned_to: assignedTo,
+      coAssignees,
+      co_assignees: coAssignees,
       // Backend does not persist these frontend-only fields; supply defaults.
       archived: wr.archived ?? false,
       boardOrder: wr.boardOrder ?? null,
@@ -2287,15 +2295,32 @@ const Workflow = {
    * "Add employee: X" option and auto-registers it on selection/Enter/blur.
    * Returns the dropdown wrapper. `onChange` receives { assigneeId, assigneeName }.
    */
-  async createGroundWorkerDropdown({ selectedGroundWorkerName, selectedAssigneeId, onChange, placeholder = 'Employee...', maxWidth, className, priorityNames = [], allowClear = true } = {}) {
+  async createGroundWorkerDropdown({ selectedGroundWorkerName, selectedAssigneeId, onChange, placeholder = 'Employee...', maxWidth, className, priorityNames = [], allowClear = true, allowedNames = null } = {}) {
     await Promise.all([
       window.apiClient.userCache.ensure(),
       this._loadGroundWorkers()
     ]);
 
+    let currentAllowedNames = allowedNames;
+
     const buildOptions = () => {
       const systemUsers = (window.apiClient.userCache._users || []) || [];
       const groundWorkers = this._groundWorkers || [];
+      const isRestricted = Array.isArray(currentAllowedNames);
+      const allowedLower = isRestricted
+        ? new Set(currentAllowedNames.map(n => String(n).trim().toLowerCase()).filter(Boolean))
+        : null;
+      const allowedIdSet = isRestricted
+        ? new Set(currentAllowedNames.filter(Boolean))
+        : null;
+
+      const isAllowed = (id, name) => {
+        if (!isRestricted) return true;
+        if (id && allowedIdSet.has(id)) return true;
+        if (name && allowedLower.has(name.toLowerCase())) return true;
+        return false;
+      };
+
       const systemUserNames = systemUsers.map(u => u.name).filter(Boolean);
       const prioritySet = new Set([...(priorityNames || []), ...systemUserNames].filter(Boolean));
 
@@ -2304,7 +2329,7 @@ const Workflow = {
 
       // Priority 1: System users allowed access to the site (created via admin)
       const sortedSystemUsers = [...systemUsers]
-        .filter(u => u.name)
+        .filter(u => u.name && isAllowed(u.id, u.name))
         .sort((a, b) => a.name.localeCompare(b.name));
       sortedSystemUsers.forEach(u => {
         const lowerName = u.name.toLowerCase();
@@ -2314,37 +2339,59 @@ const Workflow = {
         }
       });
 
-      // Priority 2: Other priority names not in system users
-      const otherPriorityNames = Array.from(prioritySet)
-        .filter(name => !addedNames.has(name.toLowerCase()))
-        .sort((a, b) => a.localeCompare(b));
-      otherPriorityNames.forEach(name => {
-        const gw = groundWorkers.find(g => g.name.toLowerCase() === name.toLowerCase());
-        options.push({ value: gw ? gw.id : name, text: name });
-        addedNames.add(name.toLowerCase());
-      });
+      if (isRestricted) {
+        // If restricted, also add any allowed names that might not be in systemUsers
+        Array.from(allowedLower).forEach(lower => {
+          if (!addedNames.has(lower)) {
+            const orig = currentAllowedNames.find(n => String(n).trim().toLowerCase() === lower);
+            const gw = groundWorkers.find(g => g.name.toLowerCase() === lower);
+            options.push({ value: gw ? gw.id : (orig || lower), text: orig || lower });
+            addedNames.add(lower);
+          }
+        });
+      } else {
+        // Priority 2: Other priority names not in system users
+        const otherPriorityNames = Array.from(prioritySet)
+          .filter(name => !addedNames.has(name.toLowerCase()))
+          .sort((a, b) => a.localeCompare(b));
+        otherPriorityNames.forEach(name => {
+          const gw = groundWorkers.find(g => g.name.toLowerCase() === name.toLowerCase());
+          options.push({ value: gw ? gw.id : name, text: name });
+          addedNames.add(name.toLowerCase());
+        });
 
-      // Priority 3: Other ground workers
-      const otherGws = groundWorkers
-        .filter(gw => !addedNames.has(gw.name.toLowerCase()))
-        .sort((a, b) => a.name.localeCompare(b.name));
-      otherGws.forEach(gw => {
-        options.push({ value: gw.id, text: gw.name });
-        addedNames.add(gw.name.toLowerCase());
-      });
+        // Priority 3: Other ground workers
+        const otherGws = groundWorkers
+          .filter(gw => !addedNames.has(gw.name.toLowerCase()))
+          .sort((a, b) => a.name.localeCompare(b.name));
+        otherGws.forEach(gw => {
+          options.push({ value: gw.id, text: gw.name });
+          addedNames.add(gw.name.toLowerCase());
+        });
+      }
 
       return options;
     };
 
+    const isRestricted = Array.isArray(currentAllowedNames);
     const dropdown = createSearchableDropdown({
       placeholder,
       options: buildOptions(),
-      allowFreeText: true,
+      allowFreeText: !isRestricted,
       maxWidth,
       allowClear,
-      addNewLabel: (text) => `Add employee: ${text}`
+      addNewLabel: isRestricted ? null : ((text) => `Add employee: ${text}`)
     });
-    if (className) dropdown.classList.add(className);
+    if (className) {
+      className.split(/\s+/).filter(Boolean).forEach(cls => dropdown.classList.add(cls));
+    }
+
+    dropdown.updateAllowedNames = (newAllowedNames) => {
+      currentAllowedNames = newAllowedNames;
+      if (typeof dropdown.setOptions === 'function') {
+        dropdown.setOptions(buildOptions());
+      }
+    };
 
     let lastAppliedName = (selectedGroundWorkerName || '').trim();
 
@@ -2452,6 +2499,31 @@ const Workflow = {
     };
 
     return dropdown;
+  },
+
+  /**
+   * Returns the list of allowed assignee names for tasks belonging to a Work Request.
+   * If the Work Request has a Project Team defined (Manager + Team Members), only those
+   * names are allowed. For legacy Work Requests without team members defined, returns null
+   * which falls back to all active employees.
+   */
+  getWrAllowedNames(wr) {
+    if (!wr) return null;
+    const names = [];
+    const mgrId = wr.assignedTo || wr.assigned_to;
+    if (mgrId) {
+      const u = window.apiClient?.userCache?.getById?.(mgrId);
+      const gw = typeof this._getGroundWorkerById === 'function' ? this._getGroundWorkerById(mgrId) : null;
+      const mgrName = u?.name || gw?.name || (typeof mgrId === 'string' && !mgrId.includes('-') ? mgrId : null);
+      if (mgrName) names.push(mgrName);
+    }
+    const cos = wr.coAssignees || wr.co_assignees || [];
+    cos.forEach(ca => {
+      const u = window.apiClient?.userCache?.getById?.(ca);
+      const name = u?.name || ca;
+      if (name && !names.includes(name)) names.push(name);
+    });
+    return names.length > 0 ? names : null;
   },
 
   // ============================================================
@@ -7131,6 +7203,7 @@ const Workflow = {
         selectedAssigneeId: task.assigneeId || task.assignedTo || null,
         placeholder: 'Assign primary employee...',
         className: 'side-pane-primary-assignee-dropdown',
+        allowedNames: this.getWrAllowedNames(wr),
         onChange: ({ assigneeId, assigneeName }) => {
           WorkflowData.updateTask(task.id, {
             assigneeId: assigneeId || null,
@@ -7342,6 +7415,7 @@ const Workflow = {
                   placeholder: 'Assign...',
                   className: 'checklist-assignee-dropdown',
                   priorityNames: getTaskAllAssigneeNames(task),
+                  allowedNames: this.getWrAllowedNames(wr),
                   onChange: ({ assigneeId, assigneeName }) => {
                     item.assigneeName = assigneeName || null;
                     item.assigneeId = assigneeId || null;
@@ -8159,6 +8233,128 @@ const Workflow = {
     }));
     propsGrid.appendChild(dueGroup);
 
+    // ── Project Team: Manager (Required) + Team Members (Required) ──
+    const initialManagerId = wr ? (wr.assignedTo || wr.assigned_to || null) : null;
+    let initialManagerName = '';
+    if (initialManagerId) {
+      const u = window.apiClient?.userCache?.getById?.(initialManagerId);
+      const gw = typeof this._getGroundWorkerById === 'function' ? this._getGroundWorkerById(initialManagerId) : null;
+      initialManagerName = u?.name || gw?.name || (typeof initialManagerId === 'string' && !initialManagerId.includes('-') ? initialManagerId : '');
+    }
+
+    let wrTeamMembers = Array.isArray(wr?.coAssignees)
+      ? [...wr.coAssignees]
+      : (Array.isArray(wr?.co_assignees) ? [...wr.co_assignees] : []);
+
+    // Manager (Assignee)
+    const managerGroup = el('div', { class: 'notion-prop is-required wr-manager-prop' });
+    managerGroup.appendChild(el('label', {
+      html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Manager <span class="required-asterisk" style="color:var(--color-danger,#ef4444);">*</span>'
+    }));
+    const managerDropdown = await this.createGroundWorkerDropdown({
+      placeholder: 'Select Manager *',
+      className: 'notion-prop-dropdown wr-manager-dropdown',
+      selectedGroundWorkerName: initialManagerName,
+      selectedAssigneeId: initialManagerId,
+      allowClear: false,
+      onChange: () => {
+        syncTaskRowOptions();
+      }
+    });
+    managerGroup.appendChild(managerDropdown);
+    propsGrid.appendChild(managerGroup);
+
+    // Team Members (Co-assignees)
+    const teamMembersGroup = el('div', { class: 'notion-prop is-required wr-team-members-prop' });
+    teamMembersGroup.appendChild(el('label', {
+      html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Team Members <span class="required-asterisk" style="color:var(--color-danger,#ef4444);">*</span>'
+    }));
+    const teamChipsWrap = el('div', { class: 'co-assignee-chips wr-team-chips', style: 'margin-bottom: 6px;' });
+    const renderTeamChips = () => {
+      teamChipsWrap.innerHTML = '';
+      wrTeamMembers.forEach((name, idx) => {
+        const chip = el('span', { class: 'co-assignee-chip', text: name });
+        const removeBtn = el('span', { class: 'co-assignee-chip-remove', text: '×' });
+        removeBtn.addEventListener('click', () => {
+          wrTeamMembers.splice(idx, 1);
+          renderTeamChips();
+          syncTaskRowOptions();
+        });
+        chip.appendChild(removeBtn);
+        teamChipsWrap.appendChild(chip);
+      });
+    };
+    renderTeamChips();
+
+    const teamMemberDropdown = await this.createGroundWorkerDropdown({
+      placeholder: '+ Add Team Member *',
+      className: 'wr-team-member-dropdown',
+      onChange: ({ assigneeName }) => {
+        const name = assigneeName?.trim();
+        if (!name) return;
+        const currentMgr = (managerDropdown.searchText || '').trim();
+        if (name === currentMgr) {
+          teamMemberDropdown.value = '';
+          return;
+        }
+        if (!wrTeamMembers.includes(name)) {
+          wrTeamMembers.push(name);
+          renderTeamChips();
+          syncTaskRowOptions();
+        }
+        teamMemberDropdown.value = '';
+      }
+    });
+    teamMembersGroup.appendChild(teamChipsWrap);
+    teamMembersGroup.appendChild(teamMemberDropdown);
+    propsGrid.appendChild(teamMembersGroup);
+
+    const getFormTeamNames = () => {
+      const names = [];
+      const mgr = (managerDropdown.searchText || '').trim();
+      if (mgr) names.push(mgr);
+      wrTeamMembers.forEach(n => {
+        if (n && !names.includes(n)) names.push(n);
+      });
+      return names;
+    };
+
+    const syncTaskRowOptions = () => {
+      const allowed = getFormTeamNames();
+      const tList = document.getElementById('task-rows') || form.querySelector('#task-rows');
+      if (!tList) return;
+      const rows = tList.querySelectorAll('.task-row, .wr-task-row');
+      rows.forEach(row => {
+        const gwDd = row.querySelector('.task-assignee-groundworker');
+        if (gwDd && typeof gwDd.updateAllowedNames === 'function') {
+          gwDd.updateAllowedNames(allowed.length > 0 ? allowed : null);
+        }
+        const coDd = row.querySelector('.inline-coassignee-dropdown');
+        if (coDd && typeof coDd.updateAllowedNames === 'function') {
+          coDd.updateAllowedNames(allowed.length > 0 ? allowed : null);
+        }
+      });
+    };
+
+    form._projectTeam = {
+      getManager: () => ({
+        id: managerDropdown.value || null,
+        name: (managerDropdown.searchText || '').trim()
+      }),
+      getTeamMembers: () => [...wrTeamMembers],
+      getTeamNames: () => getFormTeamNames(),
+      focusManager: () => {
+        const inp = managerDropdown.querySelector('input');
+        inp?.classList.add('input-error');
+        inp?.focus();
+      },
+      focusTeamMembers: () => {
+        const inp = teamMemberDropdown.querySelector('input');
+        inp?.classList.add('input-error');
+        inp?.focus();
+      }
+    };
+
     form.appendChild(propsGrid);
 
     // ── Description free-form ──
@@ -8339,12 +8535,21 @@ const Workflow = {
    *        This checklist is temporarily held on the row element as `row._checklist` until the form is submitted,
    *        at which point it is mapped to the final task record.
    */
-  async addTaskRow(container, taskData, collapseOthers = false, initialChecklist = null) {
+  async addTaskRow(container, taskData, collapseOthers = false, initialChecklist = null, options = {}) {
     if (collapseOthers) {
       container.querySelectorAll('.task-row, .notion-line-item-row, .wr-task-row').forEach(r => r.classList.add('collapsed'));
     }
     const row = el('div', { class: 'notion-line-item-row wr-task-row task-row' });
     row.dataset.taskKey = taskData?.id || generateId('tmp');
+
+    let allowedNames = options?.allowedNames;
+    if (allowedNames === undefined) {
+      const parentForm = container.closest('form');
+      if (parentForm && parentForm._projectTeam && typeof parentForm._projectTeam.getTeamNames === 'function') {
+        const team = parentForm._projectTeam.getTeamNames();
+        if (team && team.length > 0) allowedNames = team;
+      }
+    }
 
     const dragHandle = el('div', {
       class: 'notion-line-item-drag',
@@ -8380,6 +8585,7 @@ const Workflow = {
       selectedAssigneeId: taskData?.assigneeId || taskData?.assignedTo || null,
       placeholder: 'Employee *',
       className: 'task-assignee-groundworker',
+      allowedNames: allowedNames || null,
       onChange: () => {} // value is read at submit time
     });
 
@@ -8413,6 +8619,7 @@ const Workflow = {
     const coAssigneeDropdown = await this.createGroundWorkerDropdown({
       placeholder: '+ Co-assignee',
       className: 'inline-coassignee-dropdown',
+      allowedNames: allowedNames || null,
       onChange: ({ assigneeName }) => {
         const name = assigneeName?.trim();
         if (!name) return;
@@ -8676,8 +8883,72 @@ const Workflow = {
       // Temporarily enable disabled fields so FormData picks them up
       const disabledFields = form.querySelectorAll('[disabled]');
       disabledFields.forEach(f => f.disabled = false);
-      if (!validateRequiredFields(form)) { disabledFields.forEach(f => f.disabled = true); return; }
-      if (!this.validateManualAssignees(form)) { disabledFields.forEach(f => f.disabled = true); return; }
+      if (!validateRequiredFields(form)) {
+        disabledFields.forEach(f => f.disabled = true);
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('loading'); submitBtn.innerHTML = originalBtnHtml; }
+        this._isSubmittingWr = false;
+        return;
+      }
+      if (!this.validateManualAssignees(form)) {
+        disabledFields.forEach(f => f.disabled = true);
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('loading'); submitBtn.innerHTML = originalBtnHtml; }
+        this._isSubmittingWr = false;
+        return;
+      }
+
+      // Validate Project Team (Manager + Team Members)
+      const mgrData = form._projectTeam ? form._projectTeam.getManager() : null;
+      const teamMembers = form._projectTeam ? form._projectTeam.getTeamMembers() : [];
+
+      if (!mgrData || (!mgrData.id && !mgrData.name)) {
+        this.showMessage('Required Field', 'Please select a Manager for the Project Team.', 'danger');
+        form._projectTeam?.focusManager?.();
+        disabledFields.forEach(f => f.disabled = true);
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('loading'); submitBtn.innerHTML = originalBtnHtml; }
+        this._isSubmittingWr = false;
+        return;
+      }
+
+      if (!teamMembers || teamMembers.length === 0) {
+        this.showMessage('Required Field', 'Please add at least one Team Member to the Project Team.', 'danger');
+        form._projectTeam?.focusTeamMembers?.();
+        disabledFields.forEach(f => f.disabled = true);
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('loading'); submitBtn.innerHTML = originalBtnHtml; }
+        this._isSubmittingWr = false;
+        return;
+      }
+
+      const allowedTeam = [mgrData.name, ...teamMembers].filter(Boolean);
+      for (const row of form.querySelectorAll('.task-row')) {
+        const title = row.querySelector('.task-title-input')?.value?.trim();
+        if (!title) continue;
+        const gwAutocomplete = row.querySelector('.task-assignee-groundworker');
+        const groundWorkerName = gwAutocomplete?.searchText?.trim() || '';
+        if (groundWorkerName && allowedTeam.length > 0 && !allowedTeam.includes(groundWorkerName)) {
+          this.showMessage('Invalid Task Assignee', `Task "${title}" is assigned to "${groundWorkerName}", who is not in the Project Team.`, 'danger');
+          gwAutocomplete?.querySelector('input')?.focus();
+          disabledFields.forEach(f => f.disabled = true);
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('loading'); submitBtn.innerHTML = originalBtnHtml; }
+          this._isSubmittingWr = false;
+          return;
+        }
+        for (const ca of (row._coAssignees || [])) {
+          if (ca && allowedTeam.length > 0 && !allowedTeam.includes(ca)) {
+            this.showMessage('Invalid Task Co-assignee', `Task "${title}" has co-assignee "${ca}", who is not in the Project Team.`, 'danger');
+            disabledFields.forEach(f => f.disabled = true);
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.classList.remove('loading'); submitBtn.innerHTML = originalBtnHtml; }
+            this._isSubmittingWr = false;
+            return;
+          }
+        }
+      }
+
+      let resolvedMgrId = mgrData.id;
+      if (!resolvedMgrId && mgrData.name) {
+        const res = await this.resolveAssignee(mgrData.name);
+        resolvedMgrId = res.id;
+      }
+
     const data = Object.fromEntries(new FormData(form).entries());
     let entity = Auth.activeEntity;
     if (entity === 'ALL') {
@@ -8695,6 +8966,8 @@ const Workflow = {
       priority: data.priority?.trim() || 'Priority',
       dueDate: data.dueDate || '',
       entity: entity,
+      assignedTo: resolvedMgrId || null,
+      coAssignees: teamMembers.filter(Boolean),
       status: this.editingId ? (WorkflowData.getWorkRequestById(this.editingId)?.status || 'Draft') : 'Draft',
       updatedAt: now
     };
@@ -9043,9 +9316,14 @@ const Workflow = {
     if (clear) clear.style.display = 'none';
   },
 
-  async renderTaskCoAssigneePicker(t, { primaryName = '', className = 'inline-coassignee-dropdown' } = {}, editable = false, showChips = true, onChange) {
+  async renderTaskCoAssigneePicker(t, { primaryName = '', className = 'inline-coassignee-dropdown', allowedNames = null } = {}, editable = false, showChips = true, onChange) {
     const wrap = el('div', { class: 'task-coassignee-wrap', style: 'margin-top:4px;' });
     const chipsWrap = el('div', { class: 'co-assignee-chips' });
+    let resolvedAllowed = allowedNames;
+    if (resolvedAllowed === null && t?.workRequestId) {
+      const wr = WorkflowData.getWorkRequestById(t.workRequestId) || (window.apiClient?.workRequestCache ? window.apiClient.workRequestCache.getById(t.workRequestId) : null);
+      resolvedAllowed = this.getWrAllowedNames(wr);
+    }
 
     const renderChips = () => {
       chipsWrap.innerHTML = '';
@@ -9073,6 +9351,7 @@ const Workflow = {
       const addDropdown = await this.createGroundWorkerDropdown({
         placeholder: '+ Co-assignee',
         className,
+        allowedNames: resolvedAllowed,
         onChange: async ({ assigneeName }) => {
           const name = assigneeName?.trim();
           if (!name) return;
@@ -9093,9 +9372,14 @@ const Workflow = {
     return wrap;
   },
 
-  async renderChecklistCoAssigneePicker(task, item, { primaryName = '', className = 'inline-coassignee-dropdown' } = {}, editable = false, showChips = true, onUpdate) {
+  async renderChecklistCoAssigneePicker(task, item, { primaryName = '', className = 'inline-coassignee-dropdown', allowedNames = null } = {}, editable = false, showChips = true, onUpdate) {
     const wrap = el('div', { class: 'task-coassignee-wrap', style: 'margin-top:4px;' });
     const chipsWrap = el('div', { class: 'co-assignee-chips' });
+    let resolvedAllowed = allowedNames;
+    if (resolvedAllowed === null && task?.workRequestId) {
+      const wr = WorkflowData.getWorkRequestById(task.workRequestId) || (window.apiClient?.workRequestCache ? window.apiClient.workRequestCache.getById(task.workRequestId) : null);
+      resolvedAllowed = this.getWrAllowedNames(wr);
+    }
 
     const renderChips = () => {
       chipsWrap.innerHTML = '';
@@ -9121,6 +9405,7 @@ const Workflow = {
       const addDropdown = await this.createGroundWorkerDropdown({
         placeholder: '+ Co-assignee',
         className,
+        allowedNames: resolvedAllowed,
         onChange: async ({ assigneeName }) => {
           const name = assigneeName?.trim();
           if (!name) return;
@@ -9813,12 +10098,18 @@ const Workflow = {
         placeholder: 'Assign to...',
         maxWidth: '180px',
         className: 'bulk-assign-dropdown',
+        allowedNames: this.getWrAllowedNames(wr),
         onChange: () => {}
       });
       assignWrap.appendChild(assignDropdown);
       const assignBtn = el('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: 'Assign' });
       assignBtn.addEventListener('click', async () => {
         const name = (assignDropdown.searchText || '').trim();
+        const allowed = this.getWrAllowedNames(wr);
+        if (name && allowed && allowed.length > 0 && !allowed.includes(name)) {
+          this.showMessage('Invalid Assignee', `"${name}" is not a member of the Project Team.`, 'danger');
+          return;
+        }
         const res = await this.resolveAssignee(name);
         const selected = sortedTasks.filter(t => container.selectedTaskIds.has(t.id));
         // Bulk assign dropdown is single-select, so only one name can be chosen.
@@ -10480,6 +10771,7 @@ const Workflow = {
             placeholder: 'Employee...',
             className: 'inline-ground-worker-autocomplete',
             allowClear: false,
+            allowedNames: this.getWrAllowedNames(wr),
             onChange: ({ assigneeId, assigneeName }) => {
               if (!assigneeName && !assigneeId) {
                 // Unassigning is invalid - only reassigning is permitted
@@ -11070,6 +11362,7 @@ const Workflow = {
                     placeholder: 'Assign...',
                     className: 'checklist-assignee-dropdown',
                     priorityNames: getTaskAllAssigneeNames(t),
+                    allowedNames: this.getWrAllowedNames(wr),
                     onChange: async ({ assigneeId, assigneeName }) => {
                       item.assigneeName = assigneeName || null;
                       item.assigneeId = assigneeId || null;
@@ -13922,6 +14215,7 @@ const Workflow = {
     let checklistItems = [];
     let checklistFromTemplate = false;
     const isDraft = wr?.status === 'Draft';
+    const wrAllowedNames = this.getWrAllowedNames(wr);
     const wrDeadline = String(wr?.dueDate || wr?.due_date || wr?.deadline || '').slice(0, 10);
     const today = manilaToday();
     if (wrDeadline && wrDeadline < today) {
@@ -13948,6 +14242,7 @@ const Workflow = {
     const gwDropdown = await this.createGroundWorkerDropdown({
       placeholder: 'Employee *',
       className: 'modal-task-assignee',
+      allowedNames: wrAllowedNames,
       onChange: () => {}
     });
     const assigneeWrapper = el('div', { class: 'task-assignee-wrapper' });
@@ -14034,6 +14329,7 @@ const Workflow = {
     const coAssigneeDropdown = await this.createGroundWorkerDropdown({
       placeholder: 'Add co-assignee...',
       className: 'modal-co-assignee',
+      allowedNames: wrAllowedNames,
       onChange: ({ assigneeName }) => {
         const name = assigneeName?.trim();
         if (!name) return;
@@ -14204,6 +14500,7 @@ const Workflow = {
             placeholder: 'Assign...',
             maxWidth: '140px',
             className: 'modal-checklist-assignee',
+            allowedNames: wrAllowedNames,
             onChange: async ({ assigneeId, assigneeName }) => {
               item.assigneeId = assigneeId || null;
               item.assigneeName = assigneeName || null;
@@ -14215,7 +14512,7 @@ const Workflow = {
           const coAssigneePicker = await this.renderChecklistCoAssigneePicker(
             null, // task is null during task creation
             item,
-            { primaryName: item.assigneeName || '', className: 'inline-coassignee-dropdown' },
+            { primaryName: item.assigneeName || '', className: 'inline-coassignee-dropdown', allowedNames: wrAllowedNames },
             true, // editable
             true, // showChips
             async () => {
@@ -14406,6 +14703,22 @@ const Workflow = {
         gwInput?.classList.add('input-error');
         gwInput?.focus();
         return;
+      }
+
+      if (wrAllowedNames && wrAllowedNames.length > 0) {
+        if (groundWorkerName && !wrAllowedNames.includes(groundWorkerName)) {
+          this.showMessage('Invalid Task Assignee', `Assignee "${groundWorkerName}" is not in the Work Request Project Team.`, 'danger');
+          const gwInput = gwDropdown.querySelector('input');
+          gwInput?.classList.add('input-error');
+          gwInput?.focus();
+          return;
+        }
+        for (const ca of coAssignees) {
+          if (ca && !wrAllowedNames.includes(ca)) {
+            this.showMessage('Invalid Task Co-assignee', `Co-assignee "${ca}" is not in the Work Request Project Team.`, 'danger');
+            return;
+          }
+        }
       }
 
       const data = Object.fromEntries(new FormData(form).entries());
@@ -14632,6 +14945,7 @@ const Workflow = {
     const task = WorkflowData.getTaskById(taskId);
     if (!task) return;
     const wr = WorkflowData.getWorkRequestById(task.workRequestId);
+    const wrAllowedNames = this.getWrAllowedNames(wr);
     const isDraft = wr?.status === 'Draft';
     const wrDeadline = String(wr?.dueDate || wr?.deadline || '').slice(0, 10);
 
@@ -14652,6 +14966,7 @@ const Workflow = {
       className: 'modal-task-assignee',
       selectedGroundWorkerName: task.assigneeName || '',
       selectedAssigneeId: task.assigneeId || task.assignedTo || null,
+      allowedNames: wrAllowedNames,
       onChange: () => {}
     });
     const assigneeWrapper = el('div', { class: 'task-assignee-wrapper' });
@@ -14667,6 +14982,7 @@ const Workflow = {
     const coAssigneeDropdown = await this.createGroundWorkerDropdown({
       placeholder: 'Add co-assignee...',
       className: 'modal-co-assignee',
+      allowedNames: wrAllowedNames,
       onChange: ({ assigneeName }) => {
         const name = assigneeName?.trim();
         if (!name) return;
@@ -14766,6 +15082,7 @@ const Workflow = {
           placeholder: 'Assign...',
           maxWidth: '140px',
           className: 'modal-checklist-assignee',
+          allowedNames: wrAllowedNames,
           onChange: ({ assigneeId, assigneeName }) => {
             item.assigneeId = assigneeId || null;
             item.assigneeName = assigneeName || null;
@@ -14971,10 +15288,30 @@ const Workflow = {
       try {
         const groundWorkerName = gwDropdown.searchText.trim();
         const groundWorkerId = gwDropdown.value || null;
+
+        if (wrAllowedNames && wrAllowedNames.length > 0) {
+          if (groundWorkerName && !wrAllowedNames.includes(groundWorkerName)) {
+            this.showMessage('Invalid Task Assignee', `Assignee "${groundWorkerName}" is not in the Work Request Project Team.`, 'danger');
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = origHtml; }
+            isSubmitting = false;
+            return;
+          }
+          for (const ca of (isDraft ? coAssignees : [])) {
+            if (ca && !wrAllowedNames.includes(ca)) {
+              this.showMessage('Invalid Task Co-assignee', `Co-assignee "${ca}" is not in the Work Request Project Team.`, 'danger');
+              if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = origHtml; }
+              isSubmitting = false;
+              return;
+            }
+          }
+        }
+
         const data = Object.fromEntries(new FormData(form).entries());
         const taskDueDate = String(data.dueDate || '').slice(0, 10);
         if (wrDeadline && taskDueDate && taskDueDate > wrDeadline) {
           this.showMessage('Invalid Due Date', `Due date cannot exceed the Work Request deadline (${wrDeadline}).`, 'danger');
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = origHtml; }
+          isSubmitting = false;
           return;
         }
         const allExistingIds = existingTasks.map(t => t.id);

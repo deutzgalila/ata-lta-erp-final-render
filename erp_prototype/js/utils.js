@@ -1469,6 +1469,15 @@ function createSearchableDropdown({ placeholder, options, maxWidth, allowFreeTex
     get() { return selectedText; }
   });
 
+  Object.defineProperty(wrapper, 'options', {
+    get() { return options; }
+  });
+
+  wrapper.setOptions = (newOptions) => {
+    options = Array.isArray(newOptions) ? [...newOptions] : [];
+    if (isOpen) renderList(selectedValue ? '' : input.value);
+  };
+
   wrapper.destroy = () => {
     close();
     listeners.forEach(({ target, type, fn, opts }) => {
