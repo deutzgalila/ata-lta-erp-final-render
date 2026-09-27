@@ -2409,13 +2409,18 @@ const Workflow = {
     };
 
     const isRestricted = Array.isArray(currentAllowedNames) || roleFilter === 'Manager' || roleFilter === 'nonManagerNonAdmin';
+    const hasTeam = Array.isArray(currentAllowedNames) && currentAllowedNames.length > 0;
+    const initialEmptyText = Array.isArray(currentAllowedNames)
+      ? (hasTeam ? 'No matching team members' : 'Please assign Manager or Team Members first')
+      : 'No results';
     const dropdown = createSearchableDropdown({
       placeholder,
       options: buildOptions(),
       allowFreeText: !isRestricted,
       maxWidth,
       allowClear,
-      addNewLabel: isRestricted ? null : ((text) => `Add employee: ${text}`)
+      addNewLabel: isRestricted ? null : ((text) => `Add employee: ${text}`),
+      emptyText: initialEmptyText
     });
     if (className) {
       className.split(/\s+/).filter(Boolean).forEach(cls => dropdown.classList.add(cls));
@@ -2423,8 +2428,18 @@ const Workflow = {
 
     dropdown.updateAllowedNames = (newAllowedNames) => {
       currentAllowedNames = newAllowedNames;
+      const restricted = Array.isArray(currentAllowedNames) || roleFilter === 'Manager' || roleFilter === 'nonManagerNonAdmin';
+      if (typeof dropdown.setAllowFreeText === 'function') {
+        dropdown.setAllowFreeText(!restricted);
+      }
       if (typeof dropdown.setOptions === 'function') {
         dropdown.setOptions(buildOptions());
+      }
+      if (typeof dropdown.setEmptyText === 'function') {
+        const hasMembers = Array.isArray(currentAllowedNames) && currentAllowedNames.length > 0;
+        dropdown.setEmptyText(Array.isArray(currentAllowedNames)
+          ? (hasMembers ? 'No matching team members' : 'Please assign Manager or Team Members first')
+          : 'No results');
       }
     };
 
@@ -2464,6 +2479,10 @@ const Workflow = {
 
       lastAppliedName = name;
       onChange({ assigneeId: resolvedId, assigneeName: name || null });
+    };
+
+    dropdown.onValueChange = (val) => {
+      if (!val) lastAppliedName = '';
     };
 
     // Set initial value
@@ -8284,7 +8303,7 @@ const Workflow = {
     // Manager (Assignee)
     const managerGroup = el('div', { class: 'notion-prop is-required wr-manager-prop' });
     managerGroup.appendChild(el('label', {
-      html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Manager <span class="required-asterisk" style="color:var(--color-danger,#ef4444);">*</span>'
+      html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Manager'
     }));
     const managerDropdown = await this.createGroundWorkerDropdown({
       placeholder: 'Select Manager *',
@@ -8303,7 +8322,7 @@ const Workflow = {
     // Team Members (Co-assignees)
     const teamMembersGroup = el('div', { class: 'notion-prop is-required wr-team-members-prop' });
     teamMembersGroup.appendChild(el('label', {
-      html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Team Members <span class="required-asterisk" style="color:var(--color-danger,#ef4444);">*</span>'
+      html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Team Members'
     }));
     const teamChipsWrap = el('div', { class: 'co-assignee-chips wr-team-chips', style: 'margin-bottom: 6px;' });
     const renderTeamChips = () => {
@@ -8358,17 +8377,29 @@ const Workflow = {
 
     const syncTaskRowOptions = () => {
       const allowed = getFormTeamNames();
+      const allowedLower = new Set(allowed.map(n => String(n).trim().toLowerCase()).filter(Boolean));
       const tList = document.getElementById('task-rows') || form.querySelector('#task-rows');
       if (!tList) return;
       const rows = tList.querySelectorAll('.task-row, .wr-task-row');
       rows.forEach(row => {
         const gwDd = row.querySelector('.task-assignee-groundworker');
         if (gwDd && typeof gwDd.updateAllowedNames === 'function') {
-          gwDd.updateAllowedNames(allowed.length > 0 ? allowed : null);
+          gwDd.updateAllowedNames(allowed);
+          const currentText = (gwDd.searchText || '').trim().toLowerCase();
+          if (currentText && !allowedLower.has(currentText)) {
+            gwDd.value = '';
+          }
         }
         const coDd = row.querySelector('.inline-coassignee-dropdown');
         if (coDd && typeof coDd.updateAllowedNames === 'function') {
-          coDd.updateAllowedNames(allowed.length > 0 ? allowed : null);
+          coDd.updateAllowedNames(allowed);
+        }
+        if (Array.isArray(row._coAssignees) && row._coAssignees.length > 0) {
+          const prevLen = row._coAssignees.length;
+          row._coAssignees = row._coAssignees.filter(n => allowedLower.has(String(n).trim().toLowerCase()));
+          if (row._coAssignees.length !== prevLen && typeof row._renderCoChips === 'function') {
+            row._renderCoChips();
+          }
         }
       });
     };
@@ -8583,8 +8614,7 @@ const Workflow = {
     if (allowedNames === undefined) {
       const parentForm = container.closest('form');
       if (parentForm && parentForm._projectTeam && typeof parentForm._projectTeam.getTeamNames === 'function') {
-        const team = parentForm._projectTeam.getTeamNames();
-        if (team && team.length > 0) allowedNames = team;
+        allowedNames = parentForm._projectTeam.getTeamNames() || [];
       }
     }
 
@@ -8622,10 +8652,7 @@ const Workflow = {
     // Ground worker assignee — typable dropdown like the filter tray
     const gwDropdown = await this.createGroundWorkerDropdown({
       selectedGroundWorkerName: taskData?.assigneeName || '',
-      selectedAssigneeId: taskData?.assigneeId || taskData?.assignedTo || null,
-      placeholder: 'Employee *',
-      className: 'task-assignee-groundworker',
-      allowedNames: allowedNames || null,
+      allowedNames: Array.isArray(allowedNames) ? allowedNames : (allowedNames || null),
       onChange: () => {
         gwDropdown.querySelector('input')?.classList.remove('input-error');
       } // value is read at submit time
@@ -8660,11 +8687,12 @@ const Workflow = {
       });
     };
     renderCoChips();
+    row._renderCoChips = renderCoChips;
 
     const coAssigneeDropdown = await this.createGroundWorkerDropdown({
       placeholder: '+ Co-assignee',
       className: 'inline-coassignee-dropdown',
-      allowedNames: allowedNames || null,
+      allowedNames: Array.isArray(allowedNames) ? allowedNames : (allowedNames || null),
       onChange: ({ assigneeName }) => {
         const name = assigneeName?.trim();
         if (!name) return;

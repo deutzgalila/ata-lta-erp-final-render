@@ -1175,11 +1175,12 @@ function _ensureSearchableDropdownDocListener() {
   });
 }
 
-function createSearchableDropdown({ placeholder, options, maxWidth, allowFreeText = false, addNewLabel = null, allowClear = true }) {
+function createSearchableDropdown({ placeholder, options, maxWidth, allowFreeText = false, addNewLabel = null, allowClear = true, emptyText = 'No results' }) {
   const wrapper = document.createElement('div');
   wrapper.className = 'searchable-dropdown';
   if (maxWidth) wrapper.style.maxWidth = maxWidth;
   const canClear = allowClear !== false;
+  let currentEmptyText = emptyText;
 
   let iconHtml = '';
   if (placeholder.includes('Client')) {
@@ -1232,7 +1233,7 @@ function createSearchableDropdown({ placeholder, options, maxWidth, allowFreeTex
     const filtered = options.filter(o => !query || o.text.toLowerCase().includes(query));
 
     const trimmedFilter = (filter || '').trim();
-    if (trimmedFilter) {
+    if (trimmedFilter && allowFreeText) {
       const hasExactMatch = options.some(o => o.text.toLowerCase() === trimmedFilter.toLowerCase());
       if (!hasExactMatch) {
         const label = addNewLabel ? addNewLabel(trimmedFilter) : trimmedFilter;
@@ -1243,7 +1244,7 @@ function createSearchableDropdown({ placeholder, options, maxWidth, allowFreeTex
     if (filtered.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'searchable-dropdown-empty';
-      empty.textContent = 'No results';
+      empty.textContent = currentEmptyText;
       listbox.appendChild(empty);
       return;
     }
@@ -1430,6 +1431,7 @@ function createSearchableDropdown({ placeholder, options, maxWidth, allowFreeTex
 
   // Expose .value as getter/setter for drop-in compatibility with <select>
   Object.defineProperty(wrapper, 'value', {
+    configurable: true,
     get() { return selectedValue; },
     set(val) {
       if (val === '' || val == null) {
@@ -1458,6 +1460,9 @@ function createSearchableDropdown({ placeholder, options, maxWidth, allowFreeTex
       }
       input.title = input.value || placeholder || '';
       clearBtn.style.display = val ? 'flex' : 'none';
+      if (typeof wrapper.onValueChange === 'function') {
+        wrapper.onValueChange(val);
+      }
     }
   });
 
@@ -1476,6 +1481,15 @@ function createSearchableDropdown({ placeholder, options, maxWidth, allowFreeTex
   wrapper.setOptions = (newOptions) => {
     options = Array.isArray(newOptions) ? [...newOptions] : [];
     if (isOpen) renderList(selectedValue ? '' : input.value);
+  };
+
+  wrapper.setEmptyText = (text) => {
+    currentEmptyText = text || 'No results';
+    if (isOpen) renderList(selectedValue ? '' : input.value);
+  };
+
+  wrapper.setAllowFreeText = (val) => {
+    allowFreeText = !!val;
   };
 
   wrapper.destroy = () => {
