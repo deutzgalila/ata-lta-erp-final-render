@@ -8652,6 +8652,9 @@ const Workflow = {
     // Ground worker assignee — typable dropdown like the filter tray
     const gwDropdown = await this.createGroundWorkerDropdown({
       selectedGroundWorkerName: taskData?.assigneeName || '',
+      selectedAssigneeId: taskData?.assigneeId || taskData?.assignedTo || null,
+      placeholder: 'Employee *',
+      className: 'task-assignee-groundworker',
       allowedNames: Array.isArray(allowedNames) ? allowedNames : (allowedNames || null),
       onChange: () => {
         gwDropdown.querySelector('input')?.classList.remove('input-error');
