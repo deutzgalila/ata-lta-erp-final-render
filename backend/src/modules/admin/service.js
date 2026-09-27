@@ -816,13 +816,14 @@ const rejectPending = async ({ id, user, reason }) => {
   }
 
   const now = new Date().toISOString();
+  const finalReason = (typeof reason === 'string' && reason.trim()) ? reason.trim() : 'No reason provided';
   const { error: updateError } = await supabaseAdmin
     .from('pending_changes')
     .update({
       status: 'rejected',
       reviewed_by: user.id,
       reviewed_at: now,
-      rejection_reason: reason,
+      rejection_reason: finalReason,
     })
     .eq('id', id);
 
