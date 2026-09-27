@@ -323,6 +323,9 @@ const toApiPendingChange = (row) => ({
   submittedBy: row.submitted_by,
   status: row.status,
   createdAt: row.created_at,
+  reviewedBy: row.reviewed_by || null,
+  reviewedAt: row.reviewed_at || null,
+  rejectionReason: row.rejection_reason || null,
 });
 
 const listPendingApprovals = async ({

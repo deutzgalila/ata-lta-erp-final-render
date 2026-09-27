@@ -3211,16 +3211,20 @@ const Disbursement = {
 
         const rejectBtn = el('button', { class: 'btn btn-danger', text: 'Reject', style: 'margin-left: 8px;' });
         rejectBtn.addEventListener('click', () => {
-          Workflow.showConfirm('Reject Expense', 'Are you sure you want to reject this request?', async () => {
-            const reason = prompt('Enter rejection reason:');
-            if (!reason) return;
-            try {
-              await this.reject(d.id, reason);
-              App.handleRoute();
-            } catch (e) {
-              // error surfaced by reject()
+          Workflow.showRejectionModal({
+            title: 'Reject Expense',
+            message: 'Are you sure you want to reject this request?',
+            placeholder: 'Enter rejection reason...',
+            required: true,
+            onConfirm: async (reason) => {
+              try {
+                await this.reject(d.id, reason);
+                App.handleRoute();
+              } catch (e) {
+                // error surfaced by reject()
+              }
             }
-          }, 'danger');
+          });
         });
         actions.appendChild(rejectBtn);
         container.appendChild(actions);

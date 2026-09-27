@@ -3580,6 +3580,93 @@ const Workflow = {
   },
 
   /**
+   * Displays a unified ERP rejection modal with a multiline reason textarea.
+   * Merges confirmation and reason input into a single clean step.
+   */
+  showRejectionModal({
+    title = 'Confirm Rejection',
+    message = 'Are you sure you want to reject this item?',
+    placeholder = 'Enter rejection reason...',
+    required = true,
+    confirmText = 'Reject',
+    cancelText = 'Cancel',
+    onConfirm,
+    onCancel = null
+  } = {}) {
+    const wrapper = el('div', { class: 'modal-message-wrapper type-danger' });
+
+    const icon = el('div', { class: 'modal-icon-v2', html: SignalIcons.danger });
+    wrapper.appendChild(icon);
+
+    wrapper.appendChild(el('p', { text: message, class: 'modal-text' }));
+
+    const formGroup = el('div', {
+      class: 'form-group',
+      style: 'width: 100%; max-width: 420px; text-align: left; margin-top: 14px;'
+    });
+    formGroup.appendChild(el('label', {
+      text: required ? 'Rejection Reason *' : 'Rejection Reason (Optional)',
+      style: 'font-weight: 600; font-size: 0.875rem; margin-bottom: 6px; display: block; color: var(--color-text);'
+    }));
+
+    const textarea = el('textarea', {
+      class: 'form-control',
+      rows: '3',
+      placeholder,
+      style: 'width: 100%; resize: vertical; box-sizing: border-box; padding: 10px 12px; font-size: 0.875rem;'
+    });
+    formGroup.appendChild(textarea);
+
+    const errorMsg = el('div', {
+      class: 'text-danger',
+      style: 'display: none; font-size: 0.8125rem; margin-top: 6px; color: var(--color-danger, #ef4444); font-weight: 500;',
+      text: 'Please enter a rejection reason before confirming.'
+    });
+    formGroup.appendChild(errorMsg);
+    wrapper.appendChild(formGroup);
+
+    const footer = el('div', { class: 'modal-footer', style: 'margin-top: 16px;' });
+    const confirmBtn = el('button', {
+      class: 'btn modal-btn-sure btn-danger',
+      text: confirmText
+    });
+    const cancelBtn = el('button', { class: 'btn modal-btn-cancel btn-secondary', text: cancelText });
+
+    footer.appendChild(confirmBtn);
+    footer.appendChild(cancelBtn);
+    wrapper.appendChild(footer);
+
+    const overlay = this.showModal(title, wrapper, onCancel);
+
+    cancelBtn.addEventListener('click', () => {
+      overlay.remove();
+      if (onCancel) onCancel();
+    });
+
+    confirmBtn.addEventListener('click', async () => {
+      const reason = textarea.value.trim();
+      if (required && !reason) {
+        errorMsg.style.display = 'block';
+        textarea.focus();
+        return;
+      }
+      errorMsg.style.display = 'none';
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = 'Rejecting...';
+      overlay.remove();
+      if (onConfirm) await onConfirm(reason);
+    });
+
+    textarea.addEventListener('input', () => {
+      if (textarea.value.trim()) {
+        errorMsg.style.display = 'none';
+      }
+    });
+
+    setTimeout(() => textarea.focus(), 60);
+  },
+
+  /**
    * Open a modal with the full billing/invoice creation form,
    * pre-populated from the given work request.
    */
@@ -10158,14 +10245,17 @@ const Workflow = {
           });
           const rejectBtn = el('button', { class: 'btn btn-danger btn-xs', text: 'Reject' });
           rejectBtn.addEventListener('click', () => {
-            const reason = prompt('Enter rejection reason (optional):');
-            if (reason !== null) {
-              Workflow.showConfirm('Confirm Rejection', 'Are you sure you want to reject this change?', () => {
+            Workflow.showRejectionModal({
+              title: 'Confirm Rejection',
+              message: 'Are you sure you want to reject this change?',
+              placeholder: 'Enter rejection reason...',
+              required: true,
+              onConfirm: (reason) => {
                 Workflow.runBlockingArchiveAction({
                   title: 'Rejecting Change',
                   message: `Please wait while the change is being rejected...`,
                   apiCall: async () => {
-                    return await PendingChanges.reject(pc.id, reason || '');
+                    return await PendingChanges.reject(pc.id, reason);
                   },
                   successTitle: 'Rejection Successful',
                   successMessage: 'The change has been rejected.',
@@ -10173,8 +10263,8 @@ const Workflow = {
                     App.handleRoute();
                   }
                 });
-              }, 'danger');
-            }
+              }
+            });
           });
           btnRow.appendChild(approveBtn);
           btnRow.appendChild(rejectBtn);
