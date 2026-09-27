@@ -15619,6 +15619,7 @@ html.loading-active #loading-screen:not(.hidden) {
   margin-right: 12px;
   width: 75px;
   flex-shrink: 0;
+  text-align: left;
 }
 
 .jira-backlog-row-title {
@@ -15627,6 +15628,8 @@ html.loading-active #loading-screen:not(.hidden) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: left;
+  min-width: 0;
 }
 
 .jira-backlog-row-tags {
@@ -16158,6 +16161,11 @@ html.loading-active #loading-screen:not(.hidden) {
 
 /* Empty checkbox spacer used when selectable=false to preserve column alignment. */
 .jira-backlog-row-checkbox-wrap--spacer {
+  width: 20px;
+  flex-shrink: 0;
+}
+
+.jira-backlog-row--columns .jira-backlog-row-checkbox-wrap--spacer {
   width: 100%;
 }
 

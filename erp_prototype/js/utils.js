@@ -4639,9 +4639,8 @@ const JiraBacklogList = {
           }
         });
         checkboxWrap.appendChild(chk);
-        row.appendChild(checkboxWrap);
-      } else {
-        // Keep alignment by reserving the checkbox lead column when hidden.
+      } else if (hasColumns) {
+        // Keep alignment by reserving the checkbox lead column when hidden in column mode.
         const checkboxSpacer = el('div', { class: 'jira-backlog-row-checkbox-wrap jira-backlog-row-checkbox-wrap--spacer' });
         row.appendChild(checkboxSpacer);
       }
