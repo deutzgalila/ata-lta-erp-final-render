@@ -3580,6 +3580,93 @@ const Workflow = {
   },
 
   /**
+   * Displays a unified ERP rejection modal with a multiline reason textarea.
+   * Merges confirmation and reason input into a single clean step.
+   */
+  showRejectionModal({
+    title = 'Confirm Rejection',
+    message = 'Are you sure you want to reject this item?',
+    placeholder = 'Enter rejection reason...',
+    required = true,
+    confirmText = 'Reject',
+    cancelText = 'Cancel',
+    onConfirm,
+    onCancel = null
+  } = {}) {
+    const wrapper = el('div', { class: 'modal-message-wrapper type-danger' });
+
+    const icon = el('div', { class: 'modal-icon-v2', html: SignalIcons.danger });
+    wrapper.appendChild(icon);
+
+    wrapper.appendChild(el('p', { text: message, class: 'modal-text' }));
+
+    const formGroup = el('div', {
+      class: 'form-group',
+      style: 'width: 100%; max-width: 420px; text-align: left; margin-top: 14px;'
+    });
+    formGroup.appendChild(el('label', {
+      text: required ? 'Rejection Reason *' : 'Rejection Reason (Optional)',
+      style: 'font-weight: 600; font-size: 0.875rem; margin-bottom: 6px; display: block; color: var(--color-text);'
+    }));
+
+    const textarea = el('textarea', {
+      class: 'form-control',
+      rows: '3',
+      placeholder,
+      style: 'width: 100%; resize: vertical; box-sizing: border-box; padding: 10px 12px; font-size: 0.875rem;'
+    });
+    formGroup.appendChild(textarea);
+
+    const errorMsg = el('div', {
+      class: 'text-danger',
+      style: 'display: none; font-size: 0.8125rem; margin-top: 6px; color: var(--color-danger, #ef4444); font-weight: 500;',
+      text: 'Please enter a rejection reason before confirming.'
+    });
+    formGroup.appendChild(errorMsg);
+    wrapper.appendChild(formGroup);
+
+    const footer = el('div', { class: 'modal-footer', style: 'margin-top: 16px;' });
+    const confirmBtn = el('button', {
+      class: 'btn modal-btn-sure btn-danger',
+      text: confirmText
+    });
+    const cancelBtn = el('button', { class: 'btn modal-btn-cancel btn-secondary', text: cancelText });
+
+    footer.appendChild(confirmBtn);
+    footer.appendChild(cancelBtn);
+    wrapper.appendChild(footer);
+
+    const overlay = this.showModal(title, wrapper, onCancel);
+
+    cancelBtn.addEventListener('click', () => {
+      overlay.remove();
+      if (onCancel) onCancel();
+    });
+
+    confirmBtn.addEventListener('click', async () => {
+      const reason = textarea.value.trim();
+      if (required && !reason) {
+        errorMsg.style.display = 'block';
+        textarea.focus();
+        return;
+      }
+      errorMsg.style.display = 'none';
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = 'Rejecting...';
+      overlay.remove();
+      if (onConfirm) await onConfirm(reason);
+    });
+
+    textarea.addEventListener('input', () => {
+      if (textarea.value.trim()) {
+        errorMsg.style.display = 'none';
+      }
+    });
+
+    setTimeout(() => textarea.focus(), 60);
+  },
+
+  /**
    * Open a modal with the full billing/invoice creation form,
    * pre-populated from the given work request.
    */
@@ -8174,7 +8261,10 @@ const Workflow = {
     this._wrFormAbortController = new AbortController();
 
     const entity = Auth.activeEntity;
-    const wr = this.editingId ? WorkflowData.getWorkRequestById(this.editingId) : null;
+    let wr = this.editingId ? WorkflowData.getWorkRequestById(this.editingId) : null;
+    if (!wr && !this.editingId && typeof PendingChanges !== 'undefined' && PendingChanges.draftData) {
+      wr = { ...PendingChanges.draftData };
+    }
     if (this.editingId && (!wr || !Auth.canViewWr(wr))) {
       this.view = 'list';
       App.handleRoute();
@@ -10158,14 +10248,17 @@ const Workflow = {
           });
           const rejectBtn = el('button', { class: 'btn btn-danger btn-xs', text: 'Reject' });
           rejectBtn.addEventListener('click', () => {
-            const reason = prompt('Enter rejection reason (optional):');
-            if (reason !== null) {
-              Workflow.showConfirm('Confirm Rejection', 'Are you sure you want to reject this change?', () => {
+            Workflow.showRejectionModal({
+              title: 'Confirm Rejection',
+              message: 'Are you sure you want to reject this change?',
+              placeholder: 'Enter rejection reason...',
+              required: true,
+              onConfirm: (reason) => {
                 Workflow.runBlockingArchiveAction({
                   title: 'Rejecting Change',
                   message: `Please wait while the change is being rejected...`,
                   apiCall: async () => {
-                    return await PendingChanges.reject(pc.id, reason || '');
+                    return await PendingChanges.reject(pc.id, reason);
                   },
                   successTitle: 'Rejection Successful',
                   successMessage: 'The change has been rejected.',
@@ -10173,8 +10266,8 @@ const Workflow = {
                     App.handleRoute();
                   }
                 });
-              }, 'danger');
-            }
+              }
+            });
           });
           btnRow.appendChild(approveBtn);
           btnRow.appendChild(rejectBtn);
@@ -14351,7 +14444,12 @@ const Workflow = {
   },
 
   async renderAddTaskForm(wrId, opts = {}) {
-    const { hideHeader = false } = opts;
+    const { hideHeader = false, draftData = null } = opts;
+    const draft = draftData || (typeof PendingChanges !== 'undefined' ? PendingChanges.draftData : null);
+    const isResubmitting = typeof PendingChanges !== 'undefined' && !!PendingChanges.editingPendingId;
+    if (!wrId && draft) {
+      wrId = draft.workRequestId || draft.work_request_id || wrId;
+    }
     await WorkflowData.loadPendingApprovals();
     let wr = WorkflowData.getWorkRequestById(wrId);
     if (!wr) {
@@ -14372,10 +14470,17 @@ const Workflow = {
     if (!hideHeader) {
       const headerBar = el('div', { class: 'form-header-bar' });
       const topActions = el('div', { class: 'form-actions-top' });
-      const saveBtn = el('button', { type: 'submit', form: 'add-task-form', class: 'btn btn-primary', text: 'Add Task' });
+      const saveBtn = el('button', { type: 'submit', form: 'add-task-form', class: 'btn btn-primary', text: isResubmitting ? 'Save & Resubmit' : 'Add Task' });
       topActions.appendChild(saveBtn);
       const cancelBtn = el('button', { type: 'button', class: 'btn btn-secondary', text: 'Cancel' });
-      cancelBtn.addEventListener('click', () => closeFormPanelAndRoute('#operations/detail/' + wrId));
+      cancelBtn.addEventListener('click', () => {
+        if (typeof PendingChanges !== 'undefined') {
+          PendingChanges.editingPendingId = null;
+          PendingChanges.draftData = null;
+          PendingChanges.preserveEditingId = false;
+        }
+        closeFormPanelAndRoute('#operations/detail/' + wrId);
+      });
       topActions.appendChild(cancelBtn);
       headerBar.appendChild(topActions);
       form.appendChild(headerBar);
@@ -14383,7 +14488,7 @@ const Workflow = {
 
     // Standard Task Template state
     await this.ensureStandardTaskTemplates();
-    let checklistItems = [];
+    let checklistItems = draft?.checklist ? [...draft.checklist] : [];
     let checklistFromTemplate = false;
     const isDraft = wr?.status === 'Draft';
     const wrAllowedNames = this.getWrAllowedNames(wr);
@@ -14399,7 +14504,8 @@ const Workflow = {
     titleSection.appendChild(el('label', { class: 'notion-section-label', text: 'Task Title' }));
     const titleInput = el('input', {
       type: 'text', name: 'title', class: 'notion-freeform-input notion-title-input',
-      placeholder: 'New Task', required: true
+      placeholder: 'New Task', required: true,
+      value: draft?.title || ''
     });
     titleSection.appendChild(titleInput);
     form.appendChild(titleSection);
@@ -14414,6 +14520,8 @@ const Workflow = {
       placeholder: 'Employee *',
       className: 'modal-task-assignee',
       allowedNames: wrAllowedNames,
+      selectedGroundWorkerName: draft?.assigneeName || '',
+      selectedAssigneeId: draft?.assigneeId || draft?.assignedTo || null,
       onChange: () => {}
     });
     const assigneeWrapper = el('div', { class: 'task-assignee-wrapper' });
@@ -14425,13 +14533,15 @@ const Workflow = {
     const dueGroup = el('div', { class: 'notion-prop is-required' });
     dueGroup.appendChild(el('label', { html: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Due Date *' + (wrDeadline ? ` <span style="font-size:0.75rem; color:var(--color-text-muted);">(Max: ${wrDeadline})</span>` : '') }));
     const defaultTaskDue = (wrDeadline && wrDeadline >= today) ? wrDeadline : today;
+    const draftDue = draft ? (draft.dueDate || draft.due_date || '') : '';
+    const initialDue = draftDue ? String(draftDue).slice(0, 10) : defaultTaskDue;
     const dueInputAttrs = {
       type: 'date',
       name: 'dueDate',
       class: 'notion-prop-input',
       required: true,
       min: today,
-      value: defaultTaskDue
+      value: initialDue
     };
     if (wrDeadline) {
       dueInputAttrs.max = wrDeadline;
@@ -14447,7 +14557,7 @@ const Workflow = {
     ['Priority', 'Low Priority', 'Urgent'].forEach(p => {
       prioritySel.appendChild(el('option', { value: p, text: p }));
     });
-    prioritySel.value = 'Priority';
+    prioritySel.value = draft?.priority || 'Priority';
     priorityGroup.appendChild(prioritySel);
     propsGrid.appendChild(priorityGroup);
 
@@ -14471,6 +14581,7 @@ const Workflow = {
     reqLinkSel.appendChild(el('option', { value: 'billing', text: 'Service Invoice (Billing)' }));
     reqLinkSel.appendChild(el('option', { value: 'disbursement', text: 'Expense / Disbursement' }));
     reqLinkSel.appendChild(el('option', { value: 'transmittal', text: 'Transmittal' }));
+    reqLinkSel.value = draft?.requiredLinkType || draft?.required_link_type || '';
     reqLinkGroup.appendChild(reqLinkSel);
     propsGrid.appendChild(reqLinkGroup);
 
@@ -14495,7 +14606,7 @@ const Workflow = {
     predMenu.addEventListener('click', (e) => e.stopPropagation());
 
     // Co-assignees
-    let coAssignees = [];
+    let coAssignees = draft?.coAssignees ? [...draft.coAssignees] : [];
     const coAssigneeChips = el('div', { class: 'co-assignee-chips' });
     const coAssigneeDropdown = await this.createGroundWorkerDropdown({
       placeholder: 'Add co-assignee...',
@@ -14534,6 +14645,7 @@ const Workflow = {
         coAssigneeChips.appendChild(chip);
       });
     };
+    renderCoAssigneeChips();
 
     if (isDraft) {
       const coAssigneeGroup = el('div', { class: 'notion-prop' });
@@ -14748,6 +14860,10 @@ const Workflow = {
         addChecklistItem();
       }
     });
+
+    if (checklistItems.length > 0) {
+      await renderChecklist();
+    }
 
     templateSel.addEventListener('change', async () => {
       const val = templateSel.value;
@@ -15009,13 +15125,17 @@ const Workflow = {
     return form;
   },
 
-  async showAddTaskPanel(wrId, mode = null) {
-    const form = await this.renderAddTaskForm(wrId, { 
+  async showAddTaskPanel(wrId, mode = null, draftData = null) {
+    const isResubmitting = typeof PendingChanges !== 'undefined' && !!PendingChanges.editingPendingId;
+    const effectiveDraft = draftData || (typeof PendingChanges !== 'undefined' ? PendingChanges.draftData : null);
+    const effectiveWrId = wrId || effectiveDraft?.workRequestId || effectiveDraft?.work_request_id;
+    const form = await this.renderAddTaskForm(effectiveWrId, { 
       hideHeader: mode !== PaneMode.SIDE_PEEK && mode !== null,
-      showChecklist: true
+      showChecklist: true,
+      draftData: effectiveDraft
     });
     if (!form) return;
-    const fullPageRoute = '#operations/addTask/' + wrId;
+    const fullPageRoute = '#operations/addTask/' + effectiveWrId;
     openFormPanel({
       icon: '✅',
       title: null,
@@ -15026,8 +15146,19 @@ const Workflow = {
       fullPageRoute,
       newTabRoute: fullPageRoute,
       actions: [
-        { text: 'Add Task', class: 'btn btn-primary', type: 'submit', form: 'add-task-form' },
-        { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#operations/detail/' + wrId) }
+        { text: isResubmitting ? 'Save & Resubmit' : 'Add Task', class: 'btn btn-primary', type: 'submit', form: 'add-task-form' },
+        { 
+          text: 'Cancel', 
+          class: 'btn btn-secondary', 
+          onClick: () => {
+            if (typeof PendingChanges !== 'undefined') {
+              PendingChanges.editingPendingId = null;
+              PendingChanges.draftData = null;
+              PendingChanges.preserveEditingId = false;
+            }
+            closeFormPanelAndRoute('#operations/detail/' + effectiveWrId);
+          }
+        }
       ]
     });
   },
@@ -15038,7 +15169,11 @@ const Workflow = {
    */
   async openWorkRequestForm(mode = null) {
     const isNew = !this.editingId;
-    const wr = isNew ? null : WorkflowData.getWorkRequestById(this.editingId);
+    let wr = isNew ? null : WorkflowData.getWorkRequestById(this.editingId);
+    if (!wr && isNew && typeof PendingChanges !== 'undefined' && PendingChanges.draftData) {
+      wr = { ...PendingChanges.draftData };
+    }
+    const isResubmitting = typeof PendingChanges !== 'undefined' && !!PendingChanges.editingPendingId;
     const fullPageRoute = isNew ? '#operations/form/new' : `#operations/form/${this.editingId}`;
     const formEl = await this.renderForm();
     openFormPanel({
@@ -15055,8 +15190,19 @@ const Workflow = {
       draftKey: 'work-request-' + (this.editingId || 'new'),
       restoreDraft: true,
       actions: [
-        { text: isNew ? 'Submit Request' : 'Save Changes', class: 'btn btn-primary', type: 'submit', form: 'wr-form' },
-        { text: 'Cancel', class: 'btn btn-secondary', onClick: () => closeFormPanelAndRoute('#operations') }
+        { text: isResubmitting ? 'Save & Resubmit' : (isNew ? 'Submit Request' : 'Save Changes'), class: 'btn btn-primary', type: 'submit', form: 'wr-form' },
+        { 
+          text: 'Cancel', 
+          class: 'btn btn-secondary', 
+          onClick: () => {
+            if (typeof PendingChanges !== 'undefined') {
+              PendingChanges.editingPendingId = null;
+              PendingChanges.draftData = null;
+              PendingChanges.preserveEditingId = false;
+            }
+            closeFormPanelAndRoute('#operations');
+          }
+        }
       ]
     });
   },
@@ -15112,9 +15258,16 @@ const Workflow = {
     });
   },
 
-  async showEditTaskModal(taskId, onSaved) {
-    const task = WorkflowData.getTaskById(taskId);
+  async showEditTaskModal(taskId, onSaved, draftData = null) {
+    const draft = draftData || (typeof PendingChanges !== 'undefined' ? PendingChanges.draftData : null);
+    let task = taskId ? WorkflowData.getTaskById(taskId) : null;
+    if (!task && draft) {
+      task = { ...draft, id: taskId || draft.id || generateId('t') };
+    }
     if (!task) return;
+    if (draft) {
+      task = { ...task, ...draft };
+    }
     const wr = WorkflowData.getWorkRequestById(task.workRequestId);
     const wrAllowedNames = this.getWrAllowedNames(wr);
     const isDraft = wr?.status === 'Draft';
@@ -15441,6 +15594,8 @@ const Workflow = {
     const overlay = this.showModal('Edit Task', form, () => {
       if (typeof PendingChanges !== 'undefined') {
         PendingChanges.editingPendingId = null;
+        PendingChanges.draftData = null;
+        PendingChanges.preserveEditingId = false;
       }
     });
     let isSubmitting = false;
@@ -15497,10 +15652,11 @@ const Workflow = {
         }
 
         const runResult = await this.runBlockingArchiveAction({
-          title: 'Saving Task',
-          message: `Please wait while "${task.title || 'the task'}" is being updated...`,
+          title: isResubmitting ? 'Resubmitting Task' : 'Saving Task',
+          message: `Please wait while "${task.title || 'the task'}" is being ${isResubmitting ? 'resubmitted' : 'updated'}...`,
           apiCall: async () => {
-            await WorkflowData.updateTask(task.id, {
+            const taskPayload = {
+              ...task,
               title: data.title.trim(),
               requiredLinkType: reqLinkSel.value || '',
               assigneeId: res.id,
@@ -15511,14 +15667,29 @@ const Workflow = {
               predecessors: predecessors,
               checklist: checklistItems,
               updatedAt: new Date().toISOString()
-            });
+            };
+
+            if (typeof PendingChanges !== 'undefined' && PendingChanges.editingPendingId) {
+              const isNewTask = !task.id || task.id.startsWith('temp_') || !WorkflowData.getTaskById(task.id);
+              const submitResult = await PendingChanges.submit('tasks', taskPayload, isNewTask);
+              if (submitResult && submitResult.approved) {
+                if (isNewTask) {
+                  WorkflowData._addOptimisticTask(taskPayload);
+                } else {
+                  await WorkflowData.updateTask(task.id, taskPayload);
+                }
+              }
+              return { data: submitResult };
+            }
+
+            await WorkflowData.updateTask(task.id, taskPayload);
             const updated = WorkflowData.getTaskById(task.id);
             this._syncTaskToCaches(updated);
             return { data: updated };
           },
-          successTitle: 'Task Saved',
-          successMessage: 'Task has been successfully updated.',
-          errorTitle: 'Failed to Save Task'
+          successTitle: isResubmitting ? 'Task Resubmitted' : 'Task Saved',
+          successMessage: isResubmitting ? 'Task changes have been submitted for review.' : 'Task has been successfully updated.',
+          errorTitle: isResubmitting ? 'Failed to Resubmit Task' : 'Failed to Save Task'
         });
 
         if (runResult.success) {

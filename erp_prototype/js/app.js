@@ -724,9 +724,10 @@ const App = {
     }
 
     // Clear editingPendingId when leaving form routes
-    const hasFormInHash = rawHash.includes('/form/') || rawHash.includes('/templateForm/') || rawHash.includes('/taskTemplateForm/');
-    if (!hasFormInHash && typeof PendingChanges !== 'undefined') {
+    const hasFormInHash = rawHash.includes('/form/') || rawHash.includes('/templateForm/') || rawHash.includes('/taskTemplateForm/') || rawHash.includes('/addTask/');
+    if (!hasFormInHash && typeof PendingChanges !== 'undefined' && !PendingChanges.preserveEditingId) {
       PendingChanges.editingPendingId = null;
+      PendingChanges.draftData = null;
     }
     const parts = rawHash.split('?');
     const pathParts = parts[0].split('/');
