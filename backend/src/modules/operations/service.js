@@ -1643,7 +1643,9 @@ const createStandardTaskTemplate = async ({ userId, data }) => {
     if (!error && created) {
       return normalizeTemplateRow(created);
     }
-  } catch (e) {}
+  } catch (_e) {
+    // Ignore error and fall back to in-memory store
+  }
 
   if (!_standardTaskTemplatesFallback) initFallbackTemplates();
   const id = randomUUID();
@@ -1684,7 +1686,9 @@ const updateStandardTaskTemplate = async ({ id, data }) => {
     if (!error && updated) {
       return normalizeTemplateRow(updated);
     }
-  } catch (e) {}
+  } catch (_e) {
+    // Ignore error and fall back to in-memory store
+  }
 
   if (!_standardTaskTemplatesFallback) initFallbackTemplates();
   const existing = _standardTaskTemplatesFallback.get(id);
@@ -1716,7 +1720,9 @@ const deleteStandardTaskTemplate = async ({ id }) => {
       .eq('id', id);
 
     if (!error) return true;
-  } catch (e) {}
+  } catch (_e) {
+    // Ignore error and fall back to in-memory store
+  }
 
   if (!_standardTaskTemplatesFallback) initFallbackTemplates();
   if (!_standardTaskTemplatesFallback.has(id)) {
@@ -1756,7 +1762,9 @@ const resetStandardTaskTemplates = async ({ userId }) => {
     if (!error && inserted && inserted.length > 0) {
       return inserted.map(normalizeTemplateRow);
     }
-  } catch (e) {}
+  } catch (_e) {
+    // Ignore error and fall back to in-memory store
+  }
 
   initFallbackTemplates();
   return Array.from(_standardTaskTemplatesFallback.values()).sort(
