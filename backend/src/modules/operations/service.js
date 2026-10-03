@@ -554,9 +554,54 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
     }
   }
 
+  // Check for duplicate explicit local_id across all phases
+  const explicitLocalIds = new Set();
+  for (const phaseName of validPhases) {
+    const sectionTasks = rawPhases[phaseName]?.tasks || [];
+    if (!Array.isArray(sectionTasks)) continue;
+    for (const rawTask of sectionTasks) {
+      const explicitId = rawTask.local_id || rawTask.localId;
+      if (explicitId) {
+        if (explicitLocalIds.has(explicitId)) {
+          throw new AppError({
+            statusCode: 400,
+            title: 'Validation Error',
+            detail: `Duplicate task local_id "${explicitId}". Task local_id must be unique across all tasks in the request.`,
+            code: 'DUPLICATE_LOCAL_ID',
+          });
+        }
+        explicitLocalIds.add(explicitId);
+      }
+    }
+  }
+
   // 1. Delimiter Tokenization & Expansion
   let totalTokens = 0;
   const expandedTasks = [];
+  const seenLocalIds = new Set();
+
+  let autoIdCounter = 1;
+  const getNextAutoLocalId = () => {
+    while (explicitLocalIds.has(`t_${autoIdCounter}`) || seenLocalIds.has(`t_${autoIdCounter}`)) {
+      autoIdCounter++;
+    }
+    const generated = `t_${autoIdCounter}`;
+    autoIdCounter++;
+    return generated;
+  };
+
+  const registerTask = (taskObj) => {
+    if (seenLocalIds.has(taskObj.local_id)) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Validation Error',
+        detail: `Duplicate task local_id "${taskObj.local_id}". Sibling task local_id collides with an existing task local_id.`,
+        code: 'DUPLICATE_LOCAL_ID',
+      });
+    }
+    seenLocalIds.add(taskObj.local_id);
+    expandedTasks.push(taskObj);
+  };
 
   for (const phaseName of validPhases) {
     const sectionTasks = rawPhases[phaseName]?.tasks || [];
@@ -576,9 +621,10 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
       const tokens = tokenizeTask(title, { max: 50, currentTotal: totalTokens });
       totalTokens += tokens.length;
 
-      const baseLocalId = rawTask.local_id || rawTask.localId || `t_${expandedTasks.length + 1}`;
+      const baseLocalId = rawTask.local_id || rawTask.localId || getNextAutoLocalId();
       const dependsOn = rawTask.depends_on ?? rawTask.dependsOn ?? null;
-      const assignees = Array.isArray(rawTask.assignees) ? rawTask.assignees : [];
+      const rawAssignees = Array.isArray(rawTask.assignees) ? rawTask.assignees : [];
+      const assignees = Array.from(new Set(rawAssignees));
 
       if (tokens.length >= 2) {
         // First task gets token 0, base local_id, and preserves raw string note
@@ -587,7 +633,7 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
           ? `${rawTask.description}\n\n[audit_note] ${rawNote}`
           : `[audit_note] ${rawNote}`;
 
-        expandedTasks.push({
+        registerTask({
           local_id: baseLocalId,
           title: tokens[0],
           description: taskDescription,
@@ -601,7 +647,7 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
 
         // Siblings
         for (let i = 1; i < tokens.length; i++) {
-          expandedTasks.push({
+          registerTask({
             local_id: `${baseLocalId}_s${i}`,
             title: tokens[i],
             description: rawTask.description || null,
@@ -615,7 +661,7 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
         }
       } else {
         // Single token
-        expandedTasks.push({
+        registerTask({
           local_id: baseLocalId,
           title: tokens[0],
           description: rawTask.description || null,
@@ -644,12 +690,11 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
     }
 
     for (const dep of deps) {
-      if (dep === null || dep === undefined) continue;
-      if (typeof dep !== 'string' || dep === '0' || dep.trim() === '') {
+      if (dep === null || dep === undefined || typeof dep !== 'string' || dep === '0' || dep.trim() === '') {
         throw new AppError({
           statusCode: 400,
           title: 'Validation Error',
-          detail: `depends_on: Invalid dependency value "${dep}". Dependency "0", empty string, or non-string is not allowed.`,
+          detail: `depends_on: Invalid dependency value "${dep}". Dependency "0", empty string, null, or non-string is not allowed.`,
           code: 'INVALID_DEPENDENCY',
         });
       }
@@ -835,10 +880,12 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
       });
 
       // Prepare task_assignees rows
-      t.assignees.forEach((a) => {
+      const seenTaskUserIds = new Set();
+      (t.assignees || []).forEach((a) => {
         const u = usersMap.get(a);
         const uid = u?.id || a;
-        if (uid) {
+        if (uid && !seenTaskUserIds.has(uid)) {
+          seenTaskUserIds.add(uid);
           taskAssigneeRecords.push({
             id: randomUUID(),
             task_id: t.id,

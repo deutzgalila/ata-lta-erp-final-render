@@ -333,6 +333,72 @@ describe('P0-D PR-1: Operations Creation Pipeline & Tokenizer Rework', () => {
       expect(res.body.detail).toMatch(/depends_on.*"0"/i);
     });
 
+    it('rejects dependency null inside array [null] with 400 Bad Request', async () => {
+      const payload = {
+        title: 'WR with Null Inside Dependency Array',
+        clientId: testClient.id,
+        entity: 'ATA',
+        phases: {
+          pre_processing: {
+            tasks: [
+              {
+                local_id: 't1',
+                title: 'Task Alpha',
+                assignees: [],
+                depends_on: [null],
+              },
+            ],
+          },
+        },
+      };
+
+      const res = await request(app)
+        .post('/v1/operations/work-requests')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send(payload)
+        .expect(400);
+
+      expect(res.body.title).toMatch(/validation error|bad request/i);
+      expect(res.body.detail || res.body.message).toMatch(/depends_on/i);
+    });
+
+    it('rejects dependency [null, "task1"] with 400 Bad Request', async () => {
+      const payload = {
+        title: 'WR with Null and Valid Task Inside Dependency Array',
+        clientId: testClient.id,
+        entity: 'ATA',
+        phases: {
+          pre_processing: {
+            tasks: [
+              {
+                local_id: 'task1',
+                title: 'Task Alpha',
+                assignees: [],
+                depends_on: null,
+              },
+              {
+                local_id: 'task2',
+                title: 'Task Beta',
+                assignees: [],
+                depends_on: [null, 'task1'],
+              },
+            ],
+          },
+        },
+      };
+
+      const res = await request(app)
+        .post('/v1/operations/work-requests')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send(payload)
+        .expect(400);
+
+      expect(res.body.title).toMatch(/validation error|bad request/i);
+      expect(res.body.detail || res.body.message).toMatch(/depends_on/i);
+    });
+
     it('rejects empty string dependency "" with 400 Bad Request', async () => {
       const payload = {
         title: 'WR with Empty String Dependency',
@@ -427,6 +493,109 @@ describe('P0-D PR-1: Operations Creation Pipeline & Tokenizer Rework', () => {
 
       expect(res.body.title).toMatch(/validation error|bad request/i);
       expect(res.body.detail).toMatch(/circular dependency/i);
+    });
+
+    it('deduplicates user IDs in assignees array before inserting into task_assignees', async () => {
+      const payload = {
+        title: 'WR with Duplicate Assignees in Task',
+        clientId: testClient.id,
+        entity: 'ATA',
+        phases: {
+          pre_processing: {
+            tasks: [
+              {
+                local_id: 't_dedupe',
+                title: 'Task With Duplicate Assignees',
+                assignees: [staffUser1.id, staffUser1.id],
+              },
+            ],
+          },
+        },
+      };
+
+      const res = await request(app)
+        .post('/v1/operations/work-requests')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send(payload)
+        .expect(201);
+
+      const task = res.body.phases.pre_processing.tasks[0];
+      expect(task.assignees).toHaveLength(1);
+      expect(task.assignees[0]).toBe(staffUser1.id);
+
+      const allTaRows = Array.from(mockTables.task_assignees.values());
+      const dbAssignees = allTaRows.filter((ta) => ta.task_id === task.id);
+      expect(dbAssignees).toHaveLength(1);
+      expect(dbAssignees[0].user_id).toBe(staffUser1.id);
+    });
+
+    it('rejects duplicate explicit local_id across tasks with 400 Bad Request', async () => {
+      const payload = {
+        title: 'WR with Duplicate Explicit Local IDs',
+        clientId: testClient.id,
+        entity: 'ATA',
+        phases: {
+          pre_processing: {
+            tasks: [
+              {
+                local_id: 't_dup',
+                title: 'Task 1',
+                assignees: [],
+              },
+              {
+                local_id: 't_dup',
+                title: 'Task 2',
+                assignees: [],
+              },
+            ],
+          },
+        },
+      };
+
+      const res = await request(app)
+        .post('/v1/operations/work-requests')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send(payload)
+        .expect(400);
+
+      expect(res.body.title).toMatch(/validation error|bad request/i);
+      expect(res.body.detail || res.body.message).toMatch(/local_id/i);
+    });
+
+    it('rejects sibling local_id collisions within the request with 400 Bad Request', async () => {
+      const payload = {
+        title: 'WR with Sibling Local ID Collision',
+        clientId: testClient.id,
+        entity: 'ATA',
+        phases: {
+          pre_processing: {
+            tasks: [
+              {
+                local_id: 't_parent',
+                title: 'Subtask 1, Subtask 2', // expands to t_parent and t_parent_s1
+                assignees: [],
+              },
+              {
+                local_id: 't_parent_s1', // collides with sibling t_parent_s1
+                title: 'Conflicting Sibling Task',
+                assignees: [],
+              },
+            ],
+          },
+        },
+      };
+
+      const res = await request(app)
+        .post('/v1/operations/work-requests')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send(payload)
+        .expect(400);
+
+      expect(res.body.title).toMatch(/validation error|bad request/i);
+      expect(res.body.detail || res.body.message).toMatch(/local_id/i);
     });
 
     it('rolls back the entire work request graph if a task creation fails mid-transaction', async () => {
