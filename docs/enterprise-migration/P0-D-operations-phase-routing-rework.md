@@ -81,6 +81,14 @@ Admin. Body `{ to_phase: 'pre_processing'|'processing', reason: string (required
 
 Every assignee row written with `assigned_by = req.user.id`, `assigned_at = now()` (columns from P0-C). List/detail endpoints include assignees with attribution (additive response fields).
 
+### 3.8 Assignment Storage During the Transition Window (added 2026-10-03 — Wave-2 review F4)
+
+Three assignment stores exist as of P0-C: legacy `tasks.assignee_id/assignee_name` (single), WR-level `work_requests.co_assignees` (jsonb), and the new `task_assignees` join table. This parcel MUST dual-write so all three stay coherent:
+
+- Every task assignment inserts row(s) in `task_assignees` (attributed per §3.7) **and** updates the legacy columns (`assignee_id`/`assignee_name` = primary/first assignee) **and** mirrors task co-assignees into `work_requests.co_assignees` so the vanilla app keeps rendering correctly.
+- New endpoints read assignees from `task_assignees`; legacy read paths are untouched.
+- At P3 cutover, `task_assignees` becomes canonical; legacy writes cease with the vanilla app (cleanup migration deferred post-cutover).
+
 ## 4. Rules
 
 - R1. WR creation is a single transaction; any failure rolls back the entire graph (kills dup-on-retry & task discrepancies).

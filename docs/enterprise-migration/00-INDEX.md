@@ -51,13 +51,13 @@ P3 (cutover) gated on P2 completion + staging rehearsal.
 
 | Parcel | Title | Depends On | Status |
 | :-: | :--- | :--- | :-: |
-| P0-A | Permission-Key Manifest | — | ☐ pending |
-| P0-B | Notifications Module | P0-A | ✅ done (feat/p0-b-notifications) |
-| P0-C | Phase Migrations + Backfill | P0-A | ✅ done (feat/p0-c-phase-migrations) |
+| P0-A | Permission-Key Manifest | — | ✅ merged (staging @8a01755; feat/p0-a-permission-keys) |
+| P0-B | Notifications Module | P0-A | ✅ merged (staging @571d585; feat/p0-b-notifications, shim-free) |
+| P0-C | Phase Migrations + Backfill | P0-A | ✅ merged (staging @6f973a5; feat/p0-c-phase-migrations, 000054 env-gated) |
 | P0-D | Operations Phase-Routing Rework | P0-A, P0-B, P0-C | ☐ pending |
 | P0-E | Retainer Templates + Recurrence | P0-A, P0-D | ☐ pending |
 | P0-F | Time Entries Module | P0-C | ☐ pending |
-| P0-G | Disbursement/Billing Permission Changes | P0-A | ✅ done (feat/p0-g-financial-permissions) |
+| P0-G | Disbursement/Billing Permission Changes | P0-A | ✅ merged (staging @0d845dd; feat/p0-g-financial-permissions, manifest-resolved) |
 | P0-H | Contract Freeze | all P0 | ☐ pending |
 | P1 | React Scaffold + Design System | none (parallel) | ☐ pending |
 | P2 | Module-by-Module React Migration | P1 + P0-H | ☐ pending |
