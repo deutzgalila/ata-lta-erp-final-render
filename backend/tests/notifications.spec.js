@@ -11,22 +11,12 @@ jest.mock('../src/services/supabaseClient', () => {
 const request = require('supertest');
 const { app } = require('./helpers/testServer');
 const { registerUser, seedDefaults, resetMock, mockTables } = require('./fixtures/supabaseMock');
-const { DEPARTMENT_PERMISSIONS } = require('../src/lib/permissions');
 
 describe('/v1/notifications API Endpoints', () => {
   let userAToken;
   let userBToken;
   const userAId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
   const userBId = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
-
-  beforeAll(() => {
-    // Grant notifications:view to standard departments for integration testing
-    Object.keys(DEPARTMENT_PERMISSIONS).forEach((dept) => {
-      if (!DEPARTMENT_PERMISSIONS[dept].includes('notifications:view')) {
-        DEPARTMENT_PERMISSIONS[dept].push('notifications:view');
-      }
-    });
-  });
 
   beforeEach(() => {
     resetMock();
