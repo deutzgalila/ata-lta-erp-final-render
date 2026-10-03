@@ -36,20 +36,51 @@ const checklistItemSchema = z.object({
   timeLogs: z.array(timeLogSchema).optional(),
 });
 
+const phaseTaskSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().optional().nullable(),
+  assignees: z.array(z.string()).optional().default([]),
+  depends_on: z.any().optional().nullable(),
+  dependsOn: z.any().optional().nullable(),
+  local_id: z.string().optional().nullable(),
+  localId: z.string().optional().nullable(),
+  status: z.string().optional().nullable(),
+  dueDate: z.string().optional().nullable(),
+});
+
+const phasesSchema = z
+  .object({
+    pre_processing: z
+      .object({
+        tasks: z.array(phaseTaskSchema).optional().default([]),
+      })
+      .optional(),
+    processing: z
+      .object({
+        tasks: z.array(phaseTaskSchema).optional().default([]),
+      })
+      .optional(),
+  })
+  .passthrough();
+
 const createWorkRequestSchema = z.object({
   title: z.string().min(1).max(255),
   description: z.string().optional().nullable(),
-  clientId: z.string().uuid(),
+  clientId: z.string().uuid().optional().nullable(),
   entity: z.enum(['ATA', 'LTA', 'ALL']).optional(),
   status: z.string().max(50).optional(),
+  phase: z.string().max(50).optional(),
   requestedBy: z.string().uuid().optional(),
   assignedTo: z.preprocess(
     (val) => (val === '' || val === undefined ? null : val),
     z.string().uuid().nullable().optional()
   ),
   coAssignees: z.array(z.string()).optional().default([]),
-  dueDate: z.string().optional(),
+  dueDate: z.string().optional().nullable(),
   priority: z.string().max(50).optional(),
+  idempotency_key: z.string().optional().nullable(),
+  idempotencyKey: z.string().optional().nullable(),
+  phases: phasesSchema.optional().nullable(),
 });
 
 const WR_STATUSES = [

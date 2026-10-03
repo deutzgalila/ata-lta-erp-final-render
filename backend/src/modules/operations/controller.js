@@ -3,6 +3,7 @@
  * Route handlers delegate to the service and record audit events.
  */
 
+const crypto = require('crypto');
 const operationsService = require('./service');
 const {
   createWorkRequestSchema,
@@ -97,6 +98,41 @@ const unarchive = async (req, res, next) => {
 
 const create = async (req, res, next) => {
   try {
+    const idempotencyKey =
+      req.headers['idempotency-key'] || req.body?.idempotency_key || req.body?.idempotencyKey;
+    const isBodyKeyOnly = idempotencyKey && !req.headers['idempotency-key'];
+    let actorScope = null;
+    let requestHash = null;
+
+    if (isBodyKeyOnly && req.user?.id) {
+      actorScope = `${req.user.id}:${req.activeEntity || 'none'}`;
+      requestHash = crypto
+        .createHash('sha256')
+        .update(req.method + req.originalUrl + JSON.stringify(req.body || {}))
+        .digest('hex');
+
+      const { data: existingKey, error: lookupErr } = await supabaseAdmin
+        .from('idempotency_keys')
+        .select('id, request_hash, response_json')
+        .eq('actor_scope', actorScope)
+        .eq('idempotency_key', idempotencyKey)
+        .maybeSingle();
+
+      if (!lookupErr && existingKey) {
+        if (existingKey.request_hash && existingKey.request_hash !== requestHash) {
+          throw new AppError({
+            statusCode: 422,
+            title: 'Unprocessable Entity',
+            detail: 'Idempotency key re-used with different request payload.',
+            code: 'ERR_IDEMPOTENCY_KEY_REUSED',
+          });
+        }
+        const stored = existingKey.response_json || {};
+        res.setHeader('Idempotent-Replay', 'true');
+        return res.status(stored.status || 201).json(stored.body ?? {});
+      }
+    }
+
     const payload = validate(createWorkRequestSchema, req.body);
     let entityId = req.entityUUID;
 
@@ -119,6 +155,19 @@ const create = async (req, res, next) => {
         if (!entityId) {
           entityId = await resolveEntityId(fallback);
         }
+      }
+    }
+
+    if (!payload.clientId && entityId) {
+      const { data: defaultClient } = await supabaseAdmin
+        .from('clients')
+        .select('id')
+        .eq('entity_id', entityId)
+        .is('deleted_at', null)
+        .limit(1)
+        .maybeSingle();
+      if (defaultClient?.id) {
+        payload.clientId = defaultClient.id;
       }
     }
 
@@ -145,7 +194,23 @@ const create = async (req, res, next) => {
       details: { title: wr.title, status: wr.status },
     });
 
-    res.status(201).json({ data: wr });
+    const responsePayload = { data: wr, ...wr };
+
+    if (isBodyKeyOnly && actorScope && requestHash) {
+      const record = {
+        actor_scope: actorScope,
+        idempotency_key: idempotencyKey,
+        request_hash: requestHash,
+        response_json: { status: 201, body: responsePayload },
+      };
+      try {
+        await supabaseAdmin.from('idempotency_keys').insert(record);
+      } catch (e) {
+        // Benign insert race
+      }
+    }
+
+    res.status(201).json(responsePayload);
   } catch (err) {
     next(err);
   }

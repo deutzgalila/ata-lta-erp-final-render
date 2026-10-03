@@ -7,6 +7,7 @@ const { supabaseAdmin } = require('../../services/supabaseClient');
 const AppError = require('../../lib/AppError');
 const { concurrencyConflict, resolveExpectedVersion } = require('../../lib/concurrency');
 const { randomUUID } = require('crypto');
+const { tokenizeTask } = require('../../lib/tokenizer');
 
 const isValidUUID = (v) =>
   typeof v === 'string' &&
@@ -64,6 +65,9 @@ const toApiWorkRequest = (row, entityCode) => ({
   description: row.description || null,
   clientId: row.client_id,
   status: row.status,
+  phase: row.phase || null,
+  onHold: row.on_hold ?? false,
+  phaseEnteredAt: row.phase_entered_at || null,
   priority: row.priority || 'Normal',
   archived: row.archived ?? false,
   requestedBy: row.requested_by || null,
@@ -114,8 +118,20 @@ const formatDateManila = (dateVal) => {
   return `${year}-${month}-${day}`;
 };
 
-const toApiTask = (row, { checklist = [], timeLogs = [], taskDocuments = [] } = {}) => {
+const toApiTask = (
+  row,
+  { checklist = [], timeLogs = [], taskDocuments = [], assignees = [] } = {}
+) => {
   const taskLevelLogs = timeLogs.filter((t) => !t.checklist_item_id);
+
+  const resolvedAssignees =
+    assignees && assignees.length > 0
+      ? assignees
+      : row.assignees && row.assignees.length > 0
+        ? row.assignees
+        : row.assignee_id
+          ? [row.assignee_id]
+          : [];
 
   return {
     id: row.id,
@@ -123,13 +139,18 @@ const toApiTask = (row, { checklist = [], timeLogs = [], taskDocuments = [] } = 
     title: row.title,
     description: row.description || null,
     status: row.status,
+    phase: row.phase || null,
+    qaStatus: row.qa_status || 'none',
     assigneeId: row.assignee_id || null,
     assigneeName: row.assignee_name || null,
+    assignees: resolvedAssignees,
     predecessors: row.predecessors || [],
     dueDate: row.due_date || null,
     requiredLinkType: row.required_link_type || null,
     displayOrder: row.display_order,
     version: row.version || 1,
+    assignedBy: row.assigned_by || null,
+    assignedAt: row.assigned_at || null,
     checklist: checklist.map((c) => {
       const itemLogs = timeLogs.filter((t) => t.checklist_item_id === c.id);
       return {
@@ -245,16 +266,19 @@ const loadTaskExtras = async (taskIds) => {
   const checklist = new Map();
   const timeLogs = new Map();
   const taskDocuments = new Map();
-  if (!taskIds.length) return { checklist, timeLogs, taskDocuments };
-  const [{ data: clRows }, { data: tlRows }, { data: docRows }] = await Promise.all([
-    supabaseAdmin.from('task_checklists').select('*').in('task_id', taskIds),
-    supabaseAdmin.from('task_time_logs').select('*').in('task_id', taskIds),
-    supabaseAdmin
-      .from('documents')
-      .select('*')
-      .in('linked_task_id', taskIds)
-      .is('deleted_at', null),
-  ]);
+  const assignees = new Map();
+  if (!taskIds.length) return { checklist, timeLogs, taskDocuments, assignees };
+  const [{ data: clRows }, { data: tlRows }, { data: docRows }, { data: taRows }] =
+    await Promise.all([
+      supabaseAdmin.from('task_checklists').select('*').in('task_id', taskIds),
+      supabaseAdmin.from('task_time_logs').select('*').in('task_id', taskIds),
+      supabaseAdmin
+        .from('documents')
+        .select('*')
+        .in('linked_task_id', taskIds)
+        .is('deleted_at', null),
+      supabaseAdmin.from('task_assignees').select('*').in('task_id', taskIds),
+    ]);
 
   const checklistRows = clRows || [];
   const missingClAssigneeIds = new Set();
@@ -291,7 +315,11 @@ const loadTaskExtras = async (taskIds) => {
     if (!taskDocuments.has(r.linked_task_id)) taskDocuments.set(r.linked_task_id, []);
     taskDocuments.get(r.linked_task_id).push(r);
   });
-  return { checklist, timeLogs, taskDocuments };
+  (taRows || []).forEach((r) => {
+    if (!assignees.has(r.task_id)) assignees.set(r.task_id, []);
+    assignees.get(r.task_id).push(r.user_id);
+  });
+  return { checklist, timeLogs, taskDocuments, assignees };
 };
 
 const canViewWorkRequest = (wr, user, taskMap) => {
@@ -437,8 +465,17 @@ const listWorkRequests = async ({
           checklist: extras.checklist.get(t.id) || [],
           timeLogs: extras.timeLogs.get(t.id) || [],
           taskDocuments: extras.taskDocuments.get(t.id) || [],
+          assignees: extras.assignees ? extras.assignees.get(t.id) || [] : [],
         })
       );
+      wr.phases = {
+        pre_processing: {
+          tasks: wr.tasks.filter((t) => t.phase === 'pre_processing'),
+        },
+        processing: {
+          tasks: wr.tasks.filter((t) => t.phase === 'processing'),
+        },
+      };
     }
     return wr;
   });
@@ -496,6 +533,434 @@ const validateProjectTeamRoles = async ({ assignedTo, coAssignees }) => {
   }
 };
 
+const createWorkRequestGraph = async ({ entityId, data, user }) => {
+  await validateProjectTeamRoles({ assignedTo: data.assignedTo, coAssignees: data.coAssignees });
+
+  const rawPhases = data.phases || {};
+  const validPhases = ['pre_processing', 'processing'];
+
+  // Check if any tasks were passed in invalid phases (quality_assurance, completion, etc.)
+  for (const phaseKey of Object.keys(rawPhases)) {
+    if (!validPhases.includes(phaseKey)) {
+      const phaseTasks = rawPhases[phaseKey]?.tasks;
+      if (Array.isArray(phaseTasks) && phaseTasks.length > 0) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Validation Error',
+          detail: `Tasks cannot be created in phase "${phaseKey}". Tasks may only be created in pre_processing or processing.`,
+          code: 'INVALID_PHASE',
+        });
+      }
+    }
+  }
+
+  // 1. Delimiter Tokenization & Expansion
+  let totalTokens = 0;
+  const expandedTasks = [];
+
+  for (const phaseName of validPhases) {
+    const sectionTasks = rawPhases[phaseName]?.tasks || [];
+    if (!Array.isArray(sectionTasks)) continue;
+
+    for (const rawTask of sectionTasks) {
+      const title = (rawTask.title || '').trim();
+      if (!title) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Validation Error',
+          detail: 'Task title is required and cannot be empty',
+          code: 'VALIDATION_ERROR',
+        });
+      }
+
+      const tokens = tokenizeTask(title, { max: 50, currentTotal: totalTokens });
+      totalTokens += tokens.length;
+
+      const baseLocalId = rawTask.local_id || rawTask.localId || `t_${expandedTasks.length + 1}`;
+      const dependsOn = rawTask.depends_on ?? rawTask.dependsOn ?? null;
+      const assignees = Array.isArray(rawTask.assignees) ? rawTask.assignees : [];
+
+      if (tokens.length >= 2) {
+        // First task gets token 0, base local_id, and preserves raw string note
+        const rawNote = `Original submission: "${tokens.raw || title}"`;
+        const taskDescription = rawTask.description
+          ? `${rawTask.description}\n\n[audit_note] ${rawNote}`
+          : `[audit_note] ${rawNote}`;
+
+        expandedTasks.push({
+          local_id: baseLocalId,
+          title: tokens[0],
+          description: taskDescription,
+          note: tokens.raw || title,
+          phase: phaseName,
+          assignees,
+          depends_on: dependsOn,
+          status: rawTask.status || (assignees.length > 0 ? 'Assigned' : 'Draft'),
+          dueDate: rawTask.dueDate || null,
+        });
+
+        // Siblings
+        for (let i = 1; i < tokens.length; i++) {
+          expandedTasks.push({
+            local_id: `${baseLocalId}_s${i}`,
+            title: tokens[i],
+            description: rawTask.description || null,
+            note: null,
+            phase: phaseName,
+            assignees,
+            depends_on: dependsOn,
+            status: rawTask.status || (assignees.length > 0 ? 'Assigned' : 'Draft'),
+            dueDate: rawTask.dueDate || null,
+          });
+        }
+      } else {
+        // Single token
+        expandedTasks.push({
+          local_id: baseLocalId,
+          title: tokens[0],
+          description: rawTask.description || null,
+          note: tokens.raw || title,
+          phase: phaseName,
+          assignees,
+          depends_on: dependsOn,
+          status: rawTask.status || (assignees.length > 0 ? 'Assigned' : 'Draft'),
+          dueDate: rawTask.dueDate || null,
+        });
+      }
+    }
+  }
+
+  // 2. Dependency Validation
+  const knownLocalIds = new Set(expandedTasks.map((t) => t.local_id));
+
+  for (const task of expandedTasks) {
+    let deps = task.depends_on;
+    if (deps === null || deps === undefined) {
+      continue;
+    }
+
+    if (!Array.isArray(deps)) {
+      deps = [deps];
+    }
+
+    for (const dep of deps) {
+      if (dep === null || dep === undefined) continue;
+      if (typeof dep !== 'string' || dep === '0' || dep.trim() === '') {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Validation Error',
+          detail: `depends_on: Invalid dependency value "${dep}". Dependency "0", empty string, or non-string is not allowed.`,
+          code: 'INVALID_DEPENDENCY',
+        });
+      }
+
+      if (!knownLocalIds.has(dep)) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Validation Error',
+          detail: `depends_on: Dependency "${dep}" does not match any valid same-WR task local_id.`,
+          code: 'INVALID_DEPENDENCY',
+        });
+      }
+
+      if (dep === task.local_id) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Validation Error',
+          detail: `depends_on: Task "${task.local_id}" cannot depend on itself.`,
+          code: 'INVALID_DEPENDENCY',
+        });
+      }
+    }
+  }
+
+  // Cycle detection
+  const adj = new Map();
+  for (const t of expandedTasks) {
+    adj.set(t.local_id, []);
+  }
+  for (const t of expandedTasks) {
+    let deps = t.depends_on;
+    if (deps && !Array.isArray(deps)) deps = [deps];
+    if (Array.isArray(deps)) {
+      for (const d of deps) {
+        if (d && adj.has(d)) {
+          adj.get(d).push(t.local_id);
+        }
+      }
+    }
+  }
+  const visited = new Map();
+  const hasCycle = (node) => {
+    visited.set(node, 1);
+    for (const neighbor of adj.get(node) || []) {
+      if (visited.get(neighbor) === 1) return true;
+      if (!visited.get(neighbor) && hasCycle(neighbor)) return true;
+    }
+    visited.set(node, 2);
+    return false;
+  };
+  for (const t of expandedTasks) {
+    if (!visited.get(t.local_id)) {
+      if (hasCycle(t.local_id)) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Validation Error',
+          detail: 'Circular dependency detected among tasks.',
+          code: 'CIRCULAR_DEPENDENCY',
+        });
+      }
+    }
+  }
+
+  // 3. Collect and resolve all assignees
+  const allAssigneeIds = new Set();
+  expandedTasks.forEach((t) => {
+    t.assignees.forEach((a) => allAssigneeIds.add(a));
+  });
+
+  const usersMap = new Map();
+  if (allAssigneeIds.size > 0) {
+    const idList = Array.from(allAssigneeIds);
+    const { data: usersById } = await supabaseAdmin
+      .from('users')
+      .select('id, name, role')
+      .in('id', idList);
+    (usersById || []).forEach((u) => usersMap.set(u.id, u));
+
+    // Also try by name if not found by id
+    const missing = idList.filter((id) => !usersMap.has(id));
+    if (missing.length > 0) {
+      const { data: usersByName } = await supabaseAdmin
+        .from('users')
+        .select('id, name, role')
+        .in('name', missing);
+      (usersByName || []).forEach((u) => {
+        usersMap.set(u.id, u);
+        usersMap.set(u.name, u);
+      });
+    }
+  }
+
+  // Co-assignees to mirror into work_requests.co_assignees
+  const coAssigneeNamesSet = new Set(data.coAssignees || []);
+  expandedTasks.forEach((t) => {
+    t.assignees.forEach((a) => {
+      const u = usersMap.get(a);
+      coAssigneeNamesSet.add(u?.name || a);
+    });
+  });
+
+  // 4. Atomic Execution with Rollback
+  const cleanupStack = [];
+  const wrId = data.id && isValidUUID(data.id) ? data.id : randomUUID();
+  const now = new Date().toISOString();
+
+  const wrRecord = {
+    id: wrId,
+    entity_id: entityId,
+    client_id: data.clientId || null,
+    title: data.title,
+    description: data.description || null,
+    status: data.status || 'Draft',
+    phase: data.phase || 'pre_processing',
+    phase_entered_at: now,
+    on_hold: false,
+    priority: data.priority || 'Normal',
+    requested_by: data.requestedBy || user?.id || null,
+    assigned_to: data.assignedTo || null,
+    co_assignees: Array.from(coAssigneeNamesSet),
+    due_date: data.dueDate || null,
+    created_at: now,
+    updated_at: now,
+  };
+
+  try {
+    // Insert work request
+    const { error: wrError } = await supabaseAdmin.from('work_requests').insert(wrRecord);
+    if (wrError) {
+      throw new AppError({
+        statusCode: 500,
+        title: 'Database Error',
+        detail: `Failed to insert work request: ${wrError.message || wrError}`,
+      });
+    }
+    cleanupStack.push(async () => {
+      await supabaseAdmin.from('work_requests').delete().eq('id', wrId);
+    });
+
+    // Map local_ids to task UUIDs
+    const localIdToUuid = new Map();
+    const taskRecords = [];
+    const taskAssigneeRecords = [];
+
+    expandedTasks.forEach((t, idx) => {
+      const taskId = randomUUID();
+      localIdToUuid.set(t.local_id, taskId);
+      t.id = taskId;
+      t.display_order = idx;
+    });
+
+    expandedTasks.forEach((t) => {
+      // Resolve predecessors
+      let deps = t.depends_on;
+      if (deps && !Array.isArray(deps)) deps = [deps];
+      const predecessorUuids = (deps || [])
+        .map((d) => localIdToUuid.get(d))
+        .filter(Boolean);
+
+      // Resolve primary assignee
+      const primaryAssigneeId = t.assignees[0] || null;
+      const primaryUser = primaryAssigneeId ? usersMap.get(primaryAssigneeId) : null;
+      const assigneeName = primaryUser?.name || primaryAssigneeId || null;
+      const assigneeId = primaryUser?.id || primaryAssigneeId || null;
+
+      taskRecords.push({
+        id: t.id,
+        work_request_id: wrId,
+        title: t.title,
+        description: t.description,
+        status: t.status,
+        phase: t.phase,
+        qa_status: 'none',
+        assignee_id: assigneeId,
+        assignee_name: assigneeName,
+        predecessors: predecessorUuids,
+        due_date: t.dueDate,
+        display_order: t.display_order,
+        assigned_by: user?.id || null,
+        assigned_at: now,
+        created_at: now,
+        updated_at: now,
+      });
+
+      // Prepare task_assignees rows
+      t.assignees.forEach((a) => {
+        const u = usersMap.get(a);
+        const uid = u?.id || a;
+        if (uid) {
+          taskAssigneeRecords.push({
+            id: randomUUID(),
+            task_id: t.id,
+            user_id: uid,
+            assigned_by: user?.id || null,
+            assigned_at: now,
+            created_at: now,
+          });
+        }
+      });
+    });
+
+    if (taskRecords.length > 0) {
+      const { error: tasksError } = await supabaseAdmin.from('tasks').insert(taskRecords);
+      if (tasksError) {
+        throw new AppError({
+          statusCode: 500,
+          title: 'Database Error',
+          detail: `Failed to insert tasks: ${tasksError.message || tasksError}`,
+        });
+      }
+      cleanupStack.push(async () => {
+        await supabaseAdmin.from('tasks').delete().in('id', taskRecords.map((t) => t.id));
+      });
+    }
+
+    if (taskAssigneeRecords.length > 0) {
+      const { error: taError } = await supabaseAdmin.from('task_assignees').insert(taskAssigneeRecords);
+      if (taError) {
+        throw new AppError({
+          statusCode: 500,
+          title: 'Database Error',
+          detail: `Failed to insert task assignees: ${taError.message || taError}`,
+        });
+      }
+      cleanupStack.push(async () => {
+        await supabaseAdmin.from('task_assignees').delete().in('task_id', taskRecords.map((t) => t.id));
+      });
+    }
+
+    // Build return graph
+    const entityCode = await resolveEntityCode(entityId);
+    const taskAssigneesMap = new Map();
+    taskAssigneeRecords.forEach((ta) => {
+      if (!taskAssigneesMap.has(ta.task_id)) taskAssigneesMap.set(ta.task_id, []);
+      taskAssigneesMap.get(ta.task_id).push(ta.user_id);
+    });
+
+    const apiTasks = taskRecords.map((tr) => {
+      const matchedExpanded = expandedTasks.find((et) => et.id === tr.id);
+      return {
+        id: tr.id,
+        localId: matchedExpanded?.local_id || null,
+        local_id: matchedExpanded?.local_id || null,
+        workRequestId: wrId,
+        title: tr.title,
+        description: tr.description,
+        note: matchedExpanded?.note || null,
+        status: tr.status,
+        phase: tr.phase,
+        qaStatus: tr.qa_status,
+        assigneeId: tr.assignee_id,
+        assigneeName: tr.assignee_name,
+        assignees: taskAssigneesMap.get(tr.id) || (tr.assignee_id ? [tr.assignee_id] : []),
+        dependsOn: matchedExpanded?.depends_on || null,
+        depends_on: matchedExpanded?.depends_on || null,
+        predecessors: tr.predecessors,
+        dueDate: tr.due_date,
+        displayOrder: tr.display_order,
+        assignedBy: tr.assigned_by,
+        assignedAt: tr.assigned_at,
+        version: tr.version || 1,
+      };
+    });
+
+    const preProcessingTasks = apiTasks.filter((t) => t.phase === 'pre_processing');
+    const processingTasks = apiTasks.filter((t) => t.phase === 'processing');
+
+    const fullGraph = {
+      id: wrId,
+      entity: entityCode,
+      title: wrRecord.title,
+      description: wrRecord.description,
+      clientId: wrRecord.client_id,
+      status: wrRecord.status,
+      phase: wrRecord.phase,
+      onHold: wrRecord.on_hold,
+      phaseEnteredAt: wrRecord.phase_entered_at,
+      priority: wrRecord.priority,
+      archived: false,
+      requestedBy: wrRecord.requested_by,
+      assignedTo: wrRecord.assigned_to,
+      coAssignees: wrRecord.co_assignees,
+      dueDate: wrRecord.due_date,
+      createdAt: wrRecord.created_at,
+      updatedAt: wrRecord.updated_at,
+      version: 1,
+      phases: {
+        pre_processing: {
+          tasks: preProcessingTasks,
+        },
+        processing: {
+          tasks: processingTasks,
+        },
+      },
+      tasks: apiTasks,
+    };
+
+    return fullGraph;
+  } catch (err) {
+    // Rollback all created records on any failure
+    for (const rollback of cleanupStack.reverse()) {
+      try {
+        await rollback();
+      } catch (cleanupErr) {
+        // Rollback failure logged but not rethrown over primary error
+      }
+    }
+    throw err;
+  }
+};
+
 const createWorkRequest = async ({ entityId, data, user }) => {
   const reqBy = data.requestedBy || user?.id;
   const titleClean = (data.title || '').trim();
@@ -507,6 +972,10 @@ const createWorkRequest = async ({ entityId, data, user }) => {
 
   const creationPromise = (async () => {
     try {
+      if (data.phases && typeof data.phases === 'object') {
+        return await createWorkRequestGraph({ entityId, data, user });
+      }
+
       await validateProjectTeamRoles({ assignedTo: data.assignedTo, coAssignees: data.coAssignees });
 
       // Deduplication guard against rapid double-clicks (within 5 seconds)
@@ -526,7 +995,7 @@ const createWorkRequest = async ({ entityId, data, user }) => {
 
       const { data: existingDups } = await dupQuery.limit(1);
       if (existingDups && existingDups.length > 0) {
-        return getWorkRequestById({ id: existingDups[0].id, entityId, user });
+        return getWorkRequestById({ id: existingDups[0].id, entityId, user, includeTasks: true });
       }
 
       const id = data.id && isValidUUID(data.id) ? data.id : randomUUID();
@@ -534,12 +1003,15 @@ const createWorkRequest = async ({ entityId, data, user }) => {
       const record = {
         id,
         entity_id: entityId,
-        client_id: data.clientId,
+        client_id: data.clientId || null,
         title: data.title,
         description: data.description || null,
         status: data.status || 'Draft',
+        phase: data.phase || 'pre_processing',
+        phase_entered_at: now,
+        on_hold: false,
         priority: data.priority || 'Normal',
-        requested_by: data.requestedBy || user.id,
+        requested_by: data.requestedBy || user?.id || null,
         assigned_to: data.assignedTo || null,
         co_assignees: data.coAssignees || [],
         due_date: data.dueDate || null,
@@ -556,7 +1028,7 @@ const createWorkRequest = async ({ entityId, data, user }) => {
         });
       }
 
-      return getWorkRequestById({ id, entityId, user });
+      return getWorkRequestById({ id, entityId, user, includeTasks: true });
     } finally {
       inFlightWorkRequests.delete(dedupeKey);
     }
@@ -618,8 +1090,17 @@ const getWorkRequestById = async ({ id, entityId, user, includeTasks = false }) 
         checklist: extras.checklist.get(t.id) || [],
         timeLogs: extras.timeLogs.get(t.id) || [],
         taskDocuments: extras.taskDocuments.get(t.id) || [],
+        assignees: extras.assignees ? extras.assignees.get(t.id) || [] : [],
       })
     );
+    wr.phases = {
+      pre_processing: {
+        tasks: wr.tasks.filter((t) => t.phase === 'pre_processing'),
+      },
+      processing: {
+        tasks: wr.tasks.filter((t) => t.phase === 'processing'),
+      },
+    };
   }
 
   return wr;
