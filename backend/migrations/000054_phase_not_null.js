@@ -14,8 +14,22 @@
  * - tasks: status = 'Cancelled' OR phase IS NOT NULL
  *
  * @type {import('node-pg-migrate').Migration}
+ *
+ * Enforcement is ENV-GATED (review finding F2): node-pg-migrate would otherwise
+ * attempt this in every migrate:up chain and fail loudly against pre-backfill
+ * rows. Set PHASE_NOT_NULL_ENFORCE=1 (P3 cutover window, after backfill --apply)
+ * to execute; otherwise the migration is a recorded no-op.
  */
+const ENFORCE_FLAG = 'PHASE_NOT_NULL_ENFORCE';
+
 exports.up = (pgm) => {
+  if (process.env[ENFORCE_FLAG] !== '1') {
+    // eslint-disable-next-line no-console
+    console.log(
+      `[000054] skipped: set ${ENFORCE_FLAG}=1 to enforce phase NOT NULL (P3 cutover window only)`
+    );
+    return;
+  }
   pgm.sql(`
     -- Enforce phase NOT NULL for all active work requests
     ALTER TABLE work_requests

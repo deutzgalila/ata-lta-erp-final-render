@@ -347,6 +347,21 @@ describe('Phase Model Database Migrations', () => {
   });
 
   describe('Migration C: 000054_phase_not_null (Cutover Window Only)', () => {
+    beforeEach(() => {
+      process.env.PHASE_NOT_NULL_ENFORCE = '1';
+    });
+
+    afterEach(() => {
+      delete process.env.PHASE_NOT_NULL_ENFORCE;
+    });
+
+    it('is a no-op without PHASE_NOT_NULL_ENFORCE (F2 env guard)', async () => {
+      delete process.env.PHASE_NOT_NULL_ENFORCE;
+      const pgm = { sql: jest.fn() };
+      await m54.up(pgm);
+      expect(pgm.sql).not.toHaveBeenCalled();
+    });
+
     it('enforces phase NOT NULL on active work requests while exempting Cancelled rows', async () => {
       // In P3 cutover, backfill runs before Migration C. Clean up any prior unbackfilled test rows.
       await client.query("DELETE FROM tasks WHERE phase IS NULL AND status != 'Cancelled'");
