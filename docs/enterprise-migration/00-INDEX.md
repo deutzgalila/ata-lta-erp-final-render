@@ -10,6 +10,7 @@ date: 2026-10-03
 # Enterprise Migration Program — Master Index & Agent Doctrine
 
 **Master alignment doc (humans):** Obsidian vault → `Knowledge/Projects/ATA-LTA/Enterprise-Migration-Architecture-Specification.md` (ALIGNED v2.0).
+> **Phase 0 Status:** Phase 0 frozen at contract 2.0.0 on 2026-10-04 (P0-H exit gate passed).
 **This directory:** the executable spec set for implementer agents. One file = one work parcel.
 
 ---
@@ -49,16 +50,18 @@ P3 (cutover) gated on P2 completion + staging rehearsal.
 
 ## 4. Status Tracker (orchestrator updates after each parcel completes)
 
+> **Phase 0 Status:** Phase 0 frozen at contract 2.0.0 on 2026-10-04. All backend contracts under `docs/api-contracts/modules/` version-stamped @2.0.0.
+
 | Parcel | Title | Depends On | Status |
 | :-: | :--- | :--- | :-: |
 | P0-A | Permission-Key Manifest | — | ✅ merged (staging @8a01755; feat/p0-a-permission-keys) |
 | P0-B | Notifications Module | P0-A | ✅ merged (staging @571d585; feat/p0-b-notifications, shim-free) |
 | P0-C | Phase Migrations + Backfill | P0-A | ✅ merged (staging @6f973a5; feat/p0-c-phase-migrations, 000054 env-gated) |
-| P0-D | Operations Phase-Routing Rework | P0-A, P0-B, P0-C | ✅ done (feat/p0-d-phase-routing) |
+| P0-D | Operations Phase-Routing Rework | P0-A, P0-B, P0-C | ✅ merged (staging @6a7887b; feat/p0-d-phase-routing) |
 | P0-E | Retainer Templates + Recurrence | P0-A, P0-D | ✅ merged (staging @d8a3202; feat/p0-e-retainer-templates) |
 | P0-F | Time Entries Module | P0-C | ✅ merged (staging @b32bec6; feat/p0-f-time-entries) |
 | P0-G | Disbursement/Billing Permission Changes | P0-A | ✅ merged (staging @0d845dd; feat/p0-g-financial-permissions, manifest-resolved) |
-| P0-H | Contract Freeze | all P0 | ☐ pending |
+| P0-H | Contract Freeze | all P0 | ✅ done (feat/p0-h-contract-freeze) |
 | P1 | React Scaffold + Design System | none (parallel) | ☐ pending |
 | P2 | Module-by-Module React Migration | P1 + P0-H | ☐ pending |
 | P3 | Cutover Runbook | P2 | ☐ pending |
