@@ -97,53 +97,74 @@ router.get(
 );
 
 router.get(
-  '/',
+  ['/work-requests', '/'],
   resolveEntity({ allowAll: true }),
   requirePermission('workflow:view'),
   operationsController.list
 );
 router.post(
-  '/',
+  ['/work-requests', '/'],
   resolveEntity(),
   requirePermission('workflow:edit'),
   audit('work_request.created', { table: 'work_requests' }),
   operationsController.create
 );
 router.get(
-  '/:id',
+  ['/work-requests/:id', '/:id'],
   resolveEntity({ allowAll: true }),
   requirePermission('workflow:view'),
   operationsController.getById
 );
 router.get(
-  '/:id/related',
+  ['/work-requests/:id/related', '/:id/related'],
   resolveEntity({ allowAll: true }),
   requirePermission('workflow:view'),
   operationsController.getRelated
 );
 router.put(
-  '/:id',
+  ['/work-requests/:id', '/:id'],
   resolveEntity(),
   requirePermission('workflow:edit'),
   audit('work_request.updated', { table: 'work_requests' }),
   operationsController.update
 );
 router.post(
-  '/:id/archive',
+  ['/work-requests/:id/archive', '/:id/archive'],
   resolveEntity(),
   requirePermission('workflow:edit'),
   audit('work_request.archived', { table: 'work_requests' }),
   operationsController.archive
 );
 router.post(
-  '/:id/unarchive',
+  ['/work-requests/:id/unarchive', '/:id/unarchive'],
   resolveEntity(),
   requirePermission('workflow:edit'),
   audit('work_request.unarchived', { table: 'work_requests' }),
   operationsController.unarchive
 );
+router.post(
+  ['/work-requests/:id/advance', '/:id/advance'],
+  resolveEntity(),
+  requirePermission('workflow:phase_transition'),
+  audit('work_request.advance', { table: 'work_requests' }),
+  operationsController.advanceWorkRequest
+);
+router.post(
+  ['/work-requests/:id/qa-review', '/:id/qa-review'],
+  resolveEntity(),
+  requirePermission('workflow:qa_review'),
+  audit('work_request.qa_review', { table: 'work_requests' }),
+  operationsController.qaReviewWorkRequest
+);
+router.post(
+  ['/work-requests/:id/reroute', '/:id/reroute'],
+  resolveEntity(),
+  requirePermission('workflow:qa_review'),
+  audit('work_request.reroute', { table: 'work_requests' }),
+  operationsController.rerouteWorkRequest
+);
 router.delete(
-  '/:id',
+  ['/work-requests/:id', '/:id'],
   resolveEntity(),
   requirePermission('workflow:edit'),
   audit('work_request.deleted', { table: 'work_requests' }),
@@ -152,40 +173,47 @@ router.delete(
 
 // Task sub-resources
 router.get(
-  '/:wrId/tasks',
+  ['/work-requests/:wrId/tasks', '/:wrId/tasks'],
   resolveEntity(),
   requirePermission('workflow:view'),
   operationsController.listTasks
 );
 router.get(
-  '/:wrId/tasks/:taskId',
+  ['/work-requests/:wrId/tasks/:taskId', '/:wrId/tasks/:taskId', '/tasks/:taskId'],
   resolveEntity(),
   requirePermission('workflow:view'),
   operationsController.getTask
 );
 router.post(
-  '/:wrId/tasks',
+  ['/work-requests/:wrId/tasks', '/:wrId/tasks'],
   resolveEntity(),
   requirePermission('workflow:task_add'),
   audit('task.created', { table: 'tasks' }),
   operationsController.createTask
 );
 router.put(
-  '/:wrId/tasks/:taskId',
+  ['/work-requests/:wrId/tasks/:taskId', '/:wrId/tasks/:taskId', '/tasks/:taskId'],
+  resolveEntity(),
+  requirePermission('workflow:edit'),
+  audit('task.updated', { table: 'tasks' }),
+  operationsController.updateTask
+);
+router.patch(
+  ['/work-requests/:wrId/tasks/:taskId', '/:wrId/tasks/:taskId', '/tasks/:taskId'],
   resolveEntity(),
   requirePermission('workflow:edit'),
   audit('task.updated', { table: 'tasks' }),
   operationsController.updateTask
 );
 router.post(
-  '/:wrId/tasks/:taskId/time-logs',
+  ['/work-requests/:wrId/tasks/:taskId/time-logs', '/:wrId/tasks/:taskId/time-logs', '/tasks/:taskId/time-logs'],
   resolveEntity(),
   requirePermission(['workflow:edit', 'workflow:task_add', 'workflow:task_upload']),
   audit('task.time_log_added', { table: 'task_time_logs' }),
   operationsController.addTimeLogs
 );
 router.delete(
-  '/:wrId/tasks/:taskId',
+  ['/work-requests/:wrId/tasks/:taskId', '/:wrId/tasks/:taskId', '/tasks/:taskId'],
   resolveEntity(),
   requirePermission('workflow:edit'),
   audit('task.deleted', { table: 'tasks' }),
@@ -198,6 +226,29 @@ tasksRouter.get(
   '/:id/related',
   requirePermission('workflow:view'),
   operationsController.getTaskRelated
+);
+tasksRouter.get(
+  '/:taskId',
+  requirePermission('workflow:view'),
+  operationsController.getTask
+);
+tasksRouter.put(
+  '/:taskId',
+  requirePermission('workflow:edit'),
+  audit('task.updated', { table: 'tasks' }),
+  operationsController.updateTask
+);
+tasksRouter.patch(
+  '/:taskId',
+  requirePermission('workflow:edit'),
+  audit('task.updated', { table: 'tasks' }),
+  operationsController.updateTask
+);
+tasksRouter.delete(
+  '/:taskId',
+  requirePermission('workflow:edit'),
+  audit('task.deleted', { table: 'tasks' }),
+  operationsController.removeTask
 );
 
 module.exports = router;

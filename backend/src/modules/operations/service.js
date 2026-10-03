@@ -7,6 +7,18 @@ const { supabaseAdmin } = require('../../services/supabaseClient');
 const AppError = require('../../lib/AppError');
 const { concurrencyConflict, resolveExpectedVersion } = require('../../lib/concurrency');
 const { randomUUID } = require('crypto');
+const { tokenizeTask } = require('../../lib/tokenizer');
+const auditService = require('../../services/auditService');
+const { notify } = require('../../services/notify');
+
+const PHASE_SEQUENCE = ['pre_processing', 'processing', 'quality_assurance', 'completion'];
+
+const PHASE_STATUS_MAP = {
+  pre_processing: 'Pre-processing',
+  processing: 'Processing',
+  quality_assurance: 'Quality Assurance',
+  completion: 'Completed',
+};
 
 const isValidUUID = (v) =>
   typeof v === 'string' &&
@@ -64,6 +76,11 @@ const toApiWorkRequest = (row, entityCode) => ({
   description: row.description || null,
   clientId: row.client_id,
   status: row.status,
+  phase: row.phase || null,
+  onHold: row.on_hold ?? false,
+  on_hold: row.on_hold ?? false,
+  phaseEnteredAt: row.phase_entered_at || null,
+  phase_entered_at: row.phase_entered_at || null,
   priority: row.priority || 'Normal',
   archived: row.archived ?? false,
   requestedBy: row.requested_by || null,
@@ -114,8 +131,20 @@ const formatDateManila = (dateVal) => {
   return `${year}-${month}-${day}`;
 };
 
-const toApiTask = (row, { checklist = [], timeLogs = [], taskDocuments = [] } = {}) => {
+const toApiTask = (
+  row,
+  { checklist = [], timeLogs = [], taskDocuments = [], assignees = [], taskAssignees = [] } = {}
+) => {
   const taskLevelLogs = timeLogs.filter((t) => !t.checklist_item_id);
+
+  const resolvedAssignees =
+    assignees && assignees.length > 0
+      ? assignees
+      : row.assignees && row.assignees.length > 0
+        ? row.assignees
+        : row.assignee_id
+          ? [row.assignee_id]
+          : [];
 
   return {
     id: row.id,
@@ -123,13 +152,25 @@ const toApiTask = (row, { checklist = [], timeLogs = [], taskDocuments = [] } = 
     title: row.title,
     description: row.description || null,
     status: row.status,
+    phase: row.phase || null,
+    qaStatus: row.qa_status || 'none',
+    qa_status: row.qa_status || 'none',
+    phaseEnteredAt: row.phase_entered_at || null,
+    phase_entered_at: row.phase_entered_at || null,
     assigneeId: row.assignee_id || null,
     assigneeName: row.assignee_name || null,
+    assignees: resolvedAssignees,
+    taskAssignees: taskAssignees,
+    task_assignees: taskAssignees,
     predecessors: row.predecessors || [],
     dueDate: row.due_date || null,
     requiredLinkType: row.required_link_type || null,
     displayOrder: row.display_order,
     version: row.version || 1,
+    assignedBy: row.assigned_by || null,
+    assigned_by: row.assigned_by || null,
+    assignedAt: row.assigned_at || null,
+    assigned_at: row.assigned_at || null,
     checklist: checklist.map((c) => {
       const itemLogs = timeLogs.filter((t) => t.checklist_item_id === c.id);
       return {
@@ -245,16 +286,20 @@ const loadTaskExtras = async (taskIds) => {
   const checklist = new Map();
   const timeLogs = new Map();
   const taskDocuments = new Map();
-  if (!taskIds.length) return { checklist, timeLogs, taskDocuments };
-  const [{ data: clRows }, { data: tlRows }, { data: docRows }] = await Promise.all([
-    supabaseAdmin.from('task_checklists').select('*').in('task_id', taskIds),
-    supabaseAdmin.from('task_time_logs').select('*').in('task_id', taskIds),
-    supabaseAdmin
-      .from('documents')
-      .select('*')
-      .in('linked_task_id', taskIds)
-      .is('deleted_at', null),
-  ]);
+  const assignees = new Map();
+  const taskAssignees = new Map();
+  if (!taskIds.length) return { checklist, timeLogs, taskDocuments, assignees, taskAssignees };
+  const [{ data: clRows }, { data: tlRows }, { data: docRows }, { data: taRows }] =
+    await Promise.all([
+      supabaseAdmin.from('task_checklists').select('*').in('task_id', taskIds),
+      supabaseAdmin.from('task_time_logs').select('*').in('task_id', taskIds),
+      supabaseAdmin
+        .from('documents')
+        .select('*')
+        .in('linked_task_id', taskIds)
+        .is('deleted_at', null),
+      supabaseAdmin.from('task_assignees').select('*').in('task_id', taskIds),
+    ]);
 
   const checklistRows = clRows || [];
   const missingClAssigneeIds = new Set();
@@ -291,7 +336,23 @@ const loadTaskExtras = async (taskIds) => {
     if (!taskDocuments.has(r.linked_task_id)) taskDocuments.set(r.linked_task_id, []);
     taskDocuments.get(r.linked_task_id).push(r);
   });
-  return { checklist, timeLogs, taskDocuments };
+  (taRows || []).forEach((r) => {
+    if (!assignees.has(r.task_id)) assignees.set(r.task_id, []);
+    assignees.get(r.task_id).push(r.user_id);
+    if (!taskAssignees.has(r.task_id)) taskAssignees.set(r.task_id, []);
+    taskAssignees.get(r.task_id).push({
+      id: r.id,
+      taskId: r.task_id,
+      task_id: r.task_id,
+      userId: r.user_id,
+      user_id: r.user_id,
+      assignedBy: r.assigned_by || null,
+      assigned_by: r.assigned_by || null,
+      assignedAt: r.assigned_at || null,
+      assigned_at: r.assigned_at || null,
+    });
+  });
+  return { checklist, timeLogs, taskDocuments, assignees, taskAssignees };
 };
 
 const canViewWorkRequest = (wr, user, taskMap) => {
@@ -437,8 +498,18 @@ const listWorkRequests = async ({
           checklist: extras.checklist.get(t.id) || [],
           timeLogs: extras.timeLogs.get(t.id) || [],
           taskDocuments: extras.taskDocuments.get(t.id) || [],
+          assignees: extras.assignees ? extras.assignees.get(t.id) || [] : [],
+          taskAssignees: extras.taskAssignees ? extras.taskAssignees.get(t.id) || [] : [],
         })
       );
+      wr.phases = {
+        pre_processing: {
+          tasks: wr.tasks.filter((t) => t.phase === 'pre_processing'),
+        },
+        processing: {
+          tasks: wr.tasks.filter((t) => t.phase === 'processing'),
+        },
+      };
     }
     return wr;
   });
@@ -496,6 +567,514 @@ const validateProjectTeamRoles = async ({ assignedTo, coAssignees }) => {
   }
 };
 
+const createWorkRequestGraph = async ({ entityId, data, user }) => {
+  await validateProjectTeamRoles({ assignedTo: data.assignedTo, coAssignees: data.coAssignees });
+
+  const rawPhases = data.phases || {};
+  const validPhases = ['pre_processing', 'processing'];
+
+  // Check if any tasks were passed in invalid phases (quality_assurance, completion, etc.)
+  for (const phaseKey of Object.keys(rawPhases)) {
+    if (!validPhases.includes(phaseKey)) {
+      const phaseTasks = rawPhases[phaseKey]?.tasks;
+      if (Array.isArray(phaseTasks) && phaseTasks.length > 0) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Validation Error',
+          detail: `Tasks cannot be created in phase "${phaseKey}". Tasks may only be created in pre_processing or processing.`,
+          code: 'INVALID_PHASE',
+        });
+      }
+    }
+  }
+
+  // Check for duplicate explicit local_id across all phases
+  const explicitLocalIds = new Set();
+  for (const phaseName of validPhases) {
+    const sectionTasks = rawPhases[phaseName]?.tasks || [];
+    if (!Array.isArray(sectionTasks)) continue;
+    for (const rawTask of sectionTasks) {
+      const explicitId = rawTask.local_id || rawTask.localId;
+      if (explicitId) {
+        if (explicitLocalIds.has(explicitId)) {
+          throw new AppError({
+            statusCode: 400,
+            title: 'Validation Error',
+            detail: `Duplicate task local_id "${explicitId}". Task local_id must be unique across all tasks in the request.`,
+            code: 'DUPLICATE_LOCAL_ID',
+          });
+        }
+        explicitLocalIds.add(explicitId);
+      }
+    }
+  }
+
+  // 1. Delimiter Tokenization & Expansion
+  let totalTokens = 0;
+  const expandedTasks = [];
+  const seenLocalIds = new Set();
+
+  let autoIdCounter = 1;
+  const getNextAutoLocalId = () => {
+    while (explicitLocalIds.has(`t_${autoIdCounter}`) || seenLocalIds.has(`t_${autoIdCounter}`)) {
+      autoIdCounter++;
+    }
+    const generated = `t_${autoIdCounter}`;
+    autoIdCounter++;
+    return generated;
+  };
+
+  const registerTask = (taskObj) => {
+    if (seenLocalIds.has(taskObj.local_id)) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Validation Error',
+        detail: `Duplicate task local_id "${taskObj.local_id}". Sibling task local_id collides with an existing task local_id.`,
+        code: 'DUPLICATE_LOCAL_ID',
+      });
+    }
+    seenLocalIds.add(taskObj.local_id);
+    expandedTasks.push(taskObj);
+  };
+
+  for (const phaseName of validPhases) {
+    const sectionTasks = rawPhases[phaseName]?.tasks || [];
+    if (!Array.isArray(sectionTasks)) continue;
+
+    for (const rawTask of sectionTasks) {
+      const title = (rawTask.title || '').trim();
+      if (!title) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Validation Error',
+          detail: 'Task title is required and cannot be empty',
+          code: 'VALIDATION_ERROR',
+        });
+      }
+
+      const tokens = tokenizeTask(title, { max: 50, currentTotal: totalTokens });
+      totalTokens += tokens.length;
+
+      const baseLocalId = rawTask.local_id || rawTask.localId || getNextAutoLocalId();
+      const dependsOn = rawTask.depends_on ?? rawTask.dependsOn ?? null;
+      const rawAssignees = Array.isArray(rawTask.assignees) ? rawTask.assignees : [];
+      const assignees = Array.from(new Set(rawAssignees));
+
+      if (tokens.length >= 2) {
+        // First task gets token 0, base local_id, and preserves raw string note
+        const rawNote = `Original submission: "${tokens.raw || title}"`;
+        const taskDescription = rawTask.description
+          ? `${rawTask.description}\n\n[audit_note] ${rawNote}`
+          : `[audit_note] ${rawNote}`;
+
+        registerTask({
+          local_id: baseLocalId,
+          title: tokens[0],
+          description: taskDescription,
+          note: tokens.raw || title,
+          phase: phaseName,
+          assignees,
+          depends_on: dependsOn,
+          status: rawTask.status || (assignees.length > 0 ? 'Assigned' : 'Draft'),
+          dueDate: rawTask.dueDate || null,
+        });
+
+        // Siblings
+        for (let i = 1; i < tokens.length; i++) {
+          registerTask({
+            local_id: `${baseLocalId}_s${i}`,
+            title: tokens[i],
+            description: rawTask.description || null,
+            note: null,
+            phase: phaseName,
+            assignees,
+            depends_on: dependsOn,
+            status: rawTask.status || (assignees.length > 0 ? 'Assigned' : 'Draft'),
+            dueDate: rawTask.dueDate || null,
+          });
+        }
+      } else {
+        // Single token
+        registerTask({
+          local_id: baseLocalId,
+          title: tokens[0],
+          description: rawTask.description || null,
+          note: tokens.raw || title,
+          phase: phaseName,
+          assignees,
+          depends_on: dependsOn,
+          status: rawTask.status || (assignees.length > 0 ? 'Assigned' : 'Draft'),
+          dueDate: rawTask.dueDate || null,
+        });
+      }
+    }
+  }
+
+  // 2. Dependency Validation
+  const knownLocalIds = new Set(expandedTasks.map((t) => t.local_id));
+
+  for (const task of expandedTasks) {
+    let deps = task.depends_on;
+    if (deps === null || deps === undefined) {
+      continue;
+    }
+
+    if (!Array.isArray(deps)) {
+      deps = [deps];
+    }
+
+    for (const dep of deps) {
+      if (dep === null || dep === undefined || typeof dep !== 'string' || dep === '0' || dep.trim() === '') {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Validation Error',
+          detail: `depends_on: Invalid dependency value "${dep}". Dependency "0", empty string, null, or non-string is not allowed.`,
+          code: 'INVALID_DEPENDENCY',
+        });
+      }
+
+      if (!knownLocalIds.has(dep)) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Validation Error',
+          detail: `depends_on: Dependency "${dep}" does not match any valid same-WR task local_id.`,
+          code: 'INVALID_DEPENDENCY',
+        });
+      }
+
+      if (dep === task.local_id) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Validation Error',
+          detail: `depends_on: Task "${task.local_id}" cannot depend on itself.`,
+          code: 'INVALID_DEPENDENCY',
+        });
+      }
+    }
+  }
+
+  // Cycle detection
+  const adj = new Map();
+  for (const t of expandedTasks) {
+    adj.set(t.local_id, []);
+  }
+  for (const t of expandedTasks) {
+    let deps = t.depends_on;
+    if (deps && !Array.isArray(deps)) deps = [deps];
+    if (Array.isArray(deps)) {
+      for (const d of deps) {
+        if (d && adj.has(d)) {
+          adj.get(d).push(t.local_id);
+        }
+      }
+    }
+  }
+  const visited = new Map();
+  const hasCycle = (node) => {
+    visited.set(node, 1);
+    for (const neighbor of adj.get(node) || []) {
+      if (visited.get(neighbor) === 1) return true;
+      if (!visited.get(neighbor) && hasCycle(neighbor)) return true;
+    }
+    visited.set(node, 2);
+    return false;
+  };
+  for (const t of expandedTasks) {
+    if (!visited.get(t.local_id)) {
+      if (hasCycle(t.local_id)) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Validation Error',
+          detail: 'Circular dependency detected among tasks.',
+          code: 'CIRCULAR_DEPENDENCY',
+        });
+      }
+    }
+  }
+
+  // 3. Collect and resolve all assignees
+  const allAssigneeIds = new Set();
+  expandedTasks.forEach((t) => {
+    t.assignees.forEach((a) => allAssigneeIds.add(a));
+  });
+
+  const usersMap = new Map();
+  if (allAssigneeIds.size > 0) {
+    const idList = Array.from(allAssigneeIds);
+    const { data: usersById } = await supabaseAdmin
+      .from('users')
+      .select('id, name, role')
+      .in('id', idList);
+    (usersById || []).forEach((u) => usersMap.set(u.id, u));
+
+    // Also try by name if not found by id
+    const missing = idList.filter((id) => !usersMap.has(id));
+    if (missing.length > 0) {
+      const { data: usersByName } = await supabaseAdmin
+        .from('users')
+        .select('id, name, role')
+        .in('name', missing);
+      (usersByName || []).forEach((u) => {
+        usersMap.set(u.id, u);
+        usersMap.set(u.name, u);
+      });
+    }
+  }
+
+  // Co-assignees to mirror into work_requests.co_assignees
+  const coAssigneeNamesSet = new Set(data.coAssignees || []);
+  expandedTasks.forEach((t) => {
+    t.assignees.forEach((a) => {
+      const u = usersMap.get(a);
+      coAssigneeNamesSet.add(u?.name || a);
+    });
+  });
+
+  // 4. Atomic Execution with Rollback
+  const cleanupStack = [];
+  const wrId = data.id && isValidUUID(data.id) ? data.id : randomUUID();
+  const now = new Date().toISOString();
+
+  const wrRecord = {
+    id: wrId,
+    entity_id: entityId,
+    client_id: data.clientId || null,
+    title: data.title,
+    description: data.description || null,
+    status: data.status || 'Draft',
+    phase: data.phase || 'pre_processing',
+    phase_entered_at: now,
+    on_hold: false,
+    priority: data.priority || 'Normal',
+    requested_by: data.requestedBy || user?.id || null,
+    assigned_to: data.assignedTo || null,
+    co_assignees: Array.from(coAssigneeNamesSet),
+    due_date: data.dueDate || null,
+    created_at: now,
+    updated_at: now,
+  };
+
+  try {
+    // Insert work request
+    const { error: wrError } = await supabaseAdmin.from('work_requests').insert(wrRecord);
+    if (wrError) {
+      throw new AppError({
+        statusCode: 500,
+        title: 'Database Error',
+        detail: `Failed to insert work request: ${wrError.message || wrError}`,
+      });
+    }
+    cleanupStack.push(async () => {
+      await supabaseAdmin.from('work_requests').delete().eq('id', wrId);
+    });
+
+    // Map local_ids to task UUIDs
+    const localIdToUuid = new Map();
+    const taskRecords = [];
+    const taskAssigneeRecords = [];
+
+    expandedTasks.forEach((t, idx) => {
+      const taskId = randomUUID();
+      localIdToUuid.set(t.local_id, taskId);
+      t.id = taskId;
+      t.display_order = idx;
+    });
+
+    expandedTasks.forEach((t) => {
+      // Resolve predecessors
+      let deps = t.depends_on;
+      if (deps && !Array.isArray(deps)) deps = [deps];
+      const predecessorUuids = (deps || [])
+        .map((d) => localIdToUuid.get(d))
+        .filter(Boolean);
+
+      // Resolve primary assignee
+      const primaryAssigneeId = t.assignees[0] || null;
+      const primaryUser = primaryAssigneeId ? usersMap.get(primaryAssigneeId) : null;
+      const assigneeName = primaryUser?.name || primaryAssigneeId || null;
+      const assigneeId = primaryUser?.id || primaryAssigneeId || null;
+
+      taskRecords.push({
+        id: t.id,
+        work_request_id: wrId,
+        title: t.title,
+        description: t.description,
+        status: t.status,
+        phase: t.phase,
+        qa_status: 'none',
+        assignee_id: assigneeId,
+        assignee_name: assigneeName,
+        predecessors: predecessorUuids,
+        due_date: t.dueDate,
+        display_order: t.display_order,
+        assigned_by: user?.id || null,
+        assigned_at: now,
+        created_at: now,
+        updated_at: now,
+      });
+
+      // Prepare task_assignees rows
+      const seenTaskUserIds = new Set();
+      (t.assignees || []).forEach((a) => {
+        const u = usersMap.get(a);
+        const uid = u?.id || a;
+        if (uid && !seenTaskUserIds.has(uid)) {
+          seenTaskUserIds.add(uid);
+          taskAssigneeRecords.push({
+            id: randomUUID(),
+            task_id: t.id,
+            user_id: uid,
+            assigned_by: user?.id || null,
+            assigned_at: now,
+            created_at: now,
+          });
+        }
+      });
+    });
+
+    if (taskRecords.length > 0) {
+      const { error: tasksError } = await supabaseAdmin.from('tasks').insert(taskRecords);
+      if (tasksError) {
+        throw new AppError({
+          statusCode: 500,
+          title: 'Database Error',
+          detail: `Failed to insert tasks: ${tasksError.message || tasksError}`,
+        });
+      }
+      cleanupStack.push(async () => {
+        await supabaseAdmin.from('tasks').delete().in('id', taskRecords.map((t) => t.id));
+      });
+    }
+
+    if (taskAssigneeRecords.length > 0) {
+      const { error: taError } = await supabaseAdmin.from('task_assignees').insert(taskAssigneeRecords);
+      if (taError) {
+        throw new AppError({
+          statusCode: 500,
+          title: 'Database Error',
+          detail: `Failed to insert task assignees: ${taError.message || taError}`,
+        });
+      }
+      cleanupStack.push(async () => {
+        await supabaseAdmin.from('task_assignees').delete().in('task_id', taskRecords.map((t) => t.id));
+      });
+    }
+
+    // Build return graph
+    const entityCode = await resolveEntityCode(entityId);
+    const taskAssigneesMap = new Map();
+    taskAssigneeRecords.forEach((ta) => {
+      if (!taskAssigneesMap.has(ta.task_id)) taskAssigneesMap.set(ta.task_id, []);
+      taskAssigneesMap.get(ta.task_id).push(ta.user_id);
+    });
+
+    const apiTasks = taskRecords.map((tr) => {
+      const matchedExpanded = expandedTasks.find((et) => et.id === tr.id);
+      return {
+        id: tr.id,
+        localId: matchedExpanded?.local_id || null,
+        local_id: matchedExpanded?.local_id || null,
+        workRequestId: wrId,
+        title: tr.title,
+        description: tr.description,
+        note: matchedExpanded?.note || null,
+        status: tr.status,
+        phase: tr.phase,
+        qaStatus: tr.qa_status || 'none',
+        qa_status: tr.qa_status || 'none',
+        phaseEnteredAt: tr.phase_entered_at || null,
+        phase_entered_at: tr.phase_entered_at || null,
+        assigneeId: tr.assignee_id,
+        assigneeName: tr.assignee_name,
+        assignees: taskAssigneesMap.get(tr.id) || (tr.assignee_id ? [tr.assignee_id] : []),
+        taskAssignees: (taskAssigneeRecords || [])
+          .filter((ta) => ta.task_id === tr.id)
+          .map((ta) => ({
+            id: ta.id,
+            taskId: ta.task_id,
+            task_id: ta.task_id,
+            userId: ta.user_id,
+            user_id: ta.user_id,
+            assignedBy: ta.assigned_by || null,
+            assigned_by: ta.assigned_by || null,
+            assignedAt: ta.assigned_at || null,
+            assigned_at: ta.assigned_at || null,
+          })),
+        task_assignees: (taskAssigneeRecords || [])
+          .filter((ta) => ta.task_id === tr.id)
+          .map((ta) => ({
+            id: ta.id,
+            taskId: ta.task_id,
+            task_id: ta.task_id,
+            userId: ta.user_id,
+            user_id: ta.user_id,
+            assignedBy: ta.assigned_by || null,
+            assigned_by: ta.assigned_by || null,
+            assignedAt: ta.assigned_at || null,
+            assigned_at: ta.assigned_at || null,
+          })),
+        dependsOn: matchedExpanded?.depends_on || null,
+        depends_on: matchedExpanded?.depends_on || null,
+        predecessors: tr.predecessors,
+        dueDate: tr.due_date,
+        displayOrder: tr.display_order,
+        assignedBy: tr.assigned_by,
+        assigned_by: tr.assigned_by,
+        assignedAt: tr.assigned_at,
+        assigned_at: tr.assigned_at,
+        version: tr.version || 1,
+      };
+    });
+
+    const preProcessingTasks = apiTasks.filter((t) => t.phase === 'pre_processing');
+    const processingTasks = apiTasks.filter((t) => t.phase === 'processing');
+
+    const fullGraph = {
+      id: wrId,
+      entity: entityCode,
+      title: wrRecord.title,
+      description: wrRecord.description,
+      clientId: wrRecord.client_id,
+      status: wrRecord.status,
+      phase: wrRecord.phase,
+      onHold: wrRecord.on_hold,
+      on_hold: wrRecord.on_hold,
+      phaseEnteredAt: wrRecord.phase_entered_at,
+      phase_entered_at: wrRecord.phase_entered_at,
+      priority: wrRecord.priority,
+      archived: false,
+      requestedBy: wrRecord.requested_by,
+      assignedTo: wrRecord.assigned_to,
+      coAssignees: wrRecord.co_assignees,
+      dueDate: wrRecord.due_date,
+      createdAt: wrRecord.created_at,
+      updatedAt: wrRecord.updated_at,
+      version: 1,
+      phases: {
+        pre_processing: {
+          tasks: preProcessingTasks,
+        },
+        processing: {
+          tasks: processingTasks,
+        },
+      },
+      tasks: apiTasks,
+    };
+
+    return fullGraph;
+  } catch (err) {
+    // Rollback all created records on any failure
+    for (const rollback of cleanupStack.reverse()) {
+      try {
+        await rollback();
+      } catch (cleanupErr) {
+        // Rollback failure logged but not rethrown over primary error
+      }
+    }
+    throw err;
+  }
+};
+
 const createWorkRequest = async ({ entityId, data, user }) => {
   const reqBy = data.requestedBy || user?.id;
   const titleClean = (data.title || '').trim();
@@ -507,6 +1086,10 @@ const createWorkRequest = async ({ entityId, data, user }) => {
 
   const creationPromise = (async () => {
     try {
+      if (data.phases && typeof data.phases === 'object') {
+        return await createWorkRequestGraph({ entityId, data, user });
+      }
+
       await validateProjectTeamRoles({ assignedTo: data.assignedTo, coAssignees: data.coAssignees });
 
       // Deduplication guard against rapid double-clicks (within 5 seconds)
@@ -526,7 +1109,7 @@ const createWorkRequest = async ({ entityId, data, user }) => {
 
       const { data: existingDups } = await dupQuery.limit(1);
       if (existingDups && existingDups.length > 0) {
-        return getWorkRequestById({ id: existingDups[0].id, entityId, user });
+        return getWorkRequestById({ id: existingDups[0].id, entityId, user, includeTasks: true });
       }
 
       const id = data.id && isValidUUID(data.id) ? data.id : randomUUID();
@@ -534,12 +1117,15 @@ const createWorkRequest = async ({ entityId, data, user }) => {
       const record = {
         id,
         entity_id: entityId,
-        client_id: data.clientId,
+        client_id: data.clientId || null,
         title: data.title,
         description: data.description || null,
         status: data.status || 'Draft',
+        phase: data.phase || 'pre_processing',
+        phase_entered_at: now,
+        on_hold: false,
         priority: data.priority || 'Normal',
-        requested_by: data.requestedBy || user.id,
+        requested_by: data.requestedBy || user?.id || null,
         assigned_to: data.assignedTo || null,
         co_assignees: data.coAssignees || [],
         due_date: data.dueDate || null,
@@ -556,7 +1142,7 @@ const createWorkRequest = async ({ entityId, data, user }) => {
         });
       }
 
-      return getWorkRequestById({ id, entityId, user });
+      return getWorkRequestById({ id, entityId, user, includeTasks: true });
     } finally {
       inFlightWorkRequests.delete(dedupeKey);
     }
@@ -618,8 +1204,18 @@ const getWorkRequestById = async ({ id, entityId, user, includeTasks = false }) 
         checklist: extras.checklist.get(t.id) || [],
         timeLogs: extras.timeLogs.get(t.id) || [],
         taskDocuments: extras.taskDocuments.get(t.id) || [],
+        assignees: extras.assignees ? extras.assignees.get(t.id) || [] : [],
+        taskAssignees: extras.taskAssignees ? extras.taskAssignees.get(t.id) || [] : [],
       })
     );
+    wr.phases = {
+      pre_processing: {
+        tasks: wr.tasks.filter((t) => t.phase === 'pre_processing'),
+      },
+      processing: {
+        tasks: wr.tasks.filter((t) => t.phase === 'processing'),
+      },
+    };
   }
 
   return wr;
@@ -805,6 +1401,8 @@ const listTasks = async ({ workRequestId, entityId: _entityId }) => {
       checklist: extras.checklist.get(t.id) || [],
       timeLogs: extras.timeLogs.get(t.id) || [],
       taskDocuments: extras.taskDocuments.get(t.id) || [],
+      assignees: extras.assignees ? extras.assignees.get(t.id) || [] : [],
+      taskAssignees: extras.taskAssignees ? extras.taskAssignees.get(t.id) || [] : [],
     })
   );
 };
@@ -841,15 +1439,64 @@ const getTaskById = async ({ workRequestId, taskId, entityId: _entityId }) => {
     checklist: extras.checklist.get(taskId) || [],
     timeLogs: extras.timeLogs.get(taskId) || [],
     taskDocuments: extras.taskDocuments.get(taskId) || [],
+    assignees: extras.assignees ? extras.assignees.get(taskId) || [] : [],
+    taskAssignees: extras.taskAssignees ? extras.taskAssignees.get(taskId) || [] : [],
   });
 };
 
 const createTask = async ({ workRequestId, entityId, data, user: _user }) => {
+  let phase = data.phase || null;
+  if (phase && !['pre_processing', 'processing'].includes(phase)) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Validation Error',
+      detail: `Tasks cannot be created in phase "${phase}". Tasks may only be created in pre_processing or processing.`,
+      code: 'INVALID_PHASE',
+    });
+  }
+
+  if (!phase) {
+    const { data: wr } = await supabaseAdmin
+      .from('work_requests')
+      .select('phase')
+      .eq('id', workRequestId)
+      .maybeSingle();
+    phase = wr?.phase === 'processing' ? 'processing' : 'pre_processing';
+  }
+
+  // Prerequisite Gates: processing task cannot be created directly in active state if pre_processing tasks incomplete
+  if (
+    phase === 'processing' &&
+    data.status &&
+    !['Draft', 'Assigned', 'Cancelled'].includes(data.status)
+  ) {
+    const { data: preTasks } = await supabaseAdmin
+      .from('tasks')
+      .select('id, title, status')
+      .eq('work_request_id', workRequestId)
+      .eq('phase', 'pre_processing')
+      .is('deleted_at', null);
+    const activePre = (preTasks || []).filter((t) => t.status !== 'Cancelled');
+    const incomplete = activePre.filter((t) => t.status !== 'Completed');
+    if (incomplete.length > 0) {
+      throw new AppError({
+        statusCode: 409,
+        title: 'Conflict',
+        detail: `Cannot create active processing task: ${incomplete.length} active pre-processing task(s) are incomplete`,
+        code: 'PHASE_PREREQUISITE',
+      });
+    }
+  }
+
   const id = data.id && isValidUUID(data.id) ? data.id : randomUUID();
   const now = new Date().toISOString();
   let assigneeName = data.assigneeName || null;
-  if ((!assigneeName || isValidUUID(assigneeName)) && data.assigneeId) {
-    assigneeName = await resolveAssigneeName(data.assigneeId, assigneeName);
+  const primaryAssigneeId =
+    data.assigneeId ||
+    (Array.isArray(data.assignees) && data.assignees[0]) ||
+    null;
+  if ((!assigneeName || isValidUUID(assigneeName)) && primaryAssigneeId) {
+    assigneeName = await resolveAssigneeName(primaryAssigneeId, assigneeName);
   }
   const record = {
     id,
@@ -857,12 +1504,16 @@ const createTask = async ({ workRequestId, entityId, data, user: _user }) => {
     title: data.title,
     description: data.description || null,
     status: data.status || 'Draft',
-    assignee_id: data.assigneeId || null,
+    phase,
+    qa_status: 'none',
+    assignee_id: primaryAssigneeId,
     assignee_name: assigneeName,
     predecessors: Array.isArray(data.predecessors) ? data.predecessors.filter(isValidUUID) : [],
     due_date: data.dueDate || null,
     required_link_type: data.requiredLinkType || null,
     display_order: data.displayOrder ?? 0,
+    assigned_by: _user?.id || null,
+    assigned_at: primaryAssigneeId ? now : null,
     created_at: now,
     updated_at: now,
   };
@@ -874,6 +1525,29 @@ const createTask = async ({ workRequestId, entityId, data, user: _user }) => {
       title: 'Database Error',
       detail: 'Unable to create task',
     });
+  }
+
+  // Dual-write assignees to task_assignees join table
+  const allAssigneeIds = Array.from(
+    new Set(
+      [
+        ...(Array.isArray(data.assignees) ? data.assignees : []),
+        ...(data.assigneeId ? [data.assigneeId] : []),
+        ...(Array.isArray(data.coAssignees) ? data.coAssignees : []),
+      ].filter(isValidUUID)
+    )
+  );
+
+  if (allAssigneeIds.length > 0) {
+    const taInserts = allAssigneeIds.map((userId) => ({
+      id: randomUUID(),
+      task_id: id,
+      user_id: userId,
+      assigned_by: _user?.id || null,
+      assigned_at: now,
+      created_at: now,
+    }));
+    await supabaseAdmin.from('task_assignees').insert(taInserts);
   }
 
   if (data.checklist?.length) {
@@ -1048,9 +1722,66 @@ const addTimeLogs = async ({ workRequestId, taskId, entityId, logs, user }) => {
 };
 
 const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user }) => {
+  if (data && data.phase !== undefined) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Validation Error',
+      detail: 'Task phase is immutable once created',
+      code: 'TASK_PHASE_IMMUTABLE',
+    });
+  }
+
   const existing = await getTaskById({ workRequestId, taskId, entityId });
   if (!existing) {
     throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Task not found' });
+  }
+
+  const effectiveWrId = workRequestId || existing.workRequestId || existing.work_request_id;
+  const isProcessingTask = existing.phase === 'processing';
+  const targetStatus = data.status;
+
+  // Prerequisite Gates (Rule R5 & Spec §3.2):
+  // A processing task cannot transition out of Draft or Assigned
+  // (e.g. to In Progress, For Review, Completed) while ANY active (non-Cancelled)
+  // pre_processing task of the same WR is not Completed.
+  if (
+    isProcessingTask &&
+    targetStatus !== undefined &&
+    targetStatus !== existing.status &&
+    ['Draft', 'Assigned'].includes(existing.status) &&
+    !['Draft', 'Assigned', 'Cancelled'].includes(targetStatus)
+  ) {
+    if (effectiveWrId) {
+      const { data: preTasks, error: preError } = await supabaseAdmin
+        .from('tasks')
+        .select('id, title, status, phase')
+        .eq('work_request_id', effectiveWrId)
+        .eq('phase', 'pre_processing')
+        .is('deleted_at', null);
+
+      if (preError) {
+        throw new AppError({
+          statusCode: 500,
+          title: 'Database Error',
+          detail: 'Unable to verify prerequisite tasks',
+        });
+      }
+
+      const activePreTasks = (preTasks || []).filter((t) => t.status !== 'Cancelled');
+      const incompletePreTasks = activePreTasks.filter((t) => t.status !== 'Completed');
+
+      if (incompletePreTasks.length > 0) {
+        const incompleteList = incompletePreTasks
+          .map((t) => `"${t.title || t.id}" (${t.status})`)
+          .join(', ');
+        throw new AppError({
+          statusCode: 409,
+          title: 'Conflict',
+          detail: `Cannot advance processing task: ${incompletePreTasks.length} active pre-processing task(s) are incomplete: ${incompleteList}`,
+          code: 'PHASE_PREREQUISITE',
+        });
+      }
+    }
   }
 
   let assigneeName = data.assigneeName ?? existing.assigneeName;
@@ -1090,8 +1821,10 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user }
   let query = supabaseAdmin
     .from('tasks')
     .update(updates)
-    .eq('id', taskId)
-    .eq('work_request_id', workRequestId);
+    .eq('id', taskId);
+  if (effectiveWrId) {
+    query = query.eq('work_request_id', effectiveWrId);
+  }
   if (expectedVersion !== null) {
     query = query.eq('version', expectedVersion);
   }
@@ -1106,6 +1839,24 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user }
 
   if (expectedVersion !== null && (!updatedRows || updatedRows.length === 0)) {
     throw concurrencyConflict();
+  }
+
+  // Dual-write assignees to task_assignees join table if assignees provided
+  if (Array.isArray(data.assignees)) {
+    await supabaseAdmin.from('task_assignees').delete().eq('task_id', taskId);
+    const uniqueAssignees = Array.from(new Set(data.assignees.filter(isValidUUID)));
+    if (uniqueAssignees.length > 0) {
+      const now = new Date().toISOString();
+      const taInserts = uniqueAssignees.map((uId) => ({
+        id: randomUUID(),
+        task_id: taskId,
+        user_id: uId,
+        assigned_by: _user?.id || null,
+        assigned_at: now,
+        created_at: now,
+      }));
+      await supabaseAdmin.from('task_assignees').insert(taInserts);
+    }
   }
 
   if (data.checklist !== undefined) {
@@ -1143,19 +1894,23 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user }
     await upsertTimeLogs(taskId, data.timeLogs, true);
   }
 
-  return getTaskById({ workRequestId, taskId, entityId });
+  return getTaskById({ workRequestId: effectiveWrId, taskId, entityId });
 };
 
 const deleteTask = async ({ workRequestId, taskId, entityId }) => {
   const existing = await getTaskById({ workRequestId, taskId, entityId });
   if (!existing) return false;
 
-  const { error } = await supabaseAdmin
+  const effectiveWrId = workRequestId || existing.workRequestId || existing.work_request_id;
+  let query = supabaseAdmin
     .from('tasks')
     .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-    .eq('id', taskId)
-    .eq('work_request_id', workRequestId);
+    .eq('id', taskId);
+  if (effectiveWrId) {
+    query = query.eq('work_request_id', effectiveWrId);
+  }
 
+  const { error } = await query;
   if (error) {
     throw new AppError({
       statusCode: 500,
@@ -1772,6 +2527,464 @@ const resetStandardTaskTemplates = async ({ userId }) => {
   );
 };
 
+// ============================================================
+// Phase Routing: Advancement Gates, Direct Advance, QA Review & Reroute
+// ============================================================
+
+/**
+ * Validate advancement gate conditions for a transition from fromPhase to toPhase.
+ * @param {object} params
+ * @param {string} params.workRequestId
+ * @param {string} params.fromPhase
+ * @param {string} params.toPhase
+ * @returns {Promise<boolean>}
+ */
+const checkAdvancementGate = async ({ workRequestId, fromPhase, toPhase }) => {
+  const fromIndex = PHASE_SEQUENCE.indexOf(fromPhase);
+  const toIndex = PHASE_SEQUENCE.indexOf(toPhase);
+
+  if (fromIndex === -1 || toIndex === -1) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: `Invalid phase values: from "${fromPhase}" to "${toPhase}"`,
+    });
+  }
+
+  // Strictly sequential transitions: no skipping intermediate phases.
+  if (toIndex !== fromIndex + 1) {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: `Direct jump from "${fromPhase}" to "${toPhase}" is not permitted. Phases must advance sequentially: ${PHASE_SEQUENCE.join(' -> ')}`,
+      code: 'INVALID_PHASE_TRANSITION',
+    });
+  }
+
+  // Fetch all tasks for this work request
+  const { data: tasks, error } = await supabaseAdmin
+    .from('tasks')
+    .select('id, title, status, phase, qa_status')
+    .eq('work_request_id', workRequestId)
+    .is('deleted_at', null);
+
+  if (error) {
+    throw new AppError({
+      statusCode: 500,
+      title: 'Database Error',
+      detail: 'Unable to fetch tasks for advancement gate check',
+    });
+  }
+
+  const activeTasks = (tasks || []).filter((t) => t.status !== 'Cancelled');
+
+  if (fromPhase === 'pre_processing' && toPhase === 'processing') {
+    // Every active (non-Cancelled) pre_processing task must be Completed
+    const activePreTasks = activeTasks.filter((t) => t.phase === 'pre_processing');
+    const incomplete = activePreTasks.filter((t) => t.status !== 'Completed');
+    if (incomplete.length > 0) {
+      const list = incomplete.map((t) => `"${t.title || t.id}" (${t.status})`).join(', ');
+      throw new AppError({
+        statusCode: 409,
+        title: 'Conflict',
+        detail: `Advancement gate failed: ${incomplete.length} active pre-processing task(s) are incomplete: ${list}`,
+        code: 'ADVANCEMENT_GATE_FAILED',
+      });
+    }
+  } else if (fromPhase === 'processing' && toPhase === 'quality_assurance') {
+    // Every active (non-Cancelled) processing task must be Completed
+    const activeProcTasks = activeTasks.filter((t) => t.phase === 'processing');
+    const incomplete = activeProcTasks.filter((t) => t.status !== 'Completed');
+    if (incomplete.length > 0) {
+      const list = incomplete.map((t) => `"${t.title || t.id}" (${t.status})`).join(', ');
+      throw new AppError({
+        statusCode: 409,
+        title: 'Conflict',
+        detail: `Advancement gate failed: ${incomplete.length} active processing task(s) are incomplete: ${list}`,
+        code: 'ADVANCEMENT_GATE_FAILED',
+      });
+    }
+  } else if (fromPhase === 'quality_assurance' && toPhase === 'completion') {
+    // Every active task (both phases) must be Completed AND all active tasks have qa_status = 'passed'
+    const incomplete = activeTasks.filter((t) => t.status !== 'Completed');
+    if (incomplete.length > 0) {
+      const list = incomplete.map((t) => `"${t.title || t.id}" (${t.status})`).join(', ');
+      throw new AppError({
+        statusCode: 409,
+        title: 'Conflict',
+        detail: `Advancement gate failed: ${incomplete.length} active task(s) are incomplete: ${list}`,
+        code: 'ADVANCEMENT_GATE_FAILED',
+      });
+    }
+    const unpassed = activeTasks.filter((t) => t.qa_status !== 'passed');
+    if (unpassed.length > 0) {
+      const list = unpassed.map((t) => `"${t.title || t.id}" (qa_status: ${t.qa_status})`).join(', ');
+      throw new AppError({
+        statusCode: 409,
+        title: 'Conflict',
+        detail: `Advancement gate failed: all active tasks must have qa_status = "passed". Tasks not passed: ${list}`,
+        code: 'ADVANCEMENT_GATE_FAILED',
+      });
+    }
+  }
+
+  return true;
+};
+
+/**
+ * Advance a work request's phase.
+ * @param {object} params
+ * @param {string} params.id - Work request ID
+ * @param {string} [params.entityId] - Entity ID
+ * @param {string} [params.toPhase] - Target phase (defaults to next sequential phase)
+ * @param {object} params.user - Current user
+ * @param {string} [params.via='direct'] - 'direct' | 'request'
+ * @returns {Promise<object>}
+ */
+const advanceWorkRequest = async ({ id, entityId, toPhase, user, via = 'direct' }) => {
+  const existing = await getWorkRequestById({ id, entityId, user });
+  if (!existing) {
+    throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Work request not found' });
+  }
+
+  const currentPhase = existing.phase || 'pre_processing';
+  if (currentPhase === 'completion') {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Work request is already in completion phase',
+      code: 'INVALID_PHASE_TRANSITION',
+    });
+  }
+
+  const fromIndex = PHASE_SEQUENCE.indexOf(currentPhase);
+  const targetPhase = toPhase || PHASE_SEQUENCE[fromIndex + 1];
+
+  await checkAdvancementGate({
+    workRequestId: id,
+    fromPhase: currentPhase,
+    toPhase: targetPhase,
+  });
+
+  const now = new Date().toISOString();
+  const newStatus = PHASE_STATUS_MAP[targetPhase] || 'In Progress';
+
+  const { error } = await supabaseAdmin
+    .from('work_requests')
+    .update({
+      phase: targetPhase,
+      phase_entered_at: now,
+      status: newStatus,
+      updated_at: now,
+    })
+    .eq('id', id);
+
+  if (error) {
+    throw new AppError({
+      statusCode: 500,
+      title: 'Database Error',
+      detail: 'Unable to advance work request phase',
+    });
+  }
+
+  await auditService.log({
+    action: 'work_request.phase_advance',
+    table: 'work_requests',
+    recordId: id,
+    entity: existing.entity_id || entityId,
+    userId: user?.id,
+    details: {
+      from_phase: currentPhase,
+      to_phase: targetPhase,
+      before: { phase: currentPhase, status: existing.status },
+      after: { phase: targetPhase, status: newStatus },
+      via,
+    },
+  });
+
+  const requesterId = existing.requestedBy || existing.requested_by;
+  if (requesterId) {
+    try {
+      await notify([requesterId], 'wr.transition_request.resolved', {
+        request_id: null,
+        work_request_id: id,
+        from_phase: currentPhase,
+        to_phase: targetPhase,
+        outcome: 'approved',
+        via,
+      });
+    } catch (_notifErr) {
+      // Notification errors never fail business operations
+    }
+  }
+
+  return getWorkRequestById({ id, entityId, user });
+};
+
+/**
+ * Record QA review evaluations for tasks on a work request in quality_assurance phase.
+ * @param {object} params
+ * @param {string} params.id - Work request ID
+ * @param {string} [params.entityId] - Entity ID
+ * @param {Array<{ task_id?: string, taskId?: string, qa_status?: string, qaStatus?: string }>} params.results
+ * @param {object} params.user - Current user
+ * @returns {Promise<object>}
+ */
+const qaReviewWorkRequest = async ({ id, entityId, results, user }) => {
+  const existing = await getWorkRequestById({ id, entityId, user });
+  if (!existing) {
+    throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Work request not found' });
+  }
+
+  if (existing.phase !== 'quality_assurance') {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: `QA review can only be performed when work request is in "quality_assurance" phase (current phase: "${existing.phase}")`,
+      code: 'INVALID_PHASE_FOR_QA_REVIEW',
+    });
+  }
+
+  if (!Array.isArray(results) || results.length === 0) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'results must be a non-empty array of task QA evaluations',
+    });
+  }
+
+  const { data: tasks, error: taskErr } = await supabaseAdmin
+    .from('tasks')
+    .select('*')
+    .eq('work_request_id', id)
+    .is('deleted_at', null);
+
+  if (taskErr) {
+    throw new AppError({
+      statusCode: 500,
+      title: 'Database Error',
+      detail: 'Unable to fetch tasks for QA review',
+    });
+  }
+
+  const tasksMap = new Map((tasks || []).map((t) => [t.id, t]));
+  const evaluations = [];
+  const now = new Date().toISOString();
+
+  for (const item of results) {
+    const taskId = item.task_id || item.taskId;
+    const qaStatus = item.qa_status || item.qaStatus;
+
+    if (!taskId || !['passed', 'failed'].includes(qaStatus)) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: 'Each result must have a valid task_id and qa_status ("passed" or "failed")',
+      });
+    }
+
+    const task = tasksMap.get(taskId);
+    if (!task) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: `Task ${taskId} does not belong to work request ${id}`,
+      });
+    }
+
+    evaluations.push({
+      task_id: taskId,
+      title: task.title,
+      before_qa_status: task.qa_status || 'none',
+      after_qa_status: qaStatus,
+    });
+
+    const { error: updateErr } = await supabaseAdmin
+      .from('tasks')
+      .update({
+        qa_status: qaStatus,
+        updated_at: now,
+      })
+      .eq('id', taskId);
+
+    if (updateErr) {
+      throw new AppError({
+        statusCode: 500,
+        title: 'Database Error',
+        detail: `Unable to update QA status for task ${taskId}`,
+      });
+    }
+  }
+
+  await auditService.log({
+    action: 'work_request.qa_review',
+    table: 'work_requests',
+    recordId: id,
+    entity: existing.entity_id || entityId,
+    userId: user?.id,
+    details: {
+      work_request_id: id,
+      evaluations,
+    },
+  });
+
+  return getWorkRequestById({ id, entityId, user });
+};
+
+/**
+ * Reroute a work request from quality_assurance back to pre_processing or processing,
+ * reopening ONLY failed tasks (qa_status = 'failed') and notifying their assignees.
+ * @param {object} params
+ * @param {string} params.id - Work request ID
+ * @param {string} [params.entityId] - Entity ID
+ * @param {string} params.toPhase - 'pre_processing' | 'processing'
+ * @param {string} params.reason - Required non-empty explanation
+ * @param {object} params.user - Current user
+ * @returns {Promise<object>}
+ */
+const rerouteWorkRequest = async ({ id, entityId, toPhase, reason, user }) => {
+  const existing = await getWorkRequestById({ id, entityId, user });
+  if (!existing) {
+    throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Work request not found' });
+  }
+
+  if (existing.phase !== 'quality_assurance') {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: `Reroute can only be performed when work request is in "quality_assurance" phase (current phase: "${existing.phase}")`,
+      code: 'INVALID_PHASE_FOR_REROUTE',
+    });
+  }
+
+  if (!['pre_processing', 'processing'].includes(toPhase)) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'to_phase must be either "pre_processing" or "processing"',
+    });
+  }
+
+  if (!reason || typeof reason !== 'string' || reason.trim() === '') {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'reason is required for reroute',
+    });
+  }
+
+  const cleanReason = reason.trim();
+
+  // Fetch all tasks for this WR
+  const { data: tasks, error: taskErr } = await supabaseAdmin
+    .from('tasks')
+    .select('*')
+    .eq('work_request_id', id)
+    .is('deleted_at', null);
+
+  if (taskErr) {
+    throw new AppError({
+      statusCode: 500,
+      title: 'Database Error',
+      detail: 'Unable to fetch tasks for reroute',
+    });
+  }
+
+  const failedTasks = (tasks || []).filter((t) => t.qa_status === 'failed');
+  const failedTaskIds = failedTasks.map((t) => t.id);
+  const now = new Date().toISOString();
+
+  // Reopen ONLY failed tasks: status := 'In Progress', qa_status := 'none'
+  for (const failedTask of failedTasks) {
+    const { error: reopenErr } = await supabaseAdmin
+      .from('tasks')
+      .update({
+        status: 'In Progress',
+        qa_status: 'none',
+        updated_at: now,
+      })
+      .eq('id', failedTask.id);
+
+    if (reopenErr) {
+      throw new AppError({
+        statusCode: 500,
+        title: 'Database Error',
+        detail: `Unable to reopen failed task ${failedTask.id}`,
+      });
+    }
+  }
+
+  const newStatus = PHASE_STATUS_MAP[toPhase] || 'In Progress';
+  const { error: wrUpdateErr } = await supabaseAdmin
+    .from('work_requests')
+    .update({
+      phase: toPhase,
+      phase_entered_at: now,
+      status: newStatus,
+      updated_at: now,
+    })
+    .eq('id', id);
+
+  if (wrUpdateErr) {
+    throw new AppError({
+      statusCode: 500,
+      title: 'Database Error',
+      detail: 'Unable to update work request phase during reroute',
+    });
+  }
+
+  // Gather assignees of failed tasks
+  const failedAssigneeIds = new Set();
+  failedTasks.forEach((t) => {
+    if (t.assignee_id) failedAssigneeIds.add(t.assignee_id);
+  });
+
+  if (failedTaskIds.length > 0) {
+    const { data: assignees } = await supabaseAdmin
+      .from('task_assignees')
+      .select('user_id')
+      .in('task_id', failedTaskIds);
+
+    (assignees || []).forEach((a) => {
+      if (a.user_id) failedAssigneeIds.add(a.user_id);
+    });
+  }
+
+  await auditService.log({
+    action: 'work_request.reroute',
+    table: 'work_requests',
+    recordId: id,
+    entity: existing.entity_id || entityId,
+    userId: user?.id,
+    details: {
+      from_phase: 'quality_assurance',
+      to_phase: toPhase,
+      reason: cleanReason,
+      reopened_task_ids: failedTaskIds,
+      before: { phase: 'quality_assurance', status: existing.status },
+      after: { phase: toPhase, status: newStatus },
+    },
+  });
+
+  try {
+    await notify(Array.from(failedAssigneeIds), 'wr.qa_reroute', {
+      work_request_id: id,
+      wr_title: existing.title,
+      to_phase: toPhase,
+      reason: cleanReason,
+      failed_task_ids: failedTaskIds,
+    });
+  } catch (_notifErr) {
+    // Notify error never fails business operation
+  }
+
+  const updatedWr = await getWorkRequestById({ id, entityId, user });
+  return {
+    ...updatedWr,
+    reopened_tasks: failedTaskIds,
+  };
+};
+
 module.exports = {
   listWorkRequests,
   createWorkRequest,
@@ -1801,4 +3014,10 @@ module.exports = {
   updateStandardTaskTemplate,
   deleteStandardTaskTemplate,
   resetStandardTaskTemplates,
+  checkAdvancementGate,
+  advanceWorkRequest,
+  qaReviewWorkRequest,
+  rerouteWorkRequest,
+  PHASE_SEQUENCE,
+  PHASE_STATUS_MAP,
 };

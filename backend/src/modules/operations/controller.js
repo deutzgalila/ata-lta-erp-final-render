@@ -3,6 +3,7 @@
  * Route handlers delegate to the service and record audit events.
  */
 
+const crypto = require('crypto');
 const operationsService = require('./service');
 const {
   createWorkRequestSchema,
@@ -13,6 +14,9 @@ const {
   groundWorkerSchema,
   addTimeLogsSchema,
   standardTaskTemplateSchema,
+  advanceWorkRequestSchema,
+  qaReviewSchema,
+  rerouteSchema,
 } = require('./schema');
 const auditService = require('../../services/auditService');
 const { supabaseAdmin } = require('../../services/supabaseClient');
@@ -24,11 +28,14 @@ const validate = (schema, data) => {
   const result = schema.safeParse(data);
   if (!result.success) {
     const issues = result.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
+    const isPhaseImmutable = result.error.issues.some(
+      (i) => i.params?.code === 'TASK_PHASE_IMMUTABLE' || i.path.includes('phase')
+    );
     throw new AppError({
       statusCode: 400,
       title: 'Validation Error',
       detail: issues,
-      code: 'VALIDATION_ERROR',
+      code: isPhaseImmutable ? 'TASK_PHASE_IMMUTABLE' : 'VALIDATION_ERROR',
     });
   }
   return result.data;
@@ -97,6 +104,41 @@ const unarchive = async (req, res, next) => {
 
 const create = async (req, res, next) => {
   try {
+    const idempotencyKey =
+      req.headers['idempotency-key'] || req.body?.idempotency_key || req.body?.idempotencyKey;
+    const isBodyKeyOnly = idempotencyKey && !req.headers['idempotency-key'];
+    let actorScope = null;
+    let requestHash = null;
+
+    if (isBodyKeyOnly && req.user?.id) {
+      actorScope = `${req.user.id}:${req.activeEntity || 'none'}`;
+      requestHash = crypto
+        .createHash('sha256')
+        .update(req.method + req.originalUrl + JSON.stringify(req.body || {}))
+        .digest('hex');
+
+      const { data: existingKey, error: lookupErr } = await supabaseAdmin
+        .from('idempotency_keys')
+        .select('id, request_hash, response_json')
+        .eq('actor_scope', actorScope)
+        .eq('idempotency_key', idempotencyKey)
+        .maybeSingle();
+
+      if (!lookupErr && existingKey) {
+        if (existingKey.request_hash && existingKey.request_hash !== requestHash) {
+          throw new AppError({
+            statusCode: 422,
+            title: 'Unprocessable Entity',
+            detail: 'Idempotency key re-used with different request payload.',
+            code: 'ERR_IDEMPOTENCY_KEY_REUSED',
+          });
+        }
+        const stored = existingKey.response_json || {};
+        res.setHeader('Idempotent-Replay', 'true');
+        return res.status(stored.status || 201).json(stored.body ?? {});
+      }
+    }
+
     const payload = validate(createWorkRequestSchema, req.body);
     let entityId = req.entityUUID;
 
@@ -119,6 +161,19 @@ const create = async (req, res, next) => {
         if (!entityId) {
           entityId = await resolveEntityId(fallback);
         }
+      }
+    }
+
+    if (!payload.clientId && entityId) {
+      const { data: defaultClient } = await supabaseAdmin
+        .from('clients')
+        .select('id')
+        .eq('entity_id', entityId)
+        .is('deleted_at', null)
+        .limit(1)
+        .maybeSingle();
+      if (defaultClient?.id) {
+        payload.clientId = defaultClient.id;
       }
     }
 
@@ -145,7 +200,23 @@ const create = async (req, res, next) => {
       details: { title: wr.title, status: wr.status },
     });
 
-    res.status(201).json({ data: wr });
+    const responsePayload = { data: wr, ...wr };
+
+    if (isBodyKeyOnly && actorScope && requestHash) {
+      const record = {
+        actor_scope: actorScope,
+        idempotency_key: idempotencyKey,
+        request_hash: requestHash,
+        response_json: { status: 201, body: responsePayload },
+      };
+      try {
+        await supabaseAdmin.from('idempotency_keys').insert(record);
+      } catch (e) {
+        // Benign insert race
+      }
+    }
+
+    res.status(201).json(responsePayload);
   } catch (err) {
     next(err);
   }
@@ -281,11 +352,20 @@ const createTask = async (req, res, next) => {
 
 const updateTask = async (req, res, next) => {
   try {
+    if (req.body && req.body.phase !== undefined) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Validation Error',
+        detail: 'Task phase is immutable once created',
+        code: 'TASK_PHASE_IMMUTABLE',
+      });
+    }
+
     const payload = injectExpectedVersion(req, validate(updateTaskSchema, req.body));
     const entityId = req.entityUUID;
     const task = await operationsService.updateTask({
       workRequestId: req.params.wrId,
-      taskId: req.params.taskId,
+      taskId: req.params.taskId || req.params.id,
       entityId,
       data: payload,
       user: req.user,
@@ -309,9 +389,10 @@ const updateTask = async (req, res, next) => {
 const removeTask = async (req, res, next) => {
   try {
     const entityId = req.entityUUID;
+    const taskId = req.params.taskId || req.params.id;
     const removed = await operationsService.deleteTask({
       workRequestId: req.params.wrId,
-      taskId: req.params.taskId,
+      taskId,
       entityId,
     });
     if (!removed) {
@@ -321,7 +402,7 @@ const removeTask = async (req, res, next) => {
     await auditService.log({
       action: 'task.deleted',
       table: 'tasks',
-      recordId: req.params.taskId,
+      recordId: taskId,
       entity: req.activeEntity,
       userId: req.user.id,
       details: {},
@@ -501,7 +582,7 @@ const getTask = async (req, res, next) => {
     const entityId = req.entityUUID;
     const task = await operationsService.getTaskById({
       workRequestId: req.params.wrId,
-      taskId: req.params.taskId,
+      taskId: req.params.taskId || req.params.id,
       entityId,
     });
     if (!task) {
@@ -570,6 +651,55 @@ const resetStandardTaskTemplates = async (req, res, next) => {
   }
 };
 
+const advanceWorkRequest = async (req, res, next) => {
+  try {
+    const payload = validate(advanceWorkRequestSchema, req.body || {});
+    const targetPhase = payload.to_phase || payload.toPhase;
+    const data = await operationsService.advanceWorkRequest({
+      id: req.params.id,
+      entityId: req.entityUUID,
+      toPhase: targetPhase,
+      user: req.user,
+      via: 'direct',
+    });
+    res.status(200).json({ data, ...data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const qaReviewWorkRequest = async (req, res, next) => {
+  try {
+    const payload = validate(qaReviewSchema, req.body || {});
+    const data = await operationsService.qaReviewWorkRequest({
+      id: req.params.id,
+      entityId: req.entityUUID,
+      results: payload.results,
+      user: req.user,
+    });
+    res.status(200).json({ data, ...data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const rerouteWorkRequest = async (req, res, next) => {
+  try {
+    const payload = validate(rerouteSchema, req.body || {});
+    const targetPhase = payload.to_phase || payload.toPhase;
+    const data = await operationsService.rerouteWorkRequest({
+      id: req.params.id,
+      entityId: req.entityUUID,
+      toPhase: targetPhase,
+      reason: payload.reason,
+      user: req.user,
+    });
+    res.status(200).json({ data, ...data });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   operationsController: {
     list,
@@ -599,6 +729,9 @@ module.exports = {
     updateStandardTaskTemplate,
     deleteStandardTaskTemplate,
     resetStandardTaskTemplates,
+    advanceWorkRequest,
+    qaReviewWorkRequest,
+    rerouteWorkRequest,
   },
 };
 

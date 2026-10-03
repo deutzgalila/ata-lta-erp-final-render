@@ -36,20 +36,51 @@ const checklistItemSchema = z.object({
   timeLogs: z.array(timeLogSchema).optional(),
 });
 
+const phaseTaskSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().optional().nullable(),
+  assignees: z.array(z.string()).optional().default([]),
+  depends_on: z.any().optional().nullable(),
+  dependsOn: z.any().optional().nullable(),
+  local_id: z.string().optional().nullable(),
+  localId: z.string().optional().nullable(),
+  status: z.string().optional().nullable(),
+  dueDate: z.string().optional().nullable(),
+});
+
+const phasesSchema = z
+  .object({
+    pre_processing: z
+      .object({
+        tasks: z.array(phaseTaskSchema).optional().default([]),
+      })
+      .optional(),
+    processing: z
+      .object({
+        tasks: z.array(phaseTaskSchema).optional().default([]),
+      })
+      .optional(),
+  })
+  .passthrough();
+
 const createWorkRequestSchema = z.object({
   title: z.string().min(1).max(255),
   description: z.string().optional().nullable(),
-  clientId: z.string().uuid(),
+  clientId: z.string().uuid().optional().nullable(),
   entity: z.enum(['ATA', 'LTA', 'ALL']).optional(),
   status: z.string().max(50).optional(),
+  phase: z.string().max(50).optional(),
   requestedBy: z.string().uuid().optional(),
   assignedTo: z.preprocess(
     (val) => (val === '' || val === undefined ? null : val),
     z.string().uuid().nullable().optional()
   ),
   coAssignees: z.array(z.string()).optional().default([]),
-  dueDate: z.string().optional(),
+  dueDate: z.string().optional().nullable(),
   priority: z.string().max(50).optional(),
+  idempotency_key: z.string().optional().nullable(),
+  idempotencyKey: z.string().optional().nullable(),
+  phases: phasesSchema.optional().nullable(),
 });
 
 const WR_STATUSES = [
@@ -76,8 +107,10 @@ const createTaskSchema = z.object({
   title: z.string().min(1).max(255),
   description: z.string().optional().nullable(),
   status: z.string().max(50).optional(),
+  phase: z.enum(['pre_processing', 'processing']).optional(),
   assigneeId: z.string().uuid().optional().nullable(),
   assigneeName: z.string().optional().nullable(),
+  assignees: z.array(z.string().uuid()).optional().nullable(),
   predecessors: z.array(z.string().uuid()).optional(),
   dueDate: z.string().optional().nullable(),
   checklist: z.array(checklistItemSchema).optional(),
@@ -87,10 +120,23 @@ const createTaskSchema = z.object({
   requiredLinkType: z.string().max(50).optional().nullable(),
 });
 
-const updateTaskSchema = createTaskSchema.partial().extend({
-  // OCC guard (Spec 2.2 / R-10): update applies only if the stored version matches.
-  expectedVersion: z.number().int().positive().optional(),
-});
+const updateTaskSchema = createTaskSchema
+  .partial()
+  .extend({
+    phase: z.any().optional(),
+    // OCC guard (Spec 2.2 / R-10): update applies only if the stored version matches.
+    expectedVersion: z.number().int().positive().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.phase !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Task phase is immutable once created',
+        path: ['phase'],
+        params: { code: 'TASK_PHASE_IMMUTABLE' },
+      });
+    }
+  });
 
 const nullableUuid = z.preprocess(
   (val) => (val === '' || val === undefined ? null : val),
@@ -145,6 +191,37 @@ const standardTaskTemplateSchema = z.object({
   sortOrder: z.number().int().optional().nullable(),
 });
 
+const advanceWorkRequestSchema = z.object({
+  to_phase: z.enum(['processing', 'quality_assurance', 'completion']).optional(),
+  toPhase: z.enum(['processing', 'quality_assurance', 'completion']).optional(),
+});
+
+const qaReviewTaskResultSchema = z
+  .object({
+    task_id: z.string().uuid().optional(),
+    taskId: z.string().uuid().optional(),
+    qa_status: z.enum(['passed', 'failed']).optional(),
+    qaStatus: z.enum(['passed', 'failed']).optional(),
+  })
+  .refine(
+    (data) => Boolean((data.task_id || data.taskId) && (data.qa_status || data.qaStatus)),
+    { message: 'Each result must include task_id and qa_status' }
+  );
+
+const qaReviewSchema = z.object({
+  results: z.array(qaReviewTaskResultSchema).min(1, 'results array cannot be empty'),
+});
+
+const rerouteSchema = z
+  .object({
+    to_phase: z.enum(['pre_processing', 'processing']).optional(),
+    toPhase: z.enum(['pre_processing', 'processing']).optional(),
+    reason: z.string().trim().min(1, 'reason is required for reroute'),
+  })
+  .refine((data) => Boolean(data.to_phase || data.toPhase), {
+    message: 'to_phase must be either pre_processing or processing',
+  });
+
 module.exports = {
   createWorkRequestSchema,
   updateWorkRequestSchema,
@@ -156,4 +233,7 @@ module.exports = {
   groundWorkerSchema,
   addTimeLogsSchema,
   standardTaskTemplateSchema,
+  advanceWorkRequestSchema,
+  qaReviewSchema,
+  rerouteSchema,
 };
