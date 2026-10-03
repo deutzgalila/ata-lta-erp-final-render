@@ -142,6 +142,27 @@ router.post(
   audit('work_request.unarchived', { table: 'work_requests' }),
   operationsController.unarchive
 );
+router.post(
+  ['/work-requests/:id/advance', '/:id/advance'],
+  resolveEntity(),
+  requirePermission('workflow:phase_transition'),
+  audit('work_request.advance', { table: 'work_requests' }),
+  operationsController.advanceWorkRequest
+);
+router.post(
+  ['/work-requests/:id/qa-review', '/:id/qa-review'],
+  resolveEntity(),
+  requirePermission('workflow:qa_review'),
+  audit('work_request.qa_review', { table: 'work_requests' }),
+  operationsController.qaReviewWorkRequest
+);
+router.post(
+  ['/work-requests/:id/reroute', '/:id/reroute'],
+  resolveEntity(),
+  requirePermission('workflow:qa_review'),
+  audit('work_request.reroute', { table: 'work_requests' }),
+  operationsController.rerouteWorkRequest
+);
 router.delete(
   ['/work-requests/:id', '/:id'],
   resolveEntity(),

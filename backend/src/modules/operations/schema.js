@@ -191,6 +191,37 @@ const standardTaskTemplateSchema = z.object({
   sortOrder: z.number().int().optional().nullable(),
 });
 
+const advanceWorkRequestSchema = z.object({
+  to_phase: z.enum(['processing', 'quality_assurance', 'completion']).optional(),
+  toPhase: z.enum(['processing', 'quality_assurance', 'completion']).optional(),
+});
+
+const qaReviewTaskResultSchema = z
+  .object({
+    task_id: z.string().uuid().optional(),
+    taskId: z.string().uuid().optional(),
+    qa_status: z.enum(['passed', 'failed']).optional(),
+    qaStatus: z.enum(['passed', 'failed']).optional(),
+  })
+  .refine(
+    (data) => Boolean((data.task_id || data.taskId) && (data.qa_status || data.qaStatus)),
+    { message: 'Each result must include task_id and qa_status' }
+  );
+
+const qaReviewSchema = z.object({
+  results: z.array(qaReviewTaskResultSchema).min(1, 'results array cannot be empty'),
+});
+
+const rerouteSchema = z
+  .object({
+    to_phase: z.enum(['pre_processing', 'processing']).optional(),
+    toPhase: z.enum(['pre_processing', 'processing']).optional(),
+    reason: z.string().trim().min(1, 'reason is required for reroute'),
+  })
+  .refine((data) => Boolean(data.to_phase || data.toPhase), {
+    message: 'to_phase must be either pre_processing or processing',
+  });
+
 module.exports = {
   createWorkRequestSchema,
   updateWorkRequestSchema,
@@ -202,4 +233,7 @@ module.exports = {
   groundWorkerSchema,
   addTimeLogsSchema,
   standardTaskTemplateSchema,
+  advanceWorkRequestSchema,
+  qaReviewSchema,
+  rerouteSchema,
 };

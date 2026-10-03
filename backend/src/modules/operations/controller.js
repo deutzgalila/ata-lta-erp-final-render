@@ -14,6 +14,9 @@ const {
   groundWorkerSchema,
   addTimeLogsSchema,
   standardTaskTemplateSchema,
+  advanceWorkRequestSchema,
+  qaReviewSchema,
+  rerouteSchema,
 } = require('./schema');
 const auditService = require('../../services/auditService');
 const { supabaseAdmin } = require('../../services/supabaseClient');
@@ -648,6 +651,55 @@ const resetStandardTaskTemplates = async (req, res, next) => {
   }
 };
 
+const advanceWorkRequest = async (req, res, next) => {
+  try {
+    const payload = validate(advanceWorkRequestSchema, req.body || {});
+    const targetPhase = payload.to_phase || payload.toPhase;
+    const data = await operationsService.advanceWorkRequest({
+      id: req.params.id,
+      entityId: req.entityUUID,
+      toPhase: targetPhase,
+      user: req.user,
+      via: 'direct',
+    });
+    res.status(200).json({ data, ...data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const qaReviewWorkRequest = async (req, res, next) => {
+  try {
+    const payload = validate(qaReviewSchema, req.body || {});
+    const data = await operationsService.qaReviewWorkRequest({
+      id: req.params.id,
+      entityId: req.entityUUID,
+      results: payload.results,
+      user: req.user,
+    });
+    res.status(200).json({ data, ...data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const rerouteWorkRequest = async (req, res, next) => {
+  try {
+    const payload = validate(rerouteSchema, req.body || {});
+    const targetPhase = payload.to_phase || payload.toPhase;
+    const data = await operationsService.rerouteWorkRequest({
+      id: req.params.id,
+      entityId: req.entityUUID,
+      toPhase: targetPhase,
+      reason: payload.reason,
+      user: req.user,
+    });
+    res.status(200).json({ data, ...data });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   operationsController: {
     list,
@@ -677,6 +729,9 @@ module.exports = {
     updateStandardTaskTemplate,
     deleteStandardTaskTemplate,
     resetStandardTaskTemplates,
+    advanceWorkRequest,
+    qaReviewWorkRequest,
+    rerouteWorkRequest,
   },
 };
 

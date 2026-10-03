@@ -49,14 +49,22 @@ const createClient = async (token, entity = 'ATA') => {
   return res.body.data;
 };
 
-describe('P0-D PR-2: Phase-Lock Guards & Prerequisite Gates', () => {
+describe('P0-D: Phase-Lock Guards, Prerequisite Gates & Phase Routing Operations', () => {
   let adminToken;
   let adminUser;
+  let managerToken;
+  let managerUser;
+  let staffToken;
+  let staffUser;
   let client;
 
   beforeEach(async () => {
     resetMock();
     seedDefaults();
+    if (!mockTables.notifications) {
+      mockTables.notifications = new Map();
+    }
+    mockTables.notifications.clear();
 
     adminUser = {
       id: '99999999-8888-7777-6666-555555555555',
@@ -66,6 +74,25 @@ describe('P0-D PR-2: Phase-Lock Guards & Prerequisite Gates', () => {
       entities: ['ATA', 'LTA'],
     };
     adminToken = registerUser(adminUser);
+
+    managerUser = {
+      id: '88888888-8888-8888-8888-888888888888',
+      email: 'manager-routing@ata-lta.ph',
+      name: 'Manager Routing',
+      role: 'Manager',
+      departments: ['Management'],
+      entities: ['ATA', 'LTA'],
+    };
+    managerToken = registerUser(managerUser);
+
+    staffUser = {
+      id: '77777777-7777-7777-7777-777777777777',
+      email: 'staff-routing@ata-lta.ph',
+      name: 'Operations Staff',
+      role: 'Operations',
+      entities: ['ATA', 'LTA'],
+    };
+    staffToken = registerUser(staffUser);
 
     client = await createClient(adminToken, 'ATA');
   });
@@ -715,6 +742,940 @@ describe('P0-D PR-2: Phase-Lock Guards & Prerequisite Gates', () => {
       expect(getWrRes.status).toBe(200);
       const wrData = getWrRes.body.data;
       expect(wrData.phase).toBe('pre_processing');
+    });
+  });
+
+  describe('6. Advancement Gate Matrix & Direct Advance (Spec §3.4)', () => {
+    it('pre_processing -> processing gate fails (409) when an active pre_processing task is incomplete', async () => {
+      const wr = await createWorkRequestWithPhases({
+        pre_processing: {
+          tasks: [
+            { title: 'Pre Task 1 (Draft)', local_id: 'pre1' },
+          ],
+        },
+      });
+
+      const res = await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'processing' });
+
+      expect(res.status).toBe(409);
+      expect(res.body.code).toBe('ADVANCEMENT_GATE_FAILED');
+      expect(res.body.detail).toMatch(/pre-processing task\(s\) are incomplete/i);
+
+      // Verify phase remained pre_processing in DB
+      const wrInDb = mockTables.work_requests.get(wr.id);
+      expect(wrInDb.phase).toBe('pre_processing');
+    });
+
+    it('pre_processing -> processing gate succeeds (200) when all active pre_processing tasks are Completed', async () => {
+      const wr = await createWorkRequestWithPhases({
+        pre_processing: {
+          tasks: [
+            { title: 'Pre Task 1', local_id: 'pre1' },
+            { title: 'Pre Task 2 (To Cancel)', local_id: 'pre2' },
+          ],
+        },
+      });
+
+      const pre1Id = wr.phases.pre_processing.tasks[0].id;
+      const pre2Id = wr.phases.pre_processing.tasks[1].id;
+
+      // Complete pre1, cancel pre2
+      await request(app)
+        .patch(`/v1/work-requests/${wr.id}/tasks/${pre1Id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'Completed' });
+
+      await request(app)
+        .patch(`/v1/work-requests/${wr.id}/tasks/${pre2Id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'Cancelled' });
+
+      // Direct advance without specifying to_phase (defaults to next phase: processing)
+      const res = await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({});
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.phase).toBe('processing');
+      expect(res.body.data.status).toBe('Processing');
+
+      // Verify notification emitted with { via: 'direct' }
+      const notifs = Array.from(mockTables.notifications.values());
+      const resolvedNotif = notifs.find(
+        (n) => n.type === 'wr.transition_request.resolved' && n.payload.work_request_id === wr.id
+      );
+      expect(resolvedNotif).toBeTruthy();
+      expect(resolvedNotif.payload.via).toBe('direct');
+      expect(resolvedNotif.payload.outcome).toBe('approved');
+      expect(resolvedNotif.payload.to_phase).toBe('processing');
+    });
+
+    it('processing -> quality_assurance gate fails (409) when an active processing task is incomplete', async () => {
+      const wr = await createWorkRequestWithPhases({
+        pre_processing: {
+          tasks: [{ title: 'Pre Task 1', local_id: 'pre1' }],
+        },
+        processing: {
+          tasks: [{ title: 'Proc Task 1', local_id: 'proc1' }],
+        },
+      });
+
+      const pre1Id = wr.phases.pre_processing.tasks[0].id;
+      const proc1Id = wr.phases.processing.tasks[0].id;
+
+      // Complete pre1 and advance WR to processing
+      await request(app)
+        .patch(`/v1/work-requests/${wr.id}/tasks/${pre1Id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'Completed' });
+
+      await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'processing' });
+
+      // Move proc1 to In Progress (still incomplete)
+      await request(app)
+        .patch(`/v1/work-requests/${wr.id}/tasks/${proc1Id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'In Progress' });
+
+      const res = await request(app)
+        .post(`/v1/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'quality_assurance' });
+
+      expect(res.status).toBe(409);
+      expect(res.body.code).toBe('ADVANCEMENT_GATE_FAILED');
+      expect(res.body.detail).toMatch(/processing task\(s\) are incomplete/i);
+    });
+
+    it('processing -> quality_assurance gate succeeds (200) when all active processing tasks are Completed', async () => {
+      const wr = await createWorkRequestWithPhases({
+        pre_processing: {
+          tasks: [{ title: 'Pre Task 1', local_id: 'pre1' }],
+        },
+        processing: {
+          tasks: [{ title: 'Proc Task 1', local_id: 'proc1' }],
+        },
+      });
+
+      const pre1Id = wr.phases.pre_processing.tasks[0].id;
+      const proc1Id = wr.phases.processing.tasks[0].id;
+
+      await request(app)
+        .patch(`/v1/work-requests/${wr.id}/tasks/${pre1Id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'Completed' });
+
+      await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'processing' });
+
+      await request(app)
+        .patch(`/v1/work-requests/${wr.id}/tasks/${proc1Id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'Completed' });
+
+      const res = await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'quality_assurance' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.phase).toBe('quality_assurance');
+      expect(res.body.data.status).toBe('Quality Assurance');
+    });
+
+    it('quality_assurance -> completion gate fails (409) if any task has qa_status !== passed', async () => {
+      const wr = await createWorkRequestWithPhases({
+        pre_processing: {
+          tasks: [{ title: 'Pre Task 1', local_id: 'pre1' }],
+        },
+        processing: {
+          tasks: [{ title: 'Proc Task 1', local_id: 'proc1' }],
+        },
+      });
+
+      const pre1Id = wr.phases.pre_processing.tasks[0].id;
+      const proc1Id = wr.phases.processing.tasks[0].id;
+
+      // Complete tasks and advance to QA
+      await request(app)
+        .patch(`/v1/work-requests/${wr.id}/tasks/${pre1Id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'Completed' });
+
+      await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'processing' });
+
+      await request(app)
+        .patch(`/v1/work-requests/${wr.id}/tasks/${proc1Id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'Completed' });
+
+      await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'quality_assurance' });
+
+      // Attempt advance to completion while qa_status is 'none'
+      const res = await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'completion' });
+
+      expect(res.status).toBe(409);
+      expect(res.body.code).toBe('ADVANCEMENT_GATE_FAILED');
+      expect(res.body.detail).toMatch(/qa_status = "passed"/i);
+    });
+
+    it('quality_assurance -> completion gate succeeds (200) when all tasks are Completed and qa_status is passed', async () => {
+      const wr = await createWorkRequestWithPhases({
+        pre_processing: {
+          tasks: [{ title: 'Pre Task 1', local_id: 'pre1' }],
+        },
+        processing: {
+          tasks: [{ title: 'Proc Task 1', local_id: 'proc1' }],
+        },
+      });
+
+      const pre1Id = wr.phases.pre_processing.tasks[0].id;
+      const proc1Id = wr.phases.processing.tasks[0].id;
+
+      // Complete tasks and advance to QA
+      await request(app)
+        .patch(`/v1/work-requests/${wr.id}/tasks/${pre1Id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'Completed' });
+
+      await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'processing' });
+
+      await request(app)
+        .patch(`/v1/work-requests/${wr.id}/tasks/${proc1Id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'Completed' });
+
+      await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'quality_assurance' });
+
+      // QA Review: pass both tasks
+      await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/qa-review`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          results: [
+            { task_id: pre1Id, qa_status: 'passed' },
+            { task_id: proc1Id, qa_status: 'passed' },
+          ],
+        });
+
+      // Now advance to completion
+      const res = await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'completion' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.phase).toBe('completion');
+      expect(res.body.data.status).toBe('Completed');
+    });
+
+    it('rejects direct jump skipping intermediate phases with 409 Conflict', async () => {
+      const wr = await createWorkRequestWithPhases({
+        pre_processing: {
+          tasks: [{ title: 'Pre Task 1', local_id: 'pre1' }],
+        },
+      });
+
+      // Direct jump from pre_processing to completion -> 409
+      const jump1 = await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'completion' });
+
+      expect(jump1.status).toBe(409);
+      expect(jump1.body.code).toBe('INVALID_PHASE_TRANSITION');
+      expect(jump1.body.detail).toMatch(/Direct jump from "pre_processing" to "completion" is not permitted/i);
+
+      // Direct jump from pre_processing to quality_assurance -> 409
+      const jump2 = await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'quality_assurance' });
+
+      expect(jump2.status).toBe(409);
+      expect(jump2.body.code).toBe('INVALID_PHASE_TRANSITION');
+    });
+
+    it('returns 403 Forbidden when non-Admin (Manager or Staff) calls POST /advance', async () => {
+      const wr = await createWorkRequestWithPhases({
+        pre_processing: {
+          tasks: [{ title: 'Pre Task 1', local_id: 'pre1' }],
+        },
+      });
+
+      // Manager POST /advance -> 403
+      const mgrRes = await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'processing' });
+
+      expect(mgrRes.status).toBe(403);
+
+      // Staff POST /advance -> 403
+      const staffRes = await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${staffToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'processing' });
+
+      expect(staffRes.status).toBe(403);
+    });
+  });
+
+  describe('7. Transition Requests Pipeline (operationsRequests module)', () => {
+    it('Manager can create wr_phase_transition request (201) and emits notification to Admins', async () => {
+      const wr = await createWorkRequestWithPhases({
+        pre_processing: {
+          tasks: [{ title: 'Pre Task 1', local_id: 'pre1' }],
+        },
+      });
+
+      const pre1Id = wr.phases.pre_processing.tasks[0].id;
+      // Complete task so gate passes
+      await request(app)
+        .patch(`/v1/work-requests/${wr.id}/tasks/${pre1Id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'Completed' });
+
+      const reqRes = await request(app)
+        .post('/v1/operations-requests')
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          request_type: 'wr_phase_transition',
+          payload: {
+            work_request_id: wr.id,
+            from_phase: 'pre_processing',
+            to_phase: 'processing',
+          },
+          notes: 'Pre-processing tasks completed, ready for processing',
+        });
+
+      expect(reqRes.status).toBe(201);
+      const reqData = reqRes.body.data;
+      expect(reqData.type).toBe('wr_phase_transition');
+      expect(reqData.status).toBe('pending');
+      expect(reqData.work_request_id).toBe(wr.id);
+
+      // Verify notification emitted to Admin users
+      const notifs = Array.from(mockTables.notifications.values());
+      const receivedNotif = notifs.find(
+        (n) => n.type === 'wr.transition_request.received' && n.payload.work_request_id === wr.id
+      );
+      expect(receivedNotif).toBeTruthy();
+      expect(receivedNotif.user_id).toBe(adminUser.id);
+      expect(receivedNotif.payload.from_phase).toBe('pre_processing');
+      expect(receivedNotif.payload.to_phase).toBe('processing');
+    });
+
+    it('Staff without workflow:transition_request receives 403 Forbidden on transition request creation', async () => {
+      const wr = await createWorkRequestWithPhases({
+        pre_processing: {
+          tasks: [{ title: 'Pre Task 1', local_id: 'pre1' }],
+        },
+      });
+
+      const reqRes = await request(app)
+        .post('/v1/operations-requests')
+        .set('Authorization', `Bearer ${staffToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          request_type: 'wr_phase_transition',
+          payload: {
+            work_request_id: wr.id,
+            from_phase: 'pre_processing',
+            to_phase: 'processing',
+          },
+        });
+
+      expect(reqRes.status).toBe(403);
+    });
+
+    it('rejects transition request creation with 409 if WR current phase does not match from_phase', async () => {
+      const wr = await createWorkRequestWithPhases({
+        pre_processing: {
+          tasks: [{ title: 'Pre Task 1', local_id: 'pre1' }],
+        },
+      });
+
+      const reqRes = await request(app)
+        .post('/v1/operations-requests')
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          request_type: 'wr_phase_transition',
+          payload: {
+            work_request_id: wr.id,
+            from_phase: 'processing', // WR is currently pre_processing
+            to_phase: 'quality_assurance',
+          },
+        });
+
+      expect(reqRes.status).toBe(409);
+      expect(reqRes.body.detail).toMatch(/does not match requested from_phase/i);
+    });
+
+    it('rejects transition request creation with 409 if advancement gate fails', async () => {
+      const wr = await createWorkRequestWithPhases({
+        pre_processing: {
+          tasks: [{ title: 'Pre Task 1 (Draft)', local_id: 'pre1' }],
+        },
+      });
+
+      // Tasks are open, so gate fails
+      const reqRes = await request(app)
+        .post('/v1/operations-requests')
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          request_type: 'wr_phase_transition',
+          payload: {
+            work_request_id: wr.id,
+            from_phase: 'pre_processing',
+            to_phase: 'processing',
+          },
+        });
+
+      expect(reqRes.status).toBe(409);
+      expect(reqRes.body.code).toBe('ADVANCEMENT_GATE_FAILED');
+    });
+
+    it('Manager attempting PUT /operations-requests/:id to fulfill receives 403 Forbidden', async () => {
+      const wr = await createWorkRequestWithPhases({
+        pre_processing: {
+          tasks: [{ title: 'Pre Task 1', local_id: 'pre1' }],
+        },
+      });
+
+      const pre1Id = wr.phases.pre_processing.tasks[0].id;
+      await request(app)
+        .patch(`/v1/work-requests/${wr.id}/tasks/${pre1Id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'Completed' });
+
+      const reqRes = await request(app)
+        .post('/v1/operations-requests')
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          request_type: 'wr_phase_transition',
+          payload: {
+            work_request_id: wr.id,
+            from_phase: 'pre_processing',
+            to_phase: 'processing',
+          },
+        });
+
+      const requestId = reqRes.body.data.id;
+
+      // Manager attempts to fulfill -> 403 Forbidden
+      const fulfillRes = await request(app)
+        .put(`/v1/operations-requests/${requestId}`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'fulfilled' });
+
+      expect(fulfillRes.status).toBe(403);
+    });
+
+    it('Admin fulfills transition request: advances WR phase and emits resolved notification', async () => {
+      const wr = await createWorkRequestWithPhases({
+        pre_processing: {
+          tasks: [{ title: 'Pre Task 1', local_id: 'pre1' }],
+        },
+      });
+
+      const pre1Id = wr.phases.pre_processing.tasks[0].id;
+      await request(app)
+        .patch(`/v1/work-requests/${wr.id}/tasks/${pre1Id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'Completed' });
+
+      const reqRes = await request(app)
+        .post('/v1/operations-requests')
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          request_type: 'wr_phase_transition',
+          payload: {
+            work_request_id: wr.id,
+            from_phase: 'pre_processing',
+            to_phase: 'processing',
+          },
+        });
+
+      const requestId = reqRes.body.data.id;
+
+      // Admin fulfills
+      const fulfillRes = await request(app)
+        .put(`/v1/operations-requests/${requestId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'fulfilled' });
+
+      expect(fulfillRes.status).toBe(200);
+      expect(fulfillRes.body.data.status).toBe('fulfilled');
+
+      // Verify WR phase in DB
+      const wrInDb = mockTables.work_requests.get(wr.id);
+      expect(wrInDb.phase).toBe('processing');
+      expect(wrInDb.status).toBe('Processing');
+
+      // Verify notification emitted to Manager (requester)
+      const notifs = Array.from(mockTables.notifications.values());
+      const resolvedNotif = notifs.find(
+        (n) => n.type === 'wr.transition_request.resolved' && n.payload.request_id === requestId
+      );
+      expect(resolvedNotif).toBeTruthy();
+      expect(resolvedNotif.user_id).toBe(managerUser.id);
+      expect(resolvedNotif.payload.outcome).toBe('approved');
+      expect(resolvedNotif.payload.to_phase).toBe('processing');
+    });
+
+    it('Admin rejects transition request: requires rejectionReason and emits rejected notification', async () => {
+      const wr = await createWorkRequestWithPhases({
+        pre_processing: {
+          tasks: [{ title: 'Pre Task 1', local_id: 'pre1' }],
+        },
+      });
+
+      const pre1Id = wr.phases.pre_processing.tasks[0].id;
+      await request(app)
+        .patch(`/v1/work-requests/${wr.id}/tasks/${pre1Id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'Completed' });
+
+      const reqRes = await request(app)
+        .post('/v1/operations-requests')
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          request_type: 'wr_phase_transition',
+          payload: {
+            work_request_id: wr.id,
+            from_phase: 'pre_processing',
+            to_phase: 'processing',
+          },
+        });
+
+      const requestId = reqRes.body.data.id;
+
+      // Reject without reason -> 400 Bad Request
+      const rejectNoReason = await request(app)
+        .put(`/v1/operations-requests/${requestId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'rejected' });
+
+      expect(rejectNoReason.status).toBe(400);
+
+      // Reject with reason -> 200 OK
+      const rejectRes = await request(app)
+        .put(`/v1/operations-requests/${requestId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          status: 'rejected',
+          rejectionReason: 'Missing document validation from client',
+        });
+
+      expect(rejectRes.status).toBe(200);
+      expect(rejectRes.body.data.status).toBe('rejected');
+      expect(rejectRes.body.data.rejection_reason).toBe('Missing document validation from client');
+
+      // WR phase remains unchanged
+      const wrInDb = mockTables.work_requests.get(wr.id);
+      expect(wrInDb.phase).toBe('pre_processing');
+
+      // Verify notification emitted to Manager
+      const notifs = Array.from(mockTables.notifications.values());
+      const rejectedNotif = notifs.find(
+        (n) => n.type === 'wr.transition_request.resolved' && n.payload.request_id === requestId
+      );
+      expect(rejectedNotif).toBeTruthy();
+      expect(rejectedNotif.user_id).toBe(managerUser.id);
+      expect(rejectedNotif.payload.outcome).toBe('rejected');
+      expect(rejectedNotif.payload.reason).toBe('Missing document validation from client');
+    });
+  });
+
+  describe('8. QA Review Endpoint (Spec §3.5)', () => {
+    it('returns 409 Conflict if WR is not in quality_assurance phase', async () => {
+      const wr = await createWorkRequestWithPhases({
+        pre_processing: {
+          tasks: [{ title: 'Pre Task 1', local_id: 'pre1' }],
+        },
+      });
+
+      const taskId = wr.phases.pre_processing.tasks[0].id;
+
+      const res = await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/qa-review`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          results: [{ task_id: taskId, qa_status: 'passed' }],
+        });
+
+      expect(res.status).toBe(409);
+      expect(res.body.code).toBe('INVALID_PHASE_FOR_QA_REVIEW');
+    });
+
+    it('returns 403 Forbidden when non-Admin calls QA review', async () => {
+      const wr = await createWorkRequestWithPhases({
+        pre_processing: {
+          tasks: [{ title: 'Pre Task 1', local_id: 'pre1' }],
+        },
+      });
+
+      const res = await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/qa-review`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          results: [{ task_id: wr.phases.pre_processing.tasks[0].id, qa_status: 'passed' }],
+        });
+
+      expect(res.status).toBe(403);
+    });
+
+    it('updates qa_status on tasks and logs audit row on successful QA review', async () => {
+      const wr = await createWorkRequestWithPhases({
+        pre_processing: {
+          tasks: [{ title: 'Pre Task 1', local_id: 'pre1' }],
+        },
+        processing: {
+          tasks: [{ title: 'Proc Task 1', local_id: 'proc1' }],
+        },
+      });
+
+      const pre1Id = wr.phases.pre_processing.tasks[0].id;
+      const proc1Id = wr.phases.processing.tasks[0].id;
+
+      // Complete tasks and advance to QA
+      await request(app)
+        .patch(`/v1/work-requests/${wr.id}/tasks/${pre1Id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'Completed' });
+
+      await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'processing' });
+
+      await request(app)
+        .patch(`/v1/work-requests/${wr.id}/tasks/${proc1Id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'Completed' });
+
+      await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'quality_assurance' });
+
+      // QA Review: pre1 passes, proc1 fails
+      const res = await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/qa-review`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          results: [
+            { task_id: pre1Id, qa_status: 'passed' },
+            { task_id: proc1Id, qa_status: 'failed' },
+          ],
+        });
+
+      expect(res.status).toBe(200);
+
+      // Verify task statuses in DB
+      const pre1InDb = mockTables.tasks.get(pre1Id);
+      const proc1InDb = mockTables.tasks.get(proc1Id);
+      expect(pre1InDb.qa_status).toBe('passed');
+      expect(proc1InDb.qa_status).toBe('failed');
+
+      // Verify audit row logged
+      const auditRows = Array.from(mockTables.audit_logs.values());
+      const qaAudit = auditRows.find(
+        (a) => a.action === 'work_request.qa_review' && a.record_id === wr.id
+      );
+      expect(qaAudit).toBeTruthy();
+      expect(qaAudit.details.evaluations).toHaveLength(2);
+    });
+  });
+
+  describe('9. Reroute Endpoint (Spec §3.6)', () => {
+    it('returns 409 Conflict if WR is not in quality_assurance phase', async () => {
+      const wr = await createWorkRequestWithPhases({
+        pre_processing: {
+          tasks: [{ title: 'Pre Task 1', local_id: 'pre1' }],
+        },
+      });
+
+      const res = await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/reroute`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          to_phase: 'pre_processing',
+          reason: 'Need rework',
+        });
+
+      expect(res.status).toBe(409);
+      expect(res.body.code).toBe('INVALID_PHASE_FOR_REROUTE');
+    });
+
+    it('returns 400 Bad Request if reason is missing or empty', async () => {
+      const wr = await createWorkRequestWithPhases({
+        pre_processing: {
+          tasks: [{ title: 'Pre Task 1', local_id: 'pre1' }],
+        },
+      });
+
+      // Advance directly into quality_assurance
+      const pre1Id = wr.phases.pre_processing.tasks[0].id;
+      await request(app)
+        .patch(`/v1/work-requests/${wr.id}/tasks/${pre1Id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'Completed' });
+
+      await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'processing' });
+
+      await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'quality_assurance' });
+
+      const res = await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/reroute`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          to_phase: 'processing',
+          reason: '   ', // empty whitespace
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.detail).toMatch(/reason is required/i);
+    });
+
+    it('reopens ONLY failed tasks (In Progress, qa_status: none), leaves passed tasks untouched, and notifies assignees', async () => {
+      const wr = await createWorkRequestWithPhases({
+        pre_processing: {
+          tasks: [
+            { title: 'Pre Task 1 (Passed)', assignees: [staffUser.id], local_id: 'pre1' },
+          ],
+        },
+        processing: {
+          tasks: [
+            { title: 'Proc Task 1 (Failed)', assignees: [staffUser.id], local_id: 'proc1' },
+            { title: 'Proc Task 2 (Cancelled)', local_id: 'proc2' },
+          ],
+        },
+      });
+
+      const pre1Id = wr.phases.pre_processing.tasks[0].id;
+      const proc1Id = wr.phases.processing.tasks[0].id;
+      const proc2Id = wr.phases.processing.tasks[1].id;
+
+      // Complete pre1 and advance to processing
+      await request(app)
+        .patch(`/v1/work-requests/${wr.id}/tasks/${pre1Id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'Completed' });
+
+      await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'processing' });
+
+      // Complete proc1, cancel proc2, advance to QA
+      await request(app)
+        .patch(`/v1/work-requests/${wr.id}/tasks/${proc1Id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'Completed' });
+
+      await request(app)
+        .patch(`/v1/work-requests/${wr.id}/tasks/${proc2Id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'Cancelled' });
+
+      await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'quality_assurance' });
+
+      // QA Review: pre1 passes, proc1 fails
+      await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/qa-review`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          results: [
+            { task_id: pre1Id, qa_status: 'passed' },
+            { task_id: proc1Id, qa_status: 'failed' },
+          ],
+        });
+
+      // Clear notifications before reroute to test emission
+      mockTables.notifications.clear();
+
+      // Admin executes reroute back to processing
+      const rerouteRes = await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/reroute`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          to_phase: 'processing',
+          reason: 'Tax calculation mismatch on Proc Task 1',
+        });
+
+      expect(rerouteRes.status).toBe(200);
+
+      // Verify WR phase and status in DB
+      const wrInDb = mockTables.work_requests.get(wr.id);
+      expect(wrInDb.phase).toBe('processing');
+      expect(wrInDb.status).toBe('Processing');
+
+      // Verify ONLY proc1 was reopened
+      const proc1InDb = mockTables.tasks.get(proc1Id);
+      expect(proc1InDb.status).toBe('In Progress');
+      expect(proc1InDb.qa_status).toBe('none');
+
+      // Passed pre1 remains untouched
+      const pre1InDb = mockTables.tasks.get(pre1Id);
+      expect(pre1InDb.status).toBe('Completed');
+      expect(pre1InDb.qa_status).toBe('passed');
+
+      // Cancelled proc2 remains untouched
+      const proc2InDb = mockTables.tasks.get(proc2Id);
+      expect(proc2InDb.status).toBe('Cancelled');
+      expect(proc2InDb.qa_status).toBe('none');
+
+      // Verify audit row logged
+      const auditRows = Array.from(mockTables.audit_logs.values());
+      const rerouteAudit = auditRows.find(
+        (a) => a.action === 'work_request.reroute' && a.record_id === wr.id
+      );
+      expect(rerouteAudit).toBeTruthy();
+      expect(rerouteAudit.details.reason).toBe('Tax calculation mismatch on Proc Task 1');
+      expect(rerouteAudit.details.reopened_task_ids).toEqual([proc1Id]);
+
+      // Verify wr.qa_reroute notification emitted to assignee (staffUser)
+      const notifs = Array.from(mockTables.notifications.values());
+      const rerouteNotif = notifs.find(
+        (n) => n.type === 'wr.qa_reroute' && n.payload.work_request_id === wr.id
+      );
+      expect(rerouteNotif).toBeTruthy();
+      expect(rerouteNotif.user_id).toBe(staffUser.id);
+      expect(rerouteNotif.payload.to_phase).toBe('processing');
+      expect(rerouteNotif.payload.reason).toBe('Tax calculation mismatch on Proc Task 1');
+      expect(rerouteNotif.payload.failed_task_ids).toEqual([proc1Id]);
+    });
+  });
+
+  describe('10. Audit Trail Verification (Rule R8 & Spec §3.5/§3.6)', () => {
+    it('verifies audit logs contain before and after phase states for all operations', async () => {
+      const wr = await createWorkRequestWithPhases({
+        pre_processing: {
+          tasks: [{ title: 'Pre Task 1', local_id: 'pre1' }],
+        },
+      });
+
+      const pre1Id = wr.phases.pre_processing.tasks[0].id;
+      await request(app)
+        .patch(`/v1/work-requests/${wr.id}/tasks/${pre1Id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'Completed' });
+
+      // Direct advance logs work_request.phase_advance
+      await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'processing' });
+
+      const auditRows = Array.from(mockTables.audit_logs.values());
+      const advanceAudit = auditRows.find(
+        (a) =>
+          a.action === 'work_request.phase_advance' &&
+          a.record_id === wr.id &&
+          a.details.to_phase === 'processing'
+      );
+
+      expect(advanceAudit).toBeTruthy();
+      expect(advanceAudit.details.from_phase).toBe('pre_processing');
+      expect(advanceAudit.details.before).toBeDefined();
+      expect(advanceAudit.details.after).toBeDefined();
     });
   });
 });

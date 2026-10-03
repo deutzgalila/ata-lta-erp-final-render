@@ -8,6 +8,17 @@ const AppError = require('../../lib/AppError');
 const { concurrencyConflict, resolveExpectedVersion } = require('../../lib/concurrency');
 const { randomUUID } = require('crypto');
 const { tokenizeTask } = require('../../lib/tokenizer');
+const auditService = require('../../services/auditService');
+const { notify } = require('../../services/notify');
+
+const PHASE_SEQUENCE = ['pre_processing', 'processing', 'quality_assurance', 'completion'];
+
+const PHASE_STATUS_MAP = {
+  pre_processing: 'Pre-processing',
+  processing: 'Processing',
+  quality_assurance: 'Quality Assurance',
+  completion: 'Completed',
+};
 
 const isValidUUID = (v) =>
   typeof v === 'string' &&
@@ -2516,6 +2527,464 @@ const resetStandardTaskTemplates = async ({ userId }) => {
   );
 };
 
+// ============================================================
+// Phase Routing: Advancement Gates, Direct Advance, QA Review & Reroute
+// ============================================================
+
+/**
+ * Validate advancement gate conditions for a transition from fromPhase to toPhase.
+ * @param {object} params
+ * @param {string} params.workRequestId
+ * @param {string} params.fromPhase
+ * @param {string} params.toPhase
+ * @returns {Promise<boolean>}
+ */
+const checkAdvancementGate = async ({ workRequestId, fromPhase, toPhase }) => {
+  const fromIndex = PHASE_SEQUENCE.indexOf(fromPhase);
+  const toIndex = PHASE_SEQUENCE.indexOf(toPhase);
+
+  if (fromIndex === -1 || toIndex === -1) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: `Invalid phase values: from "${fromPhase}" to "${toPhase}"`,
+    });
+  }
+
+  // Strictly sequential transitions: no skipping intermediate phases.
+  if (toIndex !== fromIndex + 1) {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: `Direct jump from "${fromPhase}" to "${toPhase}" is not permitted. Phases must advance sequentially: ${PHASE_SEQUENCE.join(' -> ')}`,
+      code: 'INVALID_PHASE_TRANSITION',
+    });
+  }
+
+  // Fetch all tasks for this work request
+  const { data: tasks, error } = await supabaseAdmin
+    .from('tasks')
+    .select('id, title, status, phase, qa_status')
+    .eq('work_request_id', workRequestId)
+    .is('deleted_at', null);
+
+  if (error) {
+    throw new AppError({
+      statusCode: 500,
+      title: 'Database Error',
+      detail: 'Unable to fetch tasks for advancement gate check',
+    });
+  }
+
+  const activeTasks = (tasks || []).filter((t) => t.status !== 'Cancelled');
+
+  if (fromPhase === 'pre_processing' && toPhase === 'processing') {
+    // Every active (non-Cancelled) pre_processing task must be Completed
+    const activePreTasks = activeTasks.filter((t) => t.phase === 'pre_processing');
+    const incomplete = activePreTasks.filter((t) => t.status !== 'Completed');
+    if (incomplete.length > 0) {
+      const list = incomplete.map((t) => `"${t.title || t.id}" (${t.status})`).join(', ');
+      throw new AppError({
+        statusCode: 409,
+        title: 'Conflict',
+        detail: `Advancement gate failed: ${incomplete.length} active pre-processing task(s) are incomplete: ${list}`,
+        code: 'ADVANCEMENT_GATE_FAILED',
+      });
+    }
+  } else if (fromPhase === 'processing' && toPhase === 'quality_assurance') {
+    // Every active (non-Cancelled) processing task must be Completed
+    const activeProcTasks = activeTasks.filter((t) => t.phase === 'processing');
+    const incomplete = activeProcTasks.filter((t) => t.status !== 'Completed');
+    if (incomplete.length > 0) {
+      const list = incomplete.map((t) => `"${t.title || t.id}" (${t.status})`).join(', ');
+      throw new AppError({
+        statusCode: 409,
+        title: 'Conflict',
+        detail: `Advancement gate failed: ${incomplete.length} active processing task(s) are incomplete: ${list}`,
+        code: 'ADVANCEMENT_GATE_FAILED',
+      });
+    }
+  } else if (fromPhase === 'quality_assurance' && toPhase === 'completion') {
+    // Every active task (both phases) must be Completed AND all active tasks have qa_status = 'passed'
+    const incomplete = activeTasks.filter((t) => t.status !== 'Completed');
+    if (incomplete.length > 0) {
+      const list = incomplete.map((t) => `"${t.title || t.id}" (${t.status})`).join(', ');
+      throw new AppError({
+        statusCode: 409,
+        title: 'Conflict',
+        detail: `Advancement gate failed: ${incomplete.length} active task(s) are incomplete: ${list}`,
+        code: 'ADVANCEMENT_GATE_FAILED',
+      });
+    }
+    const unpassed = activeTasks.filter((t) => t.qa_status !== 'passed');
+    if (unpassed.length > 0) {
+      const list = unpassed.map((t) => `"${t.title || t.id}" (qa_status: ${t.qa_status})`).join(', ');
+      throw new AppError({
+        statusCode: 409,
+        title: 'Conflict',
+        detail: `Advancement gate failed: all active tasks must have qa_status = "passed". Tasks not passed: ${list}`,
+        code: 'ADVANCEMENT_GATE_FAILED',
+      });
+    }
+  }
+
+  return true;
+};
+
+/**
+ * Advance a work request's phase.
+ * @param {object} params
+ * @param {string} params.id - Work request ID
+ * @param {string} [params.entityId] - Entity ID
+ * @param {string} [params.toPhase] - Target phase (defaults to next sequential phase)
+ * @param {object} params.user - Current user
+ * @param {string} [params.via='direct'] - 'direct' | 'request'
+ * @returns {Promise<object>}
+ */
+const advanceWorkRequest = async ({ id, entityId, toPhase, user, via = 'direct' }) => {
+  const existing = await getWorkRequestById({ id, entityId, user });
+  if (!existing) {
+    throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Work request not found' });
+  }
+
+  const currentPhase = existing.phase || 'pre_processing';
+  if (currentPhase === 'completion') {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Work request is already in completion phase',
+      code: 'INVALID_PHASE_TRANSITION',
+    });
+  }
+
+  const fromIndex = PHASE_SEQUENCE.indexOf(currentPhase);
+  const targetPhase = toPhase || PHASE_SEQUENCE[fromIndex + 1];
+
+  await checkAdvancementGate({
+    workRequestId: id,
+    fromPhase: currentPhase,
+    toPhase: targetPhase,
+  });
+
+  const now = new Date().toISOString();
+  const newStatus = PHASE_STATUS_MAP[targetPhase] || 'In Progress';
+
+  const { error } = await supabaseAdmin
+    .from('work_requests')
+    .update({
+      phase: targetPhase,
+      phase_entered_at: now,
+      status: newStatus,
+      updated_at: now,
+    })
+    .eq('id', id);
+
+  if (error) {
+    throw new AppError({
+      statusCode: 500,
+      title: 'Database Error',
+      detail: 'Unable to advance work request phase',
+    });
+  }
+
+  await auditService.log({
+    action: 'work_request.phase_advance',
+    table: 'work_requests',
+    recordId: id,
+    entity: existing.entity_id || entityId,
+    userId: user?.id,
+    details: {
+      from_phase: currentPhase,
+      to_phase: targetPhase,
+      before: { phase: currentPhase, status: existing.status },
+      after: { phase: targetPhase, status: newStatus },
+      via,
+    },
+  });
+
+  const requesterId = existing.requestedBy || existing.requested_by;
+  if (requesterId) {
+    try {
+      await notify([requesterId], 'wr.transition_request.resolved', {
+        request_id: null,
+        work_request_id: id,
+        from_phase: currentPhase,
+        to_phase: targetPhase,
+        outcome: 'approved',
+        via,
+      });
+    } catch (_notifErr) {
+      // Notification errors never fail business operations
+    }
+  }
+
+  return getWorkRequestById({ id, entityId, user });
+};
+
+/**
+ * Record QA review evaluations for tasks on a work request in quality_assurance phase.
+ * @param {object} params
+ * @param {string} params.id - Work request ID
+ * @param {string} [params.entityId] - Entity ID
+ * @param {Array<{ task_id?: string, taskId?: string, qa_status?: string, qaStatus?: string }>} params.results
+ * @param {object} params.user - Current user
+ * @returns {Promise<object>}
+ */
+const qaReviewWorkRequest = async ({ id, entityId, results, user }) => {
+  const existing = await getWorkRequestById({ id, entityId, user });
+  if (!existing) {
+    throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Work request not found' });
+  }
+
+  if (existing.phase !== 'quality_assurance') {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: `QA review can only be performed when work request is in "quality_assurance" phase (current phase: "${existing.phase}")`,
+      code: 'INVALID_PHASE_FOR_QA_REVIEW',
+    });
+  }
+
+  if (!Array.isArray(results) || results.length === 0) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'results must be a non-empty array of task QA evaluations',
+    });
+  }
+
+  const { data: tasks, error: taskErr } = await supabaseAdmin
+    .from('tasks')
+    .select('*')
+    .eq('work_request_id', id)
+    .is('deleted_at', null);
+
+  if (taskErr) {
+    throw new AppError({
+      statusCode: 500,
+      title: 'Database Error',
+      detail: 'Unable to fetch tasks for QA review',
+    });
+  }
+
+  const tasksMap = new Map((tasks || []).map((t) => [t.id, t]));
+  const evaluations = [];
+  const now = new Date().toISOString();
+
+  for (const item of results) {
+    const taskId = item.task_id || item.taskId;
+    const qaStatus = item.qa_status || item.qaStatus;
+
+    if (!taskId || !['passed', 'failed'].includes(qaStatus)) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: 'Each result must have a valid task_id and qa_status ("passed" or "failed")',
+      });
+    }
+
+    const task = tasksMap.get(taskId);
+    if (!task) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: `Task ${taskId} does not belong to work request ${id}`,
+      });
+    }
+
+    evaluations.push({
+      task_id: taskId,
+      title: task.title,
+      before_qa_status: task.qa_status || 'none',
+      after_qa_status: qaStatus,
+    });
+
+    const { error: updateErr } = await supabaseAdmin
+      .from('tasks')
+      .update({
+        qa_status: qaStatus,
+        updated_at: now,
+      })
+      .eq('id', taskId);
+
+    if (updateErr) {
+      throw new AppError({
+        statusCode: 500,
+        title: 'Database Error',
+        detail: `Unable to update QA status for task ${taskId}`,
+      });
+    }
+  }
+
+  await auditService.log({
+    action: 'work_request.qa_review',
+    table: 'work_requests',
+    recordId: id,
+    entity: existing.entity_id || entityId,
+    userId: user?.id,
+    details: {
+      work_request_id: id,
+      evaluations,
+    },
+  });
+
+  return getWorkRequestById({ id, entityId, user });
+};
+
+/**
+ * Reroute a work request from quality_assurance back to pre_processing or processing,
+ * reopening ONLY failed tasks (qa_status = 'failed') and notifying their assignees.
+ * @param {object} params
+ * @param {string} params.id - Work request ID
+ * @param {string} [params.entityId] - Entity ID
+ * @param {string} params.toPhase - 'pre_processing' | 'processing'
+ * @param {string} params.reason - Required non-empty explanation
+ * @param {object} params.user - Current user
+ * @returns {Promise<object>}
+ */
+const rerouteWorkRequest = async ({ id, entityId, toPhase, reason, user }) => {
+  const existing = await getWorkRequestById({ id, entityId, user });
+  if (!existing) {
+    throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Work request not found' });
+  }
+
+  if (existing.phase !== 'quality_assurance') {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: `Reroute can only be performed when work request is in "quality_assurance" phase (current phase: "${existing.phase}")`,
+      code: 'INVALID_PHASE_FOR_REROUTE',
+    });
+  }
+
+  if (!['pre_processing', 'processing'].includes(toPhase)) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'to_phase must be either "pre_processing" or "processing"',
+    });
+  }
+
+  if (!reason || typeof reason !== 'string' || reason.trim() === '') {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'reason is required for reroute',
+    });
+  }
+
+  const cleanReason = reason.trim();
+
+  // Fetch all tasks for this WR
+  const { data: tasks, error: taskErr } = await supabaseAdmin
+    .from('tasks')
+    .select('*')
+    .eq('work_request_id', id)
+    .is('deleted_at', null);
+
+  if (taskErr) {
+    throw new AppError({
+      statusCode: 500,
+      title: 'Database Error',
+      detail: 'Unable to fetch tasks for reroute',
+    });
+  }
+
+  const failedTasks = (tasks || []).filter((t) => t.qa_status === 'failed');
+  const failedTaskIds = failedTasks.map((t) => t.id);
+  const now = new Date().toISOString();
+
+  // Reopen ONLY failed tasks: status := 'In Progress', qa_status := 'none'
+  for (const failedTask of failedTasks) {
+    const { error: reopenErr } = await supabaseAdmin
+      .from('tasks')
+      .update({
+        status: 'In Progress',
+        qa_status: 'none',
+        updated_at: now,
+      })
+      .eq('id', failedTask.id);
+
+    if (reopenErr) {
+      throw new AppError({
+        statusCode: 500,
+        title: 'Database Error',
+        detail: `Unable to reopen failed task ${failedTask.id}`,
+      });
+    }
+  }
+
+  const newStatus = PHASE_STATUS_MAP[toPhase] || 'In Progress';
+  const { error: wrUpdateErr } = await supabaseAdmin
+    .from('work_requests')
+    .update({
+      phase: toPhase,
+      phase_entered_at: now,
+      status: newStatus,
+      updated_at: now,
+    })
+    .eq('id', id);
+
+  if (wrUpdateErr) {
+    throw new AppError({
+      statusCode: 500,
+      title: 'Database Error',
+      detail: 'Unable to update work request phase during reroute',
+    });
+  }
+
+  // Gather assignees of failed tasks
+  const failedAssigneeIds = new Set();
+  failedTasks.forEach((t) => {
+    if (t.assignee_id) failedAssigneeIds.add(t.assignee_id);
+  });
+
+  if (failedTaskIds.length > 0) {
+    const { data: assignees } = await supabaseAdmin
+      .from('task_assignees')
+      .select('user_id')
+      .in('task_id', failedTaskIds);
+
+    (assignees || []).forEach((a) => {
+      if (a.user_id) failedAssigneeIds.add(a.user_id);
+    });
+  }
+
+  await auditService.log({
+    action: 'work_request.reroute',
+    table: 'work_requests',
+    recordId: id,
+    entity: existing.entity_id || entityId,
+    userId: user?.id,
+    details: {
+      from_phase: 'quality_assurance',
+      to_phase: toPhase,
+      reason: cleanReason,
+      reopened_task_ids: failedTaskIds,
+      before: { phase: 'quality_assurance', status: existing.status },
+      after: { phase: toPhase, status: newStatus },
+    },
+  });
+
+  try {
+    await notify(Array.from(failedAssigneeIds), 'wr.qa_reroute', {
+      work_request_id: id,
+      wr_title: existing.title,
+      to_phase: toPhase,
+      reason: cleanReason,
+      failed_task_ids: failedTaskIds,
+    });
+  } catch (_notifErr) {
+    // Notify error never fails business operation
+  }
+
+  const updatedWr = await getWorkRequestById({ id, entityId, user });
+  return {
+    ...updatedWr,
+    reopened_tasks: failedTaskIds,
+  };
+};
+
 module.exports = {
   listWorkRequests,
   createWorkRequest,
@@ -2545,4 +3014,10 @@ module.exports = {
   updateStandardTaskTemplate,
   deleteStandardTaskTemplate,
   resetStandardTaskTemplates,
+  checkAdvancementGate,
+  advanceWorkRequest,
+  qaReviewWorkRequest,
+  rerouteWorkRequest,
+  PHASE_SEQUENCE,
+  PHASE_STATUS_MAP,
 };
