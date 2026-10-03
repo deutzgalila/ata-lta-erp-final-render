@@ -33,19 +33,8 @@ const fieldLevelSecurity = (req, res, next) => {
 
   const permissions = computePermissions(req.user);
 
-  // Accounting, Management, Admin hold billing:edit_client_address per P0-A / Ground Truth
-  const userRole = req.user.role;
-  const userDepts = req.user.departments || [];
-  const canEditClientAddress =
-    userRole === 'Admin' ||
-    userRole === 'Manager' ||
-    userRole === 'Accounting' ||
-    userDepts.includes('Management') ||
-    userDepts.includes('Accounting');
-
-  if (canEditClientAddress) {
-    permissions.add('billing:edit_client_address');
-  }
+  // billing:edit_client_address resolves from the P0-A manifest
+  // (Management, Accounting, Admin) — no inline grants.
   req.userPermissions = permissions;
 
   const hasAddressField = req.body && ('address' in req.body || 'clientAddress' in req.body);

@@ -20,44 +20,9 @@ jest.mock('../src/services/supabaseClient', () => {
   return { supabaseAdmin };
 });
 
-jest.mock('../src/lib/permissions', () => {
-  const actual = jest.requireActual('../src/lib/permissions');
-  const customDeptPermissions = {
-    ...actual.DEPARTMENT_PERMISSIONS,
-    Operations: [...actual.DEPARTMENT_PERMISSIONS.Operations, 'disbursement:create'],
-    Documentation: [...actual.DEPARTMENT_PERMISSIONS.Documentation, 'disbursement:create'],
-    HR: [...actual.DEPARTMENT_PERMISSIONS.HR, 'disbursement:create'],
-  };
-
-  const customBuildPermissionSet = ({ role, departments = [] }) => {
-    const granted = new Set();
-    const effectiveDepts = [...departments];
-    const legacyDept = role === 'Manager' ? 'Management' : role;
-    if (legacyDept && customDeptPermissions[legacyDept] && !effectiveDepts.includes(legacyDept)) {
-      effectiveDepts.push(legacyDept);
-    }
-    effectiveDepts.forEach((dept) => {
-      (customDeptPermissions[dept] || []).forEach((p) => granted.add(p));
-    });
-    if (role === 'Admin') {
-      Object.values(customDeptPermissions)
-        .flat()
-        .forEach((p) => granted.add(p));
-      granted.add('disbursement:approve');
-      granted.add('users:manage');
-      granted.add('clients:edit');
-      granted.add('transmittal:approve');
-      granted.add('billing:edit_client_address');
-    }
-    return granted;
-  };
-
-  return {
-    ...actual,
-    DEPARTMENT_PERMISSIONS: customDeptPermissions,
-    buildPermissionSet: customBuildPermissionSet,
-  };
-});
+// NOTE: the temporary jest.mock of src/lib/permissions (pre-P0-A compensation)
+// is removed — the real manifest now grants disbursement:create to all five
+// departments and disbursement:approve to Admin.
 
 const request = require('supertest');
 const { app } = require('./helpers/testServer');

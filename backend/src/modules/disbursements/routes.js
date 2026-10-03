@@ -30,10 +30,7 @@ const requireDisbursementApprove = (req, res, next) => {
   }
 
   const permissions = computePermissions(req.user);
-  // Admin holds all permissions including disbursement:approve per R3 & P0-A
-  if (req.user.role === 'Admin') {
-    permissions.add('disbursement:approve');
-  }
+  // disbursement:approve resolves from the P0-A manifest (Admin-only grant).
   req.userPermissions = permissions;
 
   if (!hasPermission(permissions, 'disbursement:approve')) {
