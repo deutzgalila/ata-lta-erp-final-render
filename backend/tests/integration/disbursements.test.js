@@ -71,7 +71,7 @@ describe('/v1/disbursements', () => {
     expect(res.body.data.status).toBe('Draft');
   });
 
-  it('forbids disbursement creation without disbursement:create', async () => {
+  it('allows disbursement creation for any department (P0-A §3.2: create-for-all; approval gate arrives in P0-G)', async () => {
     const token = registerUser({
       email: 'doc@ata-lta.ph',
       name: 'Doc Staff',
@@ -84,9 +84,9 @@ describe('/v1/disbursements', () => {
       .set('Authorization', `Bearer ${token}`)
       .set('X-Active-Entity', 'ATA')
       .send(validDisbursement)
-      .expect(403);
+      .expect(201);
 
-    expect(res.body.title).toMatch(/forbidden/i);
+    expect(res.body.data.status).toBe('Draft');
   });
 
   it('returns tab-badge counts scoped to the active entity', async () => {

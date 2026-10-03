@@ -330,3 +330,73 @@ describe('POST /v1/me/avatar-upload-url', () => {
     expect(res.body.data.path).toMatch(/^avatars\//);
   });
 });
+
+describe('GET /v1/me — P0-A frozen keys (spec: docs/enterprise-migration/P0-A)', () => {
+  beforeEach(() => {
+    resetMock();
+    seedDefaults();
+  });
+
+  it('Manager embed includes workflow:transition_request and excludes workflow:phase_transition', async () => {
+    const token = registerUser({
+      email: 'manager@ata-lta.ph',
+      name: 'Manager',
+      role: 'Manager',
+      entities: ['ATA'],
+    });
+
+    const res = await request(app)
+      .get('/v1/me')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA');
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.permissions).toContain('workflow:transition_request');
+    expect(res.body.data.permissions).toContain('retainers:use');
+    expect(res.body.data.permissions).not.toContain('workflow:phase_transition');
+    expect(res.body.data.permissions).not.toContain('disbursement:approve');
+  });
+
+  it('staff embed includes timelog:create but not timelog:edit_all', async () => {
+    const token = registerUser({
+      email: 'ops@ata-lta.ph',
+      name: 'Ops Staff',
+      role: 'Operations',
+      departments: ['Operations'],
+      entities: ['ATA'],
+    });
+
+    const res = await request(app)
+      .get('/v1/me')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA');
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.permissions).toContain('timelog:create');
+    expect(res.body.data.permissions).toContain('notifications:view');
+    expect(res.body.data.permissions).not.toContain('timelog:edit_all');
+  });
+
+  it('embeds permissions as a sorted array matching /v1/me/permissions as a set', async () => {
+    const token = registerUser({
+      email: 'manager2@ata-lta.ph',
+      name: 'Manager Two',
+      role: 'Manager',
+      entities: ['ATA'],
+    });
+
+    const me = await request(app)
+      .get('/v1/me')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA');
+    const list = await request(app)
+      .get('/v1/me/permissions')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA');
+
+    expect(me.status).toBe(200);
+    expect(list.status).toBe(200);
+    expect(me.body.data.permissions).toEqual([...me.body.data.permissions].sort());
+    expect(new Set(me.body.data.permissions)).toEqual(new Set(list.body.data));
+  });
+});

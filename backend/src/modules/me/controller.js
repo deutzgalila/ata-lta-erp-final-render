@@ -14,7 +14,8 @@ const AppError = require('../../lib/AppError');
  */
 const getMe = async (req, res, next) => {
   try {
-    const permissions = Array.from(computePermissions(req.user));
+    // Sorted per P0-A contract §3.3 (React-ready, deterministic).
+    const permissions = Array.from(computePermissions(req.user)).sort();
     const profile = await meService.getProfile(req.user.id);
 
     res.status(200).json({
@@ -61,7 +62,7 @@ const updateMe = async (req, res, next) => {
     }
 
     const profile = await meService.updateProfile({ userId: req.user.id, data: payload });
-    const permissions = Array.from(computePermissions(req.user));
+    const permissions = Array.from(computePermissions(req.user)).sort();
 
     res.status(200).json({
       data: {
