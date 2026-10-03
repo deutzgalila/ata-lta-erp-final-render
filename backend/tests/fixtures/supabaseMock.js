@@ -32,6 +32,7 @@ const mockTables = {
   documents: new Map(),
   disbursement_templates: new Map(),
   retainer_templates: new Map(),
+  retainer_template_generations: new Map(),
   ground_workers: new Map(),
   standard_task_templates: new Map(),
   idempotency_keys: new Map(),
@@ -363,6 +364,21 @@ const tableQuery = (table) => {
             builder._insertError = {
               message:
                 'duplicate key value violates unique constraint "disbursements_entity_id_disbursement_number_key"',
+              code: '23505',
+            };
+            return builder;
+          }
+        }
+        if (table === 'retainer_template_generations' && stored.template_id && stored.period_label) {
+          const dup = Array.from(rows.values()).find(
+            (r) =>
+              r.template_id === stored.template_id &&
+              r.period_label === stored.period_label
+          );
+          if (dup) {
+            builder._insertError = {
+              message:
+                'duplicate key value violates unique constraint "uq_retainer_template_generations_period"',
               code: '23505',
             };
             return builder;

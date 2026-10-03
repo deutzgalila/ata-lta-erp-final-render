@@ -55,7 +55,7 @@ P3 (cutover) gated on P2 completion + staging rehearsal.
 | P0-B | Notifications Module | P0-A | ✅ merged (staging @571d585; feat/p0-b-notifications, shim-free) |
 | P0-C | Phase Migrations + Backfill | P0-A | ✅ merged (staging @6f973a5; feat/p0-c-phase-migrations, 000054 env-gated) |
 | P0-D | Operations Phase-Routing Rework | P0-A, P0-B, P0-C | ✅ done (feat/p0-d-phase-routing) |
-| P0-E | Retainer Templates + Recurrence | P0-A, P0-D | ☐ pending |
+| P0-E | Retainer Templates + Recurrence | P0-A, P0-D | ✅ done (feat/p0-e-retainer-templates) |
 | P0-F | Time Entries Module | P0-C | ☐ pending |
 | P0-G | Disbursement/Billing Permission Changes | P0-A | ✅ merged (staging @0d845dd; feat/p0-g-financial-permissions, manifest-resolved) |
 | P0-H | Contract Freeze | all P0 | ☐ pending |
