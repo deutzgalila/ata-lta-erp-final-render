@@ -20,6 +20,7 @@ const mockTables = {
   task_checklists: new Map(),
   task_time_logs: new Map(),
   task_assignees: new Map(),
+  time_entries: new Map(),
   pending_changes: new Map(),
   operations_requests: new Map(),
   invoices: new Map(),

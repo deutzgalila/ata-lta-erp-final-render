@@ -35,6 +35,7 @@ const reportsRouter = require('./modules/reports/routes');
 const adminRouter = require('./modules/admin/routes');
 const operationsRequestsRouter = require('./modules/operationsRequests/routes');
 const notificationsRouter = require('./modules/notifications/routes');
+const timeEntriesRouter = require('./modules/timeEntries/routes');
 
 const app = express();
 app.set('trust proxy', 1); // Trust Render/reverse proxy headers (X-Forwarded-For)
@@ -296,6 +297,7 @@ app.use('/v1/reports', reportsRouter);
 app.use('/v1/admin', adminRouter);
 app.use('/v1/operations-requests', operationsRequestsRouter);
 app.use('/v1/notifications', notificationsRouter);
+app.use('/v1/time-entries', timeEntriesRouter);
 
 // 404 handler
 app.use((req, res, _next) => {
