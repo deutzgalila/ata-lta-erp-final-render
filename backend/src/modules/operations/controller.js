@@ -25,11 +25,14 @@ const validate = (schema, data) => {
   const result = schema.safeParse(data);
   if (!result.success) {
     const issues = result.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
+    const isPhaseImmutable = result.error.issues.some(
+      (i) => i.params?.code === 'TASK_PHASE_IMMUTABLE' || i.path.includes('phase')
+    );
     throw new AppError({
       statusCode: 400,
       title: 'Validation Error',
       detail: issues,
-      code: 'VALIDATION_ERROR',
+      code: isPhaseImmutable ? 'TASK_PHASE_IMMUTABLE' : 'VALIDATION_ERROR',
     });
   }
   return result.data;
@@ -346,11 +349,20 @@ const createTask = async (req, res, next) => {
 
 const updateTask = async (req, res, next) => {
   try {
+    if (req.body && req.body.phase !== undefined) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Validation Error',
+        detail: 'Task phase is immutable once created',
+        code: 'TASK_PHASE_IMMUTABLE',
+      });
+    }
+
     const payload = injectExpectedVersion(req, validate(updateTaskSchema, req.body));
     const entityId = req.entityUUID;
     const task = await operationsService.updateTask({
       workRequestId: req.params.wrId,
-      taskId: req.params.taskId,
+      taskId: req.params.taskId || req.params.id,
       entityId,
       data: payload,
       user: req.user,
@@ -374,9 +386,10 @@ const updateTask = async (req, res, next) => {
 const removeTask = async (req, res, next) => {
   try {
     const entityId = req.entityUUID;
+    const taskId = req.params.taskId || req.params.id;
     const removed = await operationsService.deleteTask({
       workRequestId: req.params.wrId,
-      taskId: req.params.taskId,
+      taskId,
       entityId,
     });
     if (!removed) {
@@ -386,7 +399,7 @@ const removeTask = async (req, res, next) => {
     await auditService.log({
       action: 'task.deleted',
       table: 'tasks',
-      recordId: req.params.taskId,
+      recordId: taskId,
       entity: req.activeEntity,
       userId: req.user.id,
       details: {},
@@ -566,7 +579,7 @@ const getTask = async (req, res, next) => {
     const entityId = req.entityUUID;
     const task = await operationsService.getTaskById({
       workRequestId: req.params.wrId,
-      taskId: req.params.taskId,
+      taskId: req.params.taskId || req.params.id,
       entityId,
     });
     if (!task) {

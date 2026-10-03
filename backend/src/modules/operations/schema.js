@@ -107,8 +107,10 @@ const createTaskSchema = z.object({
   title: z.string().min(1).max(255),
   description: z.string().optional().nullable(),
   status: z.string().max(50).optional(),
+  phase: z.enum(['pre_processing', 'processing']).optional(),
   assigneeId: z.string().uuid().optional().nullable(),
   assigneeName: z.string().optional().nullable(),
+  assignees: z.array(z.string().uuid()).optional().nullable(),
   predecessors: z.array(z.string().uuid()).optional(),
   dueDate: z.string().optional().nullable(),
   checklist: z.array(checklistItemSchema).optional(),
@@ -118,10 +120,23 @@ const createTaskSchema = z.object({
   requiredLinkType: z.string().max(50).optional().nullable(),
 });
 
-const updateTaskSchema = createTaskSchema.partial().extend({
-  // OCC guard (Spec 2.2 / R-10): update applies only if the stored version matches.
-  expectedVersion: z.number().int().positive().optional(),
-});
+const updateTaskSchema = createTaskSchema
+  .partial()
+  .extend({
+    phase: z.any().optional(),
+    // OCC guard (Spec 2.2 / R-10): update applies only if the stored version matches.
+    expectedVersion: z.number().int().positive().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.phase !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Task phase is immutable once created',
+        path: ['phase'],
+        params: { code: 'TASK_PHASE_IMMUTABLE' },
+      });
+    }
+  });
 
 const nullableUuid = z.preprocess(
   (val) => (val === '' || val === undefined ? null : val),

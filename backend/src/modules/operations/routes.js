@@ -158,7 +158,7 @@ router.get(
   operationsController.listTasks
 );
 router.get(
-  ['/work-requests/:wrId/tasks/:taskId', '/:wrId/tasks/:taskId'],
+  ['/work-requests/:wrId/tasks/:taskId', '/:wrId/tasks/:taskId', '/tasks/:taskId'],
   resolveEntity(),
   requirePermission('workflow:view'),
   operationsController.getTask
@@ -171,21 +171,28 @@ router.post(
   operationsController.createTask
 );
 router.put(
-  ['/work-requests/:wrId/tasks/:taskId', '/:wrId/tasks/:taskId'],
+  ['/work-requests/:wrId/tasks/:taskId', '/:wrId/tasks/:taskId', '/tasks/:taskId'],
+  resolveEntity(),
+  requirePermission('workflow:edit'),
+  audit('task.updated', { table: 'tasks' }),
+  operationsController.updateTask
+);
+router.patch(
+  ['/work-requests/:wrId/tasks/:taskId', '/:wrId/tasks/:taskId', '/tasks/:taskId'],
   resolveEntity(),
   requirePermission('workflow:edit'),
   audit('task.updated', { table: 'tasks' }),
   operationsController.updateTask
 );
 router.post(
-  ['/work-requests/:wrId/tasks/:taskId/time-logs', '/:wrId/tasks/:taskId/time-logs'],
+  ['/work-requests/:wrId/tasks/:taskId/time-logs', '/:wrId/tasks/:taskId/time-logs', '/tasks/:taskId/time-logs'],
   resolveEntity(),
   requirePermission(['workflow:edit', 'workflow:task_add', 'workflow:task_upload']),
   audit('task.time_log_added', { table: 'task_time_logs' }),
   operationsController.addTimeLogs
 );
 router.delete(
-  ['/work-requests/:wrId/tasks/:taskId', '/:wrId/tasks/:taskId'],
+  ['/work-requests/:wrId/tasks/:taskId', '/:wrId/tasks/:taskId', '/tasks/:taskId'],
   resolveEntity(),
   requirePermission('workflow:edit'),
   audit('task.deleted', { table: 'tasks' }),
@@ -198,6 +205,29 @@ tasksRouter.get(
   '/:id/related',
   requirePermission('workflow:view'),
   operationsController.getTaskRelated
+);
+tasksRouter.get(
+  '/:taskId',
+  requirePermission('workflow:view'),
+  operationsController.getTask
+);
+tasksRouter.put(
+  '/:taskId',
+  requirePermission('workflow:edit'),
+  audit('task.updated', { table: 'tasks' }),
+  operationsController.updateTask
+);
+tasksRouter.patch(
+  '/:taskId',
+  requirePermission('workflow:edit'),
+  audit('task.updated', { table: 'tasks' }),
+  operationsController.updateTask
+);
+tasksRouter.delete(
+  '/:taskId',
+  requirePermission('workflow:edit'),
+  audit('task.deleted', { table: 'tasks' }),
+  operationsController.removeTask
 );
 
 module.exports = router;
