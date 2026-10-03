@@ -71,7 +71,7 @@ describe('/v1/disbursements', () => {
     expect(res.body.data.status).toBe('Draft');
   });
 
-  it('allows disbursement creation for any department (P0-A §3.2: create-for-all; approval gate arrives in P0-G)', async () => {
+  it('allows disbursement creation for any department (P0-A §3.2) — non-admin creates land in Pending for the P0-G approval gate', async () => {
     const token = registerUser({
       email: 'doc@ata-lta.ph',
       name: 'Doc Staff',
@@ -86,7 +86,7 @@ describe('/v1/disbursements', () => {
       .send(validDisbursement)
       .expect(201);
 
-    expect(res.body.data.status).toBe('Draft');
+    expect(res.body.data.status).toBe('Pending');
   });
 
   it('returns tab-badge counts scoped to the active entity', async () => {

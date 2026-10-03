@@ -384,6 +384,12 @@ const updateInvoice = async ({ entityId, id, userId, data }) => {
   if (data.terms !== undefined) rpcUpdates.terms = data.terms;
   if (data.archived !== undefined) rpcUpdates.archived = data.archived;
 
+  const hasAddress = data.address !== undefined || data.clientAddress !== undefined;
+  if (hasAddress) {
+    const newAddress = data.address !== undefined ? data.address : data.clientAddress;
+    rpcUpdates.address = newAddress;
+  }
+
   const rpcLineItems = data.lineItems
     ? data.lineItems.map((item, idx) => ({
         description: item.description,
@@ -426,6 +432,36 @@ const updateInvoice = async ({ entityId, id, userId, data }) => {
       statusCode: 404,
       title: 'Not Found',
       detail: `Invoice ${id} not found`,
+    });
+  }
+
+  // Field-level audit logging for client address update on billing record (AC-4, R4).
+  // Master clients table row is NOT mutated.
+  if (hasAddress) {
+    const newAddress = data.address !== undefined ? data.address : data.clientAddress;
+    let oldAddress = existing.address || existing.clients?.address || null;
+    if (!oldAddress && (existing.client_id || existing.clientId)) {
+      const clientId = existing.client_id || existing.clientId;
+      const { data: clientRow } = await supabaseAdmin
+        .from('clients')
+        .select('address')
+        .eq('id', clientId)
+        .maybeSingle();
+      if (clientRow?.address) {
+        oldAddress = clientRow.address;
+      }
+    }
+    await auditService.log({
+      action: 'billing.address_update',
+      table: 'invoices',
+      recordId: id,
+      entity: entityId,
+      userId,
+      details: {
+        field: 'address',
+        from: oldAddress,
+        to: newAddress,
+      },
     });
   }
 

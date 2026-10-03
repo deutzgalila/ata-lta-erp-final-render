@@ -42,6 +42,9 @@ const createDisbursementSchema = z.object({
   notes: z.string().max(2000).optional().nullable(),
   receiptS3Key: z.string().max(500).optional().nullable(),
   receiptFilename: z.string().max(255).optional().nullable(),
+  status: z.never({
+    message: 'Explicit status cannot be set on creation; status forgery is prohibited',
+  }).optional(),
 });
 
 /**
@@ -57,7 +60,7 @@ const updateDisbursementSchema = createDisbursementSchema.partial().extend({
  * Schema for rejecting a disbursement.
  */
 const rejectSchema = z.object({
-  reason: z.string().min(1).max(500),
+  reason: z.string().trim().min(1, 'Rejection reason is required').max(500),
 });
 
 /**
