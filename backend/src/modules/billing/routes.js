@@ -8,9 +8,75 @@
 const express = require('express');
 const router = express.Router();
 const { billingController } = require('./controller');
-const { requirePermission } = require('../../middleware/rbac');
+const { requirePermission, computePermissions } = require('../../middleware/rbac');
+const { hasPermission } = require('../../lib/permissions');
 const { audit } = require('../../middleware/audit');
 const { resolveEntity } = require('../../middleware/resolveEntity');
+const AppError = require('../../lib/AppError');
+
+/**
+ * Field-Level Security middleware for invoice updates (AC-4, R4).
+ * If payload touches client address ('address' or 'clientAddress'), requires 'billing:edit_client_address'
+ * (held by Accounting, Management, Admin).
+ * If payload does NOT touch address, requires standard billing update permissions ('billing:edit' or 'billing:request').
+ */
+const fieldLevelSecurity = (req, res, next) => {
+  if (!req.user) {
+    return next(
+      new AppError({
+        statusCode: 401,
+        title: 'Unauthorized',
+        detail: 'Authentication required',
+      })
+    );
+  }
+
+  const permissions = computePermissions(req.user);
+
+  // Accounting, Management, Admin hold billing:edit_client_address per P0-A / Ground Truth
+  const userRole = req.user.role;
+  const userDepts = req.user.departments || [];
+  const canEditClientAddress =
+    userRole === 'Admin' ||
+    userRole === 'Manager' ||
+    userRole === 'Accounting' ||
+    userDepts.includes('Management') ||
+    userDepts.includes('Accounting');
+
+  if (canEditClientAddress) {
+    permissions.add('billing:edit_client_address');
+  }
+  req.userPermissions = permissions;
+
+  const hasAddressField = req.body && ('address' in req.body || 'clientAddress' in req.body);
+
+  if (hasAddressField) {
+    if (!hasPermission(permissions, 'billing:edit_client_address')) {
+      return next(
+        new AppError({
+          statusCode: 403,
+          title: 'Forbidden',
+          detail: 'Permission billing:edit_client_address is required to modify client address',
+        })
+      );
+    }
+  } else {
+    const allowed =
+      hasPermission(permissions, 'billing:edit') ||
+      hasPermission(permissions, 'billing:request');
+    if (!allowed) {
+      return next(
+        new AppError({
+          statusCode: 403,
+          title: 'Forbidden',
+          detail: 'One of permissions [billing:edit, billing:request] is required',
+        })
+      );
+    }
+  }
+
+  next();
+};
 
 // --- Badge Counts (before resolveEntity so ALL can be summed) ---
 router.get(
@@ -58,7 +124,13 @@ router.post(
 router.get('/:id', requirePermission('billing:view'), billingController.getInvoice);
 router.put(
   '/:id',
-  requirePermission('billing:edit'),
+  fieldLevelSecurity,
+  audit('invoice.update', { table: 'invoices' }),
+  billingController.updateInvoice
+);
+router.patch(
+  '/:id',
+  fieldLevelSecurity,
   audit('invoice.update', { table: 'invoices' }),
   billingController.updateInvoice
 );

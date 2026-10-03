@@ -21,7 +21,30 @@ const VALID_TRANSITIONS = {
   approve: { from: 'Pending', to: 'Approved' },
   release: { from: 'Approved', to: 'Released' },
   fund: { from: 'Released', to: 'Funded' },
-  reject: { from: ['Pending', 'Approved'], to: 'Rejected' },
+  reject: { from: 'Pending', to: 'Rejected' },
+};
+
+/**
+ * Non-blocking notification dispatch helper (P0-B / Rule R5).
+ * Swallows any error to preserve caller operation success.
+ */
+const safeNotify = async (userIds, type, payload) => {
+  try {
+    let notifyModule = null;
+    try {
+      notifyModule = require('../../services/notify');
+    } catch (_err) {
+      notifyModule = null;
+    }
+
+    if (notifyModule && typeof notifyModule.notify === 'function') {
+      await notifyModule.notify(userIds, type, payload);
+    }
+  } catch (err) {
+    // Non-blocking: swallow error per Rule R5 / P0-B R3
+    // eslint-disable-next-line no-console
+    console.warn('[NOTIFY] Failed to dispatch notification:', err?.message || err);
+  }
 };
 
 /**
@@ -294,6 +317,36 @@ const listDisbursements = async ({ entityId, filters = {}, user }) => {
  * @returns {Promise<object>}
  */
 const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
+  // Reject client-supplied status forgery (AC-1, R1)
+  if (data.status !== undefined && data.status !== null) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'Explicit status cannot be set on creation; status forgery is prohibited',
+      code: 'STATUS_FORGERY_PROHIBITED',
+    });
+  }
+
+  // Determine initial status based on creator's role (AC-1)
+  // Staff roles (HR, Operations, Documentation) -> 201 with 'Pending'
+  // Management, Accounting, Admin -> 201 with 'Draft' (unchanged behavior)
+  let isStaff = false;
+  if (userId) {
+    const { data: userRecord } = await supabaseAdmin
+      .from('users')
+      .select('id, role')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (userRecord) {
+      const role = userRecord.role;
+      if (['Operations', 'Documentation', 'HR'].includes(role)) {
+        isStaff = true;
+      }
+    }
+  }
+
+  const initialStatus = isStaff ? 'Pending' : 'Draft';
   const MAX_RETRIES = 5;
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -310,7 +363,7 @@ const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
       description: data.description,
       amount: data.amount,
       fund_source: data.fundSource,
-      status: 'Draft',
+      status: initialStatus,
       client_id: data.clientId || null,
       employee_id: data.employeeId || null,
       linked_invoice_id: data.linkedInvoiceId || null,
@@ -679,7 +732,7 @@ const submitDisbursement = async ({ entityId, id, userId }) => {
  * Approve a disbursement. Pending → Approved.
  */
 const approveDisbursement = async ({ entityId, id, userId }) => {
-  return performTransition({
+  const result = await performTransition({
     entityId,
     id,
     userId,
@@ -689,6 +742,18 @@ const approveDisbursement = async ({ entityId, id, userId }) => {
       approved_at: new Date().toISOString(),
     },
   });
+
+  const creatorId = result.requested_by || result.created_by;
+  if (creatorId) {
+    await safeNotify([creatorId], 'pending_request.resolved', {
+      request_id: result.id,
+      table_name: 'disbursements',
+      outcome: 'approved',
+      title: result.disbursement_number || result.description,
+    });
+  }
+
+  return result;
 };
 
 /**
@@ -729,10 +794,20 @@ const fundDisbursement = async ({ entityId, id, userId }) => {
 };
 
 /**
- * Reject a disbursement. Pending/Approved → Rejected.
+ * Reject a disbursement. Pending → Rejected.
  */
 const rejectDisbursement = async ({ entityId, id, userId, reason }) => {
-  return performTransition({
+  if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'Rejection reason is required',
+      code: 'REJECTION_REASON_REQUIRED',
+    });
+  }
+
+  const trimmedReason = reason.trim();
+  const result = await performTransition({
     entityId,
     id,
     userId,
@@ -740,9 +815,22 @@ const rejectDisbursement = async ({ entityId, id, userId, reason }) => {
     extraUpdates: {
       rejected_by: userId,
       rejected_at: new Date().toISOString(),
-      rejection_reason: reason,
+      rejection_reason: trimmedReason,
     },
   });
+
+  const creatorId = result.requested_by || result.created_by;
+  if (creatorId) {
+    await safeNotify([creatorId], 'pending_request.resolved', {
+      request_id: result.id,
+      table_name: 'disbursements',
+      outcome: 'rejected',
+      reason: trimmedReason,
+      title: result.disbursement_number || result.description,
+    });
+  }
+
+  return result;
 };
 
 // ============================================================

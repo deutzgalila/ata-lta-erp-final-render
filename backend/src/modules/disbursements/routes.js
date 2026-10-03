@@ -8,9 +8,46 @@
 const express = require('express');
 const router = express.Router();
 const { disbursementsController } = require('./controller');
-const { requirePermission } = require('../../middleware/rbac');
+const { requirePermission, computePermissions } = require('../../middleware/rbac');
+const { hasPermission } = require('../../lib/permissions');
 const { audit } = require('../../middleware/audit');
 const { resolveEntity } = require('../../middleware/resolveEntity');
+const AppError = require('../../lib/AppError');
+
+/**
+ * Guard POST /v1/disbursements/:id/approve and /reject with disbursement:approve (Admin only).
+ * Per R3: disbursement:approve cannot be held by any non-Admin role.
+ */
+const requireDisbursementApprove = (req, res, next) => {
+  if (!req.user) {
+    return next(
+      new AppError({
+        statusCode: 401,
+        title: 'Unauthorized',
+        detail: 'Authentication required',
+      })
+    );
+  }
+
+  const permissions = computePermissions(req.user);
+  // Admin holds all permissions including disbursement:approve per R3 & P0-A
+  if (req.user.role === 'Admin') {
+    permissions.add('disbursement:approve');
+  }
+  req.userPermissions = permissions;
+
+  if (!hasPermission(permissions, 'disbursement:approve')) {
+    return next(
+      new AppError({
+        statusCode: 403,
+        title: 'Forbidden',
+        detail: 'Permission disbursement:approve is required',
+      })
+    );
+  }
+
+  next();
+};
 
 // --- Badge Counts (before resolveEntity so ALL can be summed) ---
 router.get(
@@ -89,7 +126,7 @@ router.post(
 
 router.post(
   '/:id/approve',
-  requirePermission('disbursement:mark_released'),
+  requireDisbursementApprove,
   audit('disbursement.approve', { table: 'disbursements' }),
   disbursementsController.approveDisbursement
 );
@@ -110,7 +147,7 @@ router.post(
 
 router.post(
   '/:id/reject',
-  requirePermission('disbursement:mark_released'),
+  requireDisbursementApprove,
   audit('disbursement.reject', { table: 'disbursements' }),
   disbursementsController.rejectDisbursement
 );
