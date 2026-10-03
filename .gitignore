@@ -9,6 +9,7 @@ coverage/
 dist/
 build/
 *.log
+*.tsbuildinfo
 .DS_Store
 
 # Runtime environment configs copied from .env.*.example templates

@@ -3,7 +3,7 @@ id: P1
 phase: 1
 depends_on: []
 touches: [enterprise-v2 worktree (frontend/ only) — NOT this repo's erp_prototype]
-status: pending
+status: done
 ---
 
 # P1 — React Scaffold + Design System (Parallel Workstream)

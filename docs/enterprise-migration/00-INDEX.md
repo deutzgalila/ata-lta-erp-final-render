@@ -62,7 +62,7 @@ P3 (cutover) gated on P2 completion + staging rehearsal.
 | P0-F | Time Entries Module | P0-C | ✅ merged (staging @b32bec6; feat/p0-f-time-entries) |
 | P0-G | Disbursement/Billing Permission Changes | P0-A | ✅ merged (staging @0d845dd; feat/p0-g-financial-permissions, manifest-resolved) |
 | P0-H | Contract Freeze | all P0 | ✅ done (feat/p0-h-contract-freeze) |
-| P1 | React Scaffold + Design System | none (parallel) | ☐ pending |
+| P1 | React Scaffold + Design System | none (parallel) | ✅ done (feat/p1-react-scaffold) |
 | P2 | Module-by-Module React Migration | P1 + P0-H | ☐ pending |
 | P3 | Cutover Runbook | P2 | ☐ pending |
 
