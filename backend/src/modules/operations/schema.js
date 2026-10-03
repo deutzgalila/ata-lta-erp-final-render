@@ -145,13 +145,21 @@ const nullableUuid = z.preprocess(
 
 const taskTemplateSchema = z.object({
   id: z.string().optional().nullable(),
+  local_id: z.string().optional().nullable(),
+  localId: z.string().optional().nullable(),
   title: z.string().min(1).max(255),
   description: z.string().max(2000).optional().nullable(),
+  phase: z.enum(['pre_processing', 'processing']).optional().nullable(),
   assigneeId: nullableUuid,
   assigneeName: z.string().optional().nullable(),
-  coAssignees: z.array(z.string().uuid()).optional().nullable(),
+  coAssignees: z.array(z.string()).optional().nullable(),
+  default_assignees: z.array(z.string()).optional().nullable(),
+  defaultAssignees: z.array(z.string()).optional().nullable(),
   predecessors: z.array(z.string()).optional().nullable(),
+  depends_on_local_id: z.string().optional().nullable(),
+  dependsOnLocalId: z.string().optional().nullable(),
   requiredLinkType: z.string().max(50).optional().nullable(),
+  dueDate: z.string().optional().nullable(),
 });
 
 const retainerTemplateSchema = z.object({
@@ -159,10 +167,33 @@ const retainerTemplateSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   description: z.string().max(2000).optional().nullable(),
   clientId: nullableUuid,
+  client_id: nullableUuid,
   schedule: z.string().max(50).optional().nullable(),
   priority: z.string().max(50).optional().nullable(),
   pfAmount: z.number().nonnegative().optional().nullable(),
+  pf_amount: z.number().nonnegative().optional().nullable(),
+  recurrence: z.enum(['none', 'annual']).default('none').optional(),
   tasks: z.array(taskTemplateSchema).optional(),
+});
+
+const generateRetainerTemplateSchema = z.object({
+  period_label: z.string().trim().min(1).max(50).optional().nullable(),
+  periodLabel: z.string().trim().min(1).max(50).optional().nullable(),
+  overrides: z
+    .object({
+      title: z.string().min(1).max(255).optional(),
+      description: z.string().max(2000).optional().nullable(),
+      clientId: nullableUuid,
+      client_id: nullableUuid,
+      priority: z.string().max(50).optional(),
+      assignedTo: nullableUuid,
+      assigned_to: nullableUuid,
+      coAssignees: z.array(z.string()).optional(),
+      co_assignees: z.array(z.string()).optional(),
+      dueDate: z.string().optional().nullable(),
+      due_date: z.string().optional().nullable(),
+    })
+    .optional(),
 });
 
 const groundWorkerSchema = z.object({
@@ -236,4 +267,5 @@ module.exports = {
   advanceWorkRequestSchema,
   qaReviewSchema,
   rerouteSchema,
+  generateRetainerTemplateSchema,
 };

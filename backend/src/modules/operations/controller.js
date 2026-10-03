@@ -17,6 +17,7 @@ const {
   advanceWorkRequestSchema,
   qaReviewSchema,
   rerouteSchema,
+  generateRetainerTemplateSchema,
 } = require('./schema');
 const auditService = require('../../services/auditService');
 const { supabaseAdmin } = require('../../services/supabaseClient');
@@ -524,6 +525,36 @@ const deleteRetainerTemplate = async (req, res, next) => {
   }
 };
 
+const generateRetainerTemplate = async (req, res, next) => {
+  try {
+    const entityId = req.entityUUID;
+    const payload = validate(generateRetainerTemplateSchema, req.body);
+    const data = await operationsService.generateRetainerTemplate({
+      entityId,
+      templateId: req.params.templateId,
+      user: req.user,
+      data: payload,
+    });
+
+    await auditService.log({
+      action: 'retainer-template.generated',
+      table: 'retainer_template_generations',
+      recordId: data.generation?.id || data.id,
+      entity: req.activeEntity,
+      userId: req.user.id,
+      details: {
+        templateId: req.params.templateId,
+        workRequestId: data.id,
+        periodLabel: data.generation?.period_label || null,
+      },
+    });
+
+    res.status(201).json({ data });
+  } catch (err) {
+    next(err);
+  }
+};
+
 const listGroundWorkers = async (req, res, next) => {
   try {
     const entityId = req.entityUUID;
@@ -720,6 +751,7 @@ module.exports = {
     createRetainerTemplate,
     updateRetainerTemplate,
     deleteRetainerTemplate,
+    generateRetainerTemplate,
     listGroundWorkers,
     createGroundWorker,
     addTimeLogs,

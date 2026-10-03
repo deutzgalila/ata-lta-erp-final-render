@@ -2085,10 +2085,12 @@ const createRetainerTemplate = async ({ entityId, userId, data }) => {
     entity_id: entityId,
     name: data.title || data.name,
     description: data.description || null,
-    client_id: data.clientId || null,
+    client_id: data.clientId || data.client_id || null,
     schedule: data.schedule || null,
     priority: data.priority || 'Normal',
-    pf_amount: data.pfAmount || 0,
+    pf_amount: data.pfAmount ?? data.pf_amount ?? 0,
+    recurrence: data.recurrence || 'none',
+    assigned_to: data.assignedTo || data.assigned_to || null,
     tasks: data.tasks || [],
     created_by: userId,
   };
@@ -2117,9 +2119,14 @@ const updateRetainerTemplate = async ({ entityId, id, data }) => {
   else if (data.name !== undefined) updates.name = data.name;
   if (data.description !== undefined) updates.description = data.description;
   if (data.clientId !== undefined) updates.client_id = data.clientId;
+  else if (data.client_id !== undefined) updates.client_id = data.client_id;
   if (data.schedule !== undefined) updates.schedule = data.schedule;
   if (data.priority !== undefined) updates.priority = data.priority;
   if (data.pfAmount !== undefined) updates.pf_amount = data.pfAmount;
+  else if (data.pf_amount !== undefined) updates.pf_amount = data.pf_amount;
+  if (data.recurrence !== undefined) updates.recurrence = data.recurrence;
+  if (data.assignedTo !== undefined) updates.assigned_to = data.assignedTo;
+  else if (data.assigned_to !== undefined) updates.assigned_to = data.assigned_to;
   if (data.tasks !== undefined) updates.tasks = data.tasks;
 
   const { data: updated, error } = await supabaseAdmin
@@ -2158,6 +2165,161 @@ const deleteRetainerTemplate = async ({ entityId, id }) => {
   }
 
   return true;
+};
+
+const generateRetainerTemplate = async ({ entityId, templateId, user, data = {} }) => {
+  const { data: template, error: tplError } = await supabaseAdmin
+    .from('retainer_templates')
+    .select('*, entities(code), clients(name)')
+    .eq('id', templateId)
+    .eq('entity_id', entityId)
+    .is('deleted_at', null)
+    .single();
+
+  if (tplError || !template) {
+    throw new AppError({
+      statusCode: 404,
+      title: 'Not Found',
+      detail: 'Retainer template not found',
+    });
+  }
+
+  const rawPeriod = data.period_label ?? data.periodLabel ?? null;
+  const periodLabel = typeof rawPeriod === 'string' && rawPeriod.trim() ? rawPeriod.trim() : null;
+
+  if (template.recurrence === 'annual' && !periodLabel) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Validation Error',
+      detail: 'period_label is required when template recurrence is annual',
+      code: 'PERIOD_LABEL_REQUIRED',
+    });
+  }
+
+  if (periodLabel) {
+    const { data: existingGens } = await supabaseAdmin
+      .from('retainer_template_generations')
+      .select('id, template_id, period_label')
+      .eq('template_id', templateId)
+      .eq('period_label', periodLabel)
+      .limit(1);
+
+    if (existingGens && existingGens.length > 0) {
+      throw new AppError({
+        statusCode: 409,
+        title: 'Conflict',
+        detail: 'Period already generated for this template',
+        code: 'PERIOD_ALREADY_GENERATED',
+      });
+    }
+  }
+
+  const overrides = data.overrides || {};
+  const preProcessingTasks = [];
+  const processingTasks = [];
+
+  const templateTasks = Array.isArray(template.tasks) ? template.tasks : [];
+
+  templateTasks.forEach((t, idx) => {
+    const localId = t.local_id || t.localId || t.id || `tpl_t_${idx + 1}`;
+    const assignees =
+      t.default_assignees ||
+      t.defaultAssignees ||
+      t.assignees ||
+      [
+        ...(t.assigneeId ? [t.assigneeId] : []),
+        ...(t.assigned_to ? [t.assigned_to] : []),
+        ...(Array.isArray(t.coAssignees) ? t.coAssignees : []),
+        ...(Array.isArray(t.co_assignees) ? t.co_assignees : []),
+      ];
+    const dependsOn =
+      t.depends_on_local_id ??
+      t.dependsOnLocalId ??
+      t.depends_on ??
+      t.dependsOn ??
+      (Array.isArray(t.predecessors) && t.predecessors.length > 0 ? t.predecessors[0] : null);
+
+    const taskObj = {
+      local_id: localId,
+      title: t.title,
+      description: t.description || null,
+      assignees: Array.isArray(assignees) ? Array.from(new Set(assignees.filter(Boolean))) : [],
+      depends_on: dependsOn || null,
+      dueDate: t.dueDate || t.due_date || null,
+    };
+
+    if (t.phase === 'processing') {
+      processingTasks.push(taskObj);
+    } else {
+      preProcessingTasks.push(taskObj);
+    }
+  });
+
+  const wrTitle =
+    overrides.title ||
+    (periodLabel ? `${template.name} - ${periodLabel}` : template.name);
+
+  const wrPayload = {
+    title: wrTitle,
+    description: overrides.description !== undefined ? overrides.description : template.description,
+    clientId: overrides.clientId || overrides.client_id || template.client_id || null,
+    priority: overrides.priority || template.priority || 'Normal',
+    assignedTo: overrides.assignedTo || overrides.assigned_to || template.assigned_to || null,
+    coAssignees: overrides.coAssignees || overrides.co_assignees || [],
+    dueDate: overrides.dueDate || overrides.due_date || null,
+    phases: {
+      pre_processing: { tasks: preProcessingTasks },
+      processing: { tasks: processingTasks },
+    },
+  };
+
+  const wrGraph = await createWorkRequest({
+    entityId,
+    data: wrPayload,
+    user,
+  });
+
+  const generationRow = {
+    template_id: template.id,
+    work_request_id: wrGraph.id,
+    period_label: periodLabel,
+    generated_by: user.id,
+    generated_at: new Date().toISOString(),
+  };
+
+  const { data: genRecord, error: genError } = await supabaseAdmin
+    .from('retainer_template_generations')
+    .insert(generationRow)
+    .select()
+    .single();
+
+  if (genError) {
+    try {
+      await supabaseAdmin.from('work_requests').delete().eq('id', wrGraph.id);
+    } catch (_rollbackErr) {
+      // ignore
+    }
+
+    if (genError.code === '23505') {
+      throw new AppError({
+        statusCode: 409,
+        title: 'Conflict',
+        detail: 'Period already generated for this template',
+        code: 'PERIOD_ALREADY_GENERATED',
+      });
+    }
+
+    throw new AppError({
+      statusCode: 500,
+      title: 'Database Error',
+      detail: 'Failed to record retainer template generation',
+    });
+  }
+
+  return {
+    ...wrGraph,
+    generation: genRecord,
+  };
 };
 
 // ============================================================
@@ -3006,6 +3168,7 @@ module.exports = {
   createRetainerTemplate,
   updateRetainerTemplate,
   deleteRetainerTemplate,
+  generateRetainerTemplate,
   listGroundWorkers,
   createGroundWorker,
   addTimeLogs,

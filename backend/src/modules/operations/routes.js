@@ -47,29 +47,36 @@ router.delete(
 
 // --- Retainer Templates (must come before /:id routes) ---
 router.get(
-  '/templates',
+  ['/templates', '/retainer-templates'],
   resolveEntity(),
-  requirePermission('workflow:view'),
+  requirePermission('retainers:use'),
   operationsController.listRetainerTemplates
 );
 router.post(
-  '/templates',
+  ['/templates', '/retainer-templates'],
   resolveEntity(),
-  requirePermission('workflow:edit'),
+  requirePermission('retainers:edit'),
   audit('retainer-template.created', { table: 'retainer_templates' }),
   operationsController.createRetainerTemplate
 );
-router.put(
-  '/templates/:templateId',
+router.post(
+  ['/templates/:templateId/generate', '/retainer-templates/:templateId/generate'],
   resolveEntity(),
-  requirePermission('workflow:edit'),
+  requirePermission('retainers:use'),
+  audit('retainer-template.generated', { table: 'retainer_template_generations' }),
+  operationsController.generateRetainerTemplate
+);
+router.put(
+  ['/templates/:templateId', '/retainer-templates/:templateId'],
+  resolveEntity(),
+  requirePermission('retainers:edit'),
   audit('retainer-template.updated', { table: 'retainer_templates' }),
   operationsController.updateRetainerTemplate
 );
 router.delete(
-  '/templates/:templateId',
+  ['/templates/:templateId', '/retainer-templates/:templateId'],
   resolveEntity(),
-  requirePermission('workflow:edit'),
+  requirePermission('retainers:edit'),
   audit('retainer-template.deleted', { table: 'retainer_templates' }),
   operationsController.deleteRetainerTemplate
 );
