@@ -216,11 +216,14 @@ async function runBackfill({ client, apply = false, env = 'local', reportPath = 
   const mode = apply ? 'apply' : 'dry-run';
   const timestamp = new Date().toISOString();
 
-  // Safety checks for remote environments
+  // Safety checks for remote environments: require an explicit operator
+  // acknowledgement env flag for --apply against staging/prod.
   if ((env === 'staging' || env === 'prod' || env === 'production') && apply) {
-    throw new Error(
-      'Operational Safety Violation: Running backfill-phases against remote staging/production is forbidden in development.'
-    );
+    if (process.env.BACKFILL_REMOTE_ACK !== 'I_UNDERSTAND') {
+      throw new Error(
+        'Operational Safety Violation: remote backfill --apply requires BACKFILL_REMOTE_ACK=I_UNDERSTAND.'
+      );
+    }
   }
 
   // 1. Gather total counts for summary
@@ -235,7 +238,7 @@ async function runBackfill({ client, apply = false, env = 'local', reportPath = 
   // 2. Query unmapped active candidate rows (Idempotency Filter: phase IS NULL AND status != 'Cancelled')
   const candidateRes = await client.query(
     `SELECT id, title, status, phase, on_hold, client_id,
-            COALESCE(entity, '') AS entity,
+            entity_id,
             created_at, assigned_to
      FROM work_requests
      WHERE phase IS NULL
@@ -291,7 +294,7 @@ async function runBackfill({ client, apply = false, env = 'local', reportPath = 
       if (mapping.ambiguous) {
         ambiguousInventory.push({
           work_request_id: wr.id,
-          entity_id: wr.entity || null,
+          entity_id: wr.entity_id || null,
           client_id: wr.client_id || null,
           title: wr.title,
           status: wr.status,
@@ -447,6 +450,36 @@ function printSummary(report) {
  */
 async function main() {
   const options = parseArgs();
+
+  // Resolve DATABASE_URL from the matching .env.<env> file (mirrors
+  // scripts/migrate-remote.js) when not already present in the environment.
+  if (!process.env.DATABASE_URL) {
+    const envFiles = {
+      local: '.env.development',
+      dev: '.env.development',
+      development: '.env.development',
+      staging: '.env.staging',
+      prod: '.env.production',
+      production: '.env.production',
+    };
+    const envFile = envFiles[String(options.env).toLowerCase()];
+    if (envFile) {
+      const envPath = path.join(__dirname, '..', envFile);
+      if (fs.existsSync(envPath)) {
+        const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#')) continue;
+          const eq = trimmed.indexOf('=');
+          if (eq === -1) continue;
+          const key = trimmed.slice(0, eq).trim();
+          const value = trimmed.slice(eq + 1).trim();
+          if (key && process.env[key] === undefined) process.env[key] = value;
+        }
+      }
+    }
+  }
+
   const databaseUrl =
     process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/postgres';
 

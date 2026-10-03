@@ -39,11 +39,13 @@ Execute on staging exactly as written and record durations:
 | R2 | `node backend/scripts/backfill-phases.js --env staging --dry-run` | report buckets sane |
 | R3 | same with `--apply` | row counts match dry-run |
 | R4 | Re-apply (idempotency proof) | 0 mutations |
-| R5 | Apply Migration C (NOT NULL) | non-cancelled rows all have phase |
+| R5 | Apply Migration C (NOT NULL) — see ⚠ note below | non-cancelled rows all have phase |
 | R6 | Deploy `staging` branch API (auto via Render) | `/health` 200; smoke: login, WR create (both fill modes), transition round-trip, QA reroute, time entry, disbursement approval |
 | R7 | Seed client retainer template (Admin-approved content) | generates WR with phase tasks |
 | R8 | Full P2 Manual QA scripts against staging v2 preview | 100% pass |
 | R9 | Rollback drill: point v2 site at... n/a (staging domain flip drill = flip Render custom domain between two staging static sites) | flip < 60s measured |
+
+> **⚠ Migration C mechanics (revised 2026-10-03):** `000054_phase_not_null.js` is env-gated (`PHASE_NOT_NULL_ENFORCE=1`) and was therefore recorded in `pgmigrations` as an **applied no-op** during Wave-2 staging migration — node-pg-migrate will never re-run it. At enforcement time, apply its DDL directly against the target DB (SQL verbatim from the migration file: the two conditional CHECK constraints on `work_requests` and `tasks`), then verify one NULL-phase active insert is rejected. The `migrate-remote.js` script has no `down` support — do not attempt a down/up cycle.
 
 ## 5. Production Cutover Window (the day)
 
@@ -54,7 +56,7 @@ Execute on staging exactly as written and record durations:
 | 0:10 | `migrate-remote.js prod` (P0-C A+B; verify superset) | agent/user |
 | 0:20 | `backfill-phases.js --env prod --dry-run` → user eyeballs report | both |
 | 0:30 | `--apply` + idempotency re-run | both |
-| 0:35 | Migration C (NOT NULL) | agent/user |
+| 0:35 | Migration C (NOT NULL) — see ⚠ note below | agent/user |
 | 0:40 | Merge `staging → main` → prod API redeploys (new phase model live) | user (merge) |
 | 0:50 | Smoke battery via curl against `api.ltabmcorp.com`: login, me (permissions present), create WR (pre-pro only + both phases), transition request + approve, qa-review, reroute, time entry, disbursement create→Pending, admin approve | agent |
 | 1:00 | **Domain flip:** Render → `erp.ltabmcorp.com` custom domain moved `ata-lta-erp-spa-main` → `ata-lta-erp-spa-v2`; set v2 `ERP_API_BASE_URL=https://api.ltabmcorp.com/v1` | user |

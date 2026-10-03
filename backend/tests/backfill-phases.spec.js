@@ -147,7 +147,7 @@ describe('Backfill Script (backfill-phases.js)', () => {
           title text NOT NULL,
           status text NOT NULL DEFAULT 'Draft',
           client_id uuid,
-          entity text DEFAULT 'ATA',
+          entity_id uuid,
           created_at timestamptz DEFAULT now(),
           assigned_to uuid REFERENCES users(id)
         );
@@ -463,7 +463,7 @@ describe('Backfill Script (backfill-phases.js)', () => {
       const ambReportPath = path.join(reportDir, 'ambiguous-report.json');
 
       const wrAmb = await client.query(
-        "INSERT INTO work_requests (title, status, entity) VALUES ('Orphan Hold WR', 'On Hold', 'ATA') RETURNING id"
+        "INSERT INTO work_requests (title, status, entity_id) VALUES ('Orphan Hold WR', 'On Hold', 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee') RETURNING id"
       );
       const ambId = wrAmb.rows[0].id;
 
@@ -480,7 +480,7 @@ describe('Backfill Script (backfill-phases.js)', () => {
       const item = report.ambiguous_inventory[0];
       expect(item.work_request_id).toBe(ambId);
       expect(item.title).toBe('Orphan Hold WR');
-      expect(item.entity_id).toBe('ATA');
+      expect(item.entity_id).toBe('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee');
       expect(item.defaulted_phase).toBe('pre_processing');
       expect(item.reason).toContain('No status_history or audit_logs');
 
