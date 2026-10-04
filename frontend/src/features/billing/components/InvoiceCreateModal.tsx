@@ -1,0 +1,480 @@
+import { useState, useMemo } from 'react';
+import { Plus, Trash2, ArrowUp, ArrowDown, FileText, AlertCircle } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { useClients } from '@/features/operations/api/useClients';
+import { useWorkRequests } from '@/features/operations/api/useWorkRequests';
+import { createInvoiceSchema, LINE_ITEM_TYPES } from '../api/schemas';
+import { createInvoiceAction } from '../api/useBillingMutations';
+import { useSessionStore } from '@/lib/session';
+import { formatCurrency } from '../utils/formatters';
+import type { LineItemType, CreateLineItemInput } from '../api/types';
+
+export interface InvoiceCreateModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onCreated?: () => void;
+}
+
+interface EditableLineItem {
+  id: string;
+  description: string;
+  amount: string;
+  type: LineItemType;
+}
+
+export function InvoiceCreateModal({
+  isOpen,
+  onClose,
+  onCreated,
+}: InvoiceCreateModalProps) {
+  const activeEntity = useSessionStore((state) => state.activeEntity);
+
+  // Form Fields
+  const [clientId, setClientId] = useState('');
+  const [workRequestId, setWorkRequestId] = useState('');
+  const [invoiceNumber, setInvoiceNumber] = useState('');
+  const [issueDate, setIssueDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dueDate, setDueDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return d.toISOString().slice(0, 10);
+  });
+  const [notes, setNotes] = useState('');
+  const [terms, setTerms] = useState('Payment due within 30 days of invoice date.');
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // Dynamic Line Items
+  const [lineItems, setLineItems] = useState<EditableLineItem[]>([
+    {
+      id: 'item-1',
+      description: 'Professional Services Fee',
+      amount: '15000',
+      type: 'Professional Fee',
+    },
+  ]);
+
+  // Clients & Work Requests queries
+  const { data: clientsData } = useClients();
+  const clients = clientsData || [];
+
+  const { data: workRequestsData } = useWorkRequests(
+    { clientId: clientId || undefined },
+    { enabled: isOpen }
+  );
+  const workRequests = workRequestsData?.data || [];
+
+  // Live calculations (total = subtotal per backend logic)
+  const totals = useMemo(() => {
+    const subtotal = lineItems.reduce((sum, item) => {
+      const val = parseFloat(item.amount);
+      return sum + (isNaN(val) || val < 0 ? 0 : val);
+    }, 0);
+    return {
+      subtotal,
+      total: subtotal, // Tax removed per prototype v3 / billing@2.0.0
+    };
+  }, [lineItems]);
+
+  const handleAddLineItem = () => {
+    setLineItems((prev) => [
+      ...prev,
+      {
+        id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        description: '',
+        amount: '0',
+        type: 'Professional Fee',
+      },
+    ]);
+  };
+
+  const handleRemoveLineItem = (index: number) => {
+    if (lineItems.length <= 1) return;
+    setLineItems((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleMoveLineItem = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= lineItems.length) return;
+
+    setLineItems((prev) => {
+      const copy = [...prev];
+      const temp = copy[index]!;
+      copy[index] = copy[targetIndex]!;
+      copy[targetIndex] = temp;
+      return copy;
+    });
+  };
+
+  const handleUpdateLineItem = (
+    index: number,
+    field: keyof EditableLineItem,
+    value: string
+  ) => {
+    setLineItems((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index]!, [field]: value };
+      return copy;
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError(null);
+
+    const parsedLineItems: CreateLineItemInput[] = lineItems.map((item) => ({
+      description: item.description.trim(),
+      amount: parseFloat(item.amount) || 0,
+      type: item.type,
+    }));
+
+    const payload = {
+      clientId,
+      workRequestId,
+      invoiceNumber: invoiceNumber.trim(),
+      issueDate,
+      dueDate,
+      status: 'Draft' as const,
+      lineItems: parsedLineItems,
+      notes: notes.trim() || null,
+      terms: terms.trim() || null,
+    };
+
+    const validation = createInvoiceSchema.safeParse(payload);
+    if (!validation.success) {
+      setFormError(validation.error.errors[0]?.message || 'Validation error');
+      return;
+    }
+
+    try {
+      await createInvoiceAction(payload, activeEntity);
+      onClose();
+      if (onCreated) {
+        onCreated();
+      }
+    } catch {
+      // Error handled by BlockingActionModal
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent
+        className="max-w-2xl max-h-[90vh] overflow-y-auto p-6 rounded-xl bg-white"
+        data-testid="invoice-create-modal"
+      >
+        <DialogHeader>
+          <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+            <FileText className="w-5 h-5 text-blue-600" />
+            <span>Create New Invoice</span>
+          </DialogTitle>
+          <p className="text-xs text-slate-500">
+            Generate an official invoice record with dynamic line items and automated total computation.
+          </p>
+        </DialogHeader>
+
+        {formError && (
+          <div
+            className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-700 flex items-start gap-2"
+            data-testid="invoice-create-error"
+          >
+            <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+            <span>{formError}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+          {/* 1. Header Information Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="create-invoice-client" className="text-xs font-semibold text-slate-700 block mb-1">
+                Client*
+              </label>
+              <Select value={clientId} onValueChange={setClientId}>
+                <SelectTrigger id="create-invoice-client" className="h-9 text-xs" data-testid="select-client">
+                  <SelectValue placeholder="Select a client..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label htmlFor="create-invoice-wr" className="text-xs font-semibold text-slate-700 block mb-1">
+                Associated Work Request*
+              </label>
+              <Select value={workRequestId} onValueChange={setWorkRequestId}>
+                <SelectTrigger id="create-invoice-wr" className="h-9 text-xs" data-testid="select-work-request">
+                  <SelectValue placeholder="Select work request..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {workRequests.map((wr) => (
+                    <SelectItem key={wr.id} value={wr.id}>
+                      {wr.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label htmlFor="create-invoice-number" className="text-xs font-semibold text-slate-700 block mb-1">
+                Invoice Number*
+              </label>
+              <Input
+                id="create-invoice-number"
+                type="text"
+                value={invoiceNumber}
+                onChange={(e) => setInvoiceNumber(e.target.value)}
+                placeholder="e.g. ATA-SI-2026-0042"
+                className="h-9 text-xs"
+                required
+                data-testid="input-invoice-number"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label htmlFor="create-invoice-issue-date" className="text-xs font-semibold text-slate-700 block mb-1">
+                  Issue Date*
+                </label>
+                <Input
+                  id="create-invoice-issue-date"
+                  type="date"
+                  value={issueDate}
+                  onChange={(e) => setIssueDate(e.target.value)}
+                  className="h-9 text-xs"
+                  required
+                  data-testid="input-issue-date"
+                />
+              </div>
+              <div>
+                <label htmlFor="create-invoice-due-date" className="text-xs font-semibold text-slate-700 block mb-1">
+                  Due Date*
+                </label>
+                <Input
+                  id="create-invoice-due-date"
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="h-9 text-xs"
+                  required
+                  data-testid="input-due-date"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Dynamic Line Items Section */}
+          <div className="space-y-2 pt-2 border-t border-slate-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+                  Line Items
+                </h4>
+                <p className="text-[11px] text-slate-500">
+                  Minimum 1 item required. Total = Subtotal (tax-exempt).
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleAddLineItem}
+                className="h-7 text-xs gap-1 cursor-pointer"
+                data-testid="btn-add-line-item"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Item</span>
+              </Button>
+            </div>
+
+            <div className="space-y-2" data-testid="line-items-form-list">
+              {lineItems.map((item, index) => (
+                <div
+                  key={item.id}
+                  className="flex items-center gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg"
+                  data-testid={`line-item-row-${index}`}
+                >
+                  <span className="text-xs font-mono text-slate-400 w-4 text-center">
+                    {index + 1}
+                  </span>
+
+                  {/* Description */}
+                  <div className="flex-1">
+                    <Input
+                      type="text"
+                      value={item.description}
+                      onChange={(e) =>
+                        handleUpdateLineItem(index, 'description', e.target.value)
+                      }
+                      placeholder="Item description..."
+                      className="h-8 text-xs bg-white"
+                      required
+                      data-testid={`line-item-desc-${index}`}
+                    />
+                  </div>
+
+                  {/* Category Type */}
+                  <div className="w-36">
+                    <Select
+                      value={item.type}
+                      onValueChange={(val) =>
+                        handleUpdateLineItem(index, 'type', val)
+                      }
+                    >
+                      <SelectTrigger className="h-8 text-xs bg-white" data-testid={`line-item-type-${index}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LINE_ITEM_TYPES.map((t) => (
+                          <SelectItem key={t} value={t}>
+                            {t}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Amount */}
+                  <div className="w-28">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={item.amount}
+                      onChange={(e) =>
+                        handleUpdateLineItem(index, 'amount', e.target.value)
+                      }
+                      placeholder="0.00"
+                      className="h-8 text-xs bg-white text-right font-mono"
+                      required
+                      data-testid={`line-item-amount-${index}`}
+                    />
+                  </div>
+
+                  {/* Controls: Reorder & Remove */}
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      disabled={index === 0}
+                      onClick={() => handleMoveLineItem(index, 'up')}
+                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                      title="Move up"
+                      data-testid={`btn-move-up-${index}`}
+                    >
+                      <ArrowUp className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={index === lineItems.length - 1}
+                      onClick={() => handleMoveLineItem(index, 'down')}
+                      className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-30 cursor-pointer"
+                      title="Move down"
+                      data-testid={`btn-move-down-${index}`}
+                    >
+                      <ArrowDown className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={lineItems.length <= 1}
+                      onClick={() => handleRemoveLineItem(index)}
+                      className="p-1 text-slate-400 hover:text-rose-600 disabled:opacity-30 cursor-pointer"
+                      title="Delete item"
+                      data-testid={`btn-remove-item-${index}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Subtotal & Total display */}
+            <div className="flex justify-end pt-2">
+              <div className="w-60 bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs space-y-1">
+                <div className="flex justify-between text-slate-600">
+                  <span>Subtotal:</span>
+                  <span className="font-mono">{formatCurrency(totals.subtotal)}</span>
+                </div>
+                <div className="flex justify-between font-bold text-slate-900 border-t border-slate-200 pt-1">
+                  <span>Total Amount:</span>
+                  <span className="font-mono text-sm" data-testid="calculated-total">
+                    {formatCurrency(totals.total)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Notes & Terms */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200">
+            <div>
+              <label htmlFor="create-invoice-notes" className="text-xs font-semibold text-slate-700 block mb-1">Notes</label>
+              <Input
+                id="create-invoice-notes"
+                type="text"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Optional notes to client..."
+                className="h-9 text-xs"
+                data-testid="input-notes"
+              />
+            </div>
+            <div>
+              <label htmlFor="create-invoice-terms" className="text-xs font-semibold text-slate-700 block mb-1">Payment Terms</label>
+              <Input
+                id="create-invoice-terms"
+                type="text"
+                value={terms}
+                onChange={(e) => setTerms(e.target.value)}
+                placeholder="e.g. Net 30"
+                className="h-9 text-xs"
+                data-testid="input-terms"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="pt-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onClose}
+              className="text-xs cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs cursor-pointer"
+              data-testid="btn-submit-invoice"
+            >
+              Create Draft Invoice
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

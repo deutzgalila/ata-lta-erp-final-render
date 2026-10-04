@@ -65,7 +65,8 @@ P3 (cutover) gated on P2 completion + staging rehearsal.
 | P1 | React Scaffold + Design System | none (parallel) | ✅ done (feat/p1-react-scaffold) |
 | P2.1 | Module #1: Operations | P1 + P0-H | ✅ merged (PR #147; feat/p2-operations) |
 | P2.2 | Module #2: Dashboard widgets | P2.1 | ✅ done (feat/p2-dashboard-widgets) |
-| P2.3-7 | Modules #3–7 (Billing, Disb, Trans, Admin, Reports) | P2.2 | ☐ pending |
+| P2.3 | Module #3: Billing | P2.2 | ✅ done (feat/p2-billing) |
+| P2.4-7 | Modules #4–7 (Disb, Trans, Admin, Reports) | P2.3 | ☐ pending |
 | P3 | Cutover Runbook | P2 | ☐ pending |
 
 ## 5. Working Rules for Every Agent
