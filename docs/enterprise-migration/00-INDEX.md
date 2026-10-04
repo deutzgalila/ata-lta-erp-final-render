@@ -67,7 +67,8 @@ P3 (cutover) gated on P2 completion + staging rehearsal.
 | P2.2 | Module #2: Dashboard widgets | P2.1 | ✅ done (feat/p2-dashboard-widgets) |
 | P2.3 | Module #3: Billing | P2.2 | ✅ done (feat/p2-billing) |
 | P2.4 | Module #4: Disbursements | P2.3 | ✅ done (PR #148; feat/p2-disbursements) |
-| P2.5-7 | Modules #5–7 (Trans, Admin, Reports) | P2.4 | ☐ pending |
+| P2.5 | Module #5: Transmittals | P2.4 | ✅ done (PR #149; feat/p2-transmittals) |
+| P2.6-7 | Modules #6–7 (Admin, Reports) | P2.5 | ☐ pending |
 | P3 | Cutover Runbook | P2 | ☐ pending |
 
 ## 5. Working Rules for Every Agent
