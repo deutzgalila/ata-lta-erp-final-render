@@ -1,8 +1,9 @@
-import { Bell, LogOut, Building2 } from 'lucide-react';
+import { LogOut, Building2 } from 'lucide-react';
 import { useSessionStore } from '@/lib/session';
 import { signOut } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
+import { NotificationBellPanel } from '@/features/dashboard/components/NotificationBellPanel';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,7 +21,7 @@ import {
 } from '@/components/ui/select';
 
 export function Topbar() {
-  const { user, activeEntity, unreadCount, setActiveEntity } = useSessionStore();
+  const { user, activeEntity, setActiveEntity } = useSessionStore();
   const navigate = useNavigate();
 
   const handleSignOut = () => {
@@ -72,22 +73,8 @@ export function Topbar() {
 
       {/* Right Actions: Notifications & User Menu */}
       <div className="flex items-center gap-4">
-        {/* Notification Bell (Spec §3.3) */}
-        <div className="relative" data-testid="notification-bell">
-          <button
-            type="button"
-            className="relative flex h-9 w-9 items-center justify-center rounded-lg text-[#1e293b] hover:bg-[#f0f1f3] transition-colors cursor-pointer"
-            aria-label="Notifications"
-          >
-            <Bell className="h-5 w-5 text-[#1e293b]" />
-            <span
-              data-testid="unread-badge"
-              className="absolute -top-1 -right-1 flex min-w-5 h-5 items-center justify-center rounded-full bg-[#ef4444] px-1 text-[11px] font-bold text-white shadow-xs"
-            >
-              {unreadCount}
-            </span>
-          </button>
-        </div>
+        {/* Notification Bell Panel (Spec §3.3 & §4.2) */}
+        <NotificationBellPanel />
 
         {/* User Menu */}
         <DropdownMenu>

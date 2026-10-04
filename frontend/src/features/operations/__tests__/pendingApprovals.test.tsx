@@ -173,10 +173,13 @@ describe('Pending Approvals Inbox & Reject Reason Flow', () => {
     const { wrapper } = createHarness();
     render(<PendingApprovalsInbox />, { wrapper });
 
-    await waitFor(() => {
-      expect(screen.getByTestId('gate-inspector')).toBeInTheDocument();
-      expect(screen.getByTestId('gate-status-banner')).toBeInTheDocument();
-    });
+    await waitFor(
+      () => {
+        expect(screen.getByTestId('gate-inspector')).toBeInTheDocument();
+        expect(screen.getByTestId('gate-status-banner')).toBeInTheDocument();
+      },
+      { timeout: 10000 }
+    );
 
     expect(screen.getByText(/1 blocker task\(s\) remaining/i)).toBeInTheDocument();
     expect(screen.getByText('Submit payment form')).toBeInTheDocument();

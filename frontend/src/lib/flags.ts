@@ -4,7 +4,7 @@
  * Unfinished modules remain disabled and render clean placeholders.
  */
 
-export const ENABLED_MODULES = ['Operations'] as const;
+export const ENABLED_MODULES = ['Operations', 'Dashboard'] as const;
 
 export type EnabledModule = (typeof ENABLED_MODULES)[number];
 
