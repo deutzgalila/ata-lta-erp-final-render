@@ -43,7 +43,7 @@ export default function BillingPage() {
   const setActiveEntity = useSessionStore((state) => state.setActiveEntity);
 
   const canViewModule = hasPermission(permissions, 'billing:view');
-  const canCreate = hasPermission(permissions, 'billing:edit') || hasPermission(permissions, 'billing:request');
+  const canCreate = hasPermission(permissions, 'billing:edit');
 
   // Badge Counts Query
   const { data: invoiceCounts } = useInvoiceCounts();

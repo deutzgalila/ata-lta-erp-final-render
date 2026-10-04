@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Plus, Trash2, ArrowUp, ArrowDown, FileText, AlertCircle } from 'lucide-react';
 import {
   Dialog,
@@ -18,10 +18,11 @@ import {
 } from '@/components/ui/select';
 import { useClients } from '@/features/operations/api/useClients';
 import { useWorkRequests } from '@/features/operations/api/useWorkRequests';
+import { useInvoices } from '../api/useInvoices';
 import { createInvoiceSchema, LINE_ITEM_TYPES } from '../api/schemas';
 import { createInvoiceAction } from '../api/useBillingMutations';
 import { useSessionStore } from '@/lib/session';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, getNextInvoiceNumber } from '../utils/formatters';
 import type { LineItemType, CreateLineItemInput } from '../api/types';
 
 export interface InvoiceCreateModalProps {
@@ -77,6 +78,21 @@ export function InvoiceCreateModal({
     { enabled: isOpen }
   );
   const workRequests = workRequestsData?.data || [];
+
+  // Existing Invoices for sequential number calculation
+  const { data: existingInvoicesData } = useInvoices(
+    { limit: 100 },
+    { enabled: isOpen }
+  );
+
+  // Auto-generate sequential invoice number matching prototype
+  useEffect(() => {
+    if (isOpen) {
+      const invoices = existingInvoicesData?.data || [];
+      const nextNumber = getNextInvoiceNumber(activeEntity, invoices);
+      setInvoiceNumber(nextNumber);
+    }
+  }, [isOpen, activeEntity, existingInvoicesData]);
 
   // Live calculations (total = subtotal per backend logic)
   const totals = useMemo(() => {
@@ -244,9 +260,9 @@ export function InvoiceCreateModal({
                 id="create-invoice-number"
                 type="text"
                 value={invoiceNumber}
-                onChange={(e) => setInvoiceNumber(e.target.value)}
+                readOnly
                 placeholder="e.g. ATA-SI-2026-0042"
-                className="h-9 text-xs"
+                className="h-9 text-xs bg-slate-50 cursor-not-allowed font-mono text-slate-700"
                 required
                 data-testid="input-invoice-number"
               />

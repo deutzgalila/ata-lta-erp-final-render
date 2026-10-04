@@ -30,8 +30,10 @@ export async function createInvoiceAction(
       return res.data;
     },
     invalidateQueries: [
+      billingKeys.all,
       billingKeys.invoices(),
       billingKeys.counts(activeEntity),
+      billingKeys.aging(activeEntity),
     ],
   });
 }
@@ -53,6 +55,7 @@ export async function updateInvoiceAction(
       return res.data;
     },
     invalidateQueries: [
+      billingKeys.all,
       billingKeys.invoices(),
       billingKeys.invoiceDetail(id),
       billingKeys.counts(activeEntity),
@@ -89,9 +92,11 @@ export async function updateClientAddressAction(
       return res.data;
     },
     invalidateQueries: [
+      billingKeys.all,
       billingKeys.invoices(),
       billingKeys.invoiceDetail(id),
       billingKeys.counts(activeEntity),
+      billingKeys.aging(activeEntity),
     ],
   });
 }
@@ -111,6 +116,7 @@ export async function deleteInvoiceAction(
       });
     },
     invalidateQueries: [
+      billingKeys.all,
       billingKeys.invoices(),
       billingKeys.counts(activeEntity),
       billingKeys.aging(activeEntity),
@@ -134,6 +140,7 @@ export async function archiveInvoiceAction(
       return res.data;
     },
     invalidateQueries: [
+      billingKeys.all,
       billingKeys.invoices(),
       billingKeys.invoiceDetail(id),
       billingKeys.counts(activeEntity),
@@ -158,6 +165,7 @@ export async function restoreInvoiceAction(
       return res.data;
     },
     invalidateQueries: [
+      billingKeys.all,
       billingKeys.invoices(),
       billingKeys.invoiceDetail(id),
       billingKeys.counts(activeEntity),
@@ -192,6 +200,7 @@ export async function recordPaymentAction(
       return res.data;
     },
     invalidateQueries: [
+      billingKeys.all,
       billingKeys.invoices(),
       billingKeys.invoiceDetail(invoiceId),
       billingKeys.counts(activeEntity),

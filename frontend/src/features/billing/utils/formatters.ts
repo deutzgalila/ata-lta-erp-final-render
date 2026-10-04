@@ -29,3 +29,28 @@ export function getStatusBadgeVariant(status: InvoiceStatus) {
       return 'bg-slate-100 text-slate-700 border-slate-200';
   }
 }
+
+/**
+ * Auto-generate next sequential invoice number per erp_prototype/js/utils.js:244-269.
+ * Format: ${entity}-SI-${year}-${paddedSequence} (e.g., ATA-SI-2026-001)
+ */
+export function getNextInvoiceNumber(
+  entity: string | null | undefined,
+  existingInvoices?: Array<{ invoice_number?: string; invoiceNumber?: string }>
+): string {
+  let resolvedEntity = entity;
+  if (!resolvedEntity || resolvedEntity === 'ALL') {
+    resolvedEntity = 'ATA';
+  }
+  const year = new Date().getFullYear();
+  const prefix = `${resolvedEntity}-SI-${year}-`;
+  const maxNum = (existingInvoices || []).reduce((max, inv) => {
+    const numStr = inv.invoice_number || inv.invoiceNumber || '';
+    if (!numStr.startsWith(prefix)) return max;
+    const parts = numStr.split('-');
+    const lastPart = parts[parts.length - 1];
+    const num = lastPart ? parseInt(lastPart, 10) : 0;
+    return !isNaN(num) && num > max ? num : max;
+  }, 0);
+  return `${prefix}${String(maxNum + 1).padStart(3, '0')}`;
+}

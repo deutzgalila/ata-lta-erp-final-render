@@ -16,7 +16,7 @@ import {
 } from '@/features/operations/components/BlockingActionModal';
 import { createDisbursementSchema } from '../api/schemas';
 import { useSessionStore } from '@/lib/session';
-import { ApiError } from '@/lib/api';
+import { ApiError, queryClient as globalQueryClient } from '@/lib/api';
 import type { Disbursement } from '../api/types';
 
 function createHarness() {
@@ -92,6 +92,26 @@ describe('Adversarial Stress Test: RBAC, Modals, and UI Boundaries', () => {
   afterEach(() => {
     global.fetch = originalFetch;
     vi.restoreAllMocks();
+    globalQueryClient.clear();
+    useBlockingModalStore.getState().reset();
+    useSessionStore.getState().setSession({
+      user: {
+        id: 'u-admin-1',
+        email: 'admin@ata-lta.ph',
+        name: 'Admin User',
+        role: 'Admin',
+        departments: ['Administration'],
+        entities: ['ATA'],
+      },
+      permissions: [
+        'disbursement:view',
+        'disbursement:create',
+        'disbursement:edit',
+        'disbursement:approve',
+        'disbursement:mark_released',
+      ],
+      activeEntity: 'ATA',
+    });
   });
 
   // =========================================================================

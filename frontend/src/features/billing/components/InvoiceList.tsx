@@ -2,8 +2,6 @@ import { useState, useMemo } from 'react';
 import {
   Search,
   X,
-  LayoutGrid,
-  Table as TableIcon,
   ChevronLeft,
   ChevronRight,
   Plus,
@@ -37,6 +35,7 @@ import { useClients } from '@/features/operations/api/useClients';
 import { useDebounce } from '../hooks/useDebounce';
 import { usePermission } from '@/lib/permissions';
 import { formatCurrency, getStatusBadgeVariant } from '../utils/formatters';
+import { ViewModeToggle } from './ViewModeToggle';
 import type { Invoice, InvoiceStatus } from '../api/types';
 
 export interface InvoiceListProps {
@@ -77,8 +76,7 @@ export function InvoiceList({
 
   // Permissions (hooks must be unconditional)
   const canEdit = usePermission('billing:edit');
-  const canRequest = usePermission('billing:request');
-  const canCreate = canEdit || canRequest;
+  const canCreate = canEdit;
   const canRecordPayment = usePermission('billing:payments');
 
   // Queries
@@ -194,34 +192,13 @@ export function InvoiceList({
 
         {/* View Toggle & Create Button */}
         <div className="flex items-center gap-2">
-          <div className="hidden sm:flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-            <button
-              type="button"
-              onClick={() => setViewMode('table')}
-              className={`p-1.5 rounded-md text-xs font-medium transition-all ${
-                viewMode === 'table'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900'
-              }`}
-              title="Table view"
-              data-testid="view-mode-table"
-            >
-              <TableIcon className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('cards')}
-              className={`p-1.5 rounded-md text-xs font-medium transition-all ${
-                viewMode === 'cards'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-900'
-              }`}
-              title="Card view"
-              data-testid="view-mode-cards"
-            >
-              <LayoutGrid className="w-4 h-4" />
-            </button>
-          </div>
+          <ViewModeToggle
+            mode={viewMode}
+            onChange={(m) => setViewMode(m as 'table' | 'cards')}
+            availableModes={['table', 'cards']}
+            testIdPrefix="view-mode"
+            className="hidden sm:flex"
+          />
 
           {canCreate && onCreateInvoice && (
             <Button

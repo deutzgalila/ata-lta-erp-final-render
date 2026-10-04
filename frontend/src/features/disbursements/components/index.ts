@@ -10,3 +10,5 @@ export * from './CreateDisbursementModal';
 export * from './AdminApprovalQueue';
 export * from './FundsReleaseActions';
 export * from './DisbursementDetailDrawer';
+export * from './DisbursementPrintModal';
+export * from './DisbursementArchiveTab';

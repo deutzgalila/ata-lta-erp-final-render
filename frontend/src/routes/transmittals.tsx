@@ -15,8 +15,6 @@ import {
   Clock,
   CheckCircle2,
   Archive,
-  LayoutGrid,
-  Table as TableIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -39,6 +37,7 @@ import {
   DeleteDialog,
   ArchiveDialog,
 } from '@/features/transmittals/components';
+import { ViewModeToggle } from '@/features/billing/components/ViewModeToggle';
 import {
   useTransmittalsList,
   useTransmittalCounts,
@@ -280,33 +279,13 @@ export default function TransmittalsPage() {
         </Tabs>
 
         {/* View mode toggle: Kanban vs Table */}
-        <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 self-end sm:self-auto">
-          <Button
-            size="sm"
-            variant={viewMode === 'kanban' ? 'default' : 'ghost'}
-            className={`h-7 px-2.5 text-xs gap-1 font-medium ${
-              viewMode === 'kanban' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
-            }`}
-            onClick={() => handleViewChange('kanban')}
-            data-testid="view-toggle-kanban"
-          >
-            <LayoutGrid className="h-3.5 w-3.5" />
-            Kanban
-          </Button>
-
-          <Button
-            size="sm"
-            variant={viewMode === 'table' ? 'default' : 'ghost'}
-            className={`h-7 px-2.5 text-xs gap-1 font-medium ${
-              viewMode === 'table' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
-            }`}
-            onClick={() => handleViewChange('table')}
-            data-testid="view-toggle-table"
-          >
-            <TableIcon className="h-3.5 w-3.5" />
-            Table
-          </Button>
-        </div>
+        <ViewModeToggle
+          mode={viewMode}
+          onChange={(m) => handleViewChange(m as 'kanban' | 'table')}
+          availableModes={['kanban', 'table']}
+          testIdPrefix="view-toggle"
+          className="self-end sm:self-auto"
+        />
       </div>
 
       {/* 4. Main Body: Kanban Board vs Table View */}
