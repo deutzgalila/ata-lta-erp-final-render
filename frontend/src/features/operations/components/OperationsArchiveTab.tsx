@@ -34,7 +34,7 @@ export function OperationsArchiveTab({
   const [restoreTargetWr, setRestoreTargetWr] = useState<WorkRequest | null>(null);
 
   // Queries archived work requests
-  const { data: rawArchived, isLoading } = useWorkRequests({
+  const { data: rawArchived, isLoading, refetch } = useWorkRequests({
     archived: true,
   });
   const archivedRequests: WorkRequest[] = useMemo(() => {
@@ -263,6 +263,10 @@ export function OperationsArchiveTab({
           actionType="restore"
           workRequest={restoreTargetWr}
           onClose={() => setRestoreTargetWr(null)}
+          onSuccess={() => {
+            setRestoreTargetWr(null);
+            refetch();
+          }}
         />
       )}
     </div>

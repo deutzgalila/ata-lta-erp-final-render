@@ -41,6 +41,8 @@ export function Topbar() {
         .toUpperCase()
     : 'U';
 
+  const primaryEntity = user?.entities && user.entities.length > 0 ? user.entities[0]! : 'ATA';
+
   return (
     <header
       className="flex h-16 w-full items-center justify-between border-b border-[#f0f0f5] bg-white px-6 shadow-[0_10px_40px_rgba(0,0,0,0.03)]"
@@ -54,7 +56,7 @@ export function Topbar() {
         </div>
         <div className="w-[120px]">
           <Select
-            value={activeEntity || 'ATA'}
+            value={activeEntity || primaryEntity}
             onValueChange={(val) => setActiveEntity(val)}
           >
             <SelectTrigger density="compact" data-testid="entity-switcher">

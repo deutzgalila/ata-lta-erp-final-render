@@ -23,6 +23,7 @@ import { useTeam } from '../api/useTeam';
 import {
   useWorkRequestMutations,
 } from '../api/useWorkRequests';
+import { useTaskMutations } from '../api/useTasks';
 import { operationsKeys } from '../api/queryKeys';
 import { validateDependencies } from '../utils/dependencyValidator';
 import { parseTaskDelimiterInput } from '../hooks/useTokenizer';
@@ -74,6 +75,7 @@ export function WorkRequestModal({
   const { data: clients = [] } = useClients();
   const { data: team = [] } = useTeam();
   const { createWorkRequest, updateWorkRequest } = useWorkRequestMutations();
+  const { createTask, updateTask, deleteTask } = useTaskMutations(workRequest?.id);
 
   // Form State
   const [title, setTitle] = useState('');
@@ -90,6 +92,7 @@ export function WorkRequestModal({
   const [managerError, setManagerError] = useState<string | null>(null);
   const [titleError, setTitleError] = useState<string | null>(null);
   const [hasDraftBanner, setHasDraftBanner] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
 
   const draftKey = `erp_wr_draft_${workRequest?.id || 'new'}`;
 
@@ -157,6 +160,7 @@ export function WorkRequestModal({
     }
     setManagerError(null);
     setTitleError(null);
+    setIsDirty(false);
   }, [workRequest, activeSessionEntity]);
 
   // Handle Mount & Draft Loading
@@ -165,21 +169,24 @@ export function WorkRequestModal({
 
     resetForm();
 
-    // Check for existing unsaved draft
-    try {
-      const saved = localStorage.getItem(draftKey);
-      if (saved) {
-        setHasDraftBanner(true);
+    // Check for existing unsaved draft (only for new work requests)
+    if (!workRequest?.id) {
+      try {
+        const saved = localStorage.getItem(draftKey);
+        if (saved) {
+          setHasDraftBanner(true);
+        }
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
     }
-  }, [isOpen, resetForm, draftKey]);
+  }, [isOpen, resetForm, draftKey, workRequest?.id]);
 
   // Client Entity Auto-Sync
   const handleClientChange = (newClientId: string) => {
     const cid = newClientId === 'unselected' ? '' : newClientId;
     setClientId(cid);
+    setIsDirty(true);
     if (!cid) return;
 
     const matched = clients.find((c) => c.id === cid);
@@ -213,6 +220,7 @@ export function WorkRequestModal({
         if (parsed.coAssignees) setCoAssignees(parsed.coAssignees);
         if (parsed.description !== undefined) setDescription(parsed.description);
         if (parsed.tasks) setTasks(parsed.tasks);
+        setIsDirty(true);
       }
     } catch {
       // ignore
@@ -228,11 +236,13 @@ export function WorkRequestModal({
     }
     setHasDraftBanner(false);
     resetForm();
+    setIsDirty(false);
   };
 
   // Auto-save draft on changes (1s debounce)
+  // Only fires when dirty, not in draft prompt, and in create mode
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !isDirty || hasDraftBanner || isEditMode) return;
     const timer = setTimeout(() => {
       try {
         const stateToSave = {
@@ -255,6 +265,9 @@ export function WorkRequestModal({
     return () => clearTimeout(timer);
   }, [
     isOpen,
+    isDirty,
+    hasDraftBanner,
+    isEditMode,
     draftKey,
     title,
     entity,
@@ -332,7 +345,67 @@ export function WorkRequestModal({
             coAssignees,
             expectedVersion: workRequest.version,
           };
-          return await updateWorkRequest({ id: workRequest.id, data: updatePayload });
+          const savedWr = await updateWorkRequest({
+            id: workRequest.id,
+            data: updatePayload,
+            entity,
+          });
+
+          // Sync task modifications per operations@2.0.0 §3.8
+          const existingTasks = workRequest.tasks || [];
+          const currentTaskIds = new Set(tasks.map((t) => t.id).filter(Boolean));
+
+          // 1. Delete tasks removed from form
+          for (const ext of existingTasks) {
+            if (!currentTaskIds.has(ext.id)) {
+              await deleteTask({ workRequestId: workRequest.id, taskId: ext.id });
+            }
+          }
+
+          // 2. Create or update tasks
+          for (const t of tasks) {
+            if (!t.title.trim()) continue;
+            const assignees = Array.from(
+              new Set([
+                ...(t.assigneeId ? [t.assigneeId] : []),
+                ...t.coAssignees,
+              ])
+            ).filter(Boolean);
+
+            if (t.id && existingTasks.some((ext) => ext.id === t.id)) {
+              await updateTask({
+                workRequestId: workRequest.id,
+                taskId: t.id,
+                data: {
+                  title: t.title.trim(),
+                  description: t.description?.trim() || null,
+                  assigneeId: t.assigneeId || null,
+                  assignees,
+                  checklist: t.checklist?.map((c) => ({
+                    id: c.id,
+                    text: c.text,
+                    completed: c.completed,
+                    category: c.category,
+                    periodYear: c.periodYear ? String(c.periodYear) : null,
+                    dependsOn: c.dependsOn || null,
+                  })),
+                },
+              });
+            } else {
+              await createTask({
+                workRequestId: workRequest.id,
+                data: {
+                  title: t.title.trim(),
+                  description: t.description?.trim() || null,
+                  phase: t.phase,
+                  assigneeId: t.assigneeId || null,
+                  assignees,
+                },
+              });
+            }
+          }
+
+          return savedWr;
         } else {
           // Map task rows to create payload
           const preTasks: PhaseTaskInput[] = [];
@@ -385,7 +458,10 @@ export function WorkRequestModal({
         operationsKeys.workRequests(),
         operationsKeys.workRequestCounts(activeSessionEntity),
         ...(isEditMode && workRequest
-          ? [operationsKeys.workRequestDetail(workRequest.id)]
+          ? [
+              operationsKeys.workRequestDetail(workRequest.id),
+              operationsKeys.tasks(workRequest.id),
+            ]
           : []),
       ],
       onSuccess: (savedWr) => {
@@ -394,6 +470,7 @@ export function WorkRequestModal({
         } catch {
           // ignore
         }
+        setIsDirty(false);
         if (onSuccess && savedWr) {
           onSuccess(savedWr as WorkRequest);
         }
@@ -457,6 +534,7 @@ export function WorkRequestModal({
               value={title}
               onChange={(e) => {
                 setTitle(e.target.value);
+                setIsDirty(true);
                 if (titleError) setTitleError(null);
               }}
               placeholder="e.g. Annual Corporate Income Tax Return 2025"
@@ -487,7 +565,10 @@ export function WorkRequestModal({
                 variant={entity === 'ATA' ? 'ata' : 'outline'}
                 size="sm"
                 disabled={isEntityLocked}
-                onClick={() => setEntity('ATA')}
+                onClick={() => {
+                  setEntity('ATA');
+                  setIsDirty(true);
+                }}
                 className="text-xs font-semibold h-7 px-3"
               >
                 ATA
@@ -497,7 +578,10 @@ export function WorkRequestModal({
                 variant={entity === 'LTA' ? 'lta' : 'outline'}
                 size="sm"
                 disabled={isEntityLocked}
-                onClick={() => setEntity('LTA')}
+                onClick={() => {
+                  setEntity('LTA');
+                  setIsDirty(true);
+                }}
                 className="text-xs font-semibold h-7 px-3"
               >
                 LTA
@@ -535,7 +619,10 @@ export function WorkRequestModal({
               <label className="text-xs font-semibold text-slate-700">Priority</label>
               <Select
                 value={priority}
-                onValueChange={(val) => setPriority(val as Priority)}
+                onValueChange={(val) => {
+                  setPriority(val as Priority);
+                  setIsDirty(true);
+                }}
               >
                 <SelectTrigger className="h-9 bg-white">
                   <SelectValue />
@@ -556,7 +643,10 @@ export function WorkRequestModal({
               <Input
                 type="date"
                 value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
+                onChange={(e) => {
+                  setDueDate(e.target.value);
+                  setIsDirty(true);
+                }}
                 className="h-9 bg-white text-xs"
                 data-testid="wr-modal-due-date"
               />
@@ -575,9 +665,13 @@ export function WorkRequestModal({
               managerOnlyPrimary={true}
               onPrimaryChange={(newMgr) => {
                 setAssignedTo(newMgr);
+                setIsDirty(true);
                 if (managerError) setManagerError(null);
               }}
-              onCoAssigneesChange={setCoAssignees}
+              onCoAssigneesChange={(newCo) => {
+                setCoAssignees(newCo);
+                setIsDirty(true);
+              }}
             />
             {managerError && (
               <span className="text-[11px] text-red-600 block" data-testid="manager-error">
@@ -593,7 +687,10 @@ export function WorkRequestModal({
             </label>
             <textarea
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                setIsDirty(true);
+              }}
               placeholder="Scope summary, special requirements, client instructions..."
               rows={2}
               className="w-full text-xs p-2.5 border border-slate-200 rounded-md bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -603,7 +700,10 @@ export function WorkRequestModal({
           {/* Task Line Items (Notion-style) */}
           <TaskLineItems
             tasks={tasks}
-            onChange={setTasks}
+            onChange={(newTasks) => {
+              setTasks(newTasks);
+              setIsDirty(true);
+            }}
             projectTeam={projectTeam}
             isEditMode={isEditMode}
           />

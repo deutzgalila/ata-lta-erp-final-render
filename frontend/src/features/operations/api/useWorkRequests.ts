@@ -131,13 +131,19 @@ export function useWorkRequestMutations() {
   const updateMutation = useMutation<
     WorkRequest,
     ApiError,
-    { id: string; data: UpdateWorkRequestInput }
+    { id: string; data: UpdateWorkRequestInput; entity?: string }
   >({
-    mutationFn: async ({ id, data }) => {
+    mutationFn: async ({ id, data, entity }) => {
+      const headers: Record<string, string> = {};
+      const targetEntity = entity || data.entity;
+      if (targetEntity) {
+        headers['X-Active-Entity'] = targetEntity;
+      }
       const res = await apiRequest<WorkRequestDetailResponse>(
         `/operations/work-requests/${id}`,
         {
           method: 'PUT',
+          headers,
           body: JSON.stringify(data),
         }
       );
@@ -147,17 +153,26 @@ export function useWorkRequestMutations() {
       queryClient.invalidateQueries({
         queryKey: operationsKeys.workRequestDetail(updated.id),
       });
+      queryClient.invalidateQueries({
+        queryKey: operationsKeys.tasks(updated.id),
+      });
       queryClient.invalidateQueries({ queryKey: operationsKeys.workRequests() });
+      queryClient.invalidateQueries({
+        queryKey: operationsKeys.workRequestCounts(activeEntity),
+      });
     },
   });
 
   // 3. Archive Work Request (Blocking flow)
-  const archiveMutation = useMutation<WorkRequest, ApiError, { id: string }>({
-    mutationFn: async ({ id }) => {
+  const archiveMutation = useMutation<WorkRequest, ApiError, { id: string; entity?: string }>({
+    mutationFn: async ({ id, entity }) => {
+      const headers: Record<string, string> = {};
+      if (entity) headers['X-Active-Entity'] = entity;
       const res = await apiRequest<WorkRequestDetailResponse>(
         `/operations/work-requests/${id}/archive`,
         {
           method: 'POST',
+          headers,
         }
       );
       return res.data;
@@ -165,6 +180,9 @@ export function useWorkRequestMutations() {
     onSuccess: (archived) => {
       queryClient.invalidateQueries({
         queryKey: operationsKeys.workRequestDetail(archived.id),
+      });
+      queryClient.invalidateQueries({
+        queryKey: operationsKeys.tasks(archived.id),
       });
       queryClient.invalidateQueries({ queryKey: operationsKeys.workRequests() });
       queryClient.invalidateQueries({
@@ -174,12 +192,15 @@ export function useWorkRequestMutations() {
   });
 
   // 4. Restore / Unarchive Work Request (Blocking flow)
-  const restoreMutation = useMutation<WorkRequest, ApiError, { id: string }>({
-    mutationFn: async ({ id }) => {
+  const restoreMutation = useMutation<WorkRequest, ApiError, { id: string; entity?: string }>({
+    mutationFn: async ({ id, entity }) => {
+      const headers: Record<string, string> = {};
+      if (entity) headers['X-Active-Entity'] = entity;
       const res = await apiRequest<WorkRequestDetailResponse>(
         `/operations/work-requests/${id}/unarchive`,
         {
           method: 'POST',
+          headers,
         }
       );
       return res.data;
@@ -187,6 +208,9 @@ export function useWorkRequestMutations() {
     onSuccess: (restored) => {
       queryClient.invalidateQueries({
         queryKey: operationsKeys.workRequestDetail(restored.id),
+      });
+      queryClient.invalidateQueries({
+        queryKey: operationsKeys.tasks(restored.id),
       });
       queryClient.invalidateQueries({ queryKey: operationsKeys.workRequests() });
       queryClient.invalidateQueries({
@@ -196,15 +220,21 @@ export function useWorkRequestMutations() {
   });
 
   // 5. Cancel / Delete Work Request
-  const cancelMutation = useMutation<void, ApiError, { id: string }>({
-    mutationFn: async ({ id }) => {
+  const cancelMutation = useMutation<void, ApiError, { id: string; entity?: string }>({
+    mutationFn: async ({ id, entity }) => {
+      const headers: Record<string, string> = {};
+      if (entity) headers['X-Active-Entity'] = entity;
       await apiRequest<void>(`/operations/work-requests/${id}`, {
         method: 'DELETE',
+        headers,
       });
     },
     onSuccess: (_res, { id }) => {
       queryClient.invalidateQueries({
         queryKey: operationsKeys.workRequestDetail(id),
+      });
+      queryClient.invalidateQueries({
+        queryKey: operationsKeys.tasks(id),
       });
       queryClient.invalidateQueries({ queryKey: operationsKeys.workRequests() });
       queryClient.invalidateQueries({
@@ -215,16 +245,25 @@ export function useWorkRequestMutations() {
 
   return {
     createWorkRequest: createMutation.mutateAsync,
-    updateWorkRequest: updateMutation.mutateAsync,
-    archiveWorkRequest: async (arg: string | { id: string }) => {
+    updateWorkRequest: async (
+      arg1: string | { id: string; data: UpdateWorkRequestInput; entity?: string },
+      arg2?: UpdateWorkRequestInput
+    ) => {
+      const payload =
+        typeof arg1 === 'string'
+          ? { id: arg1, data: arg2! }
+          : arg1;
+      return updateMutation.mutateAsync(payload);
+    },
+    archiveWorkRequest: async (arg: string | { id: string; entity?: string }) => {
       const payload = typeof arg === 'string' ? { id: arg } : arg;
       return archiveMutation.mutateAsync(payload);
     },
-    restoreWorkRequest: async (arg: string | { id: string }) => {
+    restoreWorkRequest: async (arg: string | { id: string; entity?: string }) => {
       const payload = typeof arg === 'string' ? { id: arg } : arg;
       return restoreMutation.mutateAsync(payload);
     },
-    cancelWorkRequest: async (arg: string | { id: string }) => {
+    cancelWorkRequest: async (arg: string | { id: string; entity?: string }) => {
       const payload = typeof arg === 'string' ? { id: arg } : arg;
       return cancelMutation.mutateAsync(payload);
     },

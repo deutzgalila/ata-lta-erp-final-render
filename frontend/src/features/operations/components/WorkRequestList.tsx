@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ArchiveConfirmModal, type ArchiveActionType } from './ArchiveConfirmModal';
+import { WorkRequestSidePeek } from './WorkRequestSidePeek';
 import { runBlockingAction } from './BlockingActionModal';
 import { useWorkRequests, useWorkRequestMutations } from '../api/useWorkRequests';
 import { usePhaseTransitions } from '../api/usePhaseTransitions';
@@ -60,6 +61,9 @@ export function WorkRequestList({
 }: WorkRequestListProps) {
   // View mode: Table vs Compact Card List
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+
+  // Side Peek state (UAT-GEN2)
+  const [peekWrId, setPeekWrId] = useState<string | null>(null);
 
   // Filters State
   const [searchInput, setSearchInput] = useState('');
@@ -699,7 +703,7 @@ export function WorkRequestList({
                       <div className="flex flex-col space-y-1">
                         <div className="flex items-center gap-2">
                           <span
-                            onClick={() => onViewDetails?.(wr.id)}
+                            onClick={() => setPeekWrId(wr.id)}
                             className="font-semibold text-slate-900 hover:text-blue-600 cursor-pointer"
                           >
                             {wr.title}
@@ -787,7 +791,7 @@ export function WorkRequestList({
                           type="button"
                           variant="ghost"
                           size="icon-xs"
-                          onClick={() => onViewDetails?.(wr.id)}
+                          onClick={() => setPeekWrId(wr.id)}
                           title="View Details"
                           className="text-slate-500 hover:text-slate-900"
                           data-testid={`action-view-${wr.id}`}
@@ -891,7 +895,7 @@ export function WorkRequestList({
                 <div className="flex items-start justify-between gap-2">
                   <div className="space-y-1">
                     <h4
-                      onClick={() => onViewDetails?.(wr.id)}
+                      onClick={() => setPeekWrId(wr.id)}
                       className="font-bold text-xs text-slate-900 hover:text-blue-600 cursor-pointer line-clamp-1"
                     >
                       {wr.title}
@@ -1053,6 +1057,15 @@ export function WorkRequestList({
           }
         />
       )}
+
+      {/* Side Peek Panel (UAT-GEN2) */}
+      <WorkRequestSidePeek
+        isOpen={Boolean(peekWrId)}
+        workRequestId={peekWrId}
+        onClose={() => setPeekWrId(null)}
+        onEdit={onEdit}
+        onViewInBoard={onViewDetails}
+      />
     </div>
   );
 }
