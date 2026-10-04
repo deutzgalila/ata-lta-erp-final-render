@@ -195,6 +195,10 @@ export interface WorkRequest {
   title: string;
   description: string | null;
   clientId: string | null;
+  client_id?: string | null;
+  clientName?: string | null;
+  client_name?: string | null;
+  client?: { id?: string; name: string } | null;
   status: WorkRequestStatus;
   phase: Phase;
   onHold: boolean;
@@ -205,6 +209,8 @@ export interface WorkRequest {
   archived: boolean;
   requestedBy: string | null;
   assignedTo: string | null;
+  assignedToName?: string | null;
+  assigned_to_name?: string | null;
   coAssignees: string[];
   dueDate: string | null;
   createdAt: string;
@@ -277,12 +283,16 @@ export interface RetainerTemplateTask {
 export interface RetainerTemplate {
   id: string;
   entity_id: string;
+  entity?: EntityCode;
   name: string;
   title?: string;
   description: string | null;
   client_id: string | null;
+  clientId?: string | null;
   schedule: string | null;
   priority: Priority;
+  default_priority?: Priority;
+  defaultPriority?: Priority;
   pf_amount: number;
   pfAmount?: number;
   recurrence: RecurrenceType;
@@ -309,7 +319,12 @@ export interface RetainerGenerationRecord {
 export interface DmsDocumentComment {
   id?: string;
   userId: string;
+  user_id?: string;
+  userName?: string;
+  user_name?: string;
+  author?: string;
   date: string;
+  created_at?: string;
   text: string;
 }
 
@@ -357,6 +372,8 @@ export interface DmsDocument {
   updated_by?: string | null;
   created_at: string;
   updated_at: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // ============================================================================
@@ -374,6 +391,8 @@ export interface CreatePhaseTaskInput {
   status?: string | null;
   dueDate?: string | null;
 }
+
+export type PhaseTaskInput = CreatePhaseTaskInput;
 
 export interface CreateWorkRequestPhasesInput {
   pre_processing?: {

@@ -151,7 +151,6 @@ export function useRetainers() {
 
   return {
     useTemplates: useRetainerTemplates,
-    generateFromTemplate: mutations.generateFromTemplate,
     ...mutations,
   };
 }

@@ -87,8 +87,9 @@ describe('useWorkRequests & Operations Data Layer (Zero Optimistic Updates Doctr
       expect(result.current.data?.data[0]?.title).toBe('SEC Annual Report');
 
       const fetchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
-      expect(fetchCall[0]).toContain('/operations/work-requests?status=In+Progress&phase=pre_processing');
-      expect(fetchCall[1].headers['X-Active-Entity']).toBe('ATA');
+      expect(fetchCall).toBeDefined();
+      expect(fetchCall![0]).toContain('/operations/work-requests?status=In+Progress&phase=pre_processing');
+      expect(fetchCall![1].headers['X-Active-Entity']).toBe('ATA');
     });
 
     it('useWorkRequestDetail fetches single work request graph', async () => {

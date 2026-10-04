@@ -61,3 +61,18 @@ export {
   type UploadDocumentVariables,
   type UpdateCommentsVariables,
 } from './useDocuments';
+
+// Supporting Clients & Team
+export {
+  useClients,
+  type ClientSummary,
+  type ClientListResponse,
+  type ClientFilters,
+} from './useClients';
+
+export {
+  useTeam,
+  getManagers,
+  getEligibleStaff,
+  type TeamMember,
+} from './useTeam';
