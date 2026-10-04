@@ -48,6 +48,7 @@ const ALLOWED_ORIGINS = new Set([
   'https://ata-lta-erp-spa-main.onrender.com',
   'https://ata-lta-erp-spa-staging.onrender.com',
   'https://ata-lta-erp-spa-uat.onrender.com',
+  'https://ata-lta-erp-spa-v2.onrender.com',
   'https://erp.ltabmcorp.com',
 ]);
 
