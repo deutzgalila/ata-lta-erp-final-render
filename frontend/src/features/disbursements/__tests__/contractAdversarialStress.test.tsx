@@ -98,23 +98,23 @@ describe('Adversarial Contract & Data Layer Stress Test Harness', () => {
       expect(validPayload.category).toBe('Transportation');
 
       // 2. Setting status property must trigger a TypeScript compilation failure
-      // @ts-expect-error Status is explicitly forbidden on creation (status?: never)
       const forgedPending: CreateDisbursementInput = {
         ...validPayload,
+        // @ts-expect-error Status is explicitly forbidden on creation (status?: never)
         status: 'Pending',
       };
       expect(forgedPending.status).toBe('Pending');
 
-      // @ts-expect-error Status is explicitly forbidden on creation (status?: never)
       const forgedDraft: CreateDisbursementInput = {
         ...validPayload,
+        // @ts-expect-error Status is explicitly forbidden on creation (status?: never)
         status: 'Draft',
       };
       expect(forgedDraft.status).toBe('Draft');
 
-      // @ts-expect-error Status is explicitly forbidden on creation (status?: never)
       const forgedApproved: CreateDisbursementInput = {
         ...validPayload,
+        // @ts-expect-error Status is explicitly forbidden on creation (status?: never)
         status: 'Approved',
       };
       expect(forgedApproved.status).toBe('Approved');
