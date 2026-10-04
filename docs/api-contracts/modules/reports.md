@@ -30,10 +30,25 @@ Enforces RBAC scoping across all endpoints, entity resolution (supporting `ATA`,
 | :--- | :--- | :--- |
 | `GET /analytics` | `reports:view` | Entity-scoped (`ATA`, `LTA`, or consolidated `ALL`) |
 | `GET /dashboard` | `workflow:view` | Entity-scoped (`ATA`, `LTA`, or `ALL`). Calendar items are user-scoped: Back-office (`Admin`) sees all items; Accounting sees all disbursements; non-admin staff only see work requests and linked disbursements they are directly concerned with. |
-| `GET /daily` | `reports:view` | Scoped to active entity code |
-| `GET /weekly` | `reports:view` | Scoped to active entity code |
-| `GET /monthly-pending` | `reports:view` | Scoped to active entity code |
-| `GET /aging` | `billing:view` | Scoped to active entity code |
+| `GET /daily` | `reports:view` | Scoped to active entity code (`ATA` or `LTA`) |
+| `GET /weekly` | `reports:view` | Scoped to active entity code (`ATA` or `LTA`) |
+| `GET /monthly-pending` | `reports:view` | Scoped to active entity code (`ATA` or `LTA`) |
+| `GET /aging` | `billing:view` | Scoped to active entity code (`ATA` or `LTA`) |
+
+### RFC 7807 Error Response Format
+All error responses from this module conform to RFC 7807 `application/problem+json`:
+```json
+{
+  "status": 400,
+  "title": "Validation Error",
+  "detail": "date: Date must be in YYYY-MM-DD format"
+}
+```
+Standard properties:
+- `status` (integer): HTTP status code matching response status.
+- `title` (string): Short human-readable summary of problem type.
+- `detail` (string): Specific human-readable explanation of the error.
+- `code` (string, optional): Machine-readable error code if explicitly configured.
 
 ---
 
@@ -229,8 +244,74 @@ Returns high-performance dashboard analytics combined with upcoming and overdue 
 }
 ```
 
-#### Consolidated Response (`X-Active-Entity: ALL`)
-Includes `analyticsByEntity: { ATA: { ... }, LTA: { ... } }`, top-level `ATA` and `LTA` summaries, and merged `calendar` array covering both entities.
+#### Consolidated Response (`X-Active-Entity: ALL`) (200 OK)
+```json
+{
+  "data": {
+    "analyticsByEntity": {
+      "ATA": {
+        "clients": { "total": 25 },
+        "workRequests": { "total": 70 },
+        "documents": { "total": 200 },
+        "invoices": { "total": 35, "totalBilled": 700000.0, "totalCollected": 500000.0, "totalOutstanding": 200000.0, "byStatus": { "Paid": 25, "Sent": 10 } },
+        "disbursements": { "total": 45, "totalAmount": 220000.0, "releasedAmount": 200000.0, "byStatus": { "Released": 40, "Pending": 5 } },
+        "transmittals": { "total": 18, "byStatus": { "Delivered": 15, "In Transit": 3 } },
+        "revenue": { "totalBilled": 700000.0, "totalCollected": 500000.0, "totalOutstanding": 200000.0, "totalExpenses": 200000.0, "netIncome": 300000.0 }
+      },
+      "LTA": {
+        "clients": { "total": 17 },
+        "workRequests": { "total": 58 },
+        "documents": { "total": 150 },
+        "invoices": { "total": 30, "totalBilled": 550000.0, "totalCollected": 450000.0, "totalOutstanding": 100000.0, "byStatus": { "Paid": 20, "Sent": 10 } },
+        "disbursements": { "total": 35, "totalAmount": 200000.0, "releasedAmount": 180000.0, "byStatus": { "Released": 30, "Pending": 5 } },
+        "transmittals": { "total": 12, "byStatus": { "Delivered": 10, "In Transit": 2 } },
+        "revenue": { "totalBilled": 550000.0, "totalCollected": 450000.0, "totalOutstanding": 100000.0, "totalExpenses": 180000.0, "netIncome": 270000.0 }
+      }
+    },
+    "ATA": {
+      "clients": { "total": 25 },
+      "workRequests": { "total": 70 },
+      "documents": { "total": 200 },
+      "invoices": { "total": 35, "totalBilled": 700000.0, "totalCollected": 500000.0, "totalOutstanding": 200000.0, "byStatus": { "Paid": 25, "Sent": 10 } },
+      "disbursements": { "total": 45, "totalAmount": 220000.0, "releasedAmount": 200000.0, "byStatus": { "Released": 40, "Pending": 5 } },
+      "transmittals": { "total": 18, "byStatus": { "Delivered": 15, "In Transit": 3 } },
+      "revenue": { "totalBilled": 700000.0, "totalCollected": 500000.0, "totalOutstanding": 200000.0, "totalExpenses": 200000.0, "netIncome": 300000.0 }
+    },
+    "LTA": {
+      "clients": { "total": 17 },
+      "workRequests": { "total": 58 },
+      "documents": { "total": 150 },
+      "invoices": { "total": 30, "totalBilled": 550000.0, "totalCollected": 450000.0, "totalOutstanding": 100000.0, "byStatus": { "Paid": 20, "Sent": 10 } },
+      "disbursements": { "total": 35, "totalAmount": 200000.0, "releasedAmount": 180000.0, "byStatus": { "Released": 30, "Pending": 5 } },
+      "transmittals": { "total": 12, "byStatus": { "Delivered": 10, "In Transit": 2 } },
+      "revenue": { "totalBilled": 550000.0, "totalCollected": 450000.0, "totalOutstanding": 100000.0, "totalExpenses": 180000.0, "netIncome": 270000.0 }
+    },
+    "calendar": [
+      {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "type": "wr",
+        "title": "Corporate Secretary Retainer Q4",
+        "status": "In Progress",
+        "dueDate": "2026-10-15",
+        "clientId": "22222222-2222-2222-2222-222222222222",
+        "assigneeId": "33333333-3333-3333-3333-333333333333",
+        "entity": "ATA",
+        "tasks": []
+      },
+      {
+        "id": "55555555-5555-5555-5555-555555555555",
+        "type": "db",
+        "title": "DB-2026-088",
+        "status": "Released",
+        "dueDate": "2026-10-18",
+        "clientId": "22222222-2222-2222-2222-222222222222",
+        "entity": "LTA",
+        "amount": 7500.0
+      }
+    ]
+  }
+}
+```
 
 #### Error Vocabulary
 | Status | Code | Trigger Condition |
@@ -247,6 +328,8 @@ Returns an itemized operational activity log and summary totals for a single spe
 - **Headers:** `X-Active-Entity: ATA|LTA`.
 - **Since-version:** `1.0.0` (frozen at `2.0.0`).
 - **Events Emitted:** None.
+
+> **Entity Scoping Note:** Requires a concrete entity code (`ATA` or `LTA`). Unlike `/analytics` and `/dashboard`, `/daily` does not consolidate across entities; passing `X-Active-Entity: ALL` results in an empty dataset because records are queried with `entity_id = 'ALL'`.
 
 #### Query Parameters (Zod: `dailyQuerySchema`)
 | Parameter | Type | Required | Format / Validation | Description |
@@ -341,6 +424,8 @@ Returns an activity report covering the entire week (Monday 00:00:00Z to Sunday 
 - **Since-version:** `1.0.0` (frozen at `2.0.0`).
 - **Events Emitted:** None.
 
+> **Entity Scoping Note:** Requires a concrete entity code (`ATA` or `LTA`). Passing `X-Active-Entity: ALL` results in an empty dataset because records are queried with `entity_id = 'ALL'`.
+
 #### Query Parameters (Zod: `weeklyQuerySchema`)
 | Parameter | Type | Required | Format / Validation | Description |
 | :--- | :--- | :---: | :---: | :--- |
@@ -434,6 +519,8 @@ Returns pending operational and financial tasks requiring administrative attenti
 - **Headers:** `X-Active-Entity: ATA|LTA`.
 - **Since-version:** `1.0.0` (frozen at `2.0.0`).
 - **Events Emitted:** None.
+
+> **Entity Scoping Note:** Requires a concrete entity code (`ATA` or `LTA`). Passing `X-Active-Entity: ALL` results in an empty dataset because records are queried with `entity_id = 'ALL'`.
 
 #### Query Parameters (Zod: `monthlyPendingQuerySchema`)
 | Parameter | Type | Required | Format / Validation | Description |
@@ -536,6 +623,8 @@ Calculates the accounts receivable (AR) aging report across all outstanding invo
 - **Headers:** `X-Active-Entity: ATA|LTA`.
 - **Since-version:** `1.0.0` (frozen at `2.0.0`).
 - **Events Emitted:** None.
+
+> **Entity Scoping Note:** Requires a concrete entity code (`ATA` or `LTA`). Passing `X-Active-Entity: ALL` results in an empty dataset because records are queried with `entity_id = 'ALL'`.
 
 #### Query Parameters
 None. The live endpoint does not accept query parameters (`req.query` is ignored by `reportsController.aging`).

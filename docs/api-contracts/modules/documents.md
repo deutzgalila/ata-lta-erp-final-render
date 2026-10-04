@@ -40,8 +40,12 @@ Storage paths are deterministically structured by entity code and contextual ass
 - **Work Request / Task Document:** `entities/{entityCode}/work-requests/{workRequestId}/documents/{documentId}/{safeName}`
 - **General Document:** `entities/{entityCode}/general/documents/{documentId}/{safeName}`
 
-### File Sanitization
-File names are sanitized via `sanitizeFileName`: converted to lowercase, whitespace replaced with `-`, non-alphanumeric characters (except `.` `-` `_`) stripped, consecutive hyphens collapsed, and capped at 200 characters.
+> **Path Precedence:** If both `clientId` and `workRequestId` are supplied, the client path takes precedence (`entities/{entityCode}/clients/...`), mirroring client ownership priority.
+
+### File Sanitization & Name Handling
+- **Sanitized Filename (`file_name` & `storage_path`):** Generated via `sanitizeFileName`: converted to lowercase, whitespace replaced with `-`, non-alphanumeric characters (except `.` `-` `_`) stripped, consecutive hyphens collapsed, and truncated at 200 characters.
+- **Display Filename (`original_name`):** Preserves raw user input casing and spaces for human UI display. If `originalName` is omitted in `createDocumentSchema`, it defaults to the raw `fileName`.
+- **Maximum File Size:** Enforced at `MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024` (50 MB / 52,428,800 bytes). Payloads declaring `fileSize > 50 MB` are rejected with `400 Validation Error`.
 
 ### Document Categories
 - `SEC`: Securities and Exchange Commission filings and certifications
@@ -54,12 +58,29 @@ File names are sanitized via `sanitizeFileName`: converted to lowercase, whitesp
 - `HR`: Human resource, payroll, and employment documents
 - `OTHER`: Unclassified or miscellaneous documents
 
-### Physical Lifecycle States
+### Physical Lifecycle States & Transition Semantics
 - `collected`: Physical original received from client or courier
 - `with_documentations`: Under review by documentation staff
 - `scanned`: Digitized and uploaded to DMS
 - `in_envelope`: Placed into physical barcoded/labeled envelope
 - `stored`: Archived into secure physical cabinet/shelf location
+
+> **Transition Semantics:** While the physical lifecycle follows the progressive workflow `collected → with_documentations → scanned → in_envelope → stored`, the live backend allows setting any of the 5 valid enum states at any time (arbitrary transitions permitted). This accommodates backfills, pre-scanned intake, and physical filing corrections.
+
+### RFC 7807 Error Response Format
+All error responses from this module conform to RFC 7807 `application/problem+json`:
+```json
+{
+  "status": 400,
+  "title": "Validation Error",
+  "detail": "fileName: Required"
+}
+```
+Standard properties:
+- `status` (integer): HTTP status code matching response status.
+- `title` (string): Short human-readable summary of problem type.
+- `detail` (string): Specific human-readable explanation of the error.
+- `code` (string, optional): Machine-readable error code if explicitly configured.
 
 ---
 
@@ -128,10 +149,12 @@ Lists documents for the active entity with multi-parameter filtering, search, an
 | `clientId` | UUID | No | — | Filter by associated client ID |
 | `workRequestId` | UUID | No | — | Filter by associated work request ID |
 | `linkedTaskId` | UUID | No | — | Filter by linked task ID |
-| `search` | string | No | — | Case-insensitive search on `original_name`, `description`, `document_type` |
+| `search` | string | No | — | Case-insensitive substring search across `original_name`, `description`, `document_type` |
 | `archived` | boolean string | No | `false` | When `"true"`, queries archived; otherwise queries unarchived |
-| `page` | integer | No | `1` | Pagination page number ($\ge 1$) |
-| `limit` | integer | No | `50` | Pagination page size (max 100) |
+| `page` | integer | No | `1` | Pagination page number ($\ge 1$). Offset is computed as `(page - 1) * limit` |
+| `limit` | integer | No | `50` | Pagination page size (capped at 100 via `Math.min(limit, 100)`) |
+
+> **Sorting & Ordering:** Results are always ordered deterministically by `created_at DESC` (newest records first).
 
 #### Response (200 OK)
 ```json
@@ -355,7 +378,63 @@ Updates document metadata, physical location attributes, handover entries, comme
 | `versions` | array of objects | No | — | Array of `{ version, fileName, uploader, uploadDate }` |
 
 #### Response (200 OK)
-Returns full updated document record.
+```json
+{
+  "data": {
+    "id": "11111111-1111-1111-1111-111111111111",
+    "file_name": "service-agreement-signed.pdf",
+    "original_name": "Service Agreement Signed.pdf",
+    "work_request_id": "22222222-2222-2222-2222-222222222222",
+    "linked_task_id": "33333333-3333-3333-3333-333333333333",
+    "client_id": "44444444-4444-4444-4444-444444444444",
+    "document_type": "Agreement",
+    "category": "CONTRACT",
+    "uploader_id": "55555555-5555-5555-5555-555555555555",
+    "description": "Updated retainer agreement notes",
+    "entity_id": "66666666-6666-6666-6666-666666666666",
+    "status": "active",
+    "document_lifecycle": "scanned",
+    "archived": false,
+    "file_size": 1548200,
+    "content_type": "application/pdf",
+    "storage_path": "entities/ATA/work-requests/22222222-2222-2222-2222-222222222222/documents/11111111-1111-1111-1111-111111111111/service-agreement-signed.pdf",
+    "external_url": null,
+    "scanned_by": "Maria Santos",
+    "envelope_id": "ENV-2026-042",
+    "stored_location": "Cabinet 3, Shelf B",
+    "handover_log": [
+      {
+        "handed_to": "Atty. Juan Dela Cruz",
+        "handed_date": "2026-10-04T07:10:00.000Z",
+        "method": "Personal Handover",
+        "notes": "Original hardcopy signed"
+      }
+    ],
+    "comments": [
+      {
+        "id": "c1",
+        "userId": "55555555-5555-5555-5555-555555555555",
+        "date": "2026-10-04T07:05:00.000Z",
+        "text": "Attached to operational task"
+      }
+    ],
+    "versions": [
+      {
+        "version": 1,
+        "fileName": "service-agreement-signed.pdf",
+        "uploader": "Maria Santos",
+        "uploadDate": "2026-10-04T07:00:00.000Z"
+      }
+    ],
+    "upload_date": "2026-10-04T07:05:00.000Z",
+    "created_by": "55555555-5555-5555-5555-555555555555",
+    "updated_by": "55555555-5555-5555-5555-555555555555",
+    "created_at": "2026-10-04T07:00:00.000Z",
+    "updated_at": "2026-10-04T07:15:00.000Z",
+    "deleted_at": null
+  }
+}
+```
 
 #### Error Vocabulary
 | Status | Code | Trigger Condition |
@@ -377,7 +456,42 @@ Sets `archived = true` on a document record without soft-deleting it.
 - **Events Emitted:** None.
 
 #### Response (200 OK)
-Returns updated document record with `archived: true`.
+```json
+{
+  "data": {
+    "id": "11111111-1111-1111-1111-111111111111",
+    "file_name": "service-agreement-signed.pdf",
+    "original_name": "Service Agreement Signed.pdf",
+    "work_request_id": "22222222-2222-2222-2222-222222222222",
+    "linked_task_id": "33333333-3333-3333-3333-333333333333",
+    "client_id": "44444444-4444-4444-4444-444444444444",
+    "document_type": "Agreement",
+    "category": "CONTRACT",
+    "uploader_id": "55555555-5555-5555-5555-555555555555",
+    "description": "Retainer agreement",
+    "entity_id": "66666666-6666-6666-6666-666666666666",
+    "status": "active",
+    "document_lifecycle": "stored",
+    "archived": true,
+    "file_size": 1548200,
+    "content_type": "application/pdf",
+    "storage_path": "entities/ATA/work-requests/22222222-2222-2222-2222-222222222222/documents/11111111-1111-1111-1111-111111111111/service-agreement-signed.pdf",
+    "external_url": null,
+    "scanned_by": "Maria Santos",
+    "envelope_id": "ENV-2026-042",
+    "stored_location": "Cabinet 3, Shelf B",
+    "handover_log": [],
+    "comments": [],
+    "versions": [],
+    "upload_date": "2026-10-04T07:05:00.000Z",
+    "created_by": "55555555-5555-5555-5555-555555555555",
+    "updated_by": "55555555-5555-5555-5555-555555555555",
+    "created_at": "2026-10-04T07:00:00.000Z",
+    "updated_at": "2026-10-04T07:20:00.000Z",
+    "deleted_at": null
+  }
+}
+```
 
 #### Error Vocabulary
 | Status | Code | Trigger Condition |
@@ -398,7 +512,42 @@ Restores an archived document by resetting `archived = false`.
 - **Events Emitted:** None.
 
 #### Response (200 OK)
-Returns updated document record with `archived: false`.
+```json
+{
+  "data": {
+    "id": "11111111-1111-1111-1111-111111111111",
+    "file_name": "service-agreement-signed.pdf",
+    "original_name": "Service Agreement Signed.pdf",
+    "work_request_id": "22222222-2222-2222-2222-222222222222",
+    "linked_task_id": "33333333-3333-3333-3333-333333333333",
+    "client_id": "44444444-4444-4444-4444-444444444444",
+    "document_type": "Agreement",
+    "category": "CONTRACT",
+    "uploader_id": "55555555-5555-5555-5555-555555555555",
+    "description": "Retainer agreement",
+    "entity_id": "66666666-6666-6666-6666-666666666666",
+    "status": "active",
+    "document_lifecycle": "stored",
+    "archived": false,
+    "file_size": 1548200,
+    "content_type": "application/pdf",
+    "storage_path": "entities/ATA/work-requests/22222222-2222-2222-2222-222222222222/documents/11111111-1111-1111-1111-111111111111/service-agreement-signed.pdf",
+    "external_url": null,
+    "scanned_by": "Maria Santos",
+    "envelope_id": "ENV-2026-042",
+    "stored_location": "Cabinet 3, Shelf B",
+    "handover_log": [],
+    "comments": [],
+    "versions": [],
+    "upload_date": "2026-10-04T07:05:00.000Z",
+    "created_by": "55555555-5555-5555-5555-555555555555",
+    "updated_by": "55555555-5555-5555-5555-555555555555",
+    "created_at": "2026-10-04T07:00:00.000Z",
+    "updated_at": "2026-10-04T07:25:00.000Z",
+    "deleted_at": null
+  }
+}
+```
 
 #### Error Vocabulary
 | Status | Code | Trigger Condition |
@@ -444,13 +593,40 @@ Confirms that the client successfully completed the storage PUT upload (Step 2 o
 - **Events Emitted:** None.
 
 #### Response (200 OK)
+Returns the complete document metadata record with updated `status: "active"` and timestamped `upload_date`.
 ```json
 {
   "data": {
     "id": "11111111-1111-1111-1111-111111111111",
+    "file_name": "service-agreement-signed.pdf",
+    "original_name": "Service Agreement Signed.pdf",
+    "work_request_id": "22222222-2222-2222-2222-222222222222",
+    "linked_task_id": "33333333-3333-3333-3333-333333333333",
+    "client_id": "44444444-4444-4444-4444-444444444444",
+    "document_type": "Agreement",
+    "category": "CONTRACT",
+    "uploader_id": "55555555-5555-5555-5555-555555555555",
+    "description": "Retainer agreement",
+    "entity_id": "66666666-6666-6666-6666-666666666666",
     "status": "active",
+    "document_lifecycle": "collected",
+    "archived": false,
+    "file_size": 1548200,
+    "content_type": "application/pdf",
+    "storage_path": "entities/ATA/work-requests/22222222-2222-2222-2222-222222222222/documents/11111111-1111-1111-1111-111111111111/service-agreement-signed.pdf",
+    "external_url": null,
+    "scanned_by": null,
+    "envelope_id": null,
+    "stored_location": null,
+    "handover_log": [],
+    "comments": [],
+    "versions": [],
     "upload_date": "2026-10-04T07:05:00.000Z",
-    "updated_at": "2026-10-04T07:05:00.000Z"
+    "created_by": "55555555-5555-5555-5555-555555555555",
+    "updated_by": "55555555-5555-5555-5555-555555555555",
+    "created_at": "2026-10-04T07:00:00.000Z",
+    "updated_at": "2026-10-04T07:05:00.000Z",
+    "deleted_at": null
   }
 }
 ```
@@ -474,6 +650,8 @@ Generates a pre-signed download URL (expires in 300 seconds) targeting the Supab
 - **Since-version:** `1.0.0` (frozen at `2.0.0`).
 - **Consumed by v2 Operations:** **Yes**.
 - **Events Emitted:** None.
+
+> **External URL Handling:** For documents created with an `externalUrl`, `storage_path` is `null`. Requesting a download URL returns `404 Not Found` (`"Document has no associated file"`). Clients must inspect `external_url` directly on the document record instead of calling this endpoint.
 
 #### Response (200 OK)
 ```json
@@ -507,16 +685,43 @@ Transitions the document's physical processing state along the custody pipeline.
 #### Request Body (Zod: `lifecycleSchema`)
 | Field | Type | Required | Allowed Values | Description |
 | :--- | :--- | :---: | :---: | :--- |
-| `lifecycle` | enum | Yes | `collected`, `with_documentations`, `scanned`, `in_envelope`, `stored` | Target lifecycle state |
+| `lifecycle` | enum | Yes | `collected`, `with_documentations`, `scanned`, `in_envelope`, `stored` | Target lifecycle state (arbitrary transitions among the 5 states permitted) |
 
 #### Response (200 OK)
+Returns the complete document metadata record with updated `document_lifecycle` and `updated_by`.
 ```json
 {
   "data": {
     "id": "11111111-1111-1111-1111-111111111111",
+    "file_name": "service-agreement-signed.pdf",
+    "original_name": "Service Agreement Signed.pdf",
+    "work_request_id": "22222222-2222-2222-2222-222222222222",
+    "linked_task_id": "33333333-3333-3333-3333-333333333333",
+    "client_id": "44444444-4444-4444-4444-444444444444",
+    "document_type": "Agreement",
+    "category": "CONTRACT",
+    "uploader_id": "55555555-5555-5555-5555-555555555555",
+    "description": "Retainer agreement",
+    "entity_id": "66666666-6666-6666-6666-666666666666",
+    "status": "active",
     "document_lifecycle": "scanned",
+    "archived": false,
+    "file_size": 1548200,
+    "content_type": "application/pdf",
+    "storage_path": "entities/ATA/work-requests/22222222-2222-2222-2222-222222222222/documents/11111111-1111-1111-1111-111111111111/service-agreement-signed.pdf",
+    "external_url": null,
+    "scanned_by": "Maria Santos",
+    "envelope_id": "ENV-2026-042",
+    "stored_location": "Cabinet 3, Shelf B",
+    "handover_log": [],
+    "comments": [],
+    "versions": [],
+    "upload_date": "2026-10-04T07:05:00.000Z",
+    "created_by": "55555555-5555-5555-5555-555555555555",
     "updated_by": "55555555-5555-5555-5555-555555555555",
-    "updated_at": "2026-10-04T07:15:00.000Z"
+    "created_at": "2026-10-04T07:00:00.000Z",
+    "updated_at": "2026-10-04T07:15:00.000Z",
+    "deleted_at": null
   }
 }
 ```
