@@ -73,7 +73,7 @@ const mockDisbursements: Disbursement[] = [
 describe('Disbursements UI Components & Integration', () => {
   const originalFetch = global.fetch;
 
-  beforeEach(() => {
+  const setAdminSession = () => {
     useSessionStore.getState().setSession({
       user: {
         id: 'u-admin-1',
@@ -92,6 +92,10 @@ describe('Disbursements UI Components & Integration', () => {
       ],
       activeEntity: 'ATA',
     });
+  };
+
+  beforeEach(() => {
+    setAdminSession();
     useBlockingModalStore.getState().reset();
   });
 
@@ -99,6 +103,7 @@ describe('Disbursements UI Components & Integration', () => {
     global.fetch = originalFetch;
     vi.restoreAllMocks();
     useBlockingModalStore.getState().reset();
+    setAdminSession();
   });
 
   describe('CreateDisbursementModal & Status Anti-Forgery', () => {
@@ -232,6 +237,7 @@ describe('Disbursements UI Components & Integration', () => {
     });
 
     it('renders pending items for Admin and executes approve workflow', async () => {
+      setAdminSession();
       let approvedCall = false;
 
       global.fetch = vi.fn().mockImplementation(async (url: string) => {
@@ -274,6 +280,7 @@ describe('Disbursements UI Components & Integration', () => {
     });
 
     it('executes reject workflow opening RejectReasonModal with 1-500 char validation', async () => {
+      setAdminSession();
       let rejectedReason: string | null = null;
 
       global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
