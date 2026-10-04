@@ -69,7 +69,7 @@ P3 (cutover) gated on P2 completion + staging rehearsal.
 | P2.4 | Module #4: Disbursements | P2.3 | ✅ done (PR #148; feat/p2-disbursements) |
 | P2.5 | Module #5: Transmittals | P2.4 | ✅ done (PR #149; feat/p2-transmittals) |
 | P2.6 | Module #6: Admin/Users & Retainer Templates | P2.5 | ✅ done (feat/p2-admin-users) |
-| P2.7 | Module #7: Reports & Documents (DMS) | P2.6 | ☐ pending |
+| P2.7 | Module #7: Reports & Documents (DMS) | P2.6 | ✅ done (feat/p2-reports-dms) |
 | P3 | Cutover Runbook | P2 | ☐ pending |
 
 ## 5. Working Rules for Every Agent
