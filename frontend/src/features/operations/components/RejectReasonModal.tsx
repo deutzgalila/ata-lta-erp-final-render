@@ -19,6 +19,15 @@ export interface RejectReasonModalProps {
   workRequestTitle?: string;
   onClose: () => void;
   onSuccess?: () => void;
+  title?: string;
+  description?: string;
+  placeholder?: string;
+  submitLabel?: string;
+  maxLength?: number;
+  onReject?: (requestId: string, reason: string) => Promise<unknown>;
+  invalidateQueries?: Array<readonly unknown[]>;
+  successTitle?: string;
+  successMessage?: string;
 }
 
 export function RejectReasonModal({
@@ -27,6 +36,15 @@ export function RejectReasonModal({
   workRequestTitle,
   onClose,
   onSuccess,
+  title,
+  description,
+  placeholder,
+  submitLabel,
+  maxLength = 2000,
+  onReject,
+  invalidateQueries,
+  successTitle,
+  successMessage,
 }: RejectReasonModalProps) {
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -41,11 +59,31 @@ export function RejectReasonModal({
       setError('Rejection reason is required (minimum 1 character)');
       return;
     }
-    if (trimmed.length > 2000) {
-      setError('Rejection reason cannot exceed 2000 characters');
+    if (trimmed.length > maxLength) {
+      setError(`Rejection reason cannot exceed ${maxLength} characters`);
       return;
     }
     setError(null);
+
+    if (onReject) {
+      await runBlockingAction({
+        title: title || 'Rejecting Disbursement',
+        message: 'Please wait while the rejection is processed...',
+        apiCall: async () => {
+          return await onReject(requestId, trimmed);
+        },
+        successTitle: successTitle || 'Disbursement Rejected',
+        successMessage:
+          successMessage || 'The disbursement has been rejected and the submitter notified.',
+        invalidateQueries: invalidateQueries || [],
+        onSuccess: () => {
+          setReason('');
+          if (onSuccess) onSuccess();
+          onClose();
+        },
+      });
+      return;
+    }
 
     await runBlockingAction({
       title: 'Rejecting Phase Transition',
@@ -75,12 +113,13 @@ export function RejectReasonModal({
       >
         <DialogHeader>
           <DialogTitle className="text-base font-bold text-slate-900">
-            Reject Phase Transition
+            {title || 'Reject Phase Transition'}
           </DialogTitle>
           <DialogDescription className="text-xs text-slate-600 pt-1">
-            {workRequestTitle
-              ? `Provide a specific, actionable reason for rejecting the transition for "${workRequestTitle}".`
-              : 'Provide a specific reason for rejecting this transition request.'}
+            {description ||
+              (workRequestTitle
+                ? `Provide a specific, actionable reason for rejecting the transition for "${workRequestTitle}".`
+                : 'Provide a specific reason for rejecting this transition request.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -96,7 +135,7 @@ export function RejectReasonModal({
                 if (error) setError(null);
               }}
               rows={4}
-              placeholder="e.g. Pre-processing checklist item #3 missing BIR stamp..."
+              placeholder={placeholder || 'e.g. Pre-processing checklist item #3 missing BIR stamp...'}
               className={`w-full text-xs p-2.5 border rounded-md bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-red-500 ${
                 error ? 'border-red-500' : 'border-slate-200'
               }`}
@@ -111,7 +150,7 @@ export function RejectReasonModal({
               </span>
             )}
             <div className="text-[10px] text-slate-400 text-right">
-              {reason.trim().length} / 2000 characters
+              {reason.trim().length} / {maxLength} characters
             </div>
           </div>
 
@@ -132,7 +171,7 @@ export function RejectReasonModal({
               data-testid="reject-reason-submit-btn"
               className="text-xs font-semibold"
             >
-              Reject Transition
+              {submitLabel || 'Reject Transition'}
             </Button>
           </DialogFooter>
         </form>

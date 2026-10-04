@@ -4,7 +4,12 @@
  * Unfinished modules remain disabled and render clean placeholders.
  */
 
-export const ENABLED_MODULES = ['Operations', 'Dashboard', 'Billing'] as const;
+export const ENABLED_MODULES = [
+  'Operations',
+  'Dashboard',
+  'Billing',
+  'Disbursements',
+] as const;
 
 export type EnabledModule = (typeof ENABLED_MODULES)[number];
 
