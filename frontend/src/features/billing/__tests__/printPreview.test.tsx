@@ -1,0 +1,243 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { PrintPreviewModal } from '../components/PrintPreviewModal';
+import { useBlockingModalStore } from '@/features/operations/components/BlockingActionModal';
+import { useSessionStore } from '@/lib/session';
+import type { Invoice } from '../api/types';
+
+function createHarness() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: Infinity, staleTime: Infinity },
+      mutations: { retry: false },
+    },
+  });
+
+  const wrapper = ({ children }: { children: React.ReactNode }) =>
+    React.createElement(QueryClientProvider, { client: queryClient }, children);
+
+  return { queryClient, wrapper };
+}
+
+const mockInvoiceForPrint: Invoice = {
+  id: 'inv-print-1',
+  entity_id: 'ent-ata',
+  entity_code: 'ATA',
+  invoice_number: 'ATA-SI-2026-0088',
+  client_id: 'c-1',
+  issue_date: '2026-10-15',
+  due_date: '2026-11-15',
+  status: 'Sent',
+  subtotal: 75000,
+  total: 75000,
+  amount_paid: 0,
+  balance: 75000,
+  address: '100 Ayala Avenue, Makati City, Metro Manila',
+  notes: 'Audit retainer fee',
+  terms: 'Due within 30 days',
+  version: 1,
+  created_at: '2026-10-15T08:00:00Z',
+  updated_at: '2026-10-15T08:00:00Z',
+  clients: {
+    name: 'Acme Corporation',
+    tin: '123-456-789-000',
+    address: '100 Ayala Avenue, Makati City, Metro Manila',
+  },
+  line_items: [
+    {
+      id: 'li-1',
+      description: 'Annual Financial Audit Services',
+      amount: 75000,
+      type: 'Professional Fee',
+    },
+  ],
+};
+
+describe('PrintPreviewModal Component (Decoupled Print & Address Security)', () => {
+  const originalFetch = global.fetch;
+  const originalPrint = window.print;
+
+  beforeEach(() => {
+    useBlockingModalStore.getState().reset();
+    window.print = vi.fn();
+
+    global.fetch = vi.fn().mockImplementation((url: string, opts?: RequestInit) => {
+      const u = String(url);
+      const method = opts?.method || 'GET';
+
+      if (u.includes('/invoices/inv-print-1') && method === 'GET') {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ data: mockInvoiceForPrint }),
+        } as Response);
+      }
+
+      if (u.includes('/invoices/inv-print-1') && method === 'PATCH') {
+        const body = JSON.parse(String(opts?.body || '{}'));
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            data: {
+              ...mockInvoiceForPrint,
+              ...body,
+              version: 2,
+            },
+          }),
+        } as Response);
+      }
+
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: {} }),
+      } as Response);
+    });
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    window.print = originalPrint;
+    vi.clearAllMocks();
+  });
+
+  it('renders exact on-screen document layout DECOUPLED from window.print (does not auto-print on open)', async () => {
+    // Set user session
+    useSessionStore.getState().setSession({
+      user: {
+        id: 'user-acct',
+        email: 'accounting@ata-lta.ph',
+        name: 'Accounting Staff',
+        role: 'Accounting',
+        departments: ['Accounting'],
+        entities: ['ATA'],
+      },
+      permissions: ['billing:view', 'billing:edit', 'billing:edit_client_address'],
+      activeEntity: 'ATA',
+    });
+
+    const { wrapper } = createHarness();
+    render(
+      <PrintPreviewModal
+        isOpen={true}
+        onClose={vi.fn()}
+        invoiceId="inv-print-1"
+        initialInvoice={mockInvoiceForPrint}
+      />,
+      { wrapper }
+    );
+
+    expect(screen.getByTestId('print-preview-modal')).toBeInTheDocument();
+    expect(screen.getByTestId('a4-document-sheet')).toBeInTheDocument();
+    expect(screen.getAllByText(/Amaya Tan & Associates/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('ATA-SI-2026-0088').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('Acme Corporation')).toBeInTheDocument();
+
+    // Verify window.print was NOT invoked on open
+    expect(window.print).not.toHaveBeenCalled();
+
+    // Explicit click on Print Document button calls window.print
+    const printBtn = screen.getByTestId('print-document-button');
+    fireEvent.click(printBtn);
+    expect(window.print).toHaveBeenCalledTimes(1);
+  });
+
+  it('forbids unauthorized users from editing client address (displays lock indicator)', async () => {
+    // Operations user lacking 'billing:edit_client_address'
+    useSessionStore.getState().setSession({
+      user: {
+        id: 'user-ops',
+        email: 'ops@ata-lta.ph',
+        name: 'Operations Staff',
+        role: 'Operations',
+        departments: ['Operations'],
+        entities: ['ATA'],
+      },
+      permissions: ['billing:view', 'billing:request'],
+      activeEntity: 'ATA',
+    });
+
+    const { wrapper } = createHarness();
+    render(
+      <PrintPreviewModal
+        isOpen={true}
+        onClose={vi.fn()}
+        invoiceId="inv-print-1"
+        initialInvoice={mockInvoiceForPrint}
+      />,
+      { wrapper }
+    );
+
+    // Verify lock badge is shown
+    expect(screen.getByTestId('address-locked-indicator')).toBeInTheDocument();
+    // Edit button is NOT rendered
+    expect(screen.queryByTestId('edit-client-address-button')).not.toBeInTheDocument();
+  });
+
+  it('allows authorized users with billing:edit_client_address to inline edit address snapshot', async () => {
+    // Accounting user holding 'billing:edit_client_address'
+    useSessionStore.getState().setSession({
+      user: {
+        id: 'user-acct',
+        email: 'accounting@ata-lta.ph',
+        name: 'Accounting Staff',
+        role: 'Accounting',
+        departments: ['Accounting'],
+        entities: ['ATA'],
+      },
+      permissions: ['billing:view', 'billing:edit', 'billing:edit_client_address'],
+      activeEntity: 'ATA',
+    });
+
+    const { wrapper } = createHarness();
+    render(
+      <PrintPreviewModal
+        isOpen={true}
+        onClose={vi.fn()}
+        invoiceId="inv-print-1"
+        initialInvoice={mockInvoiceForPrint}
+      />,
+      { wrapper }
+    );
+
+    // Edit button should be present
+    const editBtn = screen.getByTestId('edit-client-address-button');
+    expect(editBtn).toBeInTheDocument();
+
+    // Click edit
+    fireEvent.click(editBtn);
+
+    // Inline editor should open
+    expect(screen.getByTestId('inline-address-editor')).toBeInTheDocument();
+    const addressInput = screen.getByTestId('address-input');
+
+    // Change address
+    const newAddress = 'Suite 800, 456 Corporate Center, BGC, Taguig';
+    fireEvent.change(addressInput, { target: { value: newAddress } });
+
+    // Click Save Snapshot
+    const saveBtn = screen.getByTestId('save-address-button');
+    fireEvent.click(saveBtn);
+
+    // Verify API called with address only
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/invoices/inv-print-1'),
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ address: newAddress, expectedVersion: 1 }),
+        })
+      );
+    });
+
+    // Verify confirmation feedback
+    await waitFor(() => {
+      expect(screen.getByTestId('address-update-success-banner')).toHaveTextContent(
+        'Updated invoice snapshot address only. Master client record remains unchanged.'
+      );
+    });
+  });
+});
