@@ -193,7 +193,7 @@ export function TaskLineItems({
           Tasks ({tasks.length})
         </h4>
         <span className="text-[11px] text-slate-400">
-          Notion-style line items • Delimit with comma or newline
+          Notion-style line items • Paste a list — we'll split it
         </span>
       </div>
 
@@ -273,7 +273,7 @@ export function TaskLineItems({
                   <Input
                     value={task.title}
                     onChange={(e) => handleUpdateTask(index, 'title', e.target.value)}
-                    placeholder="Task title..."
+                    placeholder="Task title (paste a list — we'll split it)..."
                     disabled={disabled}
                     className="h-8 text-xs bg-white"
                     data-testid={`task-title-input-${task.localId}`}
@@ -534,7 +534,7 @@ export function TaskLineItems({
                       onChange={(e) =>
                         handleUpdateTask(index, 'description', e.target.value)
                       }
-                      placeholder="Add details, instructions, or acceptance criteria..."
+                      placeholder="Add details, instructions, or acceptance criteria (paste a list — we'll split it)..."
                       disabled={disabled}
                       rows={2}
                       className="w-full text-xs p-2 border border-slate-200 rounded bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"

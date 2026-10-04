@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   FileText,
@@ -15,13 +15,14 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Forbidden } from '@/components/common/Forbidden';
 import { WorkRequestList } from '@/features/operations/components/WorkRequestList';
+import { PhaseKanbanBoard } from '@/features/operations/components/PhaseKanbanBoard';
 import { WorkRequestModal } from '@/features/operations/components/WorkRequestModal';
 import { PendingApprovalsInbox } from '@/features/operations/components/PendingApprovalsInbox';
 import { OperationsArchiveTab } from '@/features/operations/components/OperationsArchiveTab';
 import { RetainerGenerateModal } from '@/features/operations/components/RetainerGenerateModal';
 import { BlockingActionModal } from '@/features/operations/components/BlockingActionModal';
 import { useOperationsRequestCounts } from '@/features/operations/api/usePhaseTransitions';
-import { useWorkRequestCounts, useWorkRequests } from '@/features/operations/api/useWorkRequests';
+import { useWorkRequestCounts } from '@/features/operations/api/useWorkRequests';
 import { useRetainerTemplates } from '@/features/operations/api/useRetainers';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
@@ -51,11 +52,6 @@ export default function OperationsPage() {
   const { data: requestCounts } = useOperationsRequestCounts();
   const { data: wrCounts } = useWorkRequestCounts();
   const { data: templates = [] } = useRetainerTemplates();
-  const { data: rawActive } = useWorkRequests({ archived: false });
-  const activeRequests: WorkRequest[] = React.useMemo(() => {
-    if (Array.isArray(rawActive)) return rawActive;
-    return rawActive?.data ?? [];
-  }, [rawActive]);
 
   if (!canViewModule) {
     return <Forbidden requiredPermission="workflow:view" />;
@@ -256,59 +252,24 @@ export default function OperationsPage() {
                 setEditingWr(null);
                 setIsCreateModalOpen(true);
               }}
+              onViewDetails={(wrId) => {
+                setSearchParams((prev) => {
+                  const next = new URLSearchParams(prev);
+                  next.set('tab', 'work-requests');
+                  next.set('view', 'board');
+                  next.set('wrId', wrId);
+                  return next;
+                });
+              }}
             />
           ) : (
-            /* Board View Preview (4-Phase Kanban preparatory view for M3) */
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4" data-testid="kanban-preview-board">
-              {(
-                [
-                  { phase: 'pre_processing', label: 'Pre-processing' },
-                  { phase: 'processing', label: 'Processing' },
-                  { phase: 'quality_assurance', label: 'Quality Assurance' },
-                  { phase: 'completion', label: 'Completion' },
-                ] as const
-              ).map(({ phase, label }) => {
-                const phaseWrs = activeRequests.filter((r) => r.phase === phase);
-
-                return (
-                  <div
-                    key={phase}
-                    className="flex flex-col bg-slate-50 border border-slate-200 rounded-lg p-3 min-h-[500px] space-y-3"
-                    data-testid={`kanban-column-${phase}`}
-                  >
-                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                      <span className="font-bold text-xs text-slate-800">{label}</span>
-                      <Badge variant="secondary" size="compact">
-                        {phaseWrs.length}
-                      </Badge>
-                    </div>
-
-                    <div className="space-y-2 flex-1 overflow-y-auto">
-                      {phaseWrs.map((wr) => (
-                        <div
-                          key={wr.id}
-                          className="p-3 bg-white border border-slate-200 rounded-md shadow-xs space-y-1.5"
-                          data-testid={`kanban-card-${wr.id}`}
-                        >
-                          <div className="font-semibold text-xs text-slate-900">{wr.title}</div>
-                          <div className="text-[11px] text-slate-500">
-                            {wr.clientName || wr.client?.name || 'Internal'}
-                          </div>
-                          <div className="flex items-center justify-between pt-1">
-                            <Badge variant={wr.entity === 'LTA' ? 'lta' : 'ata'} size="compact">
-                              {wr.entity}
-                            </Badge>
-                            <Badge variant="secondary" size="compact">
-                              {wr.priority}
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <PhaseKanbanBoard
+              initialWorkRequestId={searchParams.get('wrId') || undefined}
+              onEditWorkRequest={(wr) => {
+                setEditingWr(wr);
+                setIsCreateModalOpen(true);
+              }}
+            />
           )}
         </TabsContent>
 

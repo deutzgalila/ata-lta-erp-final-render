@@ -63,7 +63,8 @@ P3 (cutover) gated on P2 completion + staging rehearsal.
 | P0-G | Disbursement/Billing Permission Changes | P0-A | ✅ merged (staging @0d845dd; feat/p0-g-financial-permissions, manifest-resolved) |
 | P0-H | Contract Freeze | all P0 | ✅ done (feat/p0-h-contract-freeze) |
 | P1 | React Scaffold + Design System | none (parallel) | ✅ done (feat/p1-react-scaffold) |
-| P2 | Module-by-Module React Migration | P1 + P0-H | ☐ pending |
+| P2 | Module #1: Operations | P1 + P0-H | ✅ done (feat/p2-operations) |
+| P2.2-7 | Modules #2–7 (Dashboard, Billing, Disb, Trans, Admin, Reports) | P2.1 | ☐ pending |
 | P3 | Cutover Runbook | P2 | ☐ pending |
 
 ## 5. Working Rules for Every Agent
