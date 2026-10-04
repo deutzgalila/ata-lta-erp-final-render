@@ -63,10 +63,13 @@ Returns dashboard-level operational metrics across clients, work requests, docum
 - **Cache-Control:** `private, max-age=30`.
 - **Events Emitted:** None.
 
-#### Query Parameters
-None. The endpoint does not accept query parameters; `req.query` is ignored by `reportsController.analytics`. All calculated metrics reflect all non-deleted records for the resolved entity.
+#### Query Parameters (Zod: `analyticsQuerySchema`)
+| Parameter | Type | Required | Format / Validation | Description |
+| :--- | :--- | :---: | :---: | :--- |
+| `startDate` | string | No | String | Optional range start date (defined in schema) |
+| `endDate` | string | No | String | Optional range end date (defined in schema) |
 
-> **Implementation Note:** Although `analyticsQuerySchema` (`startDate?: string`, `endDate?: string`) is defined in `backend/src/modules/reports/schema.js`, the live controller does not parse or forward these query parameters to `service.getAnalytics`. Passing date parameters has no effect on the calculations in live 2.0.0.
+> **Implementation Note on Live Controller Behavior:** Although `analyticsQuerySchema` (`startDate?: string`, `endDate?: string`) is defined in `backend/src/modules/reports/schema.js`, the live 2.0.0 controller (`reportsController.analytics`) invokes `service.getAnalytics({ entityId: req.activeEntity })` without passing query parameters (`req.query` is ignored). Passing date parameters has no effect on calculations in live 2.0.0. All calculated metrics reflect all non-deleted records for the resolved entity.
 
 #### Single Entity Response (`X-Active-Entity: ATA` or `LTA`) (200 OK)
 ```json
@@ -626,10 +629,12 @@ Calculates the accounts receivable (AR) aging report across all outstanding invo
 
 > **Entity Scoping Note:** Requires a concrete entity code (`ATA` or `LTA`). Passing `X-Active-Entity: ALL` results in an empty dataset because records are queried with `entity_id = 'ALL'`.
 
-#### Query Parameters
-None. The live endpoint does not accept query parameters (`req.query` is ignored by `reportsController.aging`).
+#### Query Parameters (Zod: `agingQuerySchema`)
+| Parameter | Type | Required | Format / Validation | Description |
+| :--- | :--- | :---: | :---: | :--- |
+| `clientId` | UUID | No | Valid UUID | Optional filter by client identifier (defined in schema) |
 
-> **Implementation Note:** Although `agingQuerySchema` (`clientId?: UUID`) is defined in `backend/src/modules/reports/schema.js`, `reportsController.aging` invokes `service.getAgingReport({ entityId })` without passing query parameters. All outstanding invoices for the active entity are included in aging buckets regardless of any client query filter in live 2.0.0.
+> **Implementation Note on Live Controller Behavior:** Although `agingQuerySchema` (`clientId?: UUID`) is defined in `backend/src/modules/reports/schema.js`, the live 2.0.0 controller (`reportsController.aging`) invokes `service.getAgingReport({ entityId })` without passing query parameters (`req.query` is ignored). All outstanding invoices for the active entity are included in aging buckets regardless of any client query filter passed. The schema is reserved for client-specific aging views.
 
 #### Aging Buckets
 - `current`: Invoices not yet due (`daysOverdue <= 0`)
