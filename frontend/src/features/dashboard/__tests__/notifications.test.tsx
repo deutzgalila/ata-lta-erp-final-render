@@ -206,14 +206,33 @@ describe('Notifications API & NotificationBellPanel (notifications@2.0.0)', () =
     });
 
     it('marks notification as read and navigates to deep link target on click', async () => {
-      vi.spyOn(api, 'apiRequest')
-        .mockResolvedValueOnce({
-          data: sampleNotifications,
-          meta: { unread_count: 2 },
-        })
-        .mockResolvedValueOnce({
-          data: { id: 'notif-1', read_at: '2026-10-04T10:00:00Z' },
-        });
+      vi.spyOn(api, 'apiRequest').mockImplementation(async (path: string, options?: api.RequestOptions) => {
+        if (path.includes('/notifications') && options?.method === 'POST') {
+          const match = path.match(/\/notifications\/([^/]+)\/read/);
+          const notifId = match?.[1] ?? 'notif-1';
+          return { data: { id: notifId, read_at: '2026-10-04T10:00:00Z' } } as never;
+        }
+        if (path.includes('/notifications')) {
+          return {
+            data: sampleNotifications,
+            meta: { unread_count: 2, has_more: false },
+          } as never;
+        }
+        if (path.includes('/me')) {
+          return {
+            data: {
+              id: 'user-1',
+              email: 'user@ata-lta.ph',
+              name: 'Test User',
+              role: 'Manager',
+              departments: [],
+              entities: ['ATA'],
+              unread_notifications: 1,
+            },
+          } as never;
+        }
+        return { data: [] } as never;
+      });
 
       render(<NotificationBellPanel />, { wrapper: createWrapper() });
       fireEvent.click(screen.getByTestId('notification-bell-btn'));
@@ -227,14 +246,33 @@ describe('Notifications API & NotificationBellPanel (notifications@2.0.0)', () =
     });
 
     it('navigates to board view with wrId for QA reroute notification', async () => {
-      vi.spyOn(api, 'apiRequest')
-        .mockResolvedValueOnce({
-          data: sampleNotifications,
-          meta: { unread_count: 2 },
-        })
-        .mockResolvedValueOnce({
-          data: { id: 'notif-3', read_at: '2026-10-04T10:00:00Z' },
-        });
+      vi.spyOn(api, 'apiRequest').mockImplementation(async (path: string, options?: api.RequestOptions) => {
+        if (path.includes('/notifications') && options?.method === 'POST') {
+          const match = path.match(/\/notifications\/([^/]+)\/read/);
+          const notifId = match?.[1] ?? 'notif-3';
+          return { data: { id: notifId, read_at: '2026-10-04T10:00:00Z' } } as never;
+        }
+        if (path.includes('/notifications')) {
+          return {
+            data: sampleNotifications,
+            meta: { unread_count: 2, has_more: false },
+          } as never;
+        }
+        if (path.includes('/me')) {
+          return {
+            data: {
+              id: 'user-1',
+              email: 'user@ata-lta.ph',
+              name: 'Test User',
+              role: 'Manager',
+              departments: [],
+              entities: ['ATA'],
+              unread_notifications: 1,
+            },
+          } as never;
+        }
+        return { data: [] } as never;
+      });
 
       render(<NotificationBellPanel />, { wrapper: createWrapper() });
       fireEvent.click(screen.getByTestId('notification-bell-btn'));
