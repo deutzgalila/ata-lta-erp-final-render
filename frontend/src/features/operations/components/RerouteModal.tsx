@@ -1,0 +1,214 @@
+import React, { useState } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { AlertCircle, RotateCcw, AlertTriangle } from 'lucide-react';
+import { useQaReview } from '../api/useQaReview';
+import { runBlockingAction } from './BlockingActionModal';
+import { operationsKeys } from '../api/queryKeys';
+
+export interface RerouteModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  workRequestId: string;
+  failedTasks: Array<{ id: string; title: string }>;
+  onSuccess?: () => void;
+}
+
+export function RerouteModal({
+  isOpen,
+  onClose,
+  workRequestId,
+  failedTasks,
+  onSuccess,
+}: RerouteModalProps) {
+  const [toPhase, setToPhase] = useState<'pre_processing' | 'processing'>('processing');
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const { submitReroute } = useQaReview(workRequestId);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = reason.trim();
+    if (!trimmed) {
+      setError('A non-empty reroute reason is required for audit compliance.');
+      return;
+    }
+    setError(null);
+
+    await runBlockingAction({
+      title: 'Rerouting Work Request',
+      message: `Rerouting to ${toPhase === 'pre_processing' ? 'Pre-processing' : 'Processing'} and reopening failed tasks...`,
+      apiCall: async () => {
+        return await submitReroute({
+          workRequestId,
+          to_phase: toPhase,
+          reason: trimmed,
+        });
+      },
+      successTitle: 'Work Request Rerouted',
+      successMessage: `Successfully rerouted work request back to ${toPhase.replace('_', ' ')}.`,
+      invalidateQueries: [
+        operationsKeys.workRequestDetail(workRequestId),
+        operationsKeys.tasks(workRequestId),
+        operationsKeys.workRequests(),
+      ],
+      onSuccess: () => {
+        setReason('');
+        setError(null);
+        if (onSuccess) onSuccess();
+        onClose();
+      },
+    });
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md p-6 space-y-4" data-testid="reroute-modal">
+        <DialogHeader>
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-amber-50 rounded-full text-amber-600">
+              <RotateCcw className="h-5 w-5" />
+            </div>
+            <div>
+              <DialogTitle className="text-base font-bold text-slate-900">
+                Reroute Work Request
+              </DialogTitle>
+              <DialogDescription className="text-xs text-slate-600 pt-0.5">
+                Return this engagement from QA back to an earlier phase. Only tasks marked as failed will be reopened.
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Target Phase Selection */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-700">
+              Return to Phase *
+            </label>
+            <Select
+              value={toPhase}
+              onValueChange={(val) => setToPhase(val as 'pre_processing' | 'processing')}
+            >
+              <SelectTrigger className="w-full h-9 bg-white text-xs" data-testid="reroute-to-phase-select">
+                <SelectValue placeholder="Select target phase" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="processing" className="text-xs">
+                  Processing (Phase 2)
+                </SelectItem>
+                <SelectItem value="pre_processing" className="text-xs">
+                  Pre-processing (Phase 1)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Reopened Tasks Summary */}
+          <div className="space-y-1.5 bg-slate-50 border border-slate-200 rounded-md p-3">
+            <div className="flex items-center justify-between text-xs font-medium text-slate-700">
+              <span className="flex items-center gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                Tasks to be Reopened ({failedTasks.length})
+              </span>
+              {failedTasks.length > 0 && (
+                <Badge variant="destructive" size="compact" data-testid="reroute-failed-badge">
+                  {failedTasks.length} Failed
+                </Badge>
+              )}
+            </div>
+
+            {failedTasks.length === 0 ? (
+              <p className="text-[11px] text-slate-500 italic pt-1">
+                No tasks currently marked failed. (Mark failing tasks with QA controls before rerouting).
+              </p>
+            ) : (
+              <ul className="space-y-1 pt-1 max-h-32 overflow-y-auto" data-testid="reroute-reopened-tasks-list">
+                {failedTasks.map((t) => (
+                  <li
+                    key={t.id}
+                    className="text-xs text-slate-800 flex items-center justify-between py-0.5 border-b border-slate-100 last:border-none"
+                  >
+                    <span className="truncate pr-2">{t.title}</span>
+                    <Badge variant="destructive" size="compact" className="text-[10px]">
+                      Reopen
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Audit Reason Textarea */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+              <span>Audit Rationale (Required) *</span>
+              <span className="text-[10px] text-slate-400 font-normal">
+                Dispatched to task assignees
+              </span>
+            </label>
+            <textarea
+              value={reason}
+              onChange={(e) => {
+                setReason(e.target.value);
+                if (error) setError(null);
+              }}
+              placeholder="Detail the QA compliance failure or required corrections..."
+              rows={3}
+              className={`w-full text-xs p-2.5 border rounded-md bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 ${
+                error
+                  ? 'border-red-500 focus:ring-red-500'
+                  : 'border-slate-300 focus:ring-blue-500'
+              }`}
+              data-testid="reroute-reason-input"
+            />
+            {error && (
+              <p className="text-[11px] text-red-600 flex items-center gap-1" data-testid="reroute-reason-error">
+                <AlertCircle className="h-3 w-3 shrink-0" />
+                <span>{error}</span>
+              </p>
+            )}
+          </div>
+
+          <DialogFooter className="pt-2 flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onClose}
+              className="text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              variant="destructive"
+              className="text-xs font-semibold gap-1.5"
+              data-testid="confirm-reroute-btn"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Confirm & Reroute
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
