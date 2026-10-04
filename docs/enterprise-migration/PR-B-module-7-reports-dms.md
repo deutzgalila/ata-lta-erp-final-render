@@ -177,3 +177,5 @@ M  frontend/scripts/run-manual-qa-m7.cjs
 ---
 
 Co-Authored-By: Claude Code <noreply@anthropic.com>
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
