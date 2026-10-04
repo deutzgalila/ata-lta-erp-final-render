@@ -10,6 +10,7 @@ export const ENABLED_MODULES = [
   'Billing',
   'Disbursements',
   'Transmittals',
+  'Admin',
 ] as const;
 
 export type EnabledModule = (typeof ENABLED_MODULES)[number];
