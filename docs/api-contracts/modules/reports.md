@@ -48,11 +48,10 @@ Returns dashboard-level operational metrics across clients, work requests, docum
 - **Cache-Control:** `private, max-age=30`.
 - **Events Emitted:** None.
 
-#### Query Parameters (Zod: `analyticsQuerySchema`)
-| Parameter | Type | Required | Description |
-| :--- | :--- | :---: | :--- |
-| `startDate` | string | No | Optional start date filter |
-| `endDate` | string | No | Optional end date filter |
+#### Query Parameters
+None. The endpoint does not accept query parameters; `req.query` is ignored by `reportsController.analytics`. All calculated metrics reflect all non-deleted records for the resolved entity.
+
+> **Implementation Note:** Although `analyticsQuerySchema` (`startDate?: string`, `endDate?: string`) is defined in `backend/src/modules/reports/schema.js`, the live controller does not parse or forward these query parameters to `service.getAnalytics`. Passing date parameters has no effect on the calculations in live 2.0.0.
 
 #### Single Entity Response (`X-Active-Entity: ATA` or `LTA`) (200 OK)
 ```json
@@ -429,7 +428,7 @@ Returns an activity report covering the entire week (Monday 00:00:00Z to Sunday 
 ---
 
 ### 2.5 `GET /v1/reports/monthly-pending`
-Returns pending operational and financial tasks requiring administrative attention for a designated month.
+Returns pending operational and financial tasks requiring administrative attention. The `month` parameter scopes overdue invoices, while pending disbursements and stale draft transmittals reflect current real-time pending queues.
 
 - **Guards:** Authenticated, `reports:view`.
 - **Headers:** `X-Active-Entity: ATA|LTA`.
@@ -439,7 +438,12 @@ Returns pending operational and financial tasks requiring administrative attenti
 #### Query Parameters (Zod: `monthlyPendingQuerySchema`)
 | Parameter | Type | Required | Format / Validation | Description |
 | :--- | :--- | :---: | :---: | :--- |
-| `month` | string | No | YYYY-MM (`^\d{4}-\d{2}$`) | Target month; defaults to current UTC month |
+| `month` | string | No | YYYY-MM (`^\d{4}-\d{2}$`) | Evaluation month for overdue invoices; defaults to current UTC month |
+
+#### Per-Section Filtering Semantics
+- **`overdueInvoices`**: Scoped by `due_date <= ${targetMonth}-31` and `balance > 0`. Evaluates outstanding invoices due on or before the designated month.
+- **`pendingDisbursements`**: Unbounded by `month`. Always returns all disbursements for the entity currently in `Pending` or `Approved` status regardless of the requested `month`.
+- **`staleTransmittals`**: Unbounded by `month`. Always queries draft transmittals older than 7 days relative to the current execution timestamp (`created_at < now - 7 days`), regardless of the requested `month`.
 
 #### Response (200 OK)
 ```json
@@ -533,10 +537,10 @@ Calculates the accounts receivable (AR) aging report across all outstanding invo
 - **Since-version:** `1.0.0` (frozen at `2.0.0`).
 - **Events Emitted:** None.
 
-#### Query Parameters (Zod: `agingQuerySchema`)
-| Parameter | Type | Required | Description |
-| :--- | :--- | :---: | :--- |
-| `clientId` | UUID | No | Optional client filter identifier |
+#### Query Parameters
+None. The live endpoint does not accept query parameters (`req.query` is ignored by `reportsController.aging`).
+
+> **Implementation Note:** Although `agingQuerySchema` (`clientId?: UUID`) is defined in `backend/src/modules/reports/schema.js`, `reportsController.aging` invokes `service.getAgingReport({ entityId })` without passing query parameters. All outstanding invoices for the active entity are included in aging buckets regardless of any client query filter in live 2.0.0.
 
 #### Aging Buckets
 - `current`: Invoices not yet due (`daysOverdue <= 0`)
