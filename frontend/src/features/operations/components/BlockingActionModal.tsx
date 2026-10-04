@@ -397,7 +397,7 @@ export function BlockingActionModal() {
                 </DialogPrimitive.Description>
               </div>
               <div className="w-full pt-2">
-                <Button className="w-full" onClick={close}>
+                <Button className="w-full" onClick={close} data-testid="blocking-action-ok-btn">
                   OK
                 </Button>
               </div>
@@ -478,4 +478,39 @@ export function BlockingActionModal() {
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
   );
+}
+
+/**
+ * Convenience React hook for interacting with the BlockingActionModal
+ */
+export function useBlockingModal() {
+  const store = useBlockingModalStore();
+  return {
+    isOpen: store.isOpen,
+    status: store.status,
+    openLoading: store.openLoading,
+    openSuccess: (params: { title?: string; message?: string }) => {
+      useBlockingModalStore.setState({
+        status: 'success',
+        title: params.title || 'Success',
+        message: params.message || 'Operation completed successfully.',
+        isLocked: false,
+      });
+    },
+    openError: (params: { code?: string; detail: string; status?: number; title?: string; onRetry?: () => void }) => {
+      useBlockingModalStore.setState({
+        status: 'error',
+        error: {
+          code: params.code,
+          detail: params.detail,
+          status: params.status,
+          title: params.title,
+        },
+        onRetry: params.onRetry ?? null,
+        isLocked: false,
+      });
+    },
+    close: store.close,
+    reset: store.reset,
+  };
 }

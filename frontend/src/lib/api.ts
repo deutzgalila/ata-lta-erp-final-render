@@ -77,7 +77,8 @@ export async function apiRequest<T = unknown>(
   path: string,
   options: RequestOptions = {}
 ): Promise<T> {
-  const url = `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+  const cleanPath = path.startsWith('/v1/') ? path.slice(3) : path === '/v1' ? '' : path;
+  const url = `${API_BASE_URL}${cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`}`;
   const token = getToken();
   const activeEntity = useSessionStore.getState().activeEntity;
 
