@@ -67,6 +67,38 @@ Lists operations requests matching filter criteria.
       "notes": "{\"from_phase\":\"pre_processing\",\"to_phase\":\"processing\"}",
       "from_phase": "pre_processing",
       "to_phase": "processing",
+      "clients": {
+        "id": "uuid",
+        "name": "Acme Corp",
+        "code": "ACM-001"
+      },
+      "work_requests": {
+        "id": "uuid",
+        "title": "Prepare financial statements",
+        "entity": "ATA",
+        "entity_id": "uuid",
+        "status": "In Progress",
+        "phase": "pre_processing",
+        "assignee_id": "uuid",
+        "assignee_name": "Jane Staff",
+        "co_assignees": [],
+        "tasks": [
+          {
+            "id": "uuid",
+            "title": "Document gathering",
+            "status": "Completed",
+            "phase": "pre_processing",
+            "qa_status": "passed",
+            "assignee_id": "uuid",
+            "assignee_name": "Jane Staff"
+          }
+        ]
+      },
+      "requester": {
+        "id": "uuid",
+        "name": "Manager User",
+        "email": "manager@ata-lta.ph"
+      },
       "created_at": "2026-10-04T02:00:00Z"
     }
   ],
