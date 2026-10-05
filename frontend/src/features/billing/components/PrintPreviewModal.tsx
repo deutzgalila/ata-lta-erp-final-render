@@ -83,9 +83,24 @@ export function PrintPreviewModal({
     }
   };
 
+  const formatDate = (dateStr?: string | null) => {
+    if (!dateStr) return '—';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
   const handlePrint = () => {
-    // Explicit trigger decoupled from modal open
+    const oldTitle = document.title;
+    document.title = `Statement ${invoice.invoice_number || ''}`;
     window.print();
+    setTimeout(() => {
+      document.title = oldTitle;
+    }, 1000);
   };
 
   const handleDownloadPdf = async () => {
@@ -102,10 +117,118 @@ export function PrintPreviewModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
-        className="max-w-4xl max-h-[92vh] overflow-y-auto p-0 rounded-xl bg-slate-100"
+        className="max-w-4xl max-h-[92vh] overflow-y-auto p-0 rounded-xl bg-slate-100 print:p-0 print:m-0 print:max-w-none print:max-h-none print:w-full print:static print:transform-none print:border-none print:shadow-none print:overflow-visible print:bg-white print:rounded-none"
         data-testid="print-preview-modal"
       >
-        <DialogHeader className="p-4 bg-white border-b border-slate-200 sticky top-0 z-10 flex flex-row items-center justify-between">
+        {/* Dedicated Print Stylesheet: authentic prototype print fidelity */}
+        <style>{`
+          @media print {
+            @page {
+              size: A4 portrait;
+              margin: 15mm 20mm;
+            }
+            html, body {
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              color: #000000 !important;
+              width: 100% !important;
+              height: auto !important;
+              min-height: 0 !important;
+              overflow: visible !important;
+              font-family: 'Segoe UI', Arial, sans-serif !important;
+              font-size: 11pt !important;
+              line-height: 1.5 !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            #root,
+            [data-state*="open"][class*="fixed"][class*="inset-0"],
+            div[class*="backdrop-blur"],
+            body > *:not([role="dialog"]):not([data-testid*="modal"]),
+            [data-testid="print-preview-modal"] > header,
+            [data-testid="print-preview-modal"] > footer,
+            [data-testid="print-preview-modal"] button,
+            [data-testid="download-pdf-button"],
+            [data-testid="print-document-button"],
+            button,
+            .print\\:hidden {
+              display: none !important;
+              visibility: hidden !important;
+            }
+            [data-testid="print-preview-modal"],
+            [role="dialog"] {
+              position: static !important;
+              inset: auto !important;
+              top: 0 !important;
+              left: 0 !important;
+              transform: none !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              width: 100% !important;
+              max-width: 100% !important;
+              max-height: none !important;
+              height: auto !important;
+              box-shadow: none !important;
+              border: none !important;
+              border-radius: 0 !important;
+              background: #ffffff !important;
+              overflow: visible !important;
+            }
+            [data-testid="print-preview-modal"] > div.p-6,
+            div:has(> [data-testid="a4-document-sheet"]) {
+              padding: 0 !important;
+              margin: 0 !important;
+              display: block !important;
+            }
+            [data-testid="a4-document-sheet"] {
+              position: static !important;
+              width: 100% !important;
+              max-width: 210mm !important;
+              min-height: 0 !important;
+              margin: 0 auto !important;
+              padding: 0 !important;
+              box-shadow: none !important;
+              border: none !important;
+              border-radius: 0 !important;
+              background: #ffffff !important;
+            }
+            [data-testid="a4-document-sheet"] * {
+              visibility: visible !important;
+            }
+            .slanted-block-lta {
+              background-color: #1e293b !important;
+              color: #ffffff !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            .logo-banner-lta {
+              background-color: #007cc0 !important;
+              color: #ffffff !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            .details-table td,
+            .items-table td,
+            .items-table th,
+            .col-bill-to,
+            .payment-details-box,
+            .total-table td {
+              border-color: #000000 !important;
+            }
+            .header-container-ata,
+            .header-container-lta,
+            .two-col,
+            .items-table,
+            .bottom-container,
+            .signature-row,
+            .footer-container {
+              page-break-inside: avoid;
+            }
+          }
+        `}</style>
+
+        <DialogHeader className="p-4 bg-white border-b border-slate-200 sticky top-0 z-10 flex flex-row items-center justify-between print:hidden">
           <div>
             <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
               <Printer className="w-4 h-4 text-blue-600" />
@@ -144,7 +267,7 @@ export function PrintPreviewModal({
         {/* Success Banner if address updated */}
         {addressSuccessMessage && (
           <div
-            className="mx-6 mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between text-xs text-emerald-800"
+            className="mx-6 mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between text-xs text-emerald-800 print:hidden"
             data-testid="address-update-success-banner"
           >
             <span>{addressSuccessMessage}</span>
@@ -159,9 +282,9 @@ export function PrintPreviewModal({
         )}
 
         {/* A4 Sheet Container */}
-        <div className="p-6 flex justify-center">
+        <div className="p-6 flex justify-center print:p-0 print:m-0 print:block">
           <div
-            className="w-full max-w-[210mm] min-h-[297mm] bg-white text-slate-900 p-10 shadow-lg rounded-sm border border-slate-200 flex flex-col justify-between"
+            className="w-full max-w-[210mm] min-h-[297mm] bg-white text-slate-900 p-10 shadow-lg rounded-sm border border-slate-200 flex flex-col justify-between print:p-0 print:m-0 print:border-none print:shadow-none print:min-h-0 print:rounded-none"
             data-testid="a4-document-sheet"
           >
             <div>
@@ -171,7 +294,15 @@ export function PrintPreviewModal({
                   <div className="header-container-ata flex justify-between items-center mb-1">
                     <div className="logo-area-ata flex items-center bg-gradient-to-r from-sky-100 via-sky-100 to-transparent py-1.5 px-4 rounded-l-full w-[70%]">
                       <div className="logo-oval-ata w-[110px] h-[65px] bg-[#00A3E0] rounded-[50%/50%] flex justify-center items-center overflow-hidden mr-4 shrink-0 shadow-xs">
-                        <span className="text-white font-black text-2xl tracking-wider font-sans">ATA</span>
+                        <img
+                          src="/ERP_Assets/ATA-LOGO.jpg"
+                          alt="ATA Logo"
+                          className="w-[90%] h-[90%] object-contain"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLElement).style.display = 'none';
+                          }}
+                        />
+                        <span className="text-white font-black text-2xl tracking-wider font-sans sr-only">ATA</span>
                       </div>
                       <div>
                         <div className="company-name-ata text-base font-extrabold text-[#002D62] tracking-wide font-sans">
@@ -180,7 +311,7 @@ export function PrintPreviewModal({
                         <div className="text-[11px] text-slate-700 font-medium">
                           Amaya Tan & Associates
                         </div>
-                        <div className="text-[10px] text-slate-500">
+                        <div className="text-[10px] text-slate-500 print:hidden">
                           {entityTagline} • Metro Manila, Philippines
                         </div>
                       </div>
@@ -194,25 +325,25 @@ export function PrintPreviewModal({
                       </p>
                     </div>
                   </div>
-                  <div className="header-divider-ata border-b-2 border-black mb-6" />
+                  <div className="header-divider-ata border-b-2 border-black mb-5" />
                 </div>
               ) : (
-                <div className="header-container-lta flex items-stretch h-[65px] mb-6 border-b-2 border-black pb-1.5">
+                <div className="header-container-lta flex items-stretch h-[60px] mb-5 border-b-2 border-black pb-1.5">
                   <div className="logo-banner-lta flex items-center bg-[#007cc0] text-white px-4 flex-1">
-                    <div className="logo-img-lta h-10 w-10 rounded-xl bg-white p-0.5 mr-3 flex items-center justify-center shrink-0">
-                      <span className="text-[#007cc0] font-black text-sm">LTA</span>
-                    </div>
-                    <div>
-                      <span className="company-name-lta text-sm font-bold tracking-wide block">
-                        LTA BUSINESS MANAGEMENT CORP
-                      </span>
-                      <span className="text-[10px] text-sky-100">
-                        LTA — Lanting Tan & Associates • {entityTagline}
-                      </span>
-                    </div>
+                    <img
+                      src="/ERP_Assets/LTA-LOGO.jpg"
+                      alt="LTA Logo"
+                      className="logo-img-lta h-10 w-10 rounded-xl bg-white p-0.5 mr-3 object-contain shrink-0"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                    <span className="company-name-lta text-[13pt] font-bold tracking-wide">
+                      LTA BUSINESS MANAGEMENT CORP
+                    </span>
                   </div>
                   <div
-                    className="slanted-block-lta bg-slate-900 text-white flex items-center px-6 text-base font-extrabold tracking-widest -ml-4"
+                    className="slanted-block-lta bg-[#1e293b] text-white flex items-center px-6 text-[13pt] font-bold -ml-4"
                     style={{ clipPath: 'polygon(15px 0, 100% 0, 100% 100%, 0 100%)' }}
                   >
                     STATEMENT
@@ -229,7 +360,7 @@ export function PrintPreviewModal({
                 >
                   <div className="flex items-center justify-between border-b border-black pb-1 mb-1">
                     <span className="bill-to-title font-bold text-[11px] text-slate-900 uppercase tracking-wider">
-                      BILL TO:
+                      {entityCode === 'ATA' ? 'BILL TO' : 'BILL TO:'}
                     </span>
                     {canEditAddress ? (
                       !isEditingAddress && (
@@ -239,7 +370,7 @@ export function PrintPreviewModal({
                             setIsEditingAddress(true);
                             setAddressInput(currentAddress);
                           }}
-                          className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
+                          className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer print:hidden"
                           data-testid="edit-client-address-button"
                         >
                           <Pencil className="w-3 h-3" />
@@ -248,7 +379,7 @@ export function PrintPreviewModal({
                       )
                     ) : (
                       <span
-                        className="text-[10px] text-slate-400 flex items-center gap-1"
+                        className="text-[10px] text-slate-400 flex items-center gap-1 print:hidden"
                         title="billing:edit_client_address permission required"
                         data-testid="address-locked-indicator"
                       >
@@ -261,16 +392,18 @@ export function PrintPreviewModal({
                   <p className="font-bold text-slate-900 text-sm">
                     {invoice.clients?.name || 'Client Name Unavailable'}
                   </p>
-                  {invoice.clients?.tin && (
-                    <p className="text-slate-700 font-mono text-[11px]">
-                      TIN: {invoice.clients.tin}
+                  {(invoice.clients as unknown as { trade_name?: string })?.trade_name && (
+                    <p className="text-slate-800 text-xs">
+                      {entityCode === 'ATA'
+                        ? `(${(invoice.clients as unknown as { trade_name?: string }).trade_name})`
+                        : (invoice.clients as unknown as { trade_name?: string }).trade_name}
                     </p>
                   )}
 
                   {/* Address Section with Field-Level Security Inline Edit */}
                   <div className="pt-1">
                     {isEditingAddress ? (
-                      <div className="space-y-2" data-testid="inline-address-editor">
+                      <div className="space-y-2 print:hidden" data-testid="inline-address-editor">
                         <Input
                           value={addressInput}
                           onChange={(e) => setAddressInput(e.target.value)}
@@ -312,6 +445,12 @@ export function PrintPreviewModal({
                       </p>
                     )}
                   </div>
+
+                  {invoice.clients?.tin && (
+                    <p className="text-slate-700 font-mono text-[11px]">
+                      TIN: {invoice.clients.tin}
+                    </p>
+                  )}
                 </div>
 
                 {/* Invoice Details Table (1.5px solid border) */}
@@ -331,18 +470,18 @@ export function PrintPreviewModal({
                           STATEMENT DATE
                         </td>
                         <td className="details-value text-right font-mono p-2 border border-black text-slate-900">
-                          {invoice.issue_date?.slice(0, 10)}
+                          {formatDate(invoice.issue_date)}
                         </td>
                       </tr>
-                      <tr>
+                      <tr className="print:hidden">
                         <td className="details-label font-bold bg-slate-50 p-2 border border-black text-slate-800">
                           PAYMENT DUE
                         </td>
                         <td className="details-value text-right font-mono p-2 border border-black text-slate-900">
-                          {invoice.due_date?.slice(0, 10)}
+                          {formatDate(invoice.due_date)}
                         </td>
                       </tr>
-                      <tr>
+                      <tr className="print:hidden">
                         <td className="details-label font-bold bg-slate-50 p-2 border border-black text-slate-800">
                           STATUS
                         </td>
@@ -357,7 +496,7 @@ export function PrintPreviewModal({
                         </td>
                       </tr>
                       {invoice.terms && (
-                        <tr>
+                        <tr className="print:hidden">
                           <td className="details-label font-bold bg-slate-50 p-2 border border-black text-slate-800">
                             TERMS
                           </td>
@@ -376,22 +515,40 @@ export function PrintPreviewModal({
                 <table className="items-table w-full text-xs border-collapse border-[1.5px] border-black" data-testid="line-items-table">
                   <thead>
                     <tr className="bg-slate-50 border-b border-black text-slate-900">
-                      <th className="border border-black py-2 px-3 text-left w-12 font-bold uppercase">#</th>
-                      <th className="border border-black py-2 px-3 text-left font-bold uppercase">DESCRIPTION</th>
-                      <th className="border border-black py-2 px-3 text-left w-36 font-bold uppercase">CATEGORY</th>
-                      <th className="border border-black py-2 px-3 text-right w-32 font-bold uppercase">AMOUNT DUE</th>
+                      <th className="border border-black py-2 px-3 text-left font-bold uppercase text-[9pt] w-[15%]">
+                        DATE
+                      </th>
+                      <th className={`border border-black py-2 px-3 text-left font-bold uppercase text-[9pt] ${entityCode === 'ATA' ? 'w-[65%]' : 'w-[55%]'}`}>
+                        DESCRIPTION
+                      </th>
+                      {entityCode !== 'ATA' && (
+                        <th className="border border-black py-2 px-3 w-[10%]" />
+                      )}
+                      <th className="border border-black py-2 px-3 text-right font-bold uppercase text-[9pt] w-[20%]">
+                        AMOUNT DUE
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
+                    <tr className="border-b border-black text-slate-900">
+                      <td className="border border-black py-2 px-3" />
+                      <td className="border border-black py-2 px-3 font-bold text-right text-slate-900">
+                        BALANCE FORWARD:
+                      </td>
+                      {entityCode !== 'ATA' && <td className="border border-black py-2 px-3" />}
+                      <td className="border border-black py-2 px-3" />
+                    </tr>
                     {(invoice.line_items || []).map((item, idx) => (
                       <tr
                         key={item.id || idx}
                         className="border-b border-black text-slate-900"
                       >
-                        <td className="border border-black py-2 px-3 font-mono text-slate-600 text-center">{idx + 1}</td>
+                        <td className="border border-black py-2 px-3 font-mono text-slate-800">
+                          {idx === 0 ? formatDate(invoice.issue_date) : ''}
+                        </td>
                         <td className="border border-black py-2 px-3 font-medium">{item.description}</td>
-                        <td className="border border-black py-2 px-3 text-slate-700">{item.type}</td>
-                        <td className="border border-black py-2 px-3 text-right font-mono font-semibold">
+                        {entityCode !== 'ATA' && <td className="border border-black py-2 px-3" />}
+                        <td className="border border-black py-2 px-3 text-right font-mono font-semibold num">
                           {formatCurrency(item.amount)}
                         </td>
                       </tr>
@@ -407,35 +564,35 @@ export function PrintPreviewModal({
                   <div className="payment-details-title font-bold text-slate-900 uppercase border-b border-black pb-1 mb-2">
                     PAYMENT DETAILS:
                   </div>
-                  <div className="flex items-baseline gap-2 text-[11px]">
-                    <span className="font-semibold text-slate-700 min-w-[70px]">DATE:</span>
-                    <span className="border-b border-dotted border-black flex-1 min-h-[16px] font-mono px-1">
+                  <div className="payment-details-row flex items-baseline gap-2 text-[11px]">
+                    <span className="font-semibold text-slate-700 min-w-[100px] whitespace-nowrap">DATE:</span>
+                    <span className="fill-line border-b border-dotted border-black flex-1 min-h-[16px] font-mono px-1 font-bold">
                       {invoice.payments && invoice.payments.length > 0
-                        ? invoice.payments[0]?.payment_date?.slice(0, 10)
+                        ? formatDate(invoice.payments[0]?.payment_date)
                         : ''}
                     </span>
                   </div>
-                  <div className="flex items-baseline gap-2 text-[11px]">
-                    <span className="font-semibold text-slate-700 min-w-[70px]">CASH:</span>
-                    <span className="border-b border-dotted border-black flex-1 min-h-[16px] font-mono px-1">
+                  <div className="payment-details-row flex items-baseline gap-2 text-[11px]">
+                    <span className="font-semibold text-slate-700 min-w-[100px] whitespace-nowrap">CASH:</span>
+                    <span className="fill-line border-b border-dotted border-black flex-1 min-h-[16px] font-mono px-1 font-bold">
                       {invoice.payments && invoice.payments.length > 0 && invoice.payments[0]?.payment_method === 'Cash'
                         ? formatCurrency(invoice.payments[0]?.amount)
                         : ''}
                     </span>
                   </div>
-                  <div className="flex items-baseline gap-2 text-[11px]">
-                    <span className="font-semibold text-slate-700 min-w-[70px]">CHECK NO.:</span>
-                    <span className="border-b border-dotted border-black flex-1 min-h-[16px] font-mono px-1">
-                      {invoice.payments && invoice.payments.length > 0 && invoice.payments[0]?.reference_number
-                        ? invoice.payments[0]?.reference_number
+                  <div className="payment-details-row flex items-baseline gap-2 text-[11px]">
+                    <span className="font-semibold text-slate-700 min-w-[100px] whitespace-nowrap">DATE/CHECK NO.:</span>
+                    <span className="fill-line border-b border-dotted border-black flex-1 min-h-[16px] font-mono px-1 font-bold">
+                      {invoice.payments && invoice.payments.length > 0
+                        ? invoice.payments[0]?.reference_number || ''
                         : ''}
                     </span>
                   </div>
-                  <div className="flex items-baseline gap-2 text-[11px]">
-                    <span className="font-semibold text-slate-700 min-w-[70px]">BANK/BRANCH:</span>
-                    <span className="border-b border-dotted border-black flex-1 min-h-[16px] px-1">
+                  <div className="payment-details-row flex items-baseline gap-2 text-[11px]">
+                    <span className="font-semibold text-slate-700 min-w-[100px] whitespace-nowrap">BANK/BRANCH:</span>
+                    <span className="fill-line border-b border-dotted border-black flex-1 min-h-[16px] px-1 font-bold">
                       {invoice.payments && invoice.payments.length > 0
-                        ? invoice.payments[0]?.payment_method
+                        ? invoice.payments[0]?.payment_method || ''
                         : ''}
                     </span>
                   </div>
@@ -446,17 +603,22 @@ export function PrintPreviewModal({
                   <table className="total-table w-full border-collapse border-2 border-double border-black text-xs">
                     <tbody>
                       <tr>
-                        <td className="total-label bg-slate-50 p-2.5 font-bold border border-black text-slate-800 w-[55%]">
+                        <td className="total-label bg-slate-50 p-2.5 font-bold border border-black text-slate-800 w-[50%] text-[11pt]">
                           TOTAL AMOUNT DUE
                         </td>
-                        <td className="text-center font-bold p-2.5 border border-black w-[15%] text-slate-700">
+                        <td className="total-currency text-center font-bold p-2.5 border border-black w-[15%] text-slate-700 text-[11pt]">
                           PHP
                         </td>
-                        <td className="total-value text-right font-mono font-bold text-sm p-2.5 border border-black w-[30%] text-slate-950" data-testid="invoice-total">
-                          {formatCurrency(invoice.total)}
+                        <td className="total-value text-right font-mono font-bold text-sm p-2.5 border border-black w-[35%] text-slate-950 text-[12pt]" data-testid="invoice-total">
+                          <span className="hidden print:inline">
+                            {formatCurrency(invoice.total).replace('₱', '').trim()}
+                          </span>
+                          <span className="print:hidden">
+                            {formatCurrency(invoice.total)}
+                          </span>
                         </td>
                       </tr>
-                      <tr>
+                      <tr className="print:hidden">
                         <td className="bg-slate-50 p-2 font-medium border border-black text-slate-600">
                           Amount Paid
                         </td>
@@ -467,7 +629,7 @@ export function PrintPreviewModal({
                           {formatCurrency(invoice.amount_paid || 0)}
                         </td>
                       </tr>
-                      <tr>
+                      <tr className="print:hidden">
                         <td className="bg-slate-50 p-2 font-bold border border-black text-slate-900">
                           Outstanding Balance
                         </td>
@@ -510,9 +672,10 @@ export function PrintPreviewModal({
                   <div className="signature-label text-xs font-bold text-slate-800 mb-8">Prepared by:</div>
                   <div className="signature-line-container border-t-[1.5px] border-black pt-1.5 text-center">
                     <div className="signature-name-printed text-xs font-bold text-slate-900 uppercase">
-                      Authorized Signatory
+                      &nbsp;
+                      <span className="print:hidden block">Authorized Signatory</span>
                     </div>
-                    <div className="text-[10px] text-slate-500">
+                    <div className="text-[10px] text-slate-500 print:hidden">
                       ATA & LTA Accounting Department
                     </div>
                   </div>
@@ -528,15 +691,21 @@ export function PrintPreviewModal({
               </div>
             </div>
 
-            {/* 6. BIR / Official Regulatory Footer */}
+            {/* 6. Footer (Prototype Parity) */}
             <div className="footer-container border-t-2 border-black pt-4 mt-8 space-y-3 text-xs text-center">
               <div className="thank-you text-base font-extrabold tracking-widest text-slate-950 uppercase">
                 THANK YOU !!!
               </div>
-              <div className="footer-text font-bold text-slate-700 uppercase text-[11px]">
-                customer&apos;s copy
-              </div>
-              <div className="p-2 border border-slate-300 bg-slate-50 text-[10px] text-slate-600 text-center leading-tight">
+              {entityCode === 'LTA' ? (
+                <div className="footer-text underline font-bold text-[9pt] text-slate-900">
+                  Should you have any enquiries concerning this statement, please contact us on 742-8582/404-4928
+                </div>
+              ) : (
+                <div className="footer-text font-bold text-slate-700 uppercase text-[11px]">
+                  customer&apos;s copy
+                </div>
+              )}
+              <div className="p-2 border border-slate-300 bg-slate-50 text-[10px] text-slate-600 text-center leading-tight print:hidden">
                 NOTICE: THIS STATEMENT OF ACCOUNT IS NOT VALID FOR CLAIM OF INPUT VAT UNDER
                 NATIONAL INTERNAL REVENUE CODE UNLESS BIR-REGISTERED OFFICIAL RECEIPT IS ISSUED
                 UPON PAYMENT.
@@ -545,7 +714,7 @@ export function PrintPreviewModal({
           </div>
         </div>
 
-        <DialogFooter className="p-4 bg-white border-t border-slate-200 sticky bottom-0 z-10 flex justify-end">
+        <DialogFooter className="p-4 bg-white border-t border-slate-200 sticky bottom-0 z-10 flex justify-end print:hidden">
           <Button variant="outline" size="sm" onClick={onClose} className="text-xs cursor-pointer">
             Close
           </Button>

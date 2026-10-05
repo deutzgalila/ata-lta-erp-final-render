@@ -110,7 +110,12 @@ export function TransmittalPrintModal({
   const items = transmittal.items || [];
 
   const handlePrint = () => {
+    const oldTitle = document.title;
+    document.title = `Transmittal — ${transmittal.tracking_number || ''}`;
     window.print();
+    setTimeout(() => {
+      document.title = oldTitle;
+    }, 1000);
   };
 
   return (
@@ -135,28 +140,18 @@ export function TransmittalPrintModal({
               height: auto !important;
               min-height: 0 !important;
               overflow: visible !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
             }
             #root,
-            body > *:not([data-radix-portal]) {
+            [data-state*="open"][class*="fixed"][class*="inset-0"],
+            div[class*="backdrop-blur"],
+            body > *:not([role="dialog"]):not([data-testid*="modal"]) {
               display: none !important;
               visibility: hidden !important;
-            }
-            [data-radix-portal] {
-              position: static !important;
-              width: 100% !important;
-              margin: 0 !important;
-              padding: 0 !important;
-            }
-            [data-radix-portal] > [class*="fixed"][class*="inset-0"],
-            [data-radix-portal] [data-state*="open"][class*="bg-black"],
-            div[class*="backdrop-blur"] {
-              display: none !important;
-              visibility: hidden !important;
-              background: transparent !important;
-              opacity: 0 !important;
             }
             [data-testid="transmittal-print-modal"],
-            [data-radix-portal] [role="dialog"] {
+            [role="dialog"] {
               position: static !important;
               inset: auto !important;
               top: 0 !important;
