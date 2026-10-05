@@ -30,18 +30,18 @@ export interface ClientFilters {
 
 export function useClients(filters?: ClientFilters) {
   const activeEntity = useSessionStore((state) => state.activeEntity);
+  const requestedEntity =
+    filters?.entity !== undefined
+      ? (filters.entity || 'ALL')
+      : activeEntity;
   const effectiveEntity =
-    filters?.entity && filters.entity !== 'ALL'
-      ? filters.entity
-      : activeEntity !== 'ALL'
-        ? activeEntity
-        : undefined;
+    requestedEntity && requestedEntity !== 'ALL' ? requestedEntity : undefined;
 
   return useQuery<ClientSummary[], ApiError>({
     queryKey: ['clients', 'list', effectiveEntity, filters?.search, filters?.status],
     queryFn: async () => {
       const searchParams = new URLSearchParams();
-      if (effectiveEntity && effectiveEntity !== 'ALL') {
+      if (effectiveEntity) {
         searchParams.append('entity', effectiveEntity);
       }
       if (filters?.search) {
@@ -52,7 +52,14 @@ export function useClients(filters?: ClientFilters) {
       }
       const queryStr = searchParams.toString();
       const path = `/clients${queryStr ? `?${queryStr}` : ''}`;
-      const res = await apiRequest<ClientListResponse>(path);
+      const headers: Record<string, string> = {};
+      if (filters?.entity !== undefined) {
+        headers['X-Active-Entity'] = filters.entity || 'ALL';
+      }
+      const res = await apiRequest<ClientListResponse>(
+        path,
+        Object.keys(headers).length > 0 ? { headers } : undefined
+      );
       return res.data;
     },
     staleTime: 60 * 1000,

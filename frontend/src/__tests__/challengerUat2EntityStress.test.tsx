@@ -104,20 +104,19 @@ describe('Adversarial Verification Suite: Parcel 1 W2-ENTITY (Branch fix/uat2-en
       expect(lastRequestHeaders['X-Active-Entity']).toBeUndefined();
     });
 
-    // Adversarial exploration: case-sensitivity failure modes
-    it('EMPIRICAL BUG 1: X-ACTIVE-ENTITY in uppercase leaks when caller supplies ALL and injects duplicate header when ATA', async () => {
-      // 1. Leakage of ALL:
+    it('strips uppercase X-ACTIVE-ENTITY when ALL and avoids duplicate when ATA', async () => {
+      // 1. Omission of ALL regardless of uppercase casing:
       useSessionStore.setState({ activeEntity: 'ALL' });
       await apiRequest('/v1/test', { headers: { 'X-ACTIVE-ENTITY': 'ALL' } });
-      // In api.ts, delete headers['X-Active-Entity'] and delete headers['x-active-entity'] do not match uppercase!
-      expect(lastRequestHeaders['X-ACTIVE-ENTITY']).toBe('ALL'); // Leaks through to network!
+      expect(lastRequestHeaders['X-ACTIVE-ENTITY']).toBeUndefined();
+      expect(lastRequestHeaders['X-Active-Entity']).toBeUndefined();
+      expect(lastRequestHeaders['x-active-entity']).toBeUndefined();
 
-      // 2. Dual header injection when activeEntity is ATA:
+      // 2. Preserves uppercase custom header without injecting duplicate header:
       useSessionStore.setState({ activeEntity: 'ATA' });
       await apiRequest('/v1/test', { headers: { 'X-ACTIVE-ENTITY': 'LTA' } });
-      // In api.ts, !headers['X-Active-Entity'] && !headers['x-active-entity'] is true, so it injects X-Active-Entity: ATA!
       expect(lastRequestHeaders['X-ACTIVE-ENTITY']).toBe('LTA');
-      expect(lastRequestHeaders['X-Active-Entity']).toBe('ATA'); // Conflicting dual entity headers!
+      expect(lastRequestHeaders['X-Active-Entity']).toBeUndefined();
     });
   });
 
@@ -259,14 +258,14 @@ describe('Adversarial Verification Suite: Parcel 1 W2-ENTITY (Branch fix/uat2-en
       expect(queryKeys).toContainEqual(['clients', 'list', 'ATA', undefined, undefined]);
     });
 
-    it('EMPIRICAL BUG 2: useClients with filters.entity = "ALL" gets overridden to "?entity=ATA" when activeEntity is ATA', async () => {
+    it('omits entity search parameter and header when filters.entity is "ALL" even when activeEntity in store is ATA', async () => {
       useSessionStore.setState({ activeEntity: 'ATA' });
       renderHook(() => useClients({ entity: 'ALL' }), { wrapper });
 
       await waitFor(() => expect(global.fetch).toHaveBeenCalled());
-      // Due to ternary flaw in useClients.ts:33 (filters?.entity && filters.entity !== 'ALL' ? filters.entity : activeEntity !== 'ALL' ? activeEntity : undefined),
-      // filters.entity === 'ALL' falls back to activeEntity ('ATA'), sending ?entity=ATA instead of omitting it!
-      expect(lastRequestUrl).toContain('/clients?entity=ATA');
+      expect(lastRequestUrl).toBe('https://ata-lta-erp-api-staging.onrender.com/v1/clients');
+      expect(lastRequestUrl).not.toContain('entity=');
+      expect(lastRequestHeaders['X-Active-Entity']).toBeUndefined();
     });
   });
 

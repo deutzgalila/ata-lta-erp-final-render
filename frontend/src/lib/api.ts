@@ -91,14 +91,19 @@ export async function apiRequest<T = unknown>(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  if (activeEntity && activeEntity !== 'ALL' && !headers['X-Active-Entity'] && !headers['x-active-entity']) {
+  // Normalize entity header handling case-insensitively
+  const entityHeaderKeys = Object.keys(headers).filter(
+    (k) => k.toLowerCase() === 'x-active-entity'
+  );
+
+  if (activeEntity && activeEntity !== 'ALL' && entityHeaderKeys.length === 0) {
     headers['X-Active-Entity'] = activeEntity;
   }
-  if (headers['X-Active-Entity'] === 'ALL') {
-    delete headers['X-Active-Entity'];
-  }
-  if (headers['x-active-entity'] === 'ALL') {
-    delete headers['x-active-entity'];
+
+  for (const key of entityHeaderKeys) {
+    if (headers[key]?.trim().toUpperCase() === 'ALL') {
+      delete headers[key];
+    }
   }
 
   const methodUpper = (options.method || 'GET').toUpperCase();
