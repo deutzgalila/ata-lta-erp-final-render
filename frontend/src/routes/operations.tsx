@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   FileText,
   Clock,
@@ -20,15 +21,18 @@ import { WorkRequestModal } from '@/features/operations/components/WorkRequestMo
 import { PendingApprovalsInbox } from '@/features/operations/components/PendingApprovalsInbox';
 import { OperationsArchiveTab } from '@/features/operations/components/OperationsArchiveTab';
 import { RetainerGenerateModal } from '@/features/operations/components/RetainerGenerateModal';
+import { RetainerTemplateModal } from '@/features/admin';
 import { BlockingActionModal } from '@/features/operations/components/BlockingActionModal';
 import { useOperationsRequestCounts } from '@/features/operations/api/usePhaseTransitions';
 import { useWorkRequestCounts } from '@/features/operations/api/useWorkRequests';
 import { useRetainerTemplates } from '@/features/operations/api/useRetainers';
+import { operationsKeys } from '@/features/operations/api/queryKeys';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
-import type { WorkRequest, EntityCode } from '@/features/operations/api/types';
+import type { WorkRequest, EntityCode, RetainerTemplate } from '@/features/operations/api/types';
 
 export default function OperationsPage() {
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'work-requests';
   const activeView = searchParams.get('view') || 'list';
@@ -37,8 +41,11 @@ export default function OperationsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingWr, setEditingWr] = useState<WorkRequest | null>(null);
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<RetainerTemplate | null>(null);
 
   // Session & RBAC
+  const user = useSessionStore((state) => state.user);
   const permissions = useSessionStore((state) => state.permissions);
   const activeEntity = useSessionStore((state) => state.activeEntity);
   const setActiveEntity = useSessionStore((state) => state.setActiveEntity);
@@ -47,11 +54,37 @@ export default function OperationsPage() {
   const canViewModule = hasPermission(permissions, 'workflow:view');
   const canEdit = hasPermission(permissions, 'workflow:edit');
   const canUseRetainers = hasPermission(permissions, 'retainers:use');
+  const canEditRetainers = hasPermission(permissions, 'retainers:edit') || user?.role === 'Admin';
 
   // Badge Counts Queries
   const { data: requestCounts } = useOperationsRequestCounts();
   const { data: wrCounts } = useWorkRequestCounts();
   const { data: templates = [] } = useRetainerTemplates();
+
+  const toAdminTemplate = (
+    tpl: RetainerTemplate | null
+  ): React.ComponentProps<typeof RetainerTemplateModal>['template'] => {
+    if (!tpl) return null;
+    const mapPriority = (p?: string): 'Low' | 'Normal' | 'High' | 'Urgent' => {
+      if (p === 'Medium' || p === 'Normal') return 'Normal';
+      if (p === 'Low') return 'Low';
+      if (p === 'Urgent') return 'Urgent';
+      return 'High';
+    };
+
+    return {
+      ...tpl,
+      entity: tpl.entity === 'LTA' ? 'LTA' : 'ATA',
+      priority: mapPriority(tpl.priority),
+      defaultPriority: mapPriority(tpl.defaultPriority || tpl.default_priority),
+      default_priority: mapPriority(tpl.default_priority || tpl.defaultPriority),
+      recurrence: tpl.recurrence === 'annual' ? 'annual' : 'none',
+      tasks: (tpl.tasks || []).map((t) => ({
+        ...t,
+        phase: t.phase === 'processing' ? 'processing' : 'pre_processing',
+      })),
+    };
+  };
 
   if (!canViewModule) {
     return <Forbidden requiredPermission="workflow:view" />;
@@ -123,6 +156,22 @@ export default function OperationsPage() {
           </div>
 
           {/* Action Buttons */}
+          {canEditRetainers && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setEditingTemplate(null);
+                setIsTemplateModalOpen(true);
+              }}
+              className="text-xs font-semibold gap-1.5"
+              data-testid="page-new-template-btn"
+            >
+              <Plus className="h-4 w-4 text-slate-500" /> New Template
+            </Button>
+          )}
+
           {canUseRetainers && (
             <Button
               type="button"
@@ -276,37 +325,70 @@ export default function OperationsPage() {
         {/* Tab 2 Content: Retainer Templates */}
         <TabsContent value="retainer-templates" className="mt-0">
           <div className="p-6 bg-white border border-slate-200 rounded-lg space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Retainer Templates Directory</h3>
                 <p className="text-xs text-slate-500">
                   Recurring engagement templates used to generate standard work requests.
                 </p>
               </div>
-              {canUseRetainers && (
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => setIsGenerateModalOpen(true)}
-                  className="text-xs gap-1.5"
-                >
-                  <Zap className="h-3.5 w-3.5 text-amber-400" /> Generate from Template
-                </Button>
-              )}
+              <div className="flex items-center gap-2">
+                {canEditRetainers && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      setEditingTemplate(null);
+                      setIsTemplateModalOpen(true);
+                    }}
+                    className="text-xs font-semibold gap-1.5"
+                    data-testid="create-template-btn"
+                  >
+                    <Plus className="h-4 w-4" /> Create Work Request Template
+                  </Button>
+                )}
+                {canUseRetainers && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsGenerateModalOpen(true)}
+                    className="text-xs gap-1.5"
+                    data-testid="generate-template-btn"
+                  >
+                    <Zap className="h-3.5 w-3.5 text-amber-400" /> Generate from Template
+                  </Button>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {templates.map((tpl) => (
                 <div
                   key={tpl.id}
-                  className="p-4 bg-slate-50/60 border border-slate-200 rounded-lg space-y-2"
+                  className="p-4 bg-slate-50/60 border border-slate-200 rounded-lg space-y-2 hover:border-slate-300 transition-colors"
                   data-testid={`template-card-${tpl.id}`}
                 >
                   <div className="flex items-start justify-between">
                     <h4 className="font-bold text-xs text-slate-900">{tpl.name}</h4>
-                    <Badge variant={(tpl.entity || tpl.entity_id) === 'LTA' ? 'lta' : 'ata'} size="compact">
-                      {tpl.entity || tpl.entity_id}
-                    </Badge>
+                    <div className="flex items-center gap-1.5">
+                      {canEditRetainers && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingTemplate(tpl);
+                            setIsTemplateModalOpen(true);
+                          }}
+                          className="text-[11px] font-medium text-blue-600 hover:text-blue-800 hover:underline px-1"
+                          data-testid={`edit-template-btn-${tpl.id}`}
+                        >
+                          Edit
+                        </button>
+                      )}
+                      <Badge variant={(tpl.entity || tpl.entity_id) === 'LTA' ? 'lta' : 'ata'} size="compact">
+                        {tpl.entity || tpl.entity_id}
+                      </Badge>
+                    </div>
                   </div>
                   {tpl.description && (
                     <p className="text-xs text-slate-600 line-clamp-2">{tpl.description}</p>
@@ -347,6 +429,18 @@ export default function OperationsPage() {
       <RetainerGenerateModal
         isOpen={isGenerateModalOpen}
         onClose={() => setIsGenerateModalOpen(false)}
+      />
+
+      <RetainerTemplateModal
+        isOpen={isTemplateModalOpen}
+        template={toAdminTemplate(editingTemplate)}
+        onClose={() => {
+          setIsTemplateModalOpen(false);
+          setEditingTemplate(null);
+        }}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: operationsKeys.templates() });
+        }}
       />
 
       <BlockingActionModal />

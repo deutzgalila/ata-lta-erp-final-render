@@ -21,6 +21,7 @@ import {
   FileText,
   CheckSquare,
   User,
+  Users,
   Calendar,
   Plus,
   CheckCircle2,
@@ -34,6 +35,7 @@ import {
   Upload,
   ExternalLink,
   Link as LinkIcon,
+  X,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTimeEntriesList, useCreateTimeEntry } from '@/features/dashboard/api/useTimeEntries';
@@ -74,6 +76,10 @@ export function TaskDetailModal({
 
   // Selected document for preview
   const [selectedDoc, setSelectedDoc] = useState<DmsDocument | null>(null);
+
+  // Key state to reset select dropdowns after an action
+  const [addSelectKey, setAddSelectKey] = useState(0);
+  const [reassignSelectKey, setReassignSelectKey] = useState(0);
 
   // Time entries for this task
   const { data: timeEntries = [], isLoading: isLoadingTime } = useTimeEntriesList(
@@ -159,6 +165,36 @@ export function TaskDetailModal({
     return teamList.filter((m) => m && m.id && !currentAssigneeIds.has(m.id));
   }, [teamList, currentAssigneeIds]);
 
+  // Comprehensive assigned team members (lead + all co-assignees)
+  const assignedTeamMembers = useMemo(() => {
+    if (!task) return [];
+    const members: Array<{
+      id: string;
+      name: string;
+      role?: string;
+      isLead: boolean;
+    }> = [];
+
+    const leadId = task.assigneeId;
+
+    currentAssigneeIds.forEach((id) => {
+      const found = teamList.find((m) => m.id === id);
+      const isLead = id === leadId;
+      members.push({
+        id,
+        name: found?.name || (isLead && task.assigneeName ? task.assigneeName : `Staff (${id.slice(0, 8)})`),
+        role: found?.role,
+        isLead,
+      });
+    });
+
+    return members.sort((a, b) => {
+      if (a.isLead) return -1;
+      if (b.isLead) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [task, currentAssigneeIds, teamList]);
+
   // Check if current caller is an assignee or workflow:edit holder (UAT2-9-frontend)
   const isAssignee = useMemo(() => {
     if (!currentUserId || !task) return false;
@@ -170,8 +206,8 @@ export function TaskDetailModal({
 
   const canMutateStatus = canEdit || isAssignee;
 
-  // Handle assigning an employee (UAT2-8)
-  const handleAssignEmployee = async (employeeId: string) => {
+  // Handle adding a co-assignee (UAT2-8 + multi-assignee)
+  const handleAddCoAssignee = async (employeeId: string) => {
     if (!task || !task.workRequestId) return;
     const member = teamList.find((m) => m.id === employeeId);
     if (!member) return;
@@ -179,8 +215,10 @@ export function TaskDetailModal({
     const nextAssigneeName = task.assigneeName || member.name;
     const nextAssigneeId = task.assigneeId || member.id;
 
+    setAddSelectKey((k) => k + 1);
+
     await runBlockingAction({
-      title: 'Assigning Employee',
+      title: 'Adding Assignee',
       message: `Assigning ${member.name} to task "${task.title}"...`,
       apiCall: async () => {
         return await updateTask({
@@ -193,8 +231,96 @@ export function TaskDetailModal({
           },
         });
       },
-      successTitle: 'Employee Assigned',
+      successTitle: 'Assignee Added',
       successMessage: `${member.name} has been assigned to this task.`,
+      onSuccess: (updated) => {
+        if (updated && onTaskUpdated) {
+          onTaskUpdated(updated as Task);
+        }
+      },
+      invalidateQueries: [
+        operationsKeys.tasks(task.workRequestId),
+        operationsKeys.workRequestDetail(task.workRequestId),
+      ],
+    });
+  };
+
+  // Handle setting / re-assigning the lead assignee
+  const handleSetLeadAssignee = async (employeeId: string) => {
+    if (!task || !task.workRequestId) return;
+    const member = teamList.find((m) => m.id === employeeId);
+    if (!member) return;
+    const nextAssigneeIds = Array.from(new Set([...currentAssigneeIds, employeeId]));
+
+    setReassignSelectKey((k) => k + 1);
+
+    await runBlockingAction({
+      title: 'Reassigning Lead Assignee',
+      message: `Setting ${member.name} as lead assignee for "${task.title}"...`,
+      apiCall: async () => {
+        return await updateTask({
+          workRequestId: task.workRequestId,
+          taskId: task.id,
+          data: {
+            assigneeId: member.id,
+            assigneeName: member.name,
+            assignees: nextAssigneeIds,
+          },
+        });
+      },
+      successTitle: 'Lead Assignee Updated',
+      successMessage: `${member.name} is now the lead assignee for this task.`,
+      onSuccess: (updated) => {
+        if (updated && onTaskUpdated) {
+          onTaskUpdated(updated as Task);
+        }
+      },
+      invalidateQueries: [
+        operationsKeys.tasks(task.workRequestId),
+        operationsKeys.workRequestDetail(task.workRequestId),
+      ],
+    });
+  };
+
+  // Handle removing an assignee or co-assignee
+  const handleRemoveAssignee = async (employeeId: string) => {
+    if (!task || !task.workRequestId) return;
+    const member = teamList.find((m) => m.id === employeeId);
+    const memberName = member?.name || 'Assigned member';
+
+    const nextAssigneeIds = Array.from(currentAssigneeIds).filter((id) => id !== employeeId);
+    const isRemovingLead = task.assigneeId === employeeId;
+
+    let nextLeadId: string | null = task.assigneeId;
+    let nextLeadName: string | null = task.assigneeName;
+
+    if (isRemovingLead) {
+      if (nextAssigneeIds.length > 0) {
+        nextLeadId = nextAssigneeIds[0] ?? null;
+        const nextLead = teamList.find((m) => m.id === nextLeadId);
+        nextLeadName = nextLead?.name || null;
+      } else {
+        nextLeadId = null;
+        nextLeadName = null;
+      }
+    }
+
+    await runBlockingAction({
+      title: 'Removing Assignee',
+      message: `Removing ${memberName} from "${task.title}"...`,
+      apiCall: async () => {
+        return await updateTask({
+          workRequestId: task.workRequestId,
+          taskId: task.id,
+          data: {
+            assigneeId: nextLeadId,
+            assigneeName: nextLeadName,
+            assignees: nextAssigneeIds,
+          },
+        });
+      },
+      successTitle: 'Assignee Removed',
+      successMessage: `${memberName} has been removed from this task.`,
       onSuccess: (updated) => {
         if (updated && onTaskUpdated) {
           onTaskUpdated(updated as Task);
@@ -374,7 +500,7 @@ export function TaskDetailModal({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
               <div>
                 <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">
-                  Assignee
+                  Lead Assignee
                 </span>
                 <div
                   className="flex items-center gap-1.5 font-medium text-slate-800 truncate"
@@ -383,24 +509,10 @@ export function TaskDetailModal({
                   <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                   <span className="truncate">{task.assigneeName || 'Unassigned'}</span>
                 </div>
-                {canEdit && availableTeamMembers.length > 0 && (
-                  <div className="mt-1.5" data-testid="assign-employee-container">
-                    <Select onValueChange={(val) => handleAssignEmployee(val)}>
-                      <SelectTrigger
-                        className="h-6 text-[10px] bg-white border-slate-300 w-full px-1.5"
-                        data-testid="assign-employee-select"
-                      >
-                        <SelectValue placeholder="+ Assign Staff..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableTeamMembers.map((m) => (
-                          <SelectItem key={m.id} value={m.id} className="text-xs">
-                            {m.name} ({m.role})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                {assignedTeamMembers.length > 1 && (
+                  <span className="text-[10px] text-slate-500 font-medium mt-0.5 block truncate">
+                    +{assignedTeamMembers.length - 1} co-assignee{assignedTeamMembers.length > 2 ? 's' : ''}
+                  </span>
                 )}
               </div>
 
@@ -443,7 +555,141 @@ export function TaskDetailModal({
               </div>
             </div>
 
-            {/* 2. Description / Requirements */}
+            {/* 2. Assigned Team & Co-Assignees */}
+            <div className="p-4 bg-white border border-slate-200 rounded-lg space-y-3" data-testid="assigned-team-section">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-blue-50 text-blue-700 rounded-md">
+                    <Users className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                      Assigned Team
+                      <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-full" data-testid="assigned-team-count">
+                        {assignedTeamMembers.length}
+                      </span>
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      Primary lead assignee and co-assignees working on this task
+                    </p>
+                  </div>
+                </div>
+
+                {canEdit && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Reassign Lead Select */}
+                    {teamList.length > 0 && (
+                      <div className="w-40 sm:w-44" data-testid="reassign-lead-container">
+                        <Select
+                          key={`reassign-${reassignSelectKey}`}
+                          onValueChange={(val) => handleSetLeadAssignee(val)}
+                        >
+                          <SelectTrigger
+                            className="h-7 text-xs bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700"
+                            data-testid="reassign-lead-select"
+                          >
+                            <SelectValue placeholder="Reassign Lead..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {teamList.map((m) => (
+                              <SelectItem key={m.id} value={m.id} className="text-xs">
+                                {m.name} {m.id === task.assigneeId ? '(Lead)' : `(${m.role})`}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {/* Add Co-Assignee Select */}
+                    {availableTeamMembers.length > 0 && (
+                      <div className="w-40 sm:w-44" data-testid="assign-employee-container">
+                        <Select
+                          key={`add-${addSelectKey}`}
+                          onValueChange={(val) => handleAddCoAssignee(val)}
+                        >
+                          <SelectTrigger
+                            className="h-7 text-xs bg-blue-50/70 hover:bg-blue-50 border-blue-200 text-blue-800 font-medium"
+                            data-testid="assign-employee-select"
+                          >
+                            <SelectValue placeholder="+ Add Co-Assignee..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableTeamMembers.map((m) => (
+                              <SelectItem key={m.id} value={m.id} className="text-xs">
+                                {m.name} ({m.role})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Members Chips / Cards */}
+              {assignedTeamMembers.length === 0 ? (
+                <div className="py-3 text-center text-xs text-slate-400 italic">
+                  No team members assigned yet. Use the dropdown above to assign a lead or co-assignee.
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2 pt-1" data-testid="assigned-team-list">
+                  {assignedTeamMembers.map((member) => (
+                    <div
+                      key={member.id}
+                      className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs ${
+                        member.isLead
+                          ? 'bg-blue-50/80 border-blue-200 text-blue-900 shadow-xs'
+                          : 'bg-slate-50 border-slate-200 text-slate-800'
+                      }`}
+                      data-testid={`assignee-chip-${member.id}`}
+                    >
+                      <User className={`h-3.5 w-3.5 ${member.isLead ? 'text-blue-600' : 'text-slate-400'}`} />
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-xs">{member.name}</span>
+                        {member.isLead ? (
+                          <Badge size="compact" className="bg-blue-600 text-white font-medium text-[10px]">
+                            Lead
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" size="compact" className="text-[10px] text-slate-500">
+                            {member.role || 'Co-Assignee'}
+                          </Badge>
+                        )}
+                      </div>
+
+                      {canEdit && (
+                        <div className="flex items-center gap-1.5 ml-1 pl-1.5 border-l border-slate-200">
+                          {!member.isLead && (
+                            <button
+                              type="button"
+                              onClick={() => handleSetLeadAssignee(member.id)}
+                              className="text-[10px] text-blue-600 hover:text-blue-800 hover:underline font-medium px-1"
+                              title="Make this member the lead assignee"
+                              data-testid={`make-lead-btn-${member.id}`}
+                            >
+                              Make Lead
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAssignee(member.id)}
+                            className="text-slate-400 hover:text-red-600 p-0.5 rounded transition-colors"
+                            title={`Remove ${member.name}`}
+                            data-testid={`remove-assignee-btn-${member.id}`}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 3. Description / Requirements */}
             <div className="space-y-1.5">
               <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
                 Description & Instructions

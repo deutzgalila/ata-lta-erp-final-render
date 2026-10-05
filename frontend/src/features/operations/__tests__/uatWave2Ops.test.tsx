@@ -2,10 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
 import { TaskDetailModal } from '../components/TaskDetailModal';
 import { WorkRequestSidePeek } from '../components/WorkRequestSidePeek';
 import { PendingApprovalsInbox } from '../components/PendingApprovalsInbox';
 import { PhaseKanbanBoard } from '../components/PhaseKanbanBoard';
+import OperationsPage from '@/routes/operations';
 import { useSessionStore } from '@/lib/session';
 import { useBlockingModalStore } from '../components/BlockingActionModal';
 import type { WorkRequest, DmsDocument } from '../api/types';
@@ -215,6 +217,35 @@ describe('UAT Wave 2: Operations Linkage, Assignee Controls, and Modals', () => 
       }
       if (url.includes('/documents?')) {
         return new Response(JSON.stringify({ data: [mockDoc] }), { status: 200 });
+      }
+      if (url.includes('/operations/templates')) {
+        return new Response(
+          JSON.stringify({
+            data: [
+              {
+                id: 'tpl-1',
+                name: 'Monthly Bookkeeping',
+                entity: 'ATA',
+                description: 'Routine bookkeeping template',
+                recurrence: 'monthly',
+                priority: 'Medium',
+                tasks: [],
+                created_at: '2026-01-01T00:00:00Z',
+                updated_at: '2026-01-01T00:00:00Z',
+              },
+            ],
+          }),
+          { status: 200 }
+        );
+      }
+      if (url.includes('/clients')) {
+        return new Response(
+          JSON.stringify({ data: [{ id: 'c-100', name: 'Megaworld Corp' }] }),
+          { status: 200 }
+        );
+      }
+      if (url.includes('/users')) {
+        return new Response(JSON.stringify({ data: mockTeamMembers }), { status: 200 });
       }
       if (url.includes('/time-entries?')) {
         return new Response(JSON.stringify({ data: [] }), { status: 200 });
@@ -454,5 +485,124 @@ describe('UAT Wave 2: Operations Linkage, Assignee Controls, and Modals', () => 
 
     const uploadBtn = await screen.findByTestId('task-upload-doc-btn');
     expect(uploadBtn).toBeInTheDocument();
+  });
+
+  // Multi-Assignee & Re-assignment
+  it('renders assigned team section with lead and co-assignees, allowing re-assignment and removal', async () => {
+    const { wrapper } = createHarness();
+    const taskWithMultiAssignees = {
+      ...mockWr.tasks![0]!,
+      assigneeId: 'u-lead-1',
+      assigneeName: 'Maria Santos',
+      assignees: ['u-lead-1', 'u-staff-1', 'u-staff-2'],
+    };
+
+    render(
+      <TaskDetailModal
+        isOpen={true}
+        onClose={vi.fn()}
+        task={taskWithMultiAssignees}
+        workRequest={mockWr}
+      />,
+      { wrapper }
+    );
+
+    // Meta Grid shows lead assignee
+    expect(await screen.findByTestId('task-assignee')).toHaveTextContent('Maria Santos');
+    expect(screen.getByText('+2 co-assignees')).toBeInTheDocument();
+
+    // Dedicated Assigned Team section shows count 3
+    expect(screen.getByTestId('assigned-team-section')).toBeInTheDocument();
+    expect(screen.getByTestId('assigned-team-count')).toHaveTextContent('3');
+
+    // Individual chips for all assignees once team is loaded
+    expect(await screen.findByText('Juan Dela Cruz')).toBeInTheDocument();
+    expect(await screen.findByText('Ana Reyes')).toBeInTheDocument();
+    expect(screen.getByTestId('assignee-chip-u-lead-1')).toHaveTextContent('Maria Santos');
+    expect(screen.getByTestId('assignee-chip-u-staff-1')).toHaveTextContent('Juan Dela Cruz');
+    expect(screen.getByTestId('assignee-chip-u-staff-2')).toHaveTextContent('Ana Reyes');
+
+    // Lead badge on primary lead
+    expect(screen.getByTestId('assignee-chip-u-lead-1')).toHaveTextContent('Lead');
+
+    // Make Lead buttons present for co-assignees
+    expect(screen.getByTestId('make-lead-btn-u-staff-1')).toBeInTheDocument();
+    expect(screen.getByTestId('make-lead-btn-u-staff-2')).toBeInTheDocument();
+
+    // Reassign lead and co-assignee selects are available for workflow:edit holder
+    expect(screen.getByTestId('reassign-lead-select')).toBeInTheDocument();
+  });
+
+  // Admin WR Template Creation
+  it('OperationsPage renders Create Work Request Template controls for Admin users', async () => {
+    // Session as Admin
+    useSessionStore.getState().setSession({
+      user: {
+        id: 'u-admin-1',
+        email: 'admin@ata-lta.ph',
+        name: 'Super Admin',
+        role: 'Admin',
+        departments: ['Management'],
+        entities: ['ATA', 'LTA'],
+      },
+      permissions: ['workflow:view', 'workflow:edit', 'retainers:use', 'retainers:edit'],
+      activeEntity: 'ATA',
+    });
+
+    const { queryClient } = createHarness();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/operations?tab=retainer-templates']}>
+          <OperationsPage />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    // Page header has New Template button
+    expect(await screen.findByTestId('page-new-template-btn')).toBeInTheDocument();
+
+    // Retainer Templates tab has Create Work Request Template button
+    expect(await screen.findByTestId('create-template-btn')).toBeInTheDocument();
+    expect(screen.getByTestId('create-template-btn')).toHaveTextContent('Create Work Request Template');
+
+    // Template card has Edit button for Admin once templates load
+    expect(await screen.findByTestId('edit-template-btn-tpl-1')).toBeInTheDocument();
+
+    // Clicking Create Work Request Template button opens the modal
+    fireEvent.click(screen.getByTestId('create-template-btn'));
+    expect(await screen.findByText('Create Retainer Template')).toBeInTheDocument();
+  });
+
+  it('OperationsPage hides Create Work Request Template controls for non-admin without retainers:edit', async () => {
+    // Session as Staff without retainers:edit
+    useSessionStore.getState().setSession({
+      user: {
+        id: 'u-staff-1',
+        email: 'juan@ata-lta.ph',
+        name: 'Juan Dela Cruz',
+        role: 'Staff',
+        departments: ['Operations'],
+        entities: ['ATA'],
+      },
+      permissions: ['workflow:view', 'retainers:use'], // strictly NO retainers:edit
+      activeEntity: 'ATA',
+    });
+
+    const { queryClient } = createHarness();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/operations?tab=retainer-templates']}>
+          <OperationsPage />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+
+    // Wait for page to render
+    expect(await screen.findByTestId('operations-page')).toBeInTheDocument();
+
+    // New Template and Create Work Request Template buttons should not exist
+    expect(screen.queryByTestId('page-new-template-btn')).toBeNull();
+    expect(screen.queryByTestId('create-template-btn')).toBeNull();
+    expect(screen.queryByTestId('edit-template-btn-tpl-1')).toBeNull();
   });
 });
