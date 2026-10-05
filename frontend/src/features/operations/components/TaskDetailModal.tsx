@@ -10,6 +10,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Clock,
   FileText,
   CheckSquare,
@@ -21,11 +28,24 @@ import {
   FileQuestion,
   Eye,
   Layers,
+  Receipt,
+  CreditCard,
+  Send,
+  Upload,
+  ExternalLink,
+  Link as LinkIcon,
 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTimeEntriesList, useCreateTimeEntry } from '@/features/dashboard/api/useTimeEntries';
+import { InvoiceCreateModal } from '@/features/billing';
+import { CreateDisbursementModal } from '@/features/disbursements';
+import { TransmittalFormModal } from '@/features/transmittals';
+import { DocumentUploadModal, DocumentViewerModal } from '@/features/documents';
 import { useDocuments } from '../api/useDocuments';
-import { useTaskMutations } from '../api/useTasks';
-import { DocumentViewerModal } from './DocumentViewerModal';
+import { useTaskMutations, useTaskRelated } from '../api/useTasks';
+import { useTeam } from '../api/useTeam';
+import { useSessionStore } from '@/lib/session';
+import { hasPermission } from '@/lib/permissions';
 import { runBlockingAction } from './BlockingActionModal';
 import { operationsKeys } from '../api/queryKeys';
 import type { Task, WorkRequest, DmsDocument, TaskStatus } from '../api/types';
@@ -61,7 +81,7 @@ export function TaskDetailModal({
   );
 
   // Documents linked to this work request / task
-  const { data: rawDocs, isLoading: isLoadingDocs } = useDocuments(
+  const { data: rawDocs, isLoading: isLoadingDocs, refetch: refetchDocs } = useDocuments(
     task?.workRequestId ? { workRequestId: task.workRequestId } : undefined,
     { enabled: Boolean(task?.workRequestId) }
   );
@@ -79,6 +99,141 @@ export function TaskDetailModal({
   // Mutations
   const createTimeEntryMutation = useCreateTimeEntry();
   const { updateTask } = useTaskMutations(task?.workRequestId || '');
+
+  const queryClient = useQueryClient();
+  const permissions = useSessionStore((state) => state.permissions);
+  const currentUserId = useSessionStore((state) => state.user?.id);
+  const canEdit = hasPermission(permissions, 'workflow:edit');
+
+  // RBAC permissions for linked financial creation (UAT2-7)
+  const canCreateInvoice =
+    hasPermission(permissions, 'billing:edit') ||
+    hasPermission(permissions, 'billing:create');
+  const canCreateDisbursement =
+    hasPermission(permissions, 'disbursement:create') ||
+    hasPermission(permissions, 'disbursement:edit');
+  const canCreateTransmittal =
+    hasPermission(permissions, 'transmittal:create') ||
+    hasPermission(permissions, 'transmittal:edit');
+
+  // Financial creation modals state (UAT2-7)
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+  const [isDisbursementModalOpen, setIsDisbursementModalOpen] = useState(false);
+  const [isTransmittalModalOpen, setIsTransmittalModalOpen] = useState(false);
+
+  // Document upload modal state (UAT2-11)
+  const [isUploadDocModalOpen, setIsUploadDocModalOpen] = useState(false);
+
+  // Linked records query (UAT2-7)
+  const { data: relatedRecords, refetch: refetchRelated } = useTaskRelated(task?.id);
+  const invoices = relatedRecords?.invoices || [];
+  const disbursements = relatedRecords?.disbursements || [];
+  const transmittals = relatedRecords?.transmittals || [];
+
+  // Team directory lookup for employee assignment (UAT2-8)
+  const { data: rawTeam } = useTeam();
+  const teamList = useMemo(() => {
+    if (Array.isArray(rawTeam)) return rawTeam;
+    if (rawTeam && typeof rawTeam === 'object' && 'data' in rawTeam && Array.isArray((rawTeam as { data: unknown[] }).data)) {
+      return (rawTeam as { data: Array<{ id: string; name: string; role: string }> }).data;
+    }
+    return [];
+  }, [rawTeam]);
+
+  const currentAssigneeIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (task?.assigneeId) ids.add(task.assigneeId);
+    if (Array.isArray(task?.assignees)) {
+      task.assignees.forEach((id) => ids.add(id));
+    }
+    if (Array.isArray(task?.taskAssignees)) {
+      task.taskAssignees.forEach((ta) => {
+        const uId = ta.userId || ta.user_id;
+        if (uId) ids.add(uId);
+      });
+    }
+    return ids;
+  }, [task]);
+
+  const availableTeamMembers = useMemo(() => {
+    return teamList.filter((m) => m && m.id && !currentAssigneeIds.has(m.id));
+  }, [teamList, currentAssigneeIds]);
+
+  // Check if current caller is an assignee or workflow:edit holder (UAT2-9-frontend)
+  const isAssignee = useMemo(() => {
+    if (!currentUserId || !task) return false;
+    if (task.assigneeId === currentUserId) return true;
+    if (Array.isArray(task.assignees) && task.assignees.includes(currentUserId)) return true;
+    if (Array.isArray(task.taskAssignees) && task.taskAssignees.some((ta) => (ta.userId || ta.user_id) === currentUserId)) return true;
+    return false;
+  }, [currentUserId, task]);
+
+  const canMutateStatus = canEdit || isAssignee;
+
+  // Handle assigning an employee (UAT2-8)
+  const handleAssignEmployee = async (employeeId: string) => {
+    if (!task || !task.workRequestId) return;
+    const member = teamList.find((m) => m.id === employeeId);
+    if (!member) return;
+    const nextAssigneeIds = Array.from(new Set([...currentAssigneeIds, employeeId]));
+    const nextAssigneeName = task.assigneeName || member.name;
+    const nextAssigneeId = task.assigneeId || member.id;
+
+    await runBlockingAction({
+      title: 'Assigning Employee',
+      message: `Assigning ${member.name} to task "${task.title}"...`,
+      apiCall: async () => {
+        return await updateTask({
+          workRequestId: task.workRequestId,
+          taskId: task.id,
+          data: {
+            assigneeId: nextAssigneeId,
+            assigneeName: nextAssigneeName,
+            assignees: nextAssigneeIds,
+          },
+        });
+      },
+      successTitle: 'Employee Assigned',
+      successMessage: `${member.name} has been assigned to this task.`,
+      onSuccess: (updated) => {
+        if (updated && onTaskUpdated) {
+          onTaskUpdated(updated as Task);
+        }
+      },
+      invalidateQueries: [
+        operationsKeys.tasks(task.workRequestId),
+        operationsKeys.workRequestDetail(task.workRequestId),
+      ],
+    });
+  };
+
+  // Handle setting task status (UAT2-9-frontend)
+  const handleSetTaskStatus = async (nextStatus: TaskStatus) => {
+    if (!task || !task.workRequestId) return;
+
+    await runBlockingAction({
+      title: 'Updating Task Status',
+      message: `Setting status of "${task.title}" to ${nextStatus}...`,
+      apiCall: async () => {
+        return await updateTask({
+          workRequestId: task.workRequestId,
+          taskId: task.id,
+          data: { status: nextStatus },
+        });
+      },
+      successTitle: 'Task Updated',
+      successMessage: `Task "${task.title}" status changed to ${nextStatus}.`,
+      onSuccess: (updated) => {
+        if (updated && onTaskUpdated) {
+          onTaskUpdated(updated as Task);
+        }
+      },
+      invalidateQueries: [
+        operationsKeys.tasks(task.workRequestId),
+        operationsKeys.workRequestDetail(task.workRequestId),
+      ],
+    });
+  };
 
   // Calculate total minutes logged
   const totalMinutes = useMemo(() => {
@@ -116,34 +271,6 @@ export function TaskDetailModal({
       const msg = err instanceof Error ? err.message : 'Failed to log time';
       setLogError(msg);
     }
-  };
-
-  const handleToggleTaskStatus = async () => {
-    if (!task || !task.workRequestId) return;
-    const nextStatus: TaskStatus = task.status === 'Completed' ? 'In Progress' : 'Completed';
-
-    await runBlockingAction({
-      title: 'Updating Task Status',
-      message: `Setting status of "${task.title}" to ${nextStatus}...`,
-      apiCall: async () => {
-        return await updateTask({
-          workRequestId: task.workRequestId,
-          taskId: task.id,
-          data: { status: nextStatus },
-        });
-      },
-      successTitle: 'Task Updated',
-      successMessage: `Task "${task.title}" status changed to ${nextStatus}.`,
-      onSuccess: (updated) => {
-        if (updated && onTaskUpdated) {
-          onTaskUpdated(updated as Task);
-        }
-      },
-      invalidateQueries: [
-        operationsKeys.tasks(task.workRequestId),
-        operationsKeys.workRequestDetail(task.workRequestId),
-      ],
-    });
   };
 
   if (!task) return null;
@@ -197,17 +324,48 @@ export function TaskDetailModal({
               )}
             </div>
 
-            <Button
-              type="button"
-              variant={task.status === 'Completed' ? 'outline' : 'default'}
-              size="sm"
-              onClick={handleToggleTaskStatus}
-              className="text-xs shrink-0 gap-1.5"
-              data-testid="task-toggle-status-btn"
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              {task.status === 'Completed' ? 'Mark In Progress' : 'Mark Completed'}
-            </Button>
+            {canMutateStatus && (
+              <div className="flex items-center gap-2 shrink-0">
+                {task.status !== 'In Progress' && task.status !== 'Completed' && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleSetTaskStatus('In Progress')}
+                    className="text-xs gap-1.5"
+                    data-testid="task-status-inprogress-btn"
+                  >
+                    <Clock className="h-3.5 w-3.5" />
+                    Mark In Progress
+                  </Button>
+                )}
+                {task.status === 'Completed' ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleSetTaskStatus('In Progress')}
+                    className="text-xs shrink-0 gap-1.5"
+                    data-testid="task-toggle-status-btn"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Mark In Progress
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                    onClick={() => handleSetTaskStatus('Completed')}
+                    className="text-xs shrink-0 gap-1.5"
+                    data-testid="task-toggle-status-btn"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Mark Completed
+                  </Button>
+                )}
+              </div>
+            )}
           </DialogHeader>
 
           {/* Modal Body: Scrollable */}
@@ -225,6 +383,25 @@ export function TaskDetailModal({
                   <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                   <span className="truncate">{task.assigneeName || 'Unassigned'}</span>
                 </div>
+                {canEdit && availableTeamMembers.length > 0 && (
+                  <div className="mt-1.5" data-testid="assign-employee-container">
+                    <Select onValueChange={(val) => handleAssignEmployee(val)}>
+                      <SelectTrigger
+                        className="h-6 text-[10px] bg-white border-slate-300 w-full px-1.5"
+                        data-testid="assign-employee-select"
+                      >
+                        <SelectValue placeholder="+ Assign Staff..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableTeamMembers.map((m) => (
+                          <SelectItem key={m.id} value={m.id} className="text-xs">
+                            {m.name} ({m.role})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -335,6 +512,16 @@ export function TaskDetailModal({
                   <FileText className="h-3.5 w-3.5" />
                   Linked Documents ({linkedDocs.length})
                 </h4>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  onClick={() => setIsUploadDocModalOpen(true)}
+                  className="text-xs gap-1"
+                  data-testid="task-upload-doc-btn"
+                >
+                  <Upload className="h-3 w-3" /> Upload Document
+                </Button>
               </div>
 
               {isLoadingDocs ? (
@@ -378,6 +565,182 @@ export function TaskDetailModal({
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </div>
+
+            {/* Linked Records Section (UAT2-7) */}
+            <div className="space-y-2.5" data-testid="task-linked-records-section">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2">
+                <div className="flex items-center gap-2">
+                  <LinkIcon className="h-4 w-4 text-slate-500" />
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                    Linked Records ({invoices.length + disbursements.length + transmittals.length})
+                  </h4>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  {canCreateInvoice && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      onClick={() => setIsInvoiceModalOpen(true)}
+                      className="text-xs gap-1"
+                      data-testid="link-invoice-btn"
+                    >
+                      <Receipt className="h-3 w-3" /> + Invoice
+                    </Button>
+                  )}
+                  {canCreateDisbursement && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      onClick={() => setIsDisbursementModalOpen(true)}
+                      className="text-xs gap-1"
+                      data-testid="link-disbursement-btn"
+                    >
+                      <CreditCard className="h-3 w-3" /> + Disbursement
+                    </Button>
+                  )}
+                  {canCreateTransmittal && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      onClick={() => setIsTransmittalModalOpen(true)}
+                      className="text-xs gap-1"
+                      data-testid="link-transmittal-btn"
+                    >
+                      <Send className="h-3 w-3" /> + Transmittal
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {invoices.length === 0 && disbursements.length === 0 && transmittals.length === 0 ? (
+                <div className="p-3 text-center text-xs text-slate-400 bg-slate-50 rounded border border-slate-200 italic">
+                  No billing invoices, disbursements, or transmittals linked to this task.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* Invoices */}
+                  {invoices.length > 0 && (
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                        Invoices ({invoices.length})
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {invoices.map((inv) => (
+                          <a
+                            key={inv.id}
+                            href={`/billing?invoiceId=${inv.id}`}
+                            className="p-2.5 bg-white border border-slate-200 hover:border-blue-400 rounded-lg flex items-center justify-between gap-2 text-xs transition-colors"
+                            data-testid={`linked-invoice-${inv.id}`}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <Receipt className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                              <div className="truncate">
+                                <span className="font-semibold text-slate-800 block truncate">
+                                  {inv.invoice_number || inv.invoiceNumber || 'Invoice'}
+                                </span>
+                                <span className="text-[10px] text-slate-400 block">
+                                  {inv.clients?.name || 'Client'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {inv.amount != null && (
+                                <span className="font-mono text-[11px] text-slate-700">
+                                  ₱{Number(inv.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                </span>
+                              )}
+                              <ExternalLink className="h-3 w-3 text-slate-400" />
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Disbursements */}
+                  {disbursements.length > 0 && (
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                        Disbursements ({disbursements.length})
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {disbursements.map((d) => (
+                          <a
+                            key={d.id}
+                            href={`/disbursements?id=${d.id}`}
+                            className="p-2.5 bg-white border border-slate-200 hover:border-blue-400 rounded-lg flex items-center justify-between gap-2 text-xs transition-colors"
+                            data-testid={`linked-disbursement-${d.id}`}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <CreditCard className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                              <div className="truncate">
+                                <span className="font-semibold text-slate-800 block truncate">
+                                  {d.category || 'Disbursement'}
+                                </span>
+                                <span className="text-[10px] text-slate-400 block truncate">
+                                  {d.description || 'No description'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {d.amount != null && (
+                                <span className="font-mono text-[11px] text-slate-700">
+                                  ₱{Number(d.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                </span>
+                              )}
+                              <ExternalLink className="h-3 w-3 text-slate-400" />
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Transmittals */}
+                  {transmittals.length > 0 && (
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                        Transmittals ({transmittals.length})
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {transmittals.map((t) => (
+                          <a
+                            key={t.id}
+                            href={`/transmittals?id=${t.id}`}
+                            className="p-2.5 bg-white border border-slate-200 hover:border-blue-400 rounded-lg flex items-center justify-between gap-2 text-xs transition-colors"
+                            data-testid={`linked-transmittal-${t.id}`}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <Send className="h-3.5 w-3.5 text-purple-600 shrink-0" />
+                              <div className="truncate">
+                                <span className="font-semibold text-slate-800 block truncate">
+                                  {t.tracking_number || t.trackingNumber || 'Transmittal'}
+                                </span>
+                                <span className="text-[10px] text-slate-400 block truncate">
+                                  {t.recipient_name || t.recipientName || 'Recipient'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {t.status && (
+                                <Badge variant="outline" size="compact" className="text-[10px]">
+                                  {t.status}
+                                </Badge>
+                              )}
+                              <ExternalLink className="h-3 w-3 text-slate-400" />
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -579,7 +942,80 @@ export function TaskDetailModal({
         </DialogContent>
       </Dialog>
 
-      {/* Linked Document Viewer Modal */}
+      {/* 1. Invoice Create Modal (UAT2-7) */}
+      {isInvoiceModalOpen && (
+        <InvoiceCreateModal
+          isOpen={isInvoiceModalOpen}
+          onClose={() => {
+            setIsInvoiceModalOpen(false);
+            refetchRelated();
+          }}
+          onCreated={() => {
+            setIsInvoiceModalOpen(false);
+            refetchRelated();
+          }}
+          prefill={{
+            workRequestId: task.workRequestId,
+            taskId: task.id,
+            clientId: workRequest?.clientId || undefined,
+          }}
+        />
+      )}
+
+      {/* 2. Disbursement Create Modal (UAT2-7) */}
+      {isDisbursementModalOpen && (
+        <CreateDisbursementModal
+          isOpen={isDisbursementModalOpen}
+          onClose={() => {
+            setIsDisbursementModalOpen(false);
+            refetchRelated();
+          }}
+          onSuccess={() => {
+            setIsDisbursementModalOpen(false);
+            refetchRelated();
+          }}
+          prefill={{
+            workRequestId: task.workRequestId,
+            taskId: task.id,
+            clientId: workRequest?.clientId || undefined,
+          }}
+        />
+      )}
+
+      {/* 3. Transmittal Form Modal (UAT2-7) */}
+      {isTransmittalModalOpen && (
+        <TransmittalFormModal
+          isOpen={isTransmittalModalOpen}
+          onClose={() => {
+            setIsTransmittalModalOpen(false);
+            refetchRelated();
+          }}
+          prefill={{
+            workRequestId: task.workRequestId,
+            taskId: task.id,
+            clientId: workRequest?.clientId || undefined,
+          }}
+        />
+      )}
+
+      {/* 4. Document Upload Modal (UAT2-11) */}
+      {isUploadDocModalOpen && (
+        <DocumentUploadModal
+          isOpen={isUploadDocModalOpen}
+          onClose={() => setIsUploadDocModalOpen(false)}
+          defaultWorkRequestId={task.workRequestId}
+          defaultClientId={workRequest?.clientId || undefined}
+          onSuccess={() => {
+            setIsUploadDocModalOpen(false);
+            refetchDocs();
+            queryClient.invalidateQueries({
+              queryKey: operationsKeys.documents(),
+            });
+          }}
+        />
+      )}
+
+      {/* 5. Linked Document Viewer Modal */}
       {selectedDoc && (
         <DocumentViewerModal
           isOpen={Boolean(selectedDoc)}

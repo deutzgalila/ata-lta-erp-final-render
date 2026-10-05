@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PendingApprovalsInbox } from '../components/PendingApprovalsInbox';
@@ -182,7 +182,9 @@ describe('Pending Approvals Inbox & Reject Reason Flow', () => {
     );
 
     expect(screen.getByText(/1 blocker task\(s\) remaining/i)).toBeInTheDocument();
-    expect(screen.getByText('Submit payment form')).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('gate-inspector')).getByText('Submit payment form')
+    ).toBeInTheDocument();
   });
 
   it('enforces mandatory rejectionReason in RejectReasonModal', async () => {

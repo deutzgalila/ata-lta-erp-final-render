@@ -20,6 +20,7 @@ import {
 } from '../api/useWorkRequests';
 import { useWorkRequestTasks } from '../api/useTasks';
 import { useDocuments } from '../api/useDocuments';
+import { useTeam } from '../api/useTeam';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
 import type { WorkRequest, Task, Phase } from '../api/types';
@@ -67,6 +68,52 @@ export function WorkRequestSidePeek({
   const documents = useMemo(() => {
     return Array.isArray(rawDocs) ? rawDocs : rawDocs?.data ?? [];
   }, [rawDocs]);
+
+  // Fetch team directory for name resolution (UAT2-5)
+  const { data: rawTeam } = useTeam();
+  const teamList = useMemo(() => {
+    if (Array.isArray(rawTeam)) return rawTeam;
+    if (rawTeam && typeof rawTeam === 'object' && 'data' in rawTeam && Array.isArray((rawTeam as { data: unknown[] }).data)) {
+      return (rawTeam as { data: Array<{ id: string; name: string }> }).data;
+    }
+    return [];
+  }, [rawTeam]);
+
+  const teamMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const m of teamList) {
+      if (m && m.id && m.name) {
+        map.set(m.id, m.name);
+      }
+    }
+    return map;
+  }, [teamList]);
+
+  const resolveUserName = useMemo(() => {
+    return (idOrName: string | null | undefined): string => {
+      if (!idOrName) return 'Unassigned';
+      if (teamMap.has(idOrName)) {
+        return teamMap.get(idOrName)!;
+      }
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrName);
+      if (isUuid) {
+        return 'Staff Member';
+      }
+      return idOrName;
+    };
+  }, [teamMap]);
+
+  const assignedLeadName = useMemo(() => {
+    if (!workRequest) return 'Unassigned';
+    if (workRequest.assignedToName) return workRequest.assignedToName;
+    if (workRequest.assigned_to_name) return workRequest.assigned_to_name;
+    return resolveUserName(workRequest.assignedTo);
+  }, [workRequest, resolveUserName]);
+
+  const coAssigneeNames = useMemo(() => {
+    if (!workRequest?.coAssignees || !Array.isArray(workRequest.coAssignees)) return [];
+    return workRequest.coAssignees.map((val) => resolveUserName(val));
+  }, [workRequest, resolveUserName]);
 
   // Escape key handler
   useEffect(() => {
@@ -284,9 +331,12 @@ export function WorkRequestSidePeek({
                     <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">
                       Assigned Lead
                     </span>
-                    <div className="flex items-center gap-1.5 font-medium text-slate-800 truncate">
+                    <div
+                      className="flex items-center gap-1.5 font-medium text-slate-800 truncate"
+                      data-testid="side-peek-assignee"
+                    >
                       <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                      <span className="truncate">{workRequest.assignedTo || 'Unassigned'}</span>
+                      <span className="truncate">{assignedLeadName}</span>
                     </div>
                   </div>
 
@@ -304,14 +354,14 @@ export function WorkRequestSidePeek({
                     </div>
                   </div>
 
-                  {workRequest.coAssignees && workRequest.coAssignees.length > 0 && (
+                  {coAssigneeNames.length > 0 && (
                     <div className="col-span-2 pt-1 border-t border-slate-200">
                       <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
                         Team Members / Co-Assignees
                       </span>
                       <div className="flex flex-wrap gap-1.5">
-                        {workRequest.coAssignees.map((name) => (
-                          <Badge key={name} variant="secondary" size="compact" className="text-[10px]">
+                        {coAssigneeNames.map((name, idx) => (
+                          <Badge key={`${name}-${idx}`} variant="secondary" size="compact" className="text-[10px]" data-testid="side-peek-co-assignee">
                             <Users className="h-2.5 w-2.5 mr-1" />
                             {name}
                           </Badge>
@@ -377,10 +427,10 @@ export function WorkRequestSidePeek({
                                 </span>
                                 <div className="flex items-center gap-2 text-[10px] text-slate-400 pt-0.5">
                                   <span>{task.phase.replace('_', ' ')}</span>
-                                  {task.assigneeName && (
+                                  {(task.assigneeName || task.assigneeId) && (
                                     <>
                                       <span>•</span>
-                                      <span>{task.assigneeName}</span>
+                                      <span>{task.assigneeName ? resolveUserName(task.assigneeName) : resolveUserName(task.assigneeId)}</span>
                                     </>
                                   )}
                                 </div>

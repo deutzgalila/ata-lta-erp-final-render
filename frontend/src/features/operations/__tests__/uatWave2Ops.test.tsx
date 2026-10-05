@@ -1,0 +1,458 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { TaskDetailModal } from '../components/TaskDetailModal';
+import { WorkRequestSidePeek } from '../components/WorkRequestSidePeek';
+import { PendingApprovalsInbox } from '../components/PendingApprovalsInbox';
+import { PhaseKanbanBoard } from '../components/PhaseKanbanBoard';
+import { useSessionStore } from '@/lib/session';
+import { useBlockingModalStore } from '../components/BlockingActionModal';
+import type { WorkRequest, DmsDocument } from '../api/types';
+
+function createHarness() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: Infinity, staleTime: Infinity },
+      mutations: { retry: false },
+    },
+  });
+
+  const wrapper = ({ children }: { children: React.ReactNode }) =>
+    React.createElement(QueryClientProvider, { client: queryClient }, children);
+
+  return { queryClient, wrapper };
+}
+
+const mockTeamMembers = [
+  { id: 'u-lead-1', name: 'Maria Santos', email: 'maria@ata-lta.ph', role: 'Manager' },
+  { id: 'u-staff-1', name: 'Juan Dela Cruz', email: 'juan@ata-lta.ph', role: 'Staff' },
+  { id: 'u-staff-2', name: 'Ana Reyes', email: 'ana@ata-lta.ph', role: 'Staff' },
+];
+
+const mockWr: WorkRequest = {
+  id: 'wr-w2-1',
+  entity: 'ATA',
+  title: 'Corporate SEC Compliance',
+  description: 'Annual corporate general information sheet',
+  clientId: 'c-100',
+  clientName: 'Megaworld Corp',
+  status: 'Pre-processing',
+  phase: 'pre_processing',
+  priority: 'High',
+  archived: false,
+  onHold: false,
+  phaseEnteredAt: '2026-01-01T00:00:00Z',
+  dueDate: '2026-06-30T00:00:00Z',
+  requestedBy: 'u-lead-1',
+  assignedTo: 'u-lead-1',
+  coAssignees: ['u-staff-1'],
+  version: 1,
+  createdAt: '2026-01-01T00:00:00Z',
+  updatedAt: '2026-01-01T00:00:00Z',
+  tasks: [
+    {
+      id: 't-w2-1',
+      workRequestId: 'wr-w2-1',
+      title: 'Draft Board Resolution',
+      description: 'Resolution draft for filing',
+      status: 'In Progress',
+      phase: 'pre_processing',
+      qaStatus: 'none',
+      phaseEnteredAt: '2026-01-01T00:00:00Z',
+      dueDate: '2026-06-30T00:00:00Z',
+      requiredLinkType: null,
+      predecessors: [],
+      assigneeId: 'u-staff-1',
+      assigneeName: 'Juan Dela Cruz',
+      assignees: ['u-staff-1'],
+      displayOrder: 1,
+      version: 1,
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    },
+    {
+      id: 't-w2-2',
+      workRequestId: 'wr-w2-1',
+      title: 'SEC Filing Fee Payment',
+      description: 'Payment of SEC fees',
+      status: 'Assigned',
+      phase: 'pre_processing',
+      qaStatus: 'none',
+      phaseEnteredAt: '2026-01-01T00:00:00Z',
+      dueDate: '2026-06-30T00:00:00Z',
+      requiredLinkType: null,
+      predecessors: [],
+      assigneeId: null,
+      assigneeName: null,
+      assignees: [],
+      displayOrder: 2,
+      version: 1,
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    },
+  ],
+};
+
+const mockRelatedRecords = {
+  invoices: [
+    {
+      id: 'inv-101',
+      invoice_number: 'INV-2026-001',
+      amount: 45000,
+      status: 'draft',
+      created_at: '2026-02-01T00:00:00Z',
+      clients: { name: 'Megaworld Corp' },
+    },
+  ],
+  disbursements: [
+    {
+      id: 'disb-101',
+      category: 'Filing Fees',
+      description: 'SEC Filing Filing fee reimbursement',
+      amount: 5200,
+      status: 'pending_approval',
+      created_at: '2026-02-02T00:00:00Z',
+    },
+  ],
+  transmittals: [
+    {
+      id: 'trans-101',
+      tracking_number: 'TR-2026-099',
+      recipient_name: 'SEC Officer in Charge',
+      status: 'draft',
+      created_at: '2026-02-03T00:00:00Z',
+    },
+  ],
+};
+
+const mockDoc: DmsDocument = {
+  id: 'doc-w2-1',
+  work_request_id: 'wr-w2-1',
+  workRequestId: 'wr-w2-1',
+  linked_task_id: 't-w2-1',
+  linkedTaskId: 't-w2-1',
+  original_name: 'Board_Resolution_2026.pdf',
+  originalName: 'Board_Resolution_2026.pdf',
+  file_name: 'Board_Resolution_2026.pdf',
+  fileName: 'Board_Resolution_2026.pdf',
+  client_id: 'c-100',
+  clientId: 'c-100',
+  document_type: 'Board Resolution',
+  documentType: 'Board Resolution',
+  category: 'LEGAL',
+  document_lifecycle: 'collected',
+  status: 'active',
+  archived: false,
+  file_size: 245000,
+  fileSize: 245000,
+  content_type: 'application/pdf',
+  contentType: 'application/pdf',
+  uploader_id: 'u-staff-1',
+  uploaderId: 'u-staff-1',
+  entity_id: 'ATA',
+  storage_path: 'documents/2026/Board_Resolution_2026.pdf',
+  external_url: null,
+  description: 'Board resolution document',
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
+  createdAt: '2026-01-01T00:00:00Z',
+  updatedAt: '2026-01-01T00:00:00Z',
+  comments: [],
+  versions: [],
+};
+
+describe('UAT Wave 2: Operations Linkage, Assignee Controls, and Modals', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useBlockingModalStore.getState().reset();
+    useSessionStore.getState().setSession({
+      user: {
+        id: 'u-lead-1',
+        email: 'maria@ata-lta.ph',
+        name: 'Maria Santos',
+        role: 'Manager',
+        departments: ['Operations'],
+        entities: ['ATA', 'LTA'],
+      },
+      permissions: [
+        'workflow:view',
+        'workflow:edit',
+        'workflow:phase_transition',
+        'workflow:transition_request',
+        'workflow:qa_review',
+        'workflow:task_add',
+        'billing:create',
+        'billing:edit',
+        'disbursement:create',
+        'disbursement:edit',
+        'transmittal:create',
+        'transmittal:edit',
+      ],
+      activeEntity: 'ATA',
+    });
+
+    vi.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+
+      if (url.includes('/me/team')) {
+        return new Response(JSON.stringify({ data: mockTeamMembers }), { status: 200 });
+      }
+      if (url.includes('/operations/tasks/t-w2-1/related')) {
+        return new Response(JSON.stringify({ data: mockRelatedRecords }), { status: 200 });
+      }
+      if (url.includes('/operations/work-requests/wr-w2-1/tasks/t-w2-1')) {
+        return new Response(JSON.stringify({ data: mockWr.tasks![0] }), { status: 200 });
+      }
+      if (url.includes('/operations/work-requests/wr-w2-1/tasks')) {
+        return new Response(JSON.stringify({ data: mockWr.tasks }), { status: 200 });
+      }
+      if (url.includes('/operations/work-requests/wr-w2-1')) {
+        return new Response(JSON.stringify({ data: mockWr }), { status: 200 });
+      }
+      if (url.includes('/operations/work-requests?')) {
+        return new Response(JSON.stringify({ data: [mockWr] }), { status: 200 });
+      }
+      if (url.includes('/documents?')) {
+        return new Response(JSON.stringify({ data: [mockDoc] }), { status: 200 });
+      }
+      if (url.includes('/time-entries?')) {
+        return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
+    });
+  });
+
+  // UAT2-5: SidePeek Name Resolution
+  it('UAT2-5: WorkRequestSidePeek resolves assignee names from team directory without raw UUIDs', async () => {
+    const { wrapper } = createHarness();
+    render(
+      <WorkRequestSidePeek
+        isOpen={true}
+        onClose={vi.fn()}
+        workRequestId="wr-w2-1"
+      />,
+      { wrapper }
+    );
+
+    // Waiting for content to render
+    expect(await screen.findByText('Corporate SEC Compliance')).toBeInTheDocument();
+
+    // Verify lead manager is resolved to Maria Santos (not u-lead-1)
+    const assignedLeadElem = screen.getByTestId('side-peek-assignee');
+    expect(assignedLeadElem).toHaveTextContent('Maria Santos');
+    expect(assignedLeadElem.textContent).not.toContain('u-lead-1');
+
+    // Verify co-assignee is resolved to Juan Dela Cruz (not u-staff-1)
+    const coAssigneesElem = screen.getByTestId('side-peek-co-assignee');
+    expect(coAssigneesElem).toHaveTextContent('Juan Dela Cruz');
+    expect(coAssigneesElem.textContent).not.toContain('u-staff-1');
+  });
+
+  // UAT2-4: Pending Approvals Full WR Detail
+  it('UAT2-4: PendingApprovalsInbox renders entity badge, client name, and tasks breakdown by name', async () => {
+    const mockPendingReq = {
+      id: 'req-app-1',
+      requestType: 'wr_phase_transition',
+      workRequestId: 'wr-w2-1',
+      fromPhase: 'pre_processing',
+      toPhase: 'processing',
+      status: 'pending',
+      requestedBy: 'u-lead-1',
+      requestedByName: 'Maria Santos',
+      workRequestTitle: 'Corporate SEC Compliance',
+      clientName: 'Megaworld Corp',
+      clients: { name: 'Megaworld Corp' },
+      createdAt: new Date().toISOString(),
+    };
+
+    vi.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes('/operations-requests/counts')) {
+        return new Response(JSON.stringify({ data: { pending: 1, rejected: 0, fulfilled: 0 } }), { status: 200 });
+      }
+      if (url.includes('/operations-requests')) {
+        return new Response(JSON.stringify({ data: [mockPendingReq] }), { status: 200 });
+      }
+      if (url.includes('/operations/work-requests/wr-w2-1')) {
+        return new Response(JSON.stringify({ data: mockWr }), { status: 200 });
+      }
+      if (url.includes('/me/team')) {
+        return new Response(JSON.stringify({ data: mockTeamMembers }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ data: {} }), { status: 200 });
+    });
+
+    const { wrapper } = createHarness();
+    render(<PendingApprovalsInbox />, { wrapper });
+
+    expect(await screen.findByTestId('pending-approvals-inbox')).toBeInTheDocument();
+
+    // Queue item displays entity badge and client name
+    const queueItem = await screen.findByTestId('approval-item-req-app-1');
+    expect(queueItem).toHaveTextContent('ATA');
+    expect(queueItem).toHaveTextContent('Megaworld Corp');
+
+    // Right-side WR detail card renders client and lead
+    expect(await screen.findByTestId('request-client-name')).toHaveTextContent('Megaworld Corp');
+    expect(screen.getByTestId('request-assigned-lead')).toHaveTextContent('Maria Santos');
+
+    // Tasks breakdown renders tasks with assignee by name
+    const tasksBreakdown = screen.getByTestId('request-tasks-breakdown');
+    expect(tasksBreakdown).toHaveTextContent('Draft Board Resolution');
+    expect(tasksBreakdown).toHaveTextContent('Juan Dela Cruz');
+  });
+
+  // UAT2-7: Linked Records Section
+  it('UAT2-7: TaskDetailModal renders linked invoices, disbursements, and transmittals with creation action buttons', async () => {
+    const { wrapper } = createHarness();
+    const task = mockWr.tasks![0]!;
+
+    render(
+      <TaskDetailModal
+        isOpen={true}
+        onClose={vi.fn()}
+        task={task}
+        workRequest={mockWr}
+      />,
+      { wrapper }
+    );
+
+    // Linked Records Section is present
+    const linkedSection = await screen.findByTestId('task-linked-records-section');
+    expect(linkedSection).toBeInTheDocument();
+
+    // Verify linked records rendered
+    expect(await screen.findByTestId('linked-invoice-inv-101')).toHaveTextContent('INV-2026-001');
+    expect(screen.getByTestId('linked-disbursement-disb-101')).toHaveTextContent('Filing Fees');
+    expect(screen.getByTestId('linked-transmittal-trans-101')).toHaveTextContent('TR-2026-099');
+
+    // Verify action buttons are present for permitted user
+    expect(screen.getByTestId('link-invoice-btn')).toBeInTheDocument();
+    expect(screen.getByTestId('link-disbursement-btn')).toBeInTheDocument();
+    expect(screen.getByTestId('link-transmittal-btn')).toBeInTheDocument();
+  });
+
+  // UAT2-8: Assign Employee Control
+  it('UAT2-8: TaskDetailModal renders Assign Staff dropdown excluding current assignees for workflow:edit holders', async () => {
+    const { wrapper } = createHarness();
+    const task = mockWr.tasks![0]!; // has assignee 'u-staff-1' (Juan Dela Cruz)
+
+    render(
+      <TaskDetailModal
+        isOpen={true}
+        onClose={vi.fn()}
+        task={task}
+        workRequest={mockWr}
+      />,
+      { wrapper }
+    );
+
+    // Assign Employee container should be present for workflow:edit holder
+    expect(await screen.findByTestId('assign-employee-container')).toBeInTheDocument();
+    const selectTrigger = screen.getByTestId('assign-employee-select');
+    expect(selectTrigger).toBeInTheDocument();
+  });
+
+  // UAT2-9-frontend: Assignee Status Controls
+  it('UAT2-9-frontend: renders status buttons for task assignee without workflow:edit', async () => {
+    // Session as Juan Dela Cruz (Staff member, assignee of t-w2-1, NO workflow:edit)
+    useSessionStore.getState().setSession({
+      user: {
+        id: 'u-staff-1',
+        email: 'juan@ata-lta.ph',
+        name: 'Juan Dela Cruz',
+        role: 'Staff',
+        departments: ['Operations'],
+        entities: ['ATA'],
+      },
+      permissions: ['workflow:view'], // strictly NO workflow:edit
+      activeEntity: 'ATA',
+    });
+
+    const { wrapper } = createHarness();
+    const task = mockWr.tasks![0]!; // assigneeId is 'u-staff-1'
+
+    render(
+      <TaskDetailModal
+        isOpen={true}
+        onClose={vi.fn()}
+        task={task}
+        workRequest={mockWr}
+      />,
+      { wrapper }
+    );
+
+    // Status action button should be rendered because user is assignee
+    const statusBtn = await screen.findByTestId('task-toggle-status-btn');
+    expect(statusBtn).toBeInTheDocument();
+    expect(statusBtn).toHaveTextContent('Mark Completed');
+  });
+
+  it('UAT2-9-frontend: hides status buttons for non-assignee without workflow:edit', async () => {
+    // Session as Ana Reyes (Staff member, NOT assignee of t-w2-1, NO workflow:edit)
+    useSessionStore.getState().setSession({
+      user: {
+        id: 'u-staff-2',
+        email: 'ana@ata-lta.ph',
+        name: 'Ana Reyes',
+        role: 'Staff',
+        departments: ['Operations'],
+        entities: ['ATA'],
+      },
+      permissions: ['workflow:view'], // strictly NO workflow:edit
+      activeEntity: 'ATA',
+    });
+
+    const { wrapper } = createHarness();
+    const task = mockWr.tasks![0]!; // assigneeId is 'u-staff-1'
+
+    render(
+      <TaskDetailModal
+        isOpen={true}
+        onClose={vi.fn()}
+        task={task}
+        workRequest={mockWr}
+      />,
+      { wrapper }
+    );
+
+    // Status button should NOT be rendered
+    expect(screen.queryByTestId('task-toggle-status-btn')).toBeNull();
+  });
+
+  // UAT2-10: Quick-Add (+) on Phase Columns
+  it('UAT2-10: PhaseKanbanBoard renders quick-add (+) buttons on pre_processing and processing headers', async () => {
+    const { wrapper } = createHarness();
+    render(<PhaseKanbanBoard initialWorkRequestId="wr-w2-1" />, { wrapper });
+
+    const preAddBtn = await screen.findByTestId('quick-add-task-pre_processing');
+    const procAddBtn = await screen.findByTestId('quick-add-task-processing');
+    expect(preAddBtn).toBeInTheDocument();
+    expect(procAddBtn).toBeInTheDocument();
+
+    // Clicking (+) toggles the inline task creation form
+    fireEvent.click(preAddBtn);
+    expect(screen.getByTestId('quick-add-form-pre_processing')).toBeInTheDocument();
+    expect(screen.getByTestId('quick-add-title-input-pre_processing')).toBeInTheDocument();
+  });
+
+  // UAT2-11: Document Upload Modal Trigger
+  it('UAT2-11: TaskDetailModal renders Upload Document button opening DocumentUploadModal', async () => {
+    const { wrapper } = createHarness();
+    const task = mockWr.tasks![0]!;
+
+    render(
+      <TaskDetailModal
+        isOpen={true}
+        onClose={vi.fn()}
+        task={task}
+        workRequest={mockWr}
+      />,
+      { wrapper }
+    );
+
+    const uploadBtn = await screen.findByTestId('task-upload-doc-btn');
+    expect(uploadBtn).toBeInTheDocument();
+  });
+});

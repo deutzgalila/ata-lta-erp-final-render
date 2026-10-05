@@ -8,6 +8,10 @@ import {
   Check,
   X,
   Search,
+  Building,
+  User,
+  Users,
+  CheckSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +24,7 @@ import {
   usePhaseTransitions,
 } from '../api/usePhaseTransitions';
 import { useWorkRequestDetail } from '../api/useWorkRequests';
+import { useTeam } from '../api/useTeam';
 import { operationsKeys } from '../api/queryKeys';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
@@ -56,6 +61,36 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
 
   const { data: counts } = useOperationsRequestCounts();
   const pendingCount = counts?.pending ?? 0;
+
+  // Team directory lookup for resolving assignee names (UAT2-4)
+  const { data: rawTeam } = useTeam();
+  const teamList = useMemo(() => {
+    if (Array.isArray(rawTeam)) return rawTeam;
+    if (rawTeam && typeof rawTeam === 'object' && 'data' in rawTeam && Array.isArray((rawTeam as { data: unknown[] }).data)) {
+      return (rawTeam as { data: Array<{ id: string; name: string }> }).data;
+    }
+    return [];
+  }, [rawTeam]);
+
+  const teamMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const m of teamList) {
+      if (m && m.id && m.name) {
+        map.set(m.id, m.name);
+      }
+    }
+    return map;
+  }, [teamList]);
+
+  const resolveName = useMemo(() => {
+    return (idOrName: string | null | undefined): string => {
+      if (!idOrName) return 'Unassigned';
+      if (teamMap.has(idOrName)) return teamMap.get(idOrName)!;
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrName);
+      if (isUuid) return 'Staff Member';
+      return idOrName;
+    };
+  }, [teamMap]);
 
   // Mutations
   const { fulfillRequest, cancelRequest, requestTransition } = usePhaseTransitions();
@@ -320,6 +355,15 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
                     </Badge>
                   </div>
 
+                  <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                    <Badge variant={req.entity_id === 'LTA' ? 'lta' : 'ata'} size="compact" className="text-[9px]">
+                      {req.entity_id || 'ATA'}
+                    </Badge>
+                    <span className="truncate max-w-[200px]" data-testid={`approval-client-${req.id}`}>
+                      {req.clients?.name || (req as unknown as { clientName?: string }).clientName || 'Internal Client'}
+                    </span>
+                  </div>
+
                   {/* Route Badge */}
                   <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
                     <span className="font-medium capitalize">{fromP.replace('_', ' ')}</span>
@@ -344,9 +388,17 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
               {/* Header */}
               <div className="flex items-start justify-between border-b border-slate-100 pb-4">
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-base text-slate-900">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge
+                      variant={(wrDetail?.entity || selectedRequest.entity_id) === 'LTA' ? 'lta' : 'ata'}
+                      size="compact"
+                      data-testid="request-detail-entity"
+                    >
+                      {wrDetail?.entity || selectedRequest.entity_id || 'ATA'}
+                    </Badge>
+                    <h3 className="font-bold text-base text-slate-900" data-testid="request-detail-title">
                       {selectedRequest.work_requests?.title ||
+                        wrDetail?.title ||
                         (selectedRequest as unknown as { workRequestTitle?: string }).workRequestTitle ||
                         'Work Request'}
                     </h3>
@@ -387,6 +439,49 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
                 >
                   {selectedRequest.status}
                 </Badge>
+              </div>
+
+              {/* Full WR Detail Card (UAT2-4) */}
+              <div className="grid grid-cols-2 gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs" data-testid="request-wr-detail-card">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">
+                    Client
+                  </span>
+                  <div className="flex items-center gap-1.5 font-medium text-slate-800 truncate" data-testid="request-client-name">
+                    <Building className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                    <span className="truncate">
+                      {wrDetail?.clientName || wrDetail?.client?.name || selectedRequest.clients?.name || (selectedRequest as unknown as { clientName?: string }).clientName || 'Internal Client'}
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">
+                    Assigned Lead
+                  </span>
+                  <div className="flex items-center gap-1.5 font-medium text-slate-800 truncate" data-testid="request-assigned-lead">
+                    <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                    <span className="truncate">
+                      {wrDetail?.assignedToName || resolveName(wrDetail?.assignedTo) || 'Unassigned'}
+                    </span>
+                  </div>
+                </div>
+
+                {wrDetail?.coAssignees && wrDetail.coAssignees.length > 0 && (
+                  <div className="col-span-2 pt-1 border-t border-slate-200">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">
+                      Co-Assignees / Team
+                    </span>
+                    <div className="flex flex-wrap gap-1.5" data-testid="request-co-assignees">
+                      {wrDetail.coAssignees.map((val, idx) => (
+                        <Badge key={`${val}-${idx}`} variant="secondary" size="compact" className="text-[10px]">
+                          <Users className="h-2.5 w-2.5 mr-1" />
+                          {resolveName(val)}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Side-by-side Phase Transition Flow */}
@@ -472,6 +567,45 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
                   </div>
                 )}
               </div>
+
+              {/* Full Work Request Tasks Breakdown (UAT2-4) */}
+              {wrDetail && wrDetail.tasks && wrDetail.tasks.length > 0 && (
+                <div className="space-y-2" data-testid="request-tasks-breakdown">
+                  <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <CheckSquare className="h-3.5 w-3.5" />
+                    Work Request Tasks ({wrDetail.tasks.filter((t) => t.status === 'Completed').length}/{wrDetail.tasks.length} Completed)
+                  </h4>
+                  <div className="border border-slate-200 rounded-lg overflow-hidden divide-y divide-slate-100 bg-white">
+                    {wrDetail.tasks.map((task) => (
+                      <div
+                        key={task.id}
+                        className="p-2.5 flex items-center justify-between gap-2 text-xs hover:bg-slate-50 transition-colors"
+                        data-testid={`request-task-row-${task.id}`}
+                      >
+                        <div className="min-w-0">
+                          <span className={`font-medium block truncate ${task.status === 'Completed' ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                            {task.title}
+                          </span>
+                          <div className="flex items-center gap-2 text-[10px] text-slate-400 pt-0.5">
+                            <span className="capitalize">{task.phase.replace('_', ' ')}</span>
+                            <span>•</span>
+                            <span data-testid={`request-task-assignee-${task.id}`}>
+                              {task.assigneeName || resolveName(task.assigneeId)}
+                            </span>
+                          </div>
+                        </div>
+                        <Badge
+                          variant={task.status === 'Completed' ? 'success' : 'secondary'}
+                          size="compact"
+                          className="text-[10px]"
+                        >
+                          {task.status}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Rejection Details (if rejected) */}
               {selectedRequest.status === 'rejected' && (

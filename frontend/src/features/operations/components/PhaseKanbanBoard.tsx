@@ -11,9 +11,12 @@ import {
   Layers,
   CheckSquare,
   Edit3,
+  Plus,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -25,7 +28,7 @@ import {
   useWorkRequests,
   useWorkRequestDetail,
 } from '../api/useWorkRequests';
-import { useWorkRequestTasks } from '../api/useTasks';
+import { useWorkRequestTasks, useTaskMutations } from '../api/useTasks';
 import { usePhaseTransitions } from '../api/usePhaseTransitions';
 import { useQaReview } from '../api/useQaReview';
 import { runBlockingAction } from './BlockingActionModal';
@@ -37,6 +40,7 @@ import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
 import type {
   Phase,
+  CreatablePhase,
   Task,
   WorkRequest,
   AdvancePhaseTarget,
@@ -100,6 +104,38 @@ export function PhaseKanbanBoard({
   // Mutations
   const { advancePhase, requestTransition } = usePhaseTransitions(effectiveWrId);
   const { submitQaReview } = useQaReview(effectiveWrId);
+  const { createTask } = useTaskMutations(effectiveWrId);
+  const canAddTask =
+    hasPermission(permissions, 'workflow:task_add') ||
+    hasPermission(permissions, 'workflow:edit');
+
+  // Quick-Add Task State (UAT2-10)
+  const [quickAddPhase, setQuickAddPhase] = useState<Phase | null>(null);
+  const [quickAddTitle, setQuickAddTitle] = useState('');
+  const [quickAddDescription, setQuickAddDescription] = useState('');
+  const [isQuickAdding, setIsQuickAdding] = useState(false);
+
+  const handleQuickAddSubmit = async (phase: Phase) => {
+    if (!quickAddTitle.trim() || !effectiveWrId) return;
+    setIsQuickAdding(true);
+    try {
+      await createTask({
+        workRequestId: effectiveWrId,
+        data: {
+          title: quickAddTitle.trim(),
+          description: quickAddDescription.trim() || null,
+          phase: phase as CreatablePhase,
+        },
+      });
+      setQuickAddTitle('');
+      setQuickAddDescription('');
+      setQuickAddPhase(null);
+    } catch (err) {
+      console.error('Failed to quick-add task', err);
+    } finally {
+      setIsQuickAdding(false);
+    }
+  };
 
   // Modal States
   const [isRerouteOpen, setIsRerouteOpen] = useState(false);
@@ -401,11 +437,34 @@ export function PhaseKanbanBoard({
                       {col.label}
                     </h3>
                   </div>
-                  {isCurrentPhase && (
-                    <Badge variant="default" size="compact" className="text-[9px] px-1 py-0">
-                      Current
-                    </Badge>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    {isCurrentPhase && (
+                      <Badge variant="default" size="compact" className="text-[9px] px-1 py-0">
+                        Current
+                      </Badge>
+                    )}
+                    {canAddTask && (col.id === 'pre_processing' || col.id === 'processing') && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() => {
+                          if (quickAddPhase === col.id) {
+                            setQuickAddPhase(null);
+                          } else {
+                            setQuickAddPhase(col.id);
+                            setQuickAddTitle('');
+                            setQuickAddDescription('');
+                          }
+                        }}
+                        className="h-5 w-5 p-0 text-slate-500 hover:text-blue-600 hover:bg-blue-50"
+                        title={`Quick-add task to ${col.label}`}
+                        data-testid={`quick-add-task-${col.id}`}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Gate Progress Indicator */}
@@ -456,6 +515,69 @@ export function PhaseKanbanBoard({
 
               {/* Tasks List Drop Area */}
               <div className="flex-1 space-y-2 overflow-y-auto min-h-36">
+                {/* Inline Quick-Add Form (UAT2-10) */}
+                {quickAddPhase === col.id && (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleQuickAddSubmit(col.id);
+                    }}
+                    className="p-2.5 bg-white border border-blue-300 rounded-md shadow-xs space-y-2 text-xs"
+                    data-testid={`quick-add-form-${col.id}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-800 text-[11px]">
+                        Add {col.label} Task
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setQuickAddPhase(null)}
+                        className="text-slate-400 hover:text-slate-600"
+                        data-testid={`quick-add-cancel-${col.id}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                    <Input
+                      type="text"
+                      placeholder="Task title..."
+                      value={quickAddTitle}
+                      onChange={(e) => setQuickAddTitle(e.target.value)}
+                      className="h-7 text-xs bg-slate-50"
+                      autoFocus
+                      required
+                      data-testid={`quick-add-title-input-${col.id}`}
+                    />
+                    <Input
+                      type="text"
+                      placeholder="Description (optional)..."
+                      value={quickAddDescription}
+                      onChange={(e) => setQuickAddDescription(e.target.value)}
+                      className="h-7 text-xs bg-slate-50"
+                      data-testid={`quick-add-desc-input-${col.id}`}
+                    />
+                    <div className="flex justify-end gap-1.5 pt-0.5">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => setQuickAddPhase(null)}
+                        className="h-6 text-[10px]"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="submit"
+                        size="xs"
+                        disabled={isQuickAdding || !quickAddTitle.trim()}
+                        className="h-6 text-[10px] font-semibold bg-blue-600 hover:bg-blue-700"
+                        data-testid={`quick-add-submit-btn-${col.id}`}
+                      >
+                        {isQuickAdding ? 'Adding...' : 'Add Task'}
+                      </Button>
+                    </div>
+                  </form>
+                )}
                 {phaseTasks.length === 0 ? (
                   <div className="p-6 text-center text-xs text-slate-400 italic">
                     No tasks in this phase
