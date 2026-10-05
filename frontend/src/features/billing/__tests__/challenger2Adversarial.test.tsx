@@ -175,11 +175,15 @@ describe('CHALLENGER 2: Adversarial Verification of Print Preview, Address Secur
 
       expect(window.print).not.toHaveBeenCalled();
 
+      // Explicit trigger opens the prototype-verbatim print window
+      // (about:blank) — the modal no longer calls in-page window.print().
+      const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
       const printButton = screen.getByTestId('print-document-button');
       fireEvent.click(printButton);
 
-      // Explicit trigger verification
-      expect(window.print).toHaveBeenCalledTimes(1);
+      expect(openSpy).toHaveBeenCalledTimes(1);
+      expect(openSpy).toHaveBeenCalledWith('', '_blank');
+      openSpy.mockRestore();
     });
 
     it('downloads PDF via fetchInvoicePdfUrl when "Download PDF" button is clicked', async () => {

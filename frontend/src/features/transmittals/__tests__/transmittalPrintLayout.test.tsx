@@ -126,13 +126,18 @@ describe('Transmittal Print Layout — Authentic Printable Document Verification
     expect(cssText).toContain('width: 100% !important');
   });
 
-  it('triggers window.print() cleanly when clicking Print Document button', () => {
+  it('opens the prototype-verbatim print window when clicking Print Document button', () => {
+    // Print output is generated in a fresh about:blank window (prototype parity);
+    // the modal itself no longer calls in-page window.print().
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
     render(<TransmittalPrintModal transmittal={mockTransmittal} isOpen={true} onClose={vi.fn()} />);
 
     const printBtn = screen.getByTestId('print-action-btn');
     fireEvent.click(printBtn);
 
-    expect(window.print).toHaveBeenCalledTimes(1);
+    expect(openSpy).toHaveBeenCalledTimes(1);
+    expect(openSpy).toHaveBeenCalledWith('', '_blank');
+    openSpy.mockRestore();
   });
 
   it('renders official document header, FROM, TO, line items, and signature elements', () => {

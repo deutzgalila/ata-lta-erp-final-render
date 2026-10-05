@@ -17,6 +17,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { printTransmittalDocument } from '@/lib/printDocuments';
 import type { Transmittal } from '../api/types';
 
 export interface TransmittalPrintModalProps {
@@ -110,12 +111,11 @@ export function TransmittalPrintModal({
   const items = transmittal.items || [];
 
   const handlePrint = () => {
-    const oldTitle = document.title;
-    document.title = `Transmittal — ${transmittal.tracking_number || ''}`;
-    window.print();
-    setTimeout(() => {
-      document.title = oldTitle;
-    }, 1000);
+    // Print via a fresh window containing the prototype-verbatim transmittal
+    // letter (erp_prototype/js/transmittal.js openPrintLetter) incl. the
+    // 12-row padded document table — Chromium output matches the legacy form
+    // 1:1, independent of the in-app modal CSS.
+    printTransmittalDocument(transmittal);
   };
 
   return (

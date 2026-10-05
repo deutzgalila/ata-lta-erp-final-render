@@ -139,10 +139,14 @@ describe('PrintPreviewModal Component (Decoupled Print & Address Security)', () 
     // Verify window.print was NOT invoked on open
     expect(window.print).not.toHaveBeenCalled();
 
-    // Explicit click on Print Document button calls window.print
+    // Explicit click opens the prototype-verbatim print window (about:blank);
+    // the modal no longer calls in-page window.print().
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
     const printBtn = screen.getByTestId('print-document-button');
     fireEvent.click(printBtn);
-    expect(window.print).toHaveBeenCalledTimes(1);
+    expect(openSpy).toHaveBeenCalledTimes(1);
+    expect(openSpy).toHaveBeenCalledWith('', '_blank');
+    openSpy.mockRestore();
   });
 
   it('forbids unauthorized users from editing client address (displays lock indicator)', async () => {

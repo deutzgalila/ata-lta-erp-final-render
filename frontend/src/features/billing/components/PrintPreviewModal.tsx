@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/input';
 import { useInvoiceDetail } from '../api/useInvoices';
 import { updateClientAddressAction, fetchInvoicePdfUrl } from '../api/useBillingMutations';
 import { usePermission } from '@/lib/permissions';
+import { printStatementDocument } from '@/lib/printDocuments';
 import { formatCurrency, getStatusBadgeVariant } from '../utils/formatters';
 import type { Invoice } from '../api/types';
 
@@ -95,12 +96,10 @@ export function PrintPreviewModal({
   };
 
   const handlePrint = () => {
-    const oldTitle = document.title;
-    document.title = `Statement ${invoice.invoice_number || ''}`;
-    window.print();
-    setTimeout(() => {
-      document.title = oldTitle;
-    }, 1000);
+    // Print via a fresh window containing the prototype-verbatim statement
+    // layout (erp_prototype/js/billing.js generateInvoice) — Chromium output
+    // matches the legacy document 1:1, independent of the in-app modal CSS.
+    printStatementDocument(invoice);
   };
 
   const handleDownloadPdf = async () => {
