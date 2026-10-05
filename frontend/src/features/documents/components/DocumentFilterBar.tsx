@@ -44,11 +44,11 @@ export function DocumentFilterBar({
   const isFiltered = Boolean(search || category || lifecycle);
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-white dark:bg-zinc-900 p-4 rounded-lg border border-zinc-200 dark:border-zinc-800">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-white p-4 rounded-lg border border-slate-200">
       <div className="flex flex-1 flex-wrap items-center gap-3">
         {/* Search Input */}
         <div className="relative min-w-[220px] max-w-sm flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <Input
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
@@ -104,7 +104,7 @@ export function DocumentFilterBar({
             variant="ghost"
             size="sm"
             onClick={onReset}
-            className="h-9 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+            className="h-9 text-slate-500 hover:text-slate-900"
             data-testid="document-reset-filters-btn"
           >
             <RotateCcw className="h-3.5 w-3.5 mr-1" />

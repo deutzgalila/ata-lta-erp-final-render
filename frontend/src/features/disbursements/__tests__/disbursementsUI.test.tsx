@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -7,17 +7,62 @@ import { AdminApprovalQueue } from '../components/AdminApprovalQueue';
 import { FundsReleaseActions } from '../components/FundsReleaseActions';
 import { DisbursementsTable } from '../components/DisbursementsTable';
 import { DisbursementStatusBadge } from '../components/DisbursementStatusBadge';
-import { useSessionStore } from '@/lib/session';
+import { useSessionStore, type SessionState } from '@/lib/session';
 import { useBlockingModalStore } from '@/features/operations/components/BlockingActionModal';
 import type { Disbursement } from '../api/types';
+
+// UAT-SH6: Isolate useSessionStore per test to prevent concurrent cross-suite state leakage
+vi.mock('@/lib/session', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/session')>();
+  const { create } = await import('zustand');
+  const isolatedStore = create<SessionState>((set) => ({
+    user: null,
+    permissions: new Set<string>(),
+    activeEntity: 'ATA',
+    unreadCount: 0,
+    isAuthenticated: true,
+    isLoading: false,
+
+    setSession: ({ user, permissions, activeEntity, unreadCount }) => {
+      const permSet = permissions instanceof Set ? permissions : new Set(permissions);
+      set({
+        user,
+        permissions: permSet,
+        activeEntity: activeEntity || 'ATA',
+        unreadCount: unreadCount ?? 0,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+    },
+    setActiveEntity: (entity) => set({ activeEntity: entity }),
+    setUnreadCount: (count) => set({ unreadCount: count }),
+    clearSession: () => set({
+      user: null,
+      permissions: new Set<string>(),
+      activeEntity: null,
+      unreadCount: 0,
+      isAuthenticated: false,
+      isLoading: false,
+    }),
+    setLoading: (isLoading) => set({ isLoading }),
+  }));
+
+  return {
+    ...actual,
+    useSessionStore: isolatedStore,
+  };
+});
+
+let activeQueryClients: QueryClient[] = [];
 
 function createHarness() {
   const queryClient = new QueryClient({
     defaultOptions: {
-      queries: { retry: false, gcTime: Infinity, staleTime: Infinity },
+      queries: { retry: false, gcTime: 0, staleTime: Infinity },
       mutations: { retry: false },
     },
   });
+  activeQueryClients.push(queryClient);
 
   const wrapper = ({ children }: { children: React.ReactNode }) =>
     React.createElement(QueryClientProvider, { client: queryClient }, children);
@@ -94,16 +139,37 @@ describe('Disbursements UI Components & Integration', () => {
     });
   };
 
+  const defaultMockFetch = vi.fn().mockImplementation(async () => {
+    return {
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ({
+        data: [],
+        meta: { total: 0, page: 1, limit: 20 },
+      }),
+    };
+  });
+
   beforeEach(() => {
+    global.fetch = defaultMockFetch;
     setAdminSession();
     useBlockingModalStore.getState().reset();
   });
 
   afterEach(() => {
-    global.fetch = originalFetch;
+    activeQueryClients.forEach((qc) => {
+      qc.cancelQueries();
+      qc.clear();
+    });
+    activeQueryClients = [];
     vi.restoreAllMocks();
     useBlockingModalStore.getState().reset();
     setAdminSession();
+  });
+
+  afterAll(() => {
+    global.fetch = originalFetch;
   });
 
   describe('CreateDisbursementModal & Status Anti-Forgery', () => {

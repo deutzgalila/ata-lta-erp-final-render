@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
 import React from 'react';
 import { LogTimeWidget } from '../components/LogTimeWidget';
+import { PendingTasksCard } from '../components/PendingTasksCard';
 import DashboardPage from '@/routes/dashboard';
 import { useSessionStore } from '@/lib/session';
 import { useBlockingModalStore } from '@/features/operations/components/BlockingActionModal';
@@ -275,6 +276,79 @@ describe('Dashboard Widgets (LogTimeWidget & DashboardPage)', () => {
         expect(screen.getByTestId('stat-today-hours')).toHaveTextContent('1h 30m');
       });
       expect(screen.getByTestId('log-time-widget')).toBeInTheDocument();
+      expect(screen.getByTestId('pending-tasks-card')).toBeInTheDocument();
+    });
+  });
+
+  describe('PendingTasksCard Component (UAT-SH4)', () => {
+    beforeEach(() => {
+      useSessionStore.getState().setSession({
+        user: {
+          id: 'user-worker',
+          email: 'worker@ata-lta.ph',
+          name: 'Worker User',
+          role: 'Staff',
+          departments: ['Operations'],
+          entities: ['ATA'],
+        },
+        permissions: ['timelog:create'],
+        activeEntity: 'ATA',
+      });
+    });
+
+    it('renders assigned incomplete tasks with entity and phase badges, and filters out unassigned tasks', async () => {
+      vi.spyOn(api, 'apiRequest').mockImplementation(async (path: string) => {
+        if (path.includes('/operations/work-requests')) return sampleTasksResponse as never;
+        return { data: [] } as never;
+      });
+
+      render(<PendingTasksCard />, { wrapper: createWrapper() });
+
+      expect(screen.getByTestId('pending-tasks-card')).toBeInTheDocument();
+      expect(screen.getByText('Pending Tasks Assigned to Me')).toBeInTheDocument();
+
+      // Assigned task should appear
+      const taskItem = await screen.findByTestId('pending-task-task-assigned-1');
+      expect(taskItem).toBeInTheDocument();
+      expect(screen.getByText('Gather BIR Form 2307')).toBeInTheDocument();
+      expect(screen.getByText('Tax Compliance 2026')).toBeInTheDocument();
+      expect(screen.getByText('Processing')).toBeInTheDocument();
+      expect(screen.getByTestId('view-task-btn-task-assigned-1')).toBeInTheDocument();
+
+      // Unassigned task should NOT appear
+      expect(screen.queryByTestId('pending-task-task-unassigned-2')).not.toBeInTheDocument();
+    });
+
+    it('renders empty state when there are no incomplete tasks', async () => {
+      vi.spyOn(api, 'apiRequest').mockImplementation(async (path: string) => {
+        if (path.includes('/operations/work-requests')) {
+          return {
+            data: [
+              {
+                id: 'wr-empty',
+                title: 'Finished WR',
+                tasks: [
+                  {
+                    id: 'task-completed-1',
+                    title: 'Completed Review',
+                    assignee_id: 'user-worker',
+                    status: 'Completed',
+                  },
+                ],
+              },
+            ],
+          } as never;
+        }
+        return { data: [] } as never;
+      });
+
+      render(<PendingTasksCard />, { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('pending-tasks-empty')).toBeInTheDocument();
+      });
+      expect(screen.getByText('All caught up!')).toBeInTheDocument();
     });
   });
 });
+
