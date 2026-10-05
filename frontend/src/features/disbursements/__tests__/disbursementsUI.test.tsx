@@ -184,8 +184,13 @@ describe('Disbursements UI Components & Integration', () => {
       expect(screen.getByTestId('create-disbursement-modal')).toBeInTheDocument();
       expect(screen.getByTestId('create-disbursement-form')).toBeInTheDocument();
 
-      // Check required inputs
-      expect(screen.getByTestId('input-work-request-id')).toBeInTheDocument();
+      // Check required inputs (UAT2-12: dropdowns & auto-detected client display, manual inputs removed)
+      expect(screen.getByTestId('select-work-request')).toBeInTheDocument();
+      expect(screen.getByTestId('display-client-name')).toBeInTheDocument();
+      expect(screen.getByTestId('select-work-request-task')).toBeInTheDocument();
+      expect(screen.queryByTestId('input-work-request-id')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('input-client-id')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('select-client')).not.toBeInTheDocument();
       expect(screen.getByTestId('select-category')).toBeInTheDocument();
       expect(screen.getByTestId('select-fund-source')).toBeInTheDocument();
       expect(screen.getByTestId('input-amount')).toBeInTheDocument();
@@ -259,7 +264,7 @@ describe('Disbursements UI Components & Integration', () => {
       expect(body.status).toBeUndefined();
     });
 
-    it('validates client-side constraints (amount > 0, UUID format)', async () => {
+    it('validates client-side constraints (amount > 0, Work Request required)', async () => {
       const { wrapper } = createHarness();
 
       render(
@@ -267,15 +272,35 @@ describe('Disbursements UI Components & Integration', () => {
         { wrapper }
       );
 
-      // Attempt to submit with invalid amount and invalid UUID
+      // Attempt to submit with invalid amount and unselected WR
       fireEvent.change(screen.getByTestId('input-amount'), { target: { value: '-50' } });
-      fireEvent.change(screen.getByTestId('input-work-request-id'), { target: { value: 'invalid-uuid' } });
       fireEvent.submit(screen.getByTestId('create-disbursement-form'));
 
       await waitFor(() => {
         expect(screen.getByTestId('error-amount')).toBeInTheDocument();
         expect(screen.getByTestId('error-work-request-id')).toBeInTheDocument();
       });
+    });
+
+    it('locks prefilled fields when FinancialPrefill is provided (UAT2-7-contract-side)', async () => {
+      const { wrapper } = createHarness();
+
+      render(
+        <CreateDisbursementModal
+          isOpen={true}
+          onClose={() => {}}
+          prefill={{
+            workRequestId: '11111111-1111-1111-1111-111111111111',
+            clientId: 'c1111111-1111-1111-1111-111111111111',
+            taskId: 't1111111-1111-1111-1111-111111111111',
+          }}
+        />,
+        { wrapper }
+      );
+
+      expect(screen.getByTestId('select-work-request')).toBeDisabled();
+      expect(screen.getByTestId('display-client-name')).toBeDisabled();
+      expect(screen.getByTestId('select-work-request-task')).toBeDisabled();
     });
   });
 

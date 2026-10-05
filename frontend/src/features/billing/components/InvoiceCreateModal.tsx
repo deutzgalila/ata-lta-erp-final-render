@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select';
 import { useClients } from '@/features/operations/api/useClients';
 import { useWorkRequests } from '@/features/operations/api/useWorkRequests';
+import { useWorkRequestTasks } from '@/features/operations/api/useTasks';
 import { useInvoices } from '../api/useInvoices';
 import { createInvoiceSchema, LINE_ITEM_TYPES } from '../api/schemas';
 import { createInvoiceAction } from '../api/useBillingMutations';
@@ -25,11 +26,27 @@ import { useSessionStore } from '@/lib/session';
 import { formatCurrency, getNextInvoiceNumber } from '../utils/formatters';
 import type { LineItemType, CreateLineItemInput } from '../api/types';
 
+/**
+ * Frozen Financial Prefill Contract (UAT2-7-contract-side)
+ * Integration surface for W2-OPS TaskDetailModal and cross-module deep links.
+ * Prefilled fields must be locked where linkage defines them (client from WR).
+ */
+export interface FinancialPrefill {
+  workRequestId?: string;
+  taskId?: string;
+  clientId?: string;
+}
+
 export interface InvoiceCreateModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCreated?: () => void;
+  prefill?: FinancialPrefill;
 }
+
+// GAP NOTE (UAT2-6): Backend currently accepts `linkedTaskId` (mapping to invoices.linked_task_id).
+// When W2-BE lands task_id acceptance on staging, toggle SUPPORT_TASK_ID_PAYLOAD to emit task_id.
+export const SUPPORT_TASK_ID_PAYLOAD = false;
 
 interface EditableLineItem {
   id: string;
@@ -42,12 +59,14 @@ export function InvoiceCreateModal({
   isOpen,
   onClose,
   onCreated,
+  prefill,
 }: InvoiceCreateModalProps) {
   const activeEntity = useSessionStore((state) => state.activeEntity);
 
   // Form Fields
   const [clientId, setClientId] = useState('');
   const [workRequestId, setWorkRequestId] = useState('');
+  const [selectedTaskId, setSelectedTaskId] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [issueDate, setIssueDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState(() => {
@@ -77,13 +96,66 @@ export function InvoiceCreateModal({
     { clientId: clientId || undefined },
     { enabled: isOpen }
   );
-  const workRequests = workRequestsData?.data || [];
+  const workRequests = useMemo(() => workRequestsData?.data || [], [workRequestsData]);
+
+  // Work Request Tasks query (UAT2-6: disabled/empty until WR chosen)
+  const { data: tasksData } = useWorkRequestTasks(
+    workRequestId || undefined,
+    { enabled: isOpen && Boolean(workRequestId) }
+  );
+  const tasks = tasksData || [];
 
   // Existing Invoices for sequential number calculation
   const { data: existingInvoicesData } = useInvoices(
     { limit: 100 },
     { enabled: isOpen }
   );
+
+  // Prefill contract synchronization (UAT2-7-contract-side)
+  useEffect(() => {
+    if (isOpen) {
+      if (prefill?.workRequestId) {
+        setWorkRequestId(prefill.workRequestId);
+      }
+      if (prefill?.clientId) {
+        setClientId(prefill.clientId);
+      }
+      if (prefill?.taskId) {
+        setSelectedTaskId(prefill.taskId);
+      }
+    } else {
+      setFormError(null);
+    }
+  }, [isOpen, prefill]);
+
+  // Auto-detect and populate associated client when work request is selected
+  useEffect(() => {
+    if (isOpen && workRequestId && workRequests.length > 0) {
+      const matchedWr = workRequests.find((w) => w.id === workRequestId);
+      if (matchedWr?.client_id && !clientId) {
+        setClientId(matchedWr.client_id);
+      }
+    }
+  }, [isOpen, workRequestId, workRequests, clientId]);
+
+  const handleClientChange = (newClientId: string) => {
+    setClientId(newClientId);
+    setWorkRequestId('');
+    setSelectedTaskId('');
+  };
+
+  const handleWorkRequestChange = (newWrId: string) => {
+    setWorkRequestId(newWrId);
+    setSelectedTaskId('');
+    const matchedWr = workRequests.find((w) => w.id === newWrId);
+    if (matchedWr?.client_id) {
+      setClientId(matchedWr.client_id);
+    }
+  };
+
+  const isClientLocked = Boolean(prefill?.clientId || prefill?.workRequestId);
+  const isWrLocked = Boolean(prefill?.workRequestId);
+  const isTaskLocked = Boolean(prefill?.taskId);
 
   // Auto-generate sequential invoice number matching prototype
   useEffect(() => {
@@ -161,6 +233,7 @@ export function InvoiceCreateModal({
     const payload = {
       clientId,
       workRequestId,
+      linkedTaskId: selectedTaskId || null,
       invoiceNumber: invoiceNumber.trim(),
       issueDate,
       dueDate,
@@ -220,7 +293,7 @@ export function InvoiceCreateModal({
               <label htmlFor="create-invoice-client" className="text-xs font-semibold text-slate-700 block mb-1">
                 Client*
               </label>
-              <Select value={clientId} onValueChange={setClientId}>
+              <Select value={clientId} onValueChange={handleClientChange} disabled={isClientLocked}>
                 <SelectTrigger id="create-invoice-client" className="h-9 text-xs" data-testid="select-client">
                   <SelectValue placeholder="Select a client..." />
                 </SelectTrigger>
@@ -238,7 +311,7 @@ export function InvoiceCreateModal({
               <label htmlFor="create-invoice-wr" className="text-xs font-semibold text-slate-700 block mb-1">
                 Associated Work Request*
               </label>
-              <Select value={workRequestId} onValueChange={setWorkRequestId}>
+              <Select value={workRequestId} onValueChange={handleWorkRequestChange} disabled={isWrLocked}>
                 <SelectTrigger id="create-invoice-wr" className="h-9 text-xs" data-testid="select-work-request">
                   <SelectValue placeholder="Select work request..." />
                 </SelectTrigger>
@@ -246,6 +319,35 @@ export function InvoiceCreateModal({
                   {workRequests.map((wr) => (
                     <SelectItem key={wr.id} value={wr.id}>
                       {wr.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label htmlFor="create-invoice-task" className="text-xs font-semibold text-slate-700 block mb-1">
+                Linked Task (Optional)
+              </label>
+              <Select
+                value={selectedTaskId || '__none__'}
+                onValueChange={(val) => setSelectedTaskId(val === '__none__' ? '' : val)}
+                disabled={isTaskLocked || !workRequestId}
+              >
+                <SelectTrigger id="create-invoice-task" className="h-9 text-xs" data-testid="select-work-request-task">
+                  <SelectValue
+                    placeholder={
+                      !workRequestId
+                        ? 'Select work request first...'
+                        : 'Select task (optional)...'
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">None (No linked task)</SelectItem>
+                  {tasks.map((task) => (
+                    <SelectItem key={task.id} value={task.id}>
+                      {task.title}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -1,8 +1,10 @@
 /**
- * Transmittal Print / PDF Preview Modal
+ * Transmittal Print / PDF Preview Modal (UAT2-3)
  *
- * Implements the item-rows-only fix (eliminates legacy 12 blank rows filler logic).
- * Features dynamic "RECEIVED" stamp when transmittal is acknowledged.
+ * Verbatim 1:1 port of prototype transmittal preview layout (erp_prototype/js/transmittal.js),
+ * omitting the prototype's 12-row filler loop to match backend PDF behavior (item-rows-only).
+ * Features entity-aware date formatting, Manila company address, TO 4-line block,
+ * boxed document table, centered signature block, and dynamic "RECEIVED" stamp on Acknowledged status.
  */
 
 import { useRef } from 'react';
@@ -44,35 +46,70 @@ export function TransmittalPrintModal({
 
   const companyTin = isATA ? 'TIN: 234-567-890-000' : 'TIN: 345-678-901-000';
 
-  // Format date based on entity convention
+  // Date formatting (Entity-aware: ATA = uppercase full month, LTA = M/D/YYYY)
   const formattedDate = (() => {
-    const d = new Date(transmittal.created_at);
+    const rawDate = transmittal.sent_at || transmittal.created_at || new Date().toISOString();
+    const d = new Date(rawDate);
     if (isATA) {
-      return d.toLocaleDateString('en-US', {
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
-      });
+      return d
+        .toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        })
+        .toUpperCase();
     }
-    // LTA MM/DD/YYYY
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    const yyyy = d.getFullYear();
-    return `${mm}/${dd}/${yyyy}`;
+    return `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
   })();
 
   const isAcknowledged = transmittal.status === 'Acknowledged';
   const acknowledgedDateFormatted = transmittal.acknowledged_at
-    ? new Date(transmittal.acknowledged_at).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      })
+    ? new Date(transmittal.acknowledged_at)
+        .toLocaleDateString('en-US', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        })
+        .toUpperCase()
     : '';
 
+  // TO parsing per prototype lines 2848-2873
+  const clientName = transmittal.clients?.name || '';
+  const pocName = transmittal.recipient_name || '';
+  const toLine1 = pocName || clientName || '';
+  let toLine2 = '';
+  if (pocName && clientName) {
+    toLine2 = isATA ? `(${clientName})` : clientName;
+  } else if (clientName) {
+    toLine2 = isATA ? `(${clientName})` : clientName;
+  }
+
+  const address = transmittal.clients?.address || '';
+  let toLine3 = '';
+  let toLine4 = '';
+  if (address) {
+    const firstComma = address.indexOf(',');
+    if (firstComma !== -1) {
+      toLine3 = address.slice(0, firstComma).trim();
+      toLine4 = address.slice(firstComma + 1).trim();
+    } else {
+      toLine3 = address;
+    }
+  }
+
+  // Acknowledgment info for signature block
+  let sigName = '';
+  let sigDate = '';
+  if (isAcknowledged) {
+    sigName = (transmittal.received_by_name || transmittal.recipient_name || '').toUpperCase();
+    if (transmittal.acknowledged_at) {
+      const dObj = new Date(transmittal.acknowledged_at);
+      sigDate = `${dObj.getMonth() + 1}/${dObj.getDate()}/${String(dObj.getFullYear()).slice(-2)}`;
+    }
+  }
+
+  // Item-rows-only: strictly map real items without filler rows
   const items = transmittal.items || [];
-  const TOTAL_MANIFEST_ROWS = 12;
-  const manifestRows = Array.from({ length: TOTAL_MANIFEST_ROWS }, (_, idx) => items[idx] || null);
 
   const handlePrint = () => {
     window.print();
@@ -93,7 +130,7 @@ export function TransmittalPrintModal({
             <Button
               size="sm"
               onClick={handlePrint}
-              className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white gap-1"
+              className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white gap-1 cursor-pointer"
               data-testid="print-action-btn"
             >
               <Printer className="h-3.5 w-3.5" />
@@ -102,160 +139,204 @@ export function TransmittalPrintModal({
           </div>
         </DialogHeader>
 
-        {/* Printable Document Sheet */}
+        {/* Printable Document Sheet (Verbatim 1:1 Prototype Boxed Form) */}
         <div
           ref={printAreaRef}
-          className="p-8 bg-white text-slate-900 font-sans text-xs space-y-6 print:p-0 print:m-0"
+          className="p-8 bg-white text-black font-sans text-xs space-y-4 print:p-0 print:m-0 w-full max-w-[700px] mx-auto box-border"
           id="transmittal-print-area"
         >
-          {/* Company Letterhead */}
-          <div className="text-center border-b pb-4 space-y-1">
-            <h1 className="text-base font-bold tracking-tight text-slate-900 uppercase">
-              {companyName}
-            </h1>
-            <p className="text-[11px] text-slate-600 max-w-lg mx-auto">
-              {companyAddress}
-            </p>
-            <p className="text-[10px] text-slate-500 font-mono">{companyTin}</p>
-          </div>
+          {/* Header Box Table (preview-header-table) */}
+          <table
+            className="w-full border-2 border-black border-collapse mb-4 table-fixed"
+            style={{ border: '2px solid #000' }}
+          >
+            <colgroup>
+              <col style={{ width: '55%' }} />
+              <col style={{ width: '45%' }} />
+            </colgroup>
+            <tbody>
+              {/* Row 1: Title */}
+              <tr>
+                <td
+                  colSpan={2}
+                  className="border-2 border-black text-center font-bold text-[12pt] tracking-[0.5px] p-2 text-black"
+                  style={{ border: '2px solid #000' }}
+                >
+                  DOCUMENT TRANSMITTAL FORM
+                </td>
+              </tr>
 
-          {/* Letter Title & Manifest Meta */}
-          <div className="flex items-start justify-between border-b pb-3">
-            <div>
-              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-800">
-                Document Transmittal Form
-              </h2>
-              <div className="text-xs text-slate-500 mt-1">
-                Date: <span className="font-semibold text-slate-800">{formattedDate}</span>
-              </div>
+              {/* Row 2: Tracking Number & Date */}
+              <tr>
+                <td
+                  className="border-2 border-black p-2.5 align-top break-words text-black"
+                  style={{ width: '55%', border: '2px solid #000' }}
+                >
+                  <span className="text-[#c2272d] font-bold mr-1.5">TRANSMITTAL DOC NO.:</span>
+                  <span className="font-bold font-mono" data-testid="print-tracking-number">
+                    {transmittal.tracking_number}
+                  </span>
+                </td>
+                <td
+                  className="border-2 border-black p-2.5 align-top break-words text-black"
+                  style={{ width: '45%', border: '2px solid #000' }}
+                >
+                  <span className="font-bold mr-1.5">DATE:</span>
+                  <span className="font-bold">{formattedDate}</span>
+                </td>
+              </tr>
+
+              {/* Row 3: FROM & TO */}
+              <tr>
+                <td
+                  className="border-2 border-black p-2.5 align-top break-words leading-relaxed text-black"
+                  style={{ width: '55%', border: '2px solid #000' }}
+                >
+                  <strong>FROM:</strong> <strong>{companyName}</strong>
+                  <br />
+                  {companyAddress}
+                  <br />
+                  <span className="text-[10px] font-mono text-slate-500">{companyTin}</span>
+                </td>
+                <td
+                  className="border-2 border-black p-2.5 align-top break-words leading-relaxed text-black"
+                  style={{ width: '45%', border: '2px solid #000' }}
+                >
+                  <div className="flex gap-2 items-start">
+                    <strong className="mt-0.5">TO:</strong>
+                    <div className="flex-1 flex flex-col">
+                      <div
+                        className="border-b-[1.5px] border-black min-h-[16px] mt-0.5 pb-0.5 font-bold text-black"
+                        data-testid="print-recipient-name"
+                      >
+                        {toLine1}
+                      </div>
+                      <div
+                        className="border-b-[1.5px] border-black min-h-[16px] mt-0.5 pb-0.5 font-bold text-black"
+                        data-testid="print-client-name"
+                      >
+                        {toLine2}
+                      </div>
+                      <div className="border-b-[1.5px] border-black min-h-[16px] mt-0.5 pb-0.5 font-bold text-black">
+                        {toLine3}
+                      </div>
+                      <div className="border-b-[1.5px] border-black min-h-[16px] mt-0.5 pb-0.5 font-bold text-black">
+                        {toLine4}
+                      </div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* Document Box Container (preview-document-box) */}
+          <div
+            className="border-2 border-black relative mb-4 w-full box-border"
+            style={{ border: '2px solid #000' }}
+          >
+            <div
+              className="font-bold px-2.5 py-1.5 border-b-2 border-black bg-white text-[10pt] text-black"
+              style={{ borderBottom: '2px solid #000' }}
+            >
+              Received the following documents and/or records:
             </div>
 
-            <div className="text-right">
-              <div className="text-[11px] text-slate-500 uppercase font-semibold">
-                Transmittal Tracking No.
-              </div>
-              <div className="font-mono font-bold text-sm text-blue-800" data-testid="print-tracking-number">
-                {transmittal.tracking_number}
-              </div>
-            </div>
-          </div>
-
-          {/* TO / Recipient Section */}
-          <div className="grid grid-cols-2 gap-4 p-3 bg-slate-50 rounded border border-slate-200">
-            <div className="space-y-1">
-              <span className="text-[10px] uppercase font-bold text-slate-500 block">
-                Deliver To:
-              </span>
-              <div className="font-bold text-sm text-slate-900" data-testid="print-client-name">
-                {transmittal.clients?.name || 'N/A'}
-              </div>
-              {transmittal.clients?.address && (
-                <div className="text-xs text-slate-600">{transmittal.clients.address}</div>
-              )}
-            </div>
-
-            <div className="space-y-1">
-              <span className="text-[10px] uppercase font-bold text-slate-500 block">
-                Attention / Contact Person:
-              </span>
-              <div className="font-bold text-xs text-slate-900" data-testid="print-recipient-name">
-                {transmittal.recipient_name || 'Authorized Representative'}
-              </div>
-              {transmittal.recipient_details && (
-                <div className="text-xs text-slate-600">{transmittal.recipient_details}</div>
-              )}
-            </div>
-          </div>
-
-          {/* Document Line Items Table (12-Row Fixed Manifest Table per Prototype Parity) */}
-          <div className="space-y-2">
-            <div className="text-xs font-bold text-slate-700 uppercase">
-              Enclosed Documents / Deliverables:
-            </div>
-
+            {/* Document Table (preview-document-table) */}
             <table
-              className="w-full border-collapse border border-slate-300 text-xs"
+              className="w-full border-collapse table-fixed"
               data-testid="print-items-table"
             >
+              <colgroup>
+                <col style={{ width: '35%' }} />
+                <col style={{ width: '65%' }} />
+              </colgroup>
               <thead>
-                <tr className="bg-slate-100 border-b border-slate-300 text-[11px] font-bold text-slate-700">
-                  <th className="border border-slate-300 py-1.5 px-2 w-10 text-center">#</th>
-                  <th className="border border-slate-300 py-1.5 px-3 w-36 text-left">Category</th>
-                  <th className="border border-slate-300 py-1.5 px-3 text-left">Description</th>
-                  <th className="border border-slate-300 py-1.5 px-2 w-16 text-center">Quantity</th>
+                <tr>
+                  <th
+                    className="border-b-2 border-r-2 border-black px-2.5 py-1.5 font-bold text-left text-[10pt] text-black bg-white"
+                    style={{ width: '35%', borderBottom: '2px solid #000', borderRight: '2px solid #000' }}
+                  >
+                    CATEGORY
+                  </th>
+                  <th
+                    className="border-b-2 border-black px-2.5 py-1.5 font-bold text-left text-[10pt] text-black bg-white"
+                    style={{ width: '65%', borderBottom: '2px solid #000' }}
+                  >
+                    DOCUMENT
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {manifestRows.map((item, idx) => (
+                {items.map((item, idx) => (
                   <tr
-                    key={item?.id || `manifest-row-${idx}`}
-                    className="border-b border-slate-200 h-6"
+                    key={item.id || `manifest-row-${idx}`}
+                    className="h-[22px]"
                     data-testid={`print-item-row-${idx}`}
                   >
-                    <td className="border border-slate-300 py-1.5 px-2 text-center font-mono text-slate-500">
-                      {idx + 1}
+                    <td
+                      className="px-2.5 py-1 text-[10pt] font-bold align-top break-words text-black border-r border-black"
+                      style={{
+                        width: '35%',
+                        borderRight: '1px solid #000',
+                        borderBottom: idx < items.length - 1 ? '1px solid #000' : 'none',
+                      }}
+                    >
+                      {(item.document_type || item.documentType || 'Others').toUpperCase()}
                     </td>
-                    <td className="border border-slate-300 py-1.5 px-3 font-semibold text-slate-800">
-                      {item ? (item.document_type || item.documentType || 'Others') : '\u00A0'}
-                    </td>
-                    <td className="border border-slate-300 py-1.5 px-3 text-slate-900">
-                      {item ? item.description : '\u00A0'}
-                    </td>
-                    <td className="border border-slate-300 py-1.5 px-2 text-center font-mono font-bold text-slate-800">
-                      {item ? item.quantity : '\u00A0'}
+                    <td
+                      className="px-2.5 py-1 text-[10pt] align-top break-words text-black"
+                      style={{
+                        width: '65%',
+                        borderBottom: idx < items.length - 1 ? '1px solid #000' : 'none',
+                      }}
+                    >
+                      {(item.description || '').toUpperCase()}
+                      {item.quantity && item.quantity > 1 ? ` (QTY: ${item.quantity})` : ''}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+
+            {/* Dynamic "RECEIVED" Stamp */}
+            {isAcknowledged && (
+              <div
+                className="absolute right-[12%] top-1/2 -translate-y-1/2 border-4 border-double border-blue-800 text-blue-900 px-3 py-1.5 text-center bg-white/95 rounded-xl font-mono font-bold pointer-events-none z-10"
+                style={{ transform: 'translateY(-50%) rotate(-7deg)' }}
+                data-testid="print-received-stamp"
+              >
+                <div className="text-base font-extrabold tracking-widest border-b-2 border-blue-800 pb-0.5 mb-1">
+                  RECEIVED
+                </div>
+                {(transmittal.received_by_name || transmittal.recipient_name) && (
+                  <div className="text-[10px] font-bold uppercase" data-testid="stamp-recipient-name">
+                    {transmittal.received_by_name || transmittal.recipient_name}
+                  </div>
+                )}
+                <div className="text-[10px] text-blue-700 font-semibold" data-testid="stamp-acknowledged-date">
+                  {acknowledgedDateFormatted || 'Date Recorded'}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Delivery Notes / Remarks */}
+          {/* Notes (if any) */}
           {transmittal.notes && (
-            <div className="p-3 border border-slate-200 rounded text-xs space-y-1 bg-slate-50">
-              <span className="font-bold text-slate-700 uppercase text-[10px]">Remarks:</span>
-              <p className="text-slate-600 italic whitespace-pre-wrap">{transmittal.notes}</p>
+            <div className="my-2.5 italic text-[9.5pt] text-slate-600">
+              Notes: {transmittal.notes}
             </div>
           )}
 
-          {/* Bottom Sign-off Section & Dynamic "RECEIVED" Stamp */}
-          <div className="relative pt-6 border-t border-slate-200 mt-8 grid grid-cols-2 gap-12">
-            {/* Sender Sign-off */}
-            <div className="space-y-8">
-              <div className="text-xs font-semibold text-slate-700">Transmitted By:</div>
-              <div className="border-t border-slate-400 pt-1 text-center">
-                <div className="font-bold text-xs uppercase">Authorized Documentation Officer</div>
-                <div className="text-[10px] text-slate-500">{companyName}</div>
-              </div>
+          {/* Centered Signature Box (preview-signature-container) */}
+          <div className="mt-8 w-full max-w-[400px] mx-auto text-center">
+            <div className="flex justify-between px-5 font-bold text-[11pt] min-h-[20px] text-black">
+              <span className="flex-[2] text-center">{sigName}</span>
+              <span className="flex-1 text-right">{sigDate}</span>
             </div>
-
-            {/* Recipient Acknowledgment Section */}
-            <div className="relative space-y-8">
-              <div className="text-xs font-semibold text-slate-700">Received By:</div>
-              <div className="border-t border-slate-400 pt-1 text-center">
-                <div className="font-bold text-xs">
-                  {transmittal.recipient_name || 'Signature over Printed Name'}
-                </div>
-                <div className="text-[10px] text-slate-500">Date & Time Received</div>
-              </div>
-
-              {/* Dynamic RECEIVED Stamp */}
-              {isAcknowledged && (
-                <div
-                  className="absolute inset-0 flex items-center justify-center pointer-events-none"
-                  data-testid="print-received-stamp"
-                >
-                  <div className="transform -rotate-12 border-4 border-double border-blue-800 text-blue-900 px-4 py-2 text-center rounded font-mono shadow-sm bg-white/90">
-                    <div className="text-base font-extrabold tracking-widest">RECEIVED</div>
-                    <div className="text-[10px] font-bold mt-0.5" data-testid="stamp-recipient-name">
-                      {transmittal.recipient_name || 'Authorized Recipient'}
-                    </div>
-                    <div className="text-[9px] text-blue-700 font-semibold mt-0.5" data-testid="stamp-acknowledged-date">
-                      {acknowledgedDateFormatted || 'Date Recorded'}
-                    </div>
-                  </div>
-                </div>
-              )}
+            <div className="border-t-[1.5px] border-black mt-0.5" />
+            <div className="text-[9pt] text-slate-600 mt-1.5">
+              Signature over Printed name / Date Received
             </div>
           </div>
         </div>
@@ -265,7 +346,7 @@ export function TransmittalPrintModal({
             size="sm"
             variant="outline"
             onClick={onClose}
-            className="h-8 text-xs"
+            className="h-8 text-xs cursor-pointer"
             data-testid="print-close-btn"
           >
             Close

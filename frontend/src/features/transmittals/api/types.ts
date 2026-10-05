@@ -65,6 +65,8 @@ export interface Transmittal {
   recipientName?: string | null;
   recipient_details?: string | null;
   recipientDetails?: string | null;
+  received_by_name?: string | null;
+  receivedByName?: string | null;
   sent_at?: string | null;
   sentAt?: string | null;
   sent_by?: string | null;

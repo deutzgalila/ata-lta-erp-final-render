@@ -51,6 +51,7 @@ import {
 } from '@/components/ui/select';
 import { useClients } from '@/features/operations/api/useClients';
 import { useWorkRequests } from '@/features/operations/api/useWorkRequests';
+import { useWorkRequestTasks } from '@/features/operations/api/useTasks';
 import { useCreateTransmittal, useUpdateTransmittal } from '../api/useTransmittals';
 import { DOCUMENT_CATEGORIES } from '../api/schemas';
 import type {
@@ -58,10 +59,22 @@ import type {
   CreateTransmittalItemInput,
 } from '../api/types';
 
+/**
+ * Frozen Financial Prefill Contract (UAT2-7-contract-side)
+ * Integration surface for W2-OPS TaskDetailModal and cross-module deep links.
+ * Prefilled fields must be locked where linkage defines them (client from WR).
+ */
+export interface FinancialPrefill {
+  workRequestId?: string;
+  taskId?: string;
+  clientId?: string;
+}
+
 export interface TransmittalFormModalProps {
   isOpen: boolean;
   onClose: () => void;
   transmittalToEdit?: Transmittal | null;
+  prefill?: FinancialPrefill;
 }
 
 interface FormLineItem {
@@ -75,6 +88,7 @@ export function TransmittalFormModal({
   isOpen,
   onClose,
   transmittalToEdit,
+  prefill,
 }: TransmittalFormModalProps) {
   const isEditMode = Boolean(transmittalToEdit);
 
@@ -93,6 +107,7 @@ export function TransmittalFormModal({
   // Form Fields State
   const [clientId, setClientId] = useState('');
   const [workRequestId, setWorkRequestId] = useState('');
+  const [selectedTaskId, setSelectedTaskId] = useState('');
   const [trackingNumber, setTrackingNumber] = useState('');
   const [recipientName, setRecipientName] = useState('');
   const [recipientDetails, setRecipientDetails] = useState('');
@@ -104,11 +119,19 @@ export function TransmittalFormModal({
   // Form validation errors
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Tasks query for selected work request
+  const { data: tasksData = [] } = useWorkRequestTasks(
+    workRequestId || undefined,
+    { enabled: isOpen && Boolean(workRequestId) }
+  );
+  const tasks = tasksData || [];
+
   // Reset or Populate form on open/change
   useEffect(() => {
     if (transmittalToEdit) {
       setClientId(transmittalToEdit.client_id || '');
       setWorkRequestId(transmittalToEdit.work_request_id || '');
+      setSelectedTaskId(transmittalToEdit.linked_task_id || transmittalToEdit.linkedTaskId || '');
       setTrackingNumber(transmittalToEdit.tracking_number || '');
       setRecipientName(transmittalToEdit.recipient_name || '');
       setRecipientDetails(transmittalToEdit.recipient_details || '');
@@ -130,15 +153,39 @@ export function TransmittalFormModal({
       // Create defaults
       const autoTracking = `TR-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
       setTrackingNumber(autoTracking);
-      setClientId('');
-      setWorkRequestId('');
+      setWorkRequestId(prefill?.workRequestId || '');
+      setClientId(prefill?.clientId || '');
+      setSelectedTaskId(prefill?.taskId || '');
       setRecipientName('');
       setRecipientDetails('');
       setNotes('');
       setItems([{ id: 'item-1', description: '', documentType: 'Contract', quantity: 1 }]);
     }
     setErrors({});
-  }, [transmittalToEdit, isOpen]);
+  }, [transmittalToEdit, isOpen, prefill]);
+
+  // Auto-detect client from work request in create mode
+  useEffect(() => {
+    if (isOpen && !isEditMode && workRequestId && workRequests.length > 0) {
+      const matchedWr = workRequests.find((w) => w.id === workRequestId);
+      if (matchedWr?.client_id && !clientId) {
+        setClientId(matchedWr.client_id);
+      }
+    }
+  }, [isOpen, isEditMode, workRequestId, workRequests, clientId]);
+
+  const handleWorkRequestChange = (newWrId: string) => {
+    setWorkRequestId(newWrId);
+    setSelectedTaskId('');
+    const matchedWr = workRequests.find((w) => w.id === newWrId);
+    if (matchedWr?.client_id) {
+      setClientId(matchedWr.client_id);
+    }
+  };
+
+  const isClientLocked = Boolean(!isEditMode && (prefill?.workRequestId || prefill?.clientId));
+  const isWrLocked = Boolean(!isEditMode && prefill?.workRequestId);
+  const isTaskLocked = Boolean(!isEditMode && prefill?.taskId);
 
   // Line Items Controls
   const handleAddItem = () => {
@@ -226,6 +273,7 @@ export function TransmittalFormModal({
           data: {
             clientId,
             workRequestId: workRequestId || null,
+            linkedTaskId: selectedTaskId || null,
             trackingNumber: trackingNumber.trim(),
             items: sanitizedItems,
             recipientName: recipientName.trim() || null,
@@ -238,6 +286,7 @@ export function TransmittalFormModal({
         await createMutation.mutateAsync({
           clientId,
           workRequestId,
+          linkedTaskId: selectedTaskId || null,
           trackingNumber: trackingNumber.trim(),
           items: sanitizedItems,
           recipientName: recipientName.trim() || null,
@@ -295,7 +344,7 @@ export function TransmittalFormModal({
                 <Building className="h-3.5 w-3.5" />
                 Client *
               </Label>
-              <Select value={clientId} onValueChange={setClientId}>
+              <Select value={clientId} onValueChange={setClientId} disabled={isClientLocked}>
                 <SelectTrigger id="client" className="text-xs" data-testid="client-select">
                   <SelectValue placeholder="Select client..." />
                 </SelectTrigger>
@@ -321,7 +370,7 @@ export function TransmittalFormModal({
                 <Briefcase className="h-3.5 w-3.5" />
                 Work Request {isEditMode ? '(Optional)' : '*'}
               </Label>
-              <Select value={workRequestId} onValueChange={setWorkRequestId}>
+              <Select value={workRequestId} onValueChange={handleWorkRequestChange} disabled={isWrLocked}>
                 <SelectTrigger id="workRequest" className="text-xs" data-testid="work-request-select">
                   <SelectValue placeholder="Link to work request..." />
                 </SelectTrigger>
@@ -339,6 +388,37 @@ export function TransmittalFormModal({
                   {errors.workRequestId}
                 </p>
               )}
+            </div>
+
+            {/* Linked Task (Optional) */}
+            <div className="space-y-1.5 md:col-span-2">
+              <Label htmlFor="workRequestTask" className="text-xs font-semibold flex items-center gap-1 text-slate-700">
+                <Briefcase className="h-3.5 w-3.5" />
+                Linked Task (Optional)
+              </Label>
+              <Select
+                value={selectedTaskId || '__none__'}
+                onValueChange={(val) => setSelectedTaskId(val === '__none__' ? '' : val)}
+                disabled={isTaskLocked || !workRequestId}
+              >
+                <SelectTrigger id="workRequestTask" className="text-xs" data-testid="task-select">
+                  <SelectValue
+                    placeholder={
+                      !workRequestId
+                        ? 'Select work request first...'
+                        : 'Select linked task (optional)...'
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">None (No linked task)</SelectItem>
+                  {tasks.map((task) => (
+                    <SelectItem key={task.id} value={task.id}>
+                      {task.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Recipient Person Name */}

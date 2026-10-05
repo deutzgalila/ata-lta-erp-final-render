@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TransmittalCard } from '../components/TransmittalCard';
@@ -340,7 +340,7 @@ describe('Transmittals UI Integration & Behavioral Parity', () => {
   // ==========================================================================
 
   describe('Print Modal Item-Rows-Only & Dynamic RECEIVED Stamp', () => {
-    it('renders 12-row fixed manifest table with Manila address (prototype parity)', () => {
+    it('renders item-rows-only manifest table with Manila address (prototype parity)', () => {
       const transmittal = mockTransmittals[0]!; // 2 items
       render(
         <TransmittalPrintModal
@@ -353,17 +353,18 @@ describe('Transmittals UI Integration & Behavioral Parity', () => {
       // Verify exact 2 data item rows exist
       expect(screen.getByTestId('print-item-row-0')).toBeInTheDocument();
       expect(screen.getByTestId('print-item-row-1')).toBeInTheDocument();
-      // Verify all 12 rows exist in the fixed manifest table
-      expect(screen.getByTestId('print-item-row-11')).toBeInTheDocument();
+      // Verify no empty filler rows (e.g. 11) exist
+      expect(screen.queryByTestId('print-item-row-11')).not.toBeInTheDocument();
 
       // Verify Manila address is rendered
       expect(
         screen.getByText(/RM 307 Republic Supermarket Bldg, Soler St\., cor\. F\.Torres St\., Sta\. Cruz, Manila/i)
       ).toBeInTheDocument();
 
-      // 1 header row + 12 data/filler rows = 13 rows total
-      const tableRows = screen.getAllByRole('row');
-      expect(tableRows).toHaveLength(13);
+      // Item-rows-only manifest: exactly 1 table header row + 2 data item rows = 3 rows in items table
+      const itemsTable = screen.getByTestId('print-items-table');
+      const tableRows = within(itemsTable).getAllByRole('row');
+      expect(tableRows).toHaveLength(3);
     });
 
     it('renders dynamic RECEIVED stamp when status is Acknowledged', () => {
