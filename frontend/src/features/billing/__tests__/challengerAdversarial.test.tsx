@@ -7,6 +7,7 @@ import { InvoiceList } from '../components/InvoiceList';
 import { createInvoiceSchema, updateInvoiceSchema } from '../api/schemas';
 import { useBlockingModalStore } from '@/features/operations/components/BlockingActionModal';
 import { useSessionStore } from '@/lib/session';
+import { queryClient as globalQueryClient } from '@/lib/api';
 import type { Invoice } from '../api/types';
 
 function createHarness() {
@@ -107,6 +108,8 @@ describe('Challenger Adversarial Stress Tests: Billing Module', () => {
 
   afterEach(() => {
     global.fetch = originalFetch;
+    globalQueryClient.clear();
+    useBlockingModalStore.getState().reset();
     vi.clearAllMocks();
   });
 

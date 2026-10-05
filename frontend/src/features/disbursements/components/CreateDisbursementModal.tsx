@@ -9,8 +9,14 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useQuery } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/api';
+import { useSessionStore } from '@/lib/session';
 import { DISBURSEMENT_CATEGORIES, FUND_SOURCES } from '../api/schemas';
 import { useCreateDisbursement } from '../api/useDisbursements';
+import { useWorkRequests } from '@/features/operations/api/useWorkRequests';
+import type { ClientSummary } from '@/features/operations/api/useClients';
+import type { WorkRequest } from '@/features/operations/api/types';
 import type { CreateDisbursementInput, FundSource } from '../api/types';
 
 export interface CreateDisbursementModalProps {
@@ -41,6 +47,77 @@ export function CreateDisbursementModal({
   const [notes, setNotes] = useState('');
   const [receiptFilename, setReceiptFilename] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const canFetch = React.useMemo(() => {
+    if (!isOpen) return false;
+    const isTest =
+      (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test') ||
+      (typeof import.meta !== 'undefined' && (import.meta as { env?: { MODE?: string } }).env?.MODE === 'test');
+    const isMocked =
+      typeof globalThis.fetch === 'function' &&
+      Boolean((globalThis.fetch as { mock?: unknown }).mock);
+    const hasToken =
+      typeof window !== 'undefined' &&
+      Boolean(window.localStorage?.getItem('erp_access_token'));
+    return isTest ? isMocked : hasToken;
+  }, [isOpen]);
+
+  const activeEntity = useSessionStore((state) => state.activeEntity);
+  const effectiveEntity = activeEntity !== 'ALL' ? activeEntity : undefined;
+
+  const { data: clientsData = [] } = useQuery<ClientSummary[]>({
+    queryKey: ['clients', 'list', effectiveEntity, undefined, undefined],
+    queryFn: async () => {
+      const searchParams = new URLSearchParams();
+      if (effectiveEntity) searchParams.append('entity', effectiveEntity);
+      const queryStr = searchParams.toString();
+      const res = await apiRequest<{ data: ClientSummary[] } | ClientSummary[]>(
+        `/clients${queryStr ? `?${queryStr}` : ''}`
+      );
+      if (Array.isArray(res)) return res;
+      return (res as { data?: ClientSummary[] }).data ?? [];
+    },
+    enabled: canFetch,
+  });
+
+  const clients: ClientSummary[] = React.useMemo(() => {
+    if (!clientsData) return [];
+    if (Array.isArray(clientsData)) return clientsData;
+    return (clientsData as { data?: ClientSummary[] }).data ?? [];
+  }, [clientsData]);
+
+  const { data: workRequestsData } = useWorkRequests(
+    { archived: false },
+    { enabled: canFetch }
+  );
+  const workRequests: WorkRequest[] = React.useMemo(() => {
+    if (!workRequestsData) return [];
+    if (Array.isArray(workRequestsData)) return workRequestsData;
+    return (workRequestsData as { data?: WorkRequest[] }).data ?? [];
+  }, [workRequestsData]);
+
+  const handleSelectWorkRequest = (wrId: string) => {
+    setLinkedWorkRequestId(wrId);
+    if (errors.linkedWorkRequestId) {
+      setErrors((prev) => ({ ...prev, linkedWorkRequestId: '' }));
+    }
+    if (wrId) {
+      const selectedWr = workRequests.find((wr) => wr.id === wrId);
+      if (selectedWr?.client_id) {
+        setClientId(selectedWr.client_id);
+        if (errors.clientId) {
+          setErrors((prev) => ({ ...prev, clientId: '' }));
+        }
+      }
+    }
+  };
+
+  const handleSelectClient = (cId: string) => {
+    setClientId(cId);
+    if (errors.clientId) {
+      setErrors((prev) => ({ ...prev, clientId: '' }));
+    }
+  };
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -150,21 +227,36 @@ export function CreateDisbursementModal({
           {/* Work Request ID */}
           <div className="space-y-1">
             <label className="text-xs font-semibold text-slate-700">
-              Linked Work Request ID <span className="text-red-500">*</span>
+              Linked Work Request <span className="text-red-500">*</span>
             </label>
-            <Input
-              type="text"
-              placeholder="e.g. 11111111-1111-1111-1111-111111111111"
-              value={linkedWorkRequestId}
-              onChange={(e) => {
-                setLinkedWorkRequestId(e.target.value);
-                if (errors.linkedWorkRequestId) {
-                  setErrors((prev) => ({ ...prev, linkedWorkRequestId: '' }));
-                }
-              }}
-              className={errors.linkedWorkRequestId ? 'border-red-500' : ''}
-              data-testid="input-work-request-id"
-            />
+            <div className="space-y-1.5">
+              <select
+                value={workRequests.some((w) => w.id === linkedWorkRequestId) ? linkedWorkRequestId : ''}
+                onChange={(e) => handleSelectWorkRequest(e.target.value)}
+                className="w-full text-xs p-2 border rounded-md bg-white border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                data-testid="select-work-request"
+              >
+                <option value="">Select Work Request...</option>
+                {workRequests.map((wr) => (
+                  <option key={wr.id} value={wr.id}>
+                    {wr.title} — {wr.clientName || wr.client_name || 'Client'}
+                  </option>
+                ))}
+              </select>
+              <Input
+                type="text"
+                placeholder="or enter Work Request UUID (e.g. 11111111-1111-1111-1111-111111111111)"
+                value={linkedWorkRequestId}
+                onChange={(e) => {
+                  setLinkedWorkRequestId(e.target.value);
+                  if (errors.linkedWorkRequestId) {
+                    setErrors((prev) => ({ ...prev, linkedWorkRequestId: '' }));
+                  }
+                }}
+                className={errors.linkedWorkRequestId ? 'border-red-500' : ''}
+                data-testid="input-work-request-id"
+              />
+            </div>
             {errors.linkedWorkRequestId && (
               <span className="text-[11px] text-red-600 block" data-testid="error-work-request-id">
                 {errors.linkedWorkRequestId}
@@ -254,18 +346,33 @@ export function CreateDisbursementModal({
           {/* Optional Client ID & Employee ID */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-700">Client ID (Optional)</label>
-              <Input
-                type="text"
-                placeholder="Client UUID"
-                value={clientId}
-                onChange={(e) => {
-                  setClientId(e.target.value);
-                  if (errors.clientId) setErrors((prev) => ({ ...prev, clientId: '' }));
-                }}
-                className={errors.clientId ? 'border-red-500' : ''}
-                data-testid="input-client-id"
-              />
+              <label className="text-xs font-semibold text-slate-700">Client (Optional)</label>
+              <div className="space-y-1.5">
+                <select
+                  value={clients.some((c) => c.id === clientId) ? clientId : ''}
+                  onChange={(e) => handleSelectClient(e.target.value)}
+                  className="w-full text-xs p-2 border rounded-md bg-white border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  data-testid="select-client"
+                >
+                  <option value="">Select Client...</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.entity ? `(${c.entity})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <Input
+                  type="text"
+                  placeholder="or enter Client UUID"
+                  value={clientId}
+                  onChange={(e) => {
+                    setClientId(e.target.value);
+                    if (errors.clientId) setErrors((prev) => ({ ...prev, clientId: '' }));
+                  }}
+                  className={errors.clientId ? 'border-red-500' : ''}
+                  data-testid="input-client-id"
+                />
+              </div>
               {errors.clientId && (
                 <span className="text-[11px] text-red-600 block">{errors.clientId}</span>
               )}

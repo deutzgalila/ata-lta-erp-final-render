@@ -39,9 +39,8 @@ export function TransmittalPrintModal({
     ? 'ATA BUSINESS CONSULTANCY SERVICES'
     : 'LTA BUSINESS CONSULTANCY SERVICES';
 
-  const companyAddress = isATA
-    ? 'Unit 1205 Cityland 10 Tower 1, 156 H.V. Dela Costa St., Salcedo Village, Makati City, Philippines'
-    : 'Unit 802 Antel Corporate Centre, 121 Valero St., Salcedo Village, Makati City, Philippines';
+  const companyAddress =
+    'RM 307 Republic Supermarket Bldg, Soler St., cor. F.Torres St., Sta. Cruz, Manila';
 
   const companyTin = isATA ? 'TIN: 234-567-890-000' : 'TIN: 345-678-901-000';
 
@@ -72,6 +71,8 @@ export function TransmittalPrintModal({
     : '';
 
   const items = transmittal.items || [];
+  const TOTAL_MANIFEST_ROWS = 12;
+  const manifestRows = Array.from({ length: TOTAL_MANIFEST_ROWS }, (_, idx) => items[idx] || null);
 
   const handlePrint = () => {
     window.print();
@@ -166,7 +167,7 @@ export function TransmittalPrintModal({
             </div>
           </div>
 
-          {/* Document Line Items Table (ITEM-ROWS-ONLY FIX: No filler empty lines!) */}
+          {/* Document Line Items Table (12-Row Fixed Manifest Table per Prototype Parity) */}
           <div className="space-y-2">
             <div className="text-xs font-bold text-slate-700 uppercase">
               Enclosed Documents / Deliverables:
@@ -185,34 +186,26 @@ export function TransmittalPrintModal({
                 </tr>
               </thead>
               <tbody>
-                {items.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="border border-slate-300 py-4 text-center text-slate-400">
-                      No documents specified.
+                {manifestRows.map((item, idx) => (
+                  <tr
+                    key={item?.id || `manifest-row-${idx}`}
+                    className="border-b border-slate-200 h-6"
+                    data-testid={`print-item-row-${idx}`}
+                  >
+                    <td className="border border-slate-300 py-1.5 px-2 text-center font-mono text-slate-500">
+                      {idx + 1}
+                    </td>
+                    <td className="border border-slate-300 py-1.5 px-3 font-semibold text-slate-800">
+                      {item ? (item.document_type || item.documentType || 'Others') : '\u00A0'}
+                    </td>
+                    <td className="border border-slate-300 py-1.5 px-3 text-slate-900">
+                      {item ? item.description : '\u00A0'}
+                    </td>
+                    <td className="border border-slate-300 py-1.5 px-2 text-center font-mono font-bold text-slate-800">
+                      {item ? item.quantity : '\u00A0'}
                     </td>
                   </tr>
-                ) : (
-                  items.map((item, idx) => (
-                    <tr
-                      key={item.id || idx}
-                      className="border-b border-slate-200"
-                      data-testid={`print-item-row-${idx}`}
-                    >
-                      <td className="border border-slate-300 py-2 px-2 text-center font-mono text-slate-500">
-                        {idx + 1}
-                      </td>
-                      <td className="border border-slate-300 py-2 px-3 font-semibold text-slate-800">
-                        {item.document_type || item.documentType || 'Others'}
-                      </td>
-                      <td className="border border-slate-300 py-2 px-3 text-slate-900">
-                        {item.description}
-                      </td>
-                      <td className="border border-slate-300 py-2 px-2 text-center font-mono font-bold text-slate-800">
-                        {item.quantity}
-                      </td>
-                    </tr>
-                  ))
-                )}
+                ))}
               </tbody>
             </table>
           </div>

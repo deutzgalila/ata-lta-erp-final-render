@@ -13,6 +13,7 @@ import {
   createInvoiceAction,
 } from '../api/useBillingMutations';
 import { useSessionStore } from '@/lib/session';
+import { queryClient as globalQueryClient } from '@/lib/api';
 
 function createHarness() {
   const queryClient = new QueryClient({
@@ -49,6 +50,7 @@ describe('Billing Module Adversarial & Security Tests', () => {
 
   afterEach(() => {
     global.fetch = originalFetch;
+    globalQueryClient.clear();
     useBlockingModalStore.getState().reset();
     vi.clearAllMocks();
   });
@@ -199,7 +201,7 @@ describe('Billing Module Adversarial & Security Tests', () => {
     render(<BlockingActionModal />, { wrapper });
 
     // First call acquires lock
-    runBlockingAction({
+    const p1 = runBlockingAction({
       title: 'Action 1',
       message: 'Processing...',
       apiCall: async () => 'result 1',
@@ -215,5 +217,7 @@ describe('Billing Module Adversarial & Security Tests', () => {
         apiCall: async () => 'result 2',
       })
     ).rejects.toThrow('Another operation is already in progress. Please wait.');
+
+    await p1;
   });
 });

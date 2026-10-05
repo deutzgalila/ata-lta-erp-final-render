@@ -340,7 +340,7 @@ describe('Transmittals UI Integration & Behavioral Parity', () => {
   // ==========================================================================
 
   describe('Print Modal Item-Rows-Only & Dynamic RECEIVED Stamp', () => {
-    it('renders exact line items only without empty filler slots (Item-Rows-Only fix)', () => {
+    it('renders 12-row fixed manifest table with Manila address (prototype parity)', () => {
       const transmittal = mockTransmittals[0]!; // 2 items
       render(
         <TransmittalPrintModal
@@ -350,15 +350,20 @@ describe('Transmittals UI Integration & Behavioral Parity', () => {
         />
       );
 
-      // Verify exact 2 item rows
+      // Verify exact 2 data item rows exist
       expect(screen.getByTestId('print-item-row-0')).toBeInTheDocument();
       expect(screen.getByTestId('print-item-row-1')).toBeInTheDocument();
-      expect(screen.queryByTestId('print-item-row-2')).not.toBeInTheDocument();
+      // Verify all 12 rows exist in the fixed manifest table
+      expect(screen.getByTestId('print-item-row-11')).toBeInTheDocument();
 
-      // Verify no legacy 12 empty placeholder rows exist
+      // Verify Manila address is rendered
+      expect(
+        screen.getByText(/RM 307 Republic Supermarket Bldg, Soler St\., cor\. F\.Torres St\., Sta\. Cruz, Manila/i)
+      ).toBeInTheDocument();
+
+      // 1 header row + 12 data/filler rows = 13 rows total
       const tableRows = screen.getAllByRole('row');
-      // 1 header row + 2 data rows = 3 rows
-      expect(tableRows).toHaveLength(3);
+      expect(tableRows).toHaveLength(13);
     });
 
     it('renders dynamic RECEIVED stamp when status is Acknowledged', () => {

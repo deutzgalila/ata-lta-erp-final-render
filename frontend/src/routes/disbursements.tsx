@@ -25,6 +25,7 @@ import {
   CreateDisbursementModal,
   AdminApprovalQueue,
   DisbursementDetailDrawer,
+  DisbursementArchiveTab,
 } from '@/features/disbursements/components';
 import { useDisbursementCounts } from '@/features/disbursements/api/useDisbursements';
 import type { EntityCode } from '@/features/disbursements/api/types';
@@ -47,7 +48,7 @@ export default function DisbursementsPage() {
   const canApprove = hasPermission(permissions, 'disbursement:approve');
 
   // Badge Counts Query
-  const { data: counts } = useDisbursementCounts();
+  const { data: counts } = useDisbursementCounts({ enabled: canView });
 
   // 1. Feature Flag Guard
   if (!isModuleEnabled('Disbursements')) {
@@ -255,6 +256,24 @@ export default function DisbursementsPage() {
             <XCircle className="h-3.5 w-3.5 text-rose-500" />
             <span>Rejected</span>
           </TabsTrigger>
+
+          <TabsTrigger
+            value="archive"
+            className="text-xs px-3 py-1.5 gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-xs"
+            data-testid="tab-archive"
+          >
+            <Archive className="h-3.5 w-3.5 text-slate-500" />
+            <span>Archive</span>
+            {archivedCount > 0 && (
+              <Badge
+                variant="secondary"
+                className="text-[10px] px-1.5 py-0 bg-slate-200 text-slate-700 font-bold"
+                data-testid="badge-archived-count"
+              >
+                {archivedCount}
+              </Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         {/* Tab 1: All */}
@@ -307,6 +326,13 @@ export default function DisbursementsPage() {
         <TabsContent value="rejected" className="space-y-4">
           <DisbursementsTable
             statusFilter="Rejected"
+            onSelectDisbursement={(id) => setSelectedDisbursementId(id)}
+          />
+        </TabsContent>
+
+        {/* Tab 8: Archive */}
+        <TabsContent value="archive" className="space-y-4">
+          <DisbursementArchiveTab
             onSelectDisbursement={(id) => setSelectedDisbursementId(id)}
           />
         </TabsContent>

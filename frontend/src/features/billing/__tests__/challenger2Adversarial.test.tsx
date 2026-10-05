@@ -14,6 +14,7 @@ import {
   recordPaymentAction,
 } from '../api/useBillingMutations';
 import { useSessionStore } from '@/lib/session';
+import { queryClient as globalQueryClient } from '@/lib/api';
 import type { Invoice } from '../api/types';
 
 function createHarness() {
@@ -88,6 +89,7 @@ describe('CHALLENGER 2: Adversarial Verification of Print Preview, Address Secur
 
   afterEach(() => {
     global.fetch = originalFetch;
+    globalQueryClient.clear();
     window.print = originalPrint;
     window.open = originalOpen;
     useBlockingModalStore.getState().reset();

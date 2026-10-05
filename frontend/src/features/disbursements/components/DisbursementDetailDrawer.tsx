@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   Send,
   XCircle,
+  Printer,
 } from 'lucide-react';
 import {
   useDisbursementDetail,
@@ -29,6 +30,7 @@ import {
 import { DisbursementStatusBadge } from './DisbursementStatusBadge';
 import { ReleaseFundsModal } from './FundsReleaseActions';
 import { RejectReasonModal } from '@/features/operations/components/RejectReasonModal';
+import { DisbursementPrintModal } from './DisbursementPrintModal';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
 import { disbursementKeys } from '../api/queryKeys';
@@ -59,6 +61,7 @@ export function DisbursementDetailDrawer({
 
   const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
   if (!isOpen) return null;
 
@@ -395,6 +398,19 @@ export function DisbursementDetailDrawer({
                 </Button>
               )}
 
+              {/* Print Voucher Action */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsPrintModalOpen(true)}
+                className="text-xs font-medium border-slate-200"
+                data-testid="drawer-print-btn"
+              >
+                <Printer className="h-3.5 w-3.5 mr-1 text-slate-500" />
+                Print Voucher
+              </Button>
+
               <Button
                 type="button"
                 variant="ghost"
@@ -406,6 +422,15 @@ export function DisbursementDetailDrawer({
               </Button>
             </div>
           </div>
+        )}
+
+        {/* Print Modal */}
+        {item && (
+          <DisbursementPrintModal
+            isOpen={isPrintModalOpen}
+            disbursement={item}
+            onClose={() => setIsPrintModalOpen(false)}
+          />
         )}
 
         {/* Release Modal */}
