@@ -53,13 +53,6 @@ projects:
             rootDir: erp_prototype
             buildCommand: npm run build
             staticPublishPath: .
-            # SPA deep-link routing rewrite rule:
-            # Direct navigation and hard refresh on deep routes (e.g. /operations, /dashboard)
-            # must rewrite to /index.html so client-side React Router handles resolution.
-            routes:
-              - type: rewrite
-                source: /*
-                destination: /index.html
             envVars:
               - key: ERP_API_BASE_URL
                 value: https://ata-lta-erp-api-staging.onrender.com/v1 # Replace "staging" with "uat" for uat
