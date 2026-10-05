@@ -327,7 +327,7 @@ describe('CHALLENGER FIN 2 EMPIRICAL ADVERSARIAL SUITE', () => {
   // =========================================================================
   // UAT-FIN7: Linked WR & Client Dropdowns Edge-Case Handling
   // =========================================================================
-  describe('UAT-FIN7: WR & Client dropdowns handle empty and edge-case values', () => {
+  describe('UAT-FIN7: WR & Client dropdowns handle empty and edge-case values (UAT2-12)', () => {
     it('handles empty work requests and clients query responses without crashing', async () => {
       global.fetch = vi.fn().mockImplementation(async (_url: string) => {
         return {
@@ -346,21 +346,21 @@ describe('CHALLENGER FIN 2 EMPIRICAL ADVERSARIAL SUITE', () => {
 
       // Verify select elements render with default empty options
       const wrSelect = screen.getByTestId('select-work-request') as HTMLSelectElement;
-      const clientSelect = screen.getByTestId('select-client') as HTMLSelectElement;
-
       expect(wrSelect).toBeInTheDocument();
       expect(wrSelect.value).toBe('');
-      expect(clientSelect).toBeInTheDocument();
-      expect(clientSelect.value).toBe('');
 
-      // Manual input fields are present and operational
-      const wrInput = screen.getByTestId('input-work-request-id') as HTMLInputElement;
-      const clientInput = screen.getByTestId('input-client-id') as HTMLInputElement;
-      expect(wrInput.value).toBe('');
-      expect(clientInput.value).toBe('');
+      // Auto-detected client is displayed in read-only input
+      const clientDisplay = screen.getByTestId('display-client-name') as HTMLInputElement;
+      expect(clientDisplay).toBeInTheDocument();
+      expect(clientDisplay.readOnly).toBe(true);
+
+      // Manual input fields are completely removed per UAT2-12
+      expect(screen.queryByTestId('input-work-request-id')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('input-client-id')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('select-client')).not.toBeInTheDocument();
     });
 
-    it('auto-populates clientId when selecting a work request that has client_id', async () => {
+    it('auto-populates and displays client when selecting a work request that has client_id', async () => {
       const mockWorkRequests = [
         {
           id: '11111111-1111-1111-1111-111111111111',
@@ -379,6 +379,14 @@ describe('CHALLENGER FIN 2 EMPIRICAL ADVERSARIAL SUITE', () => {
       ];
 
       global.fetch = vi.fn().mockImplementation(async (url: string) => {
+        if (url.includes('/work-requests') && url.includes('/tasks')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({ data: [{ id: 'task-1', title: 'Audit Fieldwork' }] }),
+          };
+        }
         if (url.includes('/work-requests')) {
           return {
             ok: true,
@@ -417,18 +425,14 @@ describe('CHALLENGER FIN 2 EMPIRICAL ADVERSARIAL SUITE', () => {
       const wrSelect = screen.getByTestId('select-work-request');
       fireEvent.change(wrSelect, { target: { value: '11111111-1111-1111-1111-111111111111' } });
 
-      // Verify WR ID is updated in input
-      const wrInput = screen.getByTestId('input-work-request-id') as HTMLInputElement;
-      expect(wrInput.value).toBe('11111111-1111-1111-1111-111111111111');
-
-      // Verify Client ID is auto-populated in client select and client input
-      const clientSelect = screen.getByTestId('select-client') as HTMLSelectElement;
-      const clientInput = screen.getByTestId('input-client-id') as HTMLInputElement;
-      expect(clientSelect.value).toBe('c1111111-1111-1111-1111-111111111111');
-      expect(clientInput.value).toBe('c1111111-1111-1111-1111-111111111111');
+      // Verify Client is auto-detected and displayed
+      await waitFor(() => {
+        const clientDisplay = screen.getByTestId('display-client-name') as HTMLInputElement;
+        expect(clientDisplay.value).toBe('Acme Philippines Corp');
+      });
     });
 
-    it('handles selecting WR with unlisted client_id: keeps UUID in input without crashing dropdown', async () => {
+    it('handles selecting WR with unlisted client_id: keeps client displayed without crashing', async () => {
       const mockWorkRequests = [
         {
           id: '22222222-2222-2222-2222-222222222222',
@@ -468,16 +472,14 @@ describe('CHALLENGER FIN 2 EMPIRICAL ADVERSARIAL SUITE', () => {
       const wrSelect = screen.getByTestId('select-work-request');
       fireEvent.change(wrSelect, { target: { value: '22222222-2222-2222-2222-222222222222' } });
 
-      // Client select safely falls back to "" because the client is not in clients array
-      const clientSelect = screen.getByTestId('select-client') as HTMLSelectElement;
-      expect(clientSelect.value).toBe('');
-
-      // But client input correctly preserves and displays the unlisted client UUID
-      const clientInput = screen.getByTestId('input-client-id') as HTMLInputElement;
-      expect(clientInput.value).toBe('c9999999-9999-9999-9999-999999999999');
+      // Client display safely shows the fallback name
+      await waitFor(() => {
+        const clientDisplay = screen.getByTestId('display-client-name') as HTMLInputElement;
+        expect(clientDisplay.value).toBe('Unknown External Entity');
+      });
     });
 
-    it('submits clientId as null when client is cleared or left unselected', async () => {
+    it('submits clientId and linkedWorkRequestId in payload per contract', async () => {
       let dispatchedBody: Record<string, unknown> | null = null;
 
       global.fetch = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
@@ -506,6 +508,7 @@ describe('CHALLENGER FIN 2 EMPIRICAL ADVERSARIAL SUITE', () => {
           isOpen={true}
           onClose={() => {}}
           defaultWorkRequestId="11111111-1111-1111-1111-111111111111"
+          defaultClientId="c1111111-1111-1111-1111-111111111111"
         />,
         { wrapper }
       );
@@ -515,20 +518,17 @@ describe('CHALLENGER FIN 2 EMPIRICAL ADVERSARIAL SUITE', () => {
         target: { value: 'Express courier delivery charge' },
       });
 
-      // Explicitly clear client input
-      fireEvent.change(screen.getByTestId('input-client-id'), { target: { value: '' } });
-
       fireEvent.click(screen.getByTestId('submit-create-disbursement-btn'));
 
       await waitFor(() => {
         expect(dispatchedBody).not.toBeNull();
       });
 
-      expect(dispatchedBody!.clientId).toBeNull();
+      expect(dispatchedBody!.clientId).toBe('c1111111-1111-1111-1111-111111111111');
       expect(dispatchedBody!.linkedWorkRequestId).toBe('11111111-1111-1111-1111-111111111111');
     });
 
-    it('rejects submission with validation error if Work Request UUID is invalid format', async () => {
+    it('rejects submission with validation error if Work Request is not selected', async () => {
       const { wrapper } = createHarness();
       render(
         <CreateDisbursementModal isOpen={true} onClose={() => {}} />,
@@ -540,45 +540,12 @@ describe('CHALLENGER FIN 2 EMPIRICAL ADVERSARIAL SUITE', () => {
         target: { value: 'Test description' },
       });
 
-      // Enter invalid WR UUID
-      fireEvent.change(screen.getByTestId('input-work-request-id'), {
-        target: { value: 'bad-uuid-123' },
-      });
-
       fireEvent.click(screen.getByTestId('submit-create-disbursement-btn'));
 
       await waitFor(() => {
         expect(screen.getByTestId('error-work-request-id')).toHaveTextContent(
-          'Invalid Work Request UUID format'
+          'Please select a Work Request'
         );
-      });
-    });
-
-    it('rejects submission with validation error if Client UUID is invalid format', async () => {
-      const { wrapper } = createHarness();
-      render(
-        <CreateDisbursementModal
-          isOpen={true}
-          onClose={() => {}}
-          defaultWorkRequestId="11111111-1111-1111-1111-111111111111"
-        />,
-        { wrapper }
-      );
-
-      fireEvent.change(screen.getByTestId('input-amount'), { target: { value: '500.00' } });
-      fireEvent.change(screen.getByTestId('textarea-description'), {
-        target: { value: 'Test description' },
-      });
-
-      // Enter invalid Client UUID
-      fireEvent.change(screen.getByTestId('input-client-id'), {
-        target: { value: 'not-a-client-uuid' },
-      });
-
-      fireEvent.click(screen.getByTestId('submit-create-disbursement-btn'));
-
-      await waitFor(() => {
-        expect(screen.getByText('Invalid Client UUID format')).toBeInTheDocument();
       });
     });
   });
