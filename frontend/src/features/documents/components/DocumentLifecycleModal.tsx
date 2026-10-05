@@ -70,14 +70,14 @@ export function DocumentLifecycleModal({
         <DialogHeader>
           <DialogTitle>Update Physical Lifecycle</DialogTitle>
           <DialogDescription>
-            Update custody tracking for <span className="font-semibold text-zinc-900 dark:text-zinc-100">{document.original_name || document.file_name}</span>.
+            Update custody tracking for <span className="font-semibold text-[#1e293b]">{document.original_name || document.file_name}</span>.
           </DialogDescription>
         </DialogHeader>
 
         <div className="py-3 space-y-4">
           {/* Current Status Pill */}
-          <div className="flex items-center justify-between p-3 rounded-md bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800">
-            <span className="text-sm text-zinc-500">Current Stage:</span>
+          <div className="flex items-center justify-between p-3 rounded-md bg-[#f8fafc] border border-[#f0f0f5]">
+            <span className="text-sm text-[#9494a0]">Current Stage:</span>
             <Badge
               variant="outline"
               className={LIFECYCLE_BADGE_STYLES[currentStage]}
@@ -89,7 +89,7 @@ export function DocumentLifecycleModal({
 
           {/* Sequential Timeline Indicator */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+            <label className="text-xs font-medium text-[#9494a0] uppercase tracking-wider">
               Custody Pipeline
             </label>
             <div className="grid grid-cols-5 gap-1.5 text-center text-xs">
@@ -101,10 +101,10 @@ export function DocumentLifecycleModal({
                     key={stage}
                     className={`p-2 rounded border transition-colors cursor-pointer ${
                       isSelected
-                        ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/30'
+                        ? 'border-[#2563eb] bg-[#eef1ff]'
                         : isCurrent
-                        ? 'border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800'
-                        : 'border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-850'
+                        ? 'border-[#f0f0f5] bg-[#f8fafc]'
+                        : 'border-[#f0f0f5] text-[#9494a0] hover:bg-[#f0f1f3]'
                     }`}
                     onClick={() => setSelectedStage(stage)}
                     data-testid={`lifecycle-step-${stage}`}
@@ -118,7 +118,7 @@ export function DocumentLifecycleModal({
 
           {/* Selection List */}
           <div className="space-y-2">
-            <label className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+            <label className="text-xs font-medium text-[#9494a0] uppercase tracking-wider">
               Select Target Stage
             </label>
             <div className="space-y-2 max-h-56 overflow-y-auto">
@@ -130,14 +130,14 @@ export function DocumentLifecycleModal({
                     onClick={() => setSelectedStage(stage)}
                     className={`flex items-start justify-between p-3 rounded-lg border cursor-pointer transition-all ${
                       isSelected
-                        ? 'border-blue-500 bg-blue-50/40 dark:bg-blue-950/20'
-                        : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700'
+                        ? 'border-[#2563eb] bg-[#eef1ff]'
+                        : 'border-[#f0f0f5] hover:border-[#2563eb]'
                     }`}
                     data-testid={`lifecycle-option-${stage}`}
                   >
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm text-zinc-900 dark:text-zinc-100">
+                        <span className="font-medium text-sm text-[#1e293b]">
                           {LIFECYCLE_LABELS[stage]}
                         </span>
                         <Badge
@@ -147,12 +147,12 @@ export function DocumentLifecycleModal({
                           {stage}
                         </Badge>
                       </div>
-                      <p className="text-xs text-zinc-500">
+                      <p className="text-xs text-[#9494a0]">
                         {STAGE_DESCRIPTIONS[stage]}
                       </p>
                     </div>
                     {isSelected && (
-                      <CheckCircle2 className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+                      <CheckCircle2 className="h-4 w-4 text-[#2563eb] shrink-0 mt-0.5" />
                     )}
                   </div>
                 );
@@ -168,7 +168,7 @@ export function DocumentLifecycleModal({
           <Button
             onClick={handleConfirm}
             disabled={!isChanged || isLoading}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white"
             data-testid="confirm-lifecycle-button"
           >
             Update Lifecycle

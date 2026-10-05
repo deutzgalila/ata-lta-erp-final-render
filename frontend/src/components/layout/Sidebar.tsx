@@ -30,6 +30,12 @@ const NAV_ITEMS: NavItem[] = [
     permission: null,
   },
   {
+    name: 'Clients',
+    path: '/clients',
+    icon: Building2,
+    permission: 'clients:view',
+  },
+  {
     name: 'Operations',
     path: '/operations',
     icon: Briefcase,
@@ -70,12 +76,6 @@ const NAV_ITEMS: NavItem[] = [
     path: '/admin',
     icon: ShieldCheck,
     permission: 'users:manage',
-  },
-  {
-    name: 'Clients',
-    path: '/clients',
-    icon: Building2,
-    permission: 'clients:view',
   },
 ];
 

@@ -23,13 +23,13 @@ import { isModuleEnabled } from '@/lib/flags';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
 import { BlockingActionModal } from '@/features/operations/components/BlockingActionModal';
-import { DocumentViewerModal } from '@/features/operations/components/DocumentViewerModal';
 import {
   DocumentFilterBar,
   DocumentTable,
   DocumentUploadModal,
   DocumentLifecycleModal,
-} from '@/features/documents/components';
+  DocumentViewerModal,
+} from '@/features/documents';
 import {
   useDocumentsList,
   useDocumentCounts,
@@ -40,7 +40,6 @@ import {
 } from '@/features/documents/api/useDocuments';
 import { apiRequest } from '@/lib/api';
 import type { DmsDocument, DocumentLifecycle } from '@/features/documents/api/types';
-import type { DmsDocument as OpDmsDocument } from '@/features/operations/api/types';
 
 export default function DocumentsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -175,12 +174,12 @@ export default function DocumentsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <FolderOpen className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-            <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+            <FolderOpen className="h-6 w-6 text-[#2563eb]" />
+            <h1 className="text-2xl font-bold tracking-tight text-[#1e293b]">
               Document Management System
             </h1>
           </div>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+          <p className="text-sm text-[#9494a0] mt-1">
             Secure digital records, compliance classifications, and physical lifecycle tracking.
           </p>
         </div>
@@ -188,7 +187,7 @@ export default function DocumentsPage() {
         {canEdit && (
           <Button
             onClick={() => setIsUploadModalOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white"
             data-testid="header-upload-button"
           >
             <Upload className="h-4 w-4 mr-2" />
@@ -199,18 +198,18 @@ export default function DocumentsPage() {
 
       {/* Tabs: Active vs. Archived */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-2">
-          <TabsList className="bg-zinc-100 dark:bg-zinc-800 p-1">
+        <div className="flex items-center justify-between border-b border-[#f0f0f5] pb-2">
+          <TabsList className="bg-[#f0f1f3] p-1 border border-[#f0f0f5] rounded-lg">
             <TabsTrigger
               value="active"
-              className="gap-2 data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-900"
+              className="gap-2 data-[state=active]:bg-white data-[state=active]:text-[#1e293b] data-[state=active]:shadow-xs text-[#9494a0] cursor-pointer"
               data-testid="tab-active-documents"
             >
               <FolderOpen className="h-4 w-4" />
               <span>Active Documents</span>
               <Badge
                 variant="secondary"
-                className="ml-1 text-xs px-1.5 py-0"
+                className="ml-1 text-xs px-1.5 py-0 bg-white text-[#1e293b] border border-[#f0f0f5]"
                 data-testid="badge-active-count"
               >
                 {countsData?.active ?? 0}
@@ -219,14 +218,14 @@ export default function DocumentsPage() {
 
             <TabsTrigger
               value="archived"
-              className="gap-2 data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-900"
+              className="gap-2 data-[state=active]:bg-white data-[state=active]:text-[#1e293b] data-[state=active]:shadow-xs text-[#9494a0] cursor-pointer"
               data-testid="tab-archived-documents"
             >
               <Archive className="h-4 w-4" />
               <span>Archived</span>
               <Badge
                 variant="secondary"
-                className="ml-1 text-xs px-1.5 py-0"
+                className="ml-1 text-xs px-1.5 py-0 bg-white text-[#1e293b] border border-[#f0f0f5]"
                 data-testid="badge-archived-count"
               >
                 {countsData?.archived ?? 0}
@@ -266,11 +265,11 @@ export default function DocumentsPage() {
         canDelete={canDelete}
       />
 
-      {/* Reused Document Viewer Modal from Operations */}
+      {/* Canonical DMS Document Viewer Modal */}
       <DocumentViewerModal
         isOpen={Boolean(viewerDoc)}
         onClose={() => setViewerDoc(null)}
-        document={viewerDoc as unknown as OpDmsDocument}
+        document={viewerDoc}
       />
 
       {/* Upload Modal */}
