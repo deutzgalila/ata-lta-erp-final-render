@@ -398,4 +398,131 @@ describe('/v1/operations-requests', () => {
 
     expect(res2.body.data.id).toBe(res1.body.data.id);
   });
+
+  it('creates operations_requests record when a manager creates a work request (UAT2-4-server)', async () => {
+    const managerToken = registerUser({
+      id: 'manager-user-001',
+      email: 'UAT-manager-ops@ata-lta.ph',
+      name: 'Manager Ops',
+      role: 'Manager',
+      departments: ['Management'],
+      entities: ['ATA'],
+    });
+
+    const createWrRes = await request(app)
+      .post('/v1/work-requests')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({
+        clientId: CLIENT_ID,
+        title: 'Manager Project Request',
+        phases: {
+          pre_processing: {
+            tasks: [
+              { title: 'Intake and document collection', local_id: 't_1' },
+            ],
+          },
+          processing: {
+            tasks: [
+              { title: 'Draft financial assessment', local_id: 't_2' },
+            ],
+          },
+        },
+      })
+      .expect(201);
+
+    const wrId = createWrRes.body.data.id;
+
+    // Check that an operations_requests record was created for wrId
+    const opReq = Array.from(mockTables.operations_requests.values()).find(
+      (r) => r.work_request_id === wrId
+    );
+    expect(opReq).toBeDefined();
+    expect(opReq.type).toBe('wr_phase_transition');
+    expect(opReq.status).toBe('pending');
+    expect(opReq.requested_by).toBe('manager-user-001');
+
+    const parsedNotes = JSON.parse(opReq.notes);
+    expect(parsedNotes.from_phase).toBe('pre_processing');
+    expect(parsedNotes.to_phase).toBe('processing');
+    expect(parsedNotes.work_request_id).toBe(wrId);
+  });
+
+  it('returns enriched client code, work_request with tasks, and requester info in operations requests (UAT2-4-server)', async () => {
+    const adminToken = registerUser({
+      id: 'admin-enrich-001',
+      email: 'UAT-admin-enrich@ata-lta.ph',
+      name: 'Admin Enrich',
+      role: 'Admin',
+      entities: ['ATA'],
+    });
+
+    // Seed client with code
+    mockTables.clients.set(CLIENT_ID, {
+      id: CLIENT_ID,
+      entity_id: 'ent-ata',
+      name: 'Acme Corp',
+      code: 'ACM-001',
+      status: 'Active',
+    });
+
+    // Seed task for WORK_REQUEST_ID
+    const taskId = 'task-wr-enrich-001';
+    mockTables.tasks.set(taskId, {
+      id: taskId,
+      work_request_id: WORK_REQUEST_ID,
+      title: 'Analyze statements',
+      status: 'Pending',
+      phase: 'processing',
+      qa_status: 'none',
+    });
+
+    // Create operations request
+    const createRes = await request(app)
+      .post('/v1/operations-requests')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({
+        type: 'wr_phase_transition',
+        workRequestId: WORK_REQUEST_ID,
+        clientId: CLIENT_ID,
+        fromPhase: 'pre_processing',
+        toPhase: 'processing',
+        notes: 'Advancing to processing',
+      })
+      .expect(201);
+
+    const reqId = createRes.body.data.id;
+
+    // Verify GET /v1/operations-requests/:id enrichment
+    const getRes = await request(app)
+      .get(`/v1/operations-requests/${reqId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+
+    const data = getRes.body.data;
+    expect(data.clients).toBeDefined();
+    expect(data.clients.code).toBe('ACM-001');
+    expect(data.work_requests).toBeDefined();
+    expect(data.work_requests.id).toBe(WORK_REQUEST_ID);
+    expect(Array.isArray(data.work_requests.tasks)).toBe(true);
+    expect(data.work_requests.tasks.some((t) => t.id === taskId)).toBe(true);
+    expect(data.requester).toBeDefined();
+    expect(data.requester.id).toBe('admin-enrich-001');
+    expect(data.requester.email).toBe('UAT-admin-enrich@ata-lta.ph');
+
+    // Verify GET /v1/operations-requests listing enrichment
+    const listRes = await request(app)
+      .get(`/v1/operations-requests?workRequestId=${WORK_REQUEST_ID}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+
+    const listItem = listRes.body.data.find((r) => r.id === reqId);
+    expect(listItem).toBeDefined();
+    expect(listItem.clients.code).toBe('ACM-001');
+    expect(listItem.work_requests.tasks.some((t) => t.id === taskId)).toBe(true);
+    expect(listItem.requester.email).toBe('UAT-admin-enrich@ata-lta.ph');
+  });
 });

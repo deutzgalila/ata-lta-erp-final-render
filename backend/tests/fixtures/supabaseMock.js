@@ -645,6 +645,7 @@ const rpcImpl = {
       client_id: d.clientId || null,
       work_request_id: d.workRequestId || null,
       linked_task_id: d.linkedTaskId || null,
+      task_id: d.taskId || d.task_id || d.linkedTaskId || null,
       linked_transmittal_id: d.linkedTransmittalId || null,
       invoice_number: d.invoiceNumber,
       issue_date: d.issueDate,

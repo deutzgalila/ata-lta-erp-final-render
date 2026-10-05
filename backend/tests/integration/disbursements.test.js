@@ -223,6 +223,11 @@ describe('/v1/disbursements', () => {
     });
 
     const taskId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+    mockTables.tasks.set(taskId, {
+      id: taskId,
+      work_request_id: WORK_REQUEST_ID,
+      title: 'Site Visit Task',
+    });
 
     const created = await request(app)
       .post('/v1/disbursements')

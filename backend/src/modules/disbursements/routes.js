@@ -54,15 +54,30 @@ router.get(
   disbursementsController.getDisbursementCounts
 );
 
-// Resolve entity code → UUID for all remaining routes in this module
-router.use(resolveEntity());
-
-// --- Disbursement Templates (must come before /:id routes) ---
+// --- Listing and Read Endpoints (allowAll: true) ---
 router.get(
   '/templates',
+  resolveEntity({ allowAll: true }),
   requirePermission('disbursement:view'),
   disbursementsController.listDisbursementTemplates
 );
+router.get(
+  '/',
+  resolveEntity({ allowAll: true }),
+  requirePermission('disbursement:view'),
+  disbursementsController.listDisbursements
+);
+router.get(
+  '/:id',
+  resolveEntity({ allowAll: true }),
+  requirePermission('disbursement:view'),
+  disbursementsController.getDisbursement
+);
+
+// Resolve entity code → UUID for all remaining mutation routes in this module
+router.use(resolveEntity());
+
+// --- Disbursement Templates Mutations ---
 router.post(
   '/templates',
   requirePermission('disbursement:create'),
@@ -82,16 +97,13 @@ router.delete(
   disbursementsController.deleteDisbursementTemplate
 );
 
-router.get('/', requirePermission('disbursement:view'), disbursementsController.listDisbursements);
-
+// --- Disbursement Mutations ---
 router.post(
   '/',
   requirePermission('disbursement:create'),
   audit('disbursement.create', { table: 'disbursements' }),
   disbursementsController.createDisbursement
 );
-
-router.get('/:id', requirePermission('disbursement:view'), disbursementsController.getDisbursement);
 
 router.put(
   '/:id',

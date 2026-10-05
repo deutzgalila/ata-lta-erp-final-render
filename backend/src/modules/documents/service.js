@@ -229,13 +229,17 @@ const createDocument = async ({ entityId, entityCode, userId, data }) => {
  * @returns {Promise<object>}
  */
 const getDocumentById = async ({ entityId, id }) => {
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('documents')
     .select('*')
     .eq('id', id)
-    .eq('entity_id', entityId)
-    .is('deleted_at', null)
-    .single();
+    .is('deleted_at', null);
+
+  if (entityId && entityId !== 'ALL') {
+    query = query.eq('entity_id', entityId);
+  }
+
+  const { data, error } = await query.single();
 
   if (error || !data) {
     throw new AppError({

@@ -12,14 +12,28 @@ const { requirePermission } = require('../../middleware/rbac');
 const { audit } = require('../../middleware/audit');
 const { resolveEntity } = require('../../middleware/resolveEntity');
 
-// Resolve entity code → UUID for all routes in this module
+// --- Listing and Read Endpoints (allowAll: true) ---
+router.get(
+  '/counts',
+  resolveEntity({ allowAll: true }),
+  requirePermission('dms:view'),
+  documentsController.getDocumentCounts
+);
+router.get(
+  '/',
+  resolveEntity({ allowAll: true }),
+  requirePermission('dms:view'),
+  documentsController.listDocuments
+);
+router.get(
+  '/:id',
+  resolveEntity({ allowAll: true }),
+  requirePermission('dms:view'),
+  documentsController.getDocument
+);
+
+// Resolve entity code → UUID for all remaining mutation routes in this module
 router.use(resolveEntity());
-
-// Get document counts
-router.get('/counts', requirePermission('dms:view'), documentsController.getDocumentCounts);
-
-// List documents
-router.get('/', requirePermission('dms:view'), documentsController.listDocuments);
 
 // Create document metadata + get upload URL
 router.post(
@@ -37,9 +51,6 @@ router.post(
   audit('document.create', { table: 'documents' }),
   documentsController.createDocument
 );
-
-// Get single document
-router.get('/:id', requirePermission('dms:view'), documentsController.getDocument);
 
 // Update document metadata
 router.put(

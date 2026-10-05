@@ -437,7 +437,7 @@ const getTaskRelated = async (req, res, next) => {
 
 const listRetainerTemplates = async (req, res, next) => {
   try {
-    const entityId = req.entityUUID;
+    const entityId = req.activeEntity === 'ALL' ? 'ALL' : req.entityUUID;
     const data = await operationsService.listRetainerTemplates({ entityId });
     res.status(200).json({ data });
   } catch (err) {
