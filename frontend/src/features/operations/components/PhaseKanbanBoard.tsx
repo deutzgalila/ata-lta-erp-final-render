@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   CheckCircle2,
   XCircle,
@@ -6,7 +6,6 @@ import {
   RotateCcw,
   Send,
   ArrowRight,
-  GripVertical,
   User,
   Calendar,
   Layers,
@@ -26,12 +25,13 @@ import {
   useWorkRequests,
   useWorkRequestDetail,
 } from '../api/useWorkRequests';
-import { useWorkRequestTasks, useTaskMutations } from '../api/useTasks';
+import { useWorkRequestTasks } from '../api/useTasks';
 import { usePhaseTransitions } from '../api/usePhaseTransitions';
 import { useQaReview } from '../api/useQaReview';
 import { runBlockingAction } from './BlockingActionModal';
 import { RerouteModal } from './RerouteModal';
 import { WorkRequestModal } from './WorkRequestModal';
+import { TaskDetailModal } from './TaskDetailModal';
 import { operationsKeys } from '../api/queryKeys';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
@@ -40,7 +40,6 @@ import type {
   Task,
   WorkRequest,
   AdvancePhaseTarget,
-  TaskStatus,
 } from '../api/types';
 
 const PHASES: Array<{ id: Phase; label: string; number: number }> = [
@@ -101,16 +100,31 @@ export function PhaseKanbanBoard({
   // Mutations
   const { advancePhase, requestTransition } = usePhaseTransitions(effectiveWrId);
   const { submitQaReview } = useQaReview(effectiveWrId);
-  const { updateTask } = useTaskMutations(effectiveWrId);
 
   // Modal States
   const [isRerouteOpen, setIsRerouteOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-  // Drag and Drop State (Intra-phase drag only)
-  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
-  const [draggedTaskPhase, setDraggedTaskPhase] = useState<string | null>(null);
-  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+  // Task Detail Modal State (UAT-OPS4)
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+
+  // Support deep link ?taskId=xxx
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && window.location) {
+        const urlParams = new URLSearchParams(window.location.search);
+        const taskIdParam = urlParams.get('taskId');
+        if (taskIdParam && tasks.length > 0) {
+          const found = tasks.find((t) => t.id === taskIdParam);
+          if (found) {
+            setSelectedTask(found);
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [tasks]);
 
   const activeWr = currentWr || workRequests.find((w) => w.id === effectiveWrId);
   const currentPhase: Phase = (activeWr?.phase as Phase) || 'pre_processing';
@@ -152,83 +166,6 @@ export function PhaseKanbanBoard({
       },
     };
   }, [tasks]);
-
-  // Handle Drag Start
-  const handleDragStart = (e: React.DragEvent, task: Task) => {
-    e.dataTransfer.setData(
-      'text/plain',
-      JSON.stringify({ taskId: task.id, phase: task.phase })
-    );
-    setDraggedTaskId(task.id);
-    setDraggedTaskPhase(task.phase);
-  };
-
-  // Handle Drag Over (Strictly block cross-phase drops)
-  const handleDragOver = (e: React.DragEvent, targetPhase: Phase) => {
-    e.preventDefault();
-    if (!draggedTaskPhase) return;
-
-    // Cross-phase drops are prohibited in UI
-    if (draggedTaskPhase !== targetPhase) {
-      e.dataTransfer.dropEffect = 'none';
-      return;
-    }
-
-    e.dataTransfer.dropEffect = 'move';
-    setDragOverColumn(targetPhase);
-  };
-
-  const handleDragLeave = () => {
-    setDragOverColumn(null);
-  };
-
-  // Handle Drop (Intra-phase drop only)
-  const handleDrop = async (e: React.DragEvent, targetPhase: Phase) => {
-    e.preventDefault();
-    setDragOverColumn(null);
-    const rawData = e.dataTransfer.getData('text/plain');
-    if (!rawData) return;
-
-    try {
-      const data = JSON.parse(rawData) as { taskId: string; phase: string };
-      // Enforce strict intra-phase drop restriction
-      if (data.phase !== targetPhase) {
-        setDraggedTaskId(null);
-        setDraggedTaskPhase(null);
-        return;
-      }
-
-      // Drag within same phase: cycle status or reorder
-      const targetTask = tasks.find((t) => t.id === data.taskId);
-      if (!targetTask) return;
-
-      const nextStatus: TaskStatus =
-        targetTask.status === 'Completed' ? 'In Progress' : 'Completed';
-
-      await runBlockingAction({
-        title: 'Updating Task Status',
-        message: `Setting status of "${targetTask.title}" to ${nextStatus}...`,
-        apiCall: async () => {
-          return await updateTask({
-            workRequestId: effectiveWrId,
-            taskId: targetTask.id,
-            data: { status: nextStatus },
-          });
-        },
-        successTitle: 'Task Updated',
-        successMessage: `Task "${targetTask.title}" updated.`,
-        invalidateQueries: [
-          operationsKeys.tasks(effectiveWrId),
-          operationsKeys.workRequestDetail(effectiveWrId),
-        ],
-      });
-    } catch {
-      // ignore parse errors
-    } finally {
-      setDraggedTaskId(null);
-      setDraggedTaskPhase(null);
-    }
-  };
 
   // Handle Advance Phase
   const handleAdvance = async (targetPhase: AdvancePhaseTarget) => {
@@ -405,10 +342,6 @@ export function PhaseKanbanBoard({
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4" data-testid="kanban-phase-grid">
         {PHASES.map((col) => {
           const isCurrentPhase = currentPhase === col.id;
-          const isPhaseDropProhibited =
-            draggedTaskPhase !== null && draggedTaskPhase !== col.id;
-          const isPhaseDropTarget =
-            dragOverColumn === col.id && draggedTaskPhase === col.id;
 
           // Filter tasks belonging to this phase zone
           const phaseTasks = tasks.filter((t) => {
@@ -443,17 +376,17 @@ export function PhaseKanbanBoard({
           return (
             <div
               key={col.id}
-              onDragOver={(e) => handleDragOver(e, col.id)}
-              onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, col.id)}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'none';
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+              }}
               className={`flex flex-col bg-slate-50 border rounded-lg p-3 min-h-[560px] space-y-3 transition-colors ${
                 isCurrentPhase
                   ? 'border-blue-400 ring-1 ring-blue-200 bg-blue-50/20'
                   : 'border-slate-200'
-              } ${isPhaseDropTarget ? 'bg-blue-100/40 border-blue-500' : ''} ${
-                isPhaseDropProhibited && dragOverColumn === col.id
-                  ? 'bg-red-50/50 border-red-400 cursor-not-allowed'
-                  : ''
               }`}
               data-testid={`kanban-phase-column-${col.id}`}
             >
@@ -535,11 +468,9 @@ export function PhaseKanbanBoard({
                     return (
                       <div
                         key={task.id}
-                        draggable={canEdit}
-                        onDragStart={(e) => handleDragStart(e, task)}
-                        className={`p-3 bg-white border rounded-md shadow-2xs space-y-2 hover:border-slate-300 transition-all ${
-                          draggedTaskId === task.id ? 'opacity-40' : ''
-                        } ${
+                        draggable={false}
+                        onClick={() => setSelectedTask(task)}
+                        className={`p-3 bg-white border rounded-md shadow-2xs space-y-2 hover:border-blue-400 hover:shadow-xs transition-all cursor-pointer ${
                           isTaskFailed
                             ? 'border-red-300 bg-red-50/20'
                             : isTaskPassed
@@ -548,21 +479,11 @@ export function PhaseKanbanBoard({
                         }`}
                         data-testid={`kanban-task-card-${task.id}`}
                       >
-                        {/* Task Card Header & Drag Handle */}
+                        {/* Task Card Header */}
                         <div className="flex items-start justify-between gap-1.5">
-                          <div className="flex items-center gap-1">
-                            {canEdit && (
-                              <div
-                                className="text-slate-400 cursor-grab hover:text-slate-700"
-                                title="Drag within phase to reorder or update status"
-                              >
-                                <GripVertical className="h-3.5 w-3.5" />
-                              </div>
-                            )}
-                            <span className="font-semibold text-xs text-slate-900 leading-tight">
-                              {task.title}
-                            </span>
-                          </div>
+                          <span className="font-semibold text-xs text-slate-900 leading-tight">
+                            {task.title}
+                          </span>
 
                           <Badge
                             variant={task.status === 'Completed' ? 'success' : 'secondary'}
@@ -600,6 +521,7 @@ export function PhaseKanbanBoard({
                           <div
                             className="pt-2 border-t border-slate-100 space-y-1.5"
                             data-testid={`qa-task-controls-${task.id}`}
+                            onClick={(e) => e.stopPropagation()}
                           >
                             <div className="flex items-center justify-between text-[10px] font-semibold text-slate-600">
                               <span>QA Compliance:</span>
@@ -623,7 +545,10 @@ export function PhaseKanbanBoard({
                                   type="button"
                                   size="xs"
                                   variant={task.qaStatus === 'passed' ? 'default' : 'outline'}
-                                  onClick={() => handleQaReview(task.id, 'passed')}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleQaReview(task.id, 'passed');
+                                  }}
                                   className="flex-1 text-[10px] h-6 gap-1"
                                   data-testid={`qa-pass-btn-${task.id}`}
                                 >
@@ -634,7 +559,10 @@ export function PhaseKanbanBoard({
                                   type="button"
                                   size="xs"
                                   variant={task.qaStatus === 'failed' ? 'destructive' : 'outline'}
-                                  onClick={() => handleQaReview(task.id, 'failed')}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleQaReview(task.id, 'failed');
+                                  }}
                                   className="flex-1 text-[10px] h-6 gap-1"
                                   data-testid={`qa-fail-btn-${task.id}`}
                                 >
@@ -804,6 +732,19 @@ export function PhaseKanbanBoard({
           isOpen={isEditModalOpen}
           workRequest={activeWr}
           onClose={() => setIsEditModalOpen(false)}
+        />
+      )}
+
+      {/* Task Detail Modal (UAT-OPS4) */}
+      {selectedTask && (
+        <TaskDetailModal
+          isOpen={Boolean(selectedTask)}
+          onClose={() => setSelectedTask(null)}
+          task={selectedTask}
+          workRequest={activeWr}
+          onTaskUpdated={(updated) => {
+            setSelectedTask(updated);
+          }}
         />
       )}
     </div>

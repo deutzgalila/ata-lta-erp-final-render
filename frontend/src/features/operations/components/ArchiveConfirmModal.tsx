@@ -67,12 +67,13 @@ export function ArchiveConfirmModal({
             : 'Restoring Work Request',
       message: `Please wait while "${workRequest.title}" is being processed...`,
       apiCall: async () => {
+        const payload = { id, entity: workRequest.entity };
         if (actionType === 'archive') {
-          return await archiveWorkRequest(id);
+          return await archiveWorkRequest(payload);
         } else if (actionType === 'restore') {
-          return await restoreWorkRequest(id);
+          return await restoreWorkRequest(payload);
         } else {
-          return await cancelWorkRequest(id);
+          return await cancelWorkRequest(payload);
         }
       },
       successTitle:
@@ -86,6 +87,7 @@ export function ArchiveConfirmModal({
         operationsKeys.workRequests(),
         operationsKeys.workRequestCounts(activeEntity),
         operationsKeys.workRequestDetail(id),
+        operationsKeys.tasks(id),
       ],
       onSuccess: () => {
         if (onSuccess) onSuccess();

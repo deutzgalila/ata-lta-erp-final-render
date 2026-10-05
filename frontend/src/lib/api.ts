@@ -91,8 +91,11 @@ export async function apiRequest<T = unknown>(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  if (activeEntity && !headers['X-Active-Entity']) {
+  if (activeEntity && activeEntity !== 'ALL' && !headers['X-Active-Entity']) {
     headers['X-Active-Entity'] = activeEntity;
+  }
+  if (headers['X-Active-Entity'] === 'ALL') {
+    delete headers['X-Active-Entity'];
   }
 
   const methodUpper = (options.method || 'GET').toUpperCase();
