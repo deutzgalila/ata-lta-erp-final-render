@@ -3,6 +3,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ShieldCheck, Building2, Bell, Clock } from 'lucide-react';
 import { LogTimeWidget } from '@/features/dashboard/components/LogTimeWidget';
+import { PendingTasksCard } from '@/features/dashboard/components/PendingTasksCard';
 import { useTimeSummary } from '@/features/dashboard/api/useTimeEntries';
 import { BlockingActionModal } from '@/features/operations/components/BlockingActionModal';
 
@@ -92,6 +93,9 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Dashboard Pending Tasks Card */}
+      <PendingTasksCard />
 
       {/* Module #2: Log-Time Widget & Daily Breakdown */}
       <LogTimeWidget />
