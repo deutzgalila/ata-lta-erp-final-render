@@ -11,7 +11,7 @@ base_url: /v1/invoices
 ## Overview
 Manages billing invoices, payment schedules, accounts receivable aging, and payment receipts. Enforces field-level security for invoice client address modifications (`billing:edit_client_address`), line item validation, and immutable client master records.
 
-- **Guards:** Authenticated, entity-scoped (`X-Active-Entity: ATA|LTA`).
+- **Guards:** Authenticated, entity-scoped (`X-Active-Entity: ATA|LTA|ALL`). Omitted header defaults to `ALL` for authorized users.
 - **Base URL:** `/v1/invoices`
 
 ---
@@ -28,10 +28,11 @@ When updating an existing invoice (`PUT` or `PATCH /v1/invoices/:id`):
 ## 2. Endpoints
 
 ### 2.1 `GET /v1/invoices`
-Lists invoices for the active entity with pagination and query filters.
+Lists invoices for the active entity (or across entities when `X-Active-Entity: ALL`) with pagination and query filters.
 
 - **Guards:** Authenticated, `billing:view`.
-- **Since-version:** `1.0.0`.
+- **Since-version:** `1.0.0` (augmented in `2.1.0` with `taskId` filter and `ALL` cross-entity scoping).
+- **Query Parameters:** `status`, `clientId`, `workRequestId`, `taskId` (matches `task_id` or `linked_task_id`), `linkedTaskId`, `linkedTransmittalId`, `search`, `page`, `limit`.
 - **Events Emitted:** None.
 
 ---
@@ -40,15 +41,15 @@ Lists invoices for the active entity with pagination and query filters.
 Creates a new invoice record with line items.
 
 - **Guards:** Authenticated, `billing:edit`.
-- **Since-version:** `1.0.0`.
+- **Since-version:** `1.0.0` (augmented in `2.1.0` with `task_id` column dual-write and task WR matching validation).
 - **Events Emitted:** None.
 
 #### Request Body (Zod: `createInvoiceSchema`)
 | Field | Type | Required | Description |
 | :--- | :--- | :---: | :--- |
 | `clientId` | UUID | Yes | Client ID association |
-| `workRequestId` | UUID | Yes | Associated work request ID |
-| `linkedTaskId` | UUID \| null | No | Optional linked task ID |
+| `workRequestId` / `work_request_id` | UUID | Yes | Associated work request ID |
+| `taskId` / `task_id` / `linkedTaskId` | UUID \| null | No | Associated task ID. Validated against `tasks` table and `workRequestId`. Dual-written to `task_id` and `linked_task_id`. |
 | `linkedTransmittalId` | UUID \| null | No | Optional linked transmittal ID |
 | `invoiceNumber` | string (1–50) | Yes | Unique invoice reference number |
 | `issueDate` | string | Yes | Invoice issuance date (YYYY-MM-DD) |
@@ -69,6 +70,8 @@ Creates a new invoice record with line items.
 | Status | Code | Trigger Condition |
 | :--- | :--- | :--- |
 | `400 Bad Request` | `VALIDATION_ERROR` | Empty line items, negative amounts, or missing required fields |
+| `400 Bad Request` | `TASK_NOT_FOUND` | Specified `taskId` does not exist in `tasks` table |
+| `400 Bad Request` | `TASK_WR_MISMATCH` | Specified `taskId` belongs to a different work request |
 | `403 Forbidden` | `FORBIDDEN` | Missing `billing:edit` permission |
 
 ---

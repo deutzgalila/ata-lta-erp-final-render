@@ -209,7 +209,7 @@ Creates a new task under a work request.
 
 ---
 
-### 2.9 `PUT /v1/operations/work-requests/:wrId/tasks/:taskId` (and `PATCH`)
+### 2.9 `PUT /v1/operations/work-requests/:wrId/tasks/:taskId`
 Updates a task. Enforces task phase immutability and prerequisite advancement gates.
 
 - **Guards:** Authenticated, `workflow:edit`.
@@ -218,6 +218,35 @@ Updates a task. Enforces task phase immutability and prerequisite advancement ga
 
 #### Request Body (Zod: `updateTaskSchema`)
 Partial of `createTaskSchema`. Note: Any payload containing `phase` is rejected.
+
+---
+
+### 2.10 `PATCH /v1/operations/work-requests/:wrId/tasks/:taskId` (and `/v1/tasks/:taskId`)
+Partially updates a task with dual authorization:
+
+- **Guards:** Authenticated, `workflow:edit` OR Task Assignee (`requireWorkflowEditOrTaskAssignee`).
+- **Since-version:** `2.1.0` (UAT2-9 assignee self-service status mutation).
+- **Authorization Rules:**
+  * **Users with `workflow:edit`**: Permitted full update across all permitted mutable fields.
+  * **Task Assignees (without `workflow:edit`)**:
+    - Permitted to update `status` to `'In Progress'` or `'Completed'` (case-normalized; `'Complete'` accepted as `'Completed'`).
+    - May supply optional `expectedVersion` concurrency guard.
+    - Supplying any other field returns `403 Forbidden` (`Assignees may only update task status`).
+    - Requesting any other status returns `400 Bad Request`.
+    - Phase prerequisite enforcement remains active (`409 Conflict`, `PHASE_PREREQUISITE`).
+  * **Users without `workflow:edit` who are NOT assigned to task**: Rejected with `403 Forbidden` (`One of permissions [workflow:edit] is required`).
+
+---
+
+### 2.11 Retainer Templates & Entity Scoping
+- `GET /v1/operations/templates` and `GET /v1/operations/retainer-templates`:
+  * Supports `X-Active-Entity: ALL` (and omitted header for authorized users) returning consolidated cross-entity retainer templates.
+
+### 2.12 Manager Work Request Creation & Pending Approvals
+- When a Manager (role `Manager` or department `Management`, or with `requiresApproval = true`) creates a Work Request via `POST /v1/operations/work-requests` or `/v1/operations`:
+  * An `operations_requests` record with `type: 'wr_phase_transition'`, `status: 'pending'`, `from_phase: 'pre_processing'`, and `to_phase: 'processing'` is automatically inserted into the database.
+  * Notifications are emitted to active Admins (`wr.transition_request.received`).
+  * The work request is routed to the Admin Pending Approvals Inbox for review.
 
 #### Error Vocabulary
 | Status | Code | Trigger Condition |

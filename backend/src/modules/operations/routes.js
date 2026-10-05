@@ -6,11 +6,87 @@
 const express = require('express');
 const router = express.Router();
 const { operationsController } = require('./controller');
+const operationsService = require('./service');
 const { auth } = require('../../middleware/auth');
 const { entityScope } = require('../../middleware/entityScope');
 const { resolveEntity } = require('../../middleware/resolveEntity');
-const { requirePermission, requireAdmin } = require('../../middleware/rbac');
+const { requirePermission, requireAdmin, computePermissions } = require('../../middleware/rbac');
+const { hasPermission } = require('../../lib/permissions');
+const AppError = require('../../lib/AppError');
 const { audit } = require('../../middleware/audit');
+
+const requireWorkflowEditOrTaskAssignee = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      throw new AppError({
+        statusCode: 401,
+        title: 'Unauthorized',
+        detail: 'Authentication required',
+      });
+    }
+
+    const permissions = computePermissions(req.user);
+    req.userPermissions = permissions;
+
+    // 1. If user has workflow:edit -> allow full edit
+    if (hasPermission(permissions, 'workflow:edit')) {
+      return next();
+    }
+
+    // 2. If user does NOT have workflow:edit -> must be assigned to task
+    const taskId = req.params.taskId || req.params.id;
+    if (!taskId) {
+      throw new AppError({
+        statusCode: 403,
+        title: 'Forbidden',
+        detail: 'One of permissions [workflow:edit] is required',
+      });
+    }
+
+    const isAssigned = await operationsService.isUserAssignedToTask(taskId, req.user.id);
+    if (!isAssigned) {
+      throw new AppError({
+        statusCode: 403,
+        title: 'Forbidden',
+        detail: 'One of permissions [workflow:edit] is required',
+      });
+    }
+
+    // 3. User IS assigned to task:
+    // May ONLY update status (and optional expectedVersion / version).
+    // If other fields are in req.body -> 403 Forbidden ("Assignees may only update task status")
+    const allowedKeys = new Set(['status', 'expectedVersion', 'expected_version', 'version']);
+    const bodyKeys = Object.keys(req.body || {});
+    const disallowedKeys = bodyKeys.filter((key) => !allowedKeys.has(key));
+
+    if (disallowedKeys.length > 0 || !req.body || req.body.status === undefined) {
+      throw new AppError({
+        statusCode: 403,
+        title: 'Forbidden',
+        detail: 'Assignees may only update task status',
+      });
+    }
+
+    // Normalize 'Complete' -> 'Completed'
+    if (req.body.status === 'Complete') {
+      req.body.status = 'Completed';
+    }
+
+    // Target status restricted to 'In Progress' or 'Completed'. Other statuses -> 400 Bad Request
+    const allowedStatuses = ['In Progress', 'Completed'];
+    if (!allowedStatuses.includes(req.body.status)) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: 'Assignees may only update task status to "In Progress" or "Completed"',
+      });
+    }
+
+    next();
+  } catch (err) {
+    next(err);
+  }
+};
 
 router.use(auth, entityScope);
 
@@ -48,7 +124,7 @@ router.delete(
 // --- Retainer Templates (must come before /:id routes) ---
 router.get(
   ['/templates', '/retainer-templates'],
-  resolveEntity(),
+  resolveEntity({ allowAll: true }),
   requirePermission('retainers:use'),
   operationsController.listRetainerTemplates
 );
@@ -208,7 +284,7 @@ router.put(
 router.patch(
   ['/work-requests/:wrId/tasks/:taskId', '/:wrId/tasks/:taskId', '/tasks/:taskId'],
   resolveEntity(),
-  requirePermission('workflow:edit'),
+  requireWorkflowEditOrTaskAssignee,
   audit('task.updated', { table: 'tasks' }),
   operationsController.updateTask
 );
@@ -247,7 +323,7 @@ tasksRouter.put(
 );
 tasksRouter.patch(
   '/:taskId',
-  requirePermission('workflow:edit'),
+  requireWorkflowEditOrTaskAssignee,
   audit('task.updated', { table: 'tasks' }),
   operationsController.updateTask
 );

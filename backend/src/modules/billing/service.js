@@ -28,6 +28,8 @@ const listInvoices = async ({ entityId, filters = {}, user }) => {
   const {
     status,
     clientId,
+    taskId,
+    task_id,
     linkedTaskId,
     linkedTransmittalId,
     search,
@@ -74,7 +76,10 @@ const listInvoices = async ({ entityId, filters = {}, user }) => {
   }
 
   if (clientId) query = query.eq('client_id', clientId);
-  if (linkedTaskId) query = query.eq('linked_task_id', linkedTaskId);
+  const effectiveFilterTaskId = taskId || task_id || linkedTaskId;
+  if (effectiveFilterTaskId) {
+    query = query.or(`task_id.eq.${effectiveFilterTaskId},linked_task_id.eq.${effectiveFilterTaskId}`);
+  }
   if (linkedTransmittalId) query = query.eq('linked_transmittal_id', linkedTransmittalId);
   if (search) {
     query = query.or(`invoice_number.ilike.%${search}%,notes.ilike.%${search}%`);
@@ -138,6 +143,36 @@ const createInvoice = async ({ entityId, userId, data }) => {
     });
   }
 
+  const effectiveTaskId = data.taskId || data.task_id || data.linkedTaskId || null;
+  const effectiveWrId = data.workRequestId || data.work_request_id || null;
+
+  // Validation: Task existence & WR association (UAT2-6/12)
+  if (effectiveTaskId) {
+    const { data: task, error: taskErr } = await supabaseAdmin
+      .from('tasks')
+      .select('id, work_request_id')
+      .eq('id', effectiveTaskId)
+      .maybeSingle();
+
+    if (taskErr || !task) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: `Linked task "${effectiveTaskId}" was not found`,
+        code: 'TASK_NOT_FOUND',
+      });
+    }
+
+    if (effectiveWrId && task.work_request_id !== effectiveWrId) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: 'Task does not belong to work request',
+        code: 'TASK_WR_MISMATCH',
+      });
+    }
+  }
+
   // Atomic create (Spec 2.3 / R-11): the invoice row and its line items are
   // inserted by invoice_create_transactional() inside a single PostgreSQL
   // function transaction. The previous two-round-trip flow attempted a
@@ -155,8 +190,10 @@ const createInvoice = async ({ entityId, userId, data }) => {
     {
       p_invoice_data: {
         clientId: data.clientId,
-        workRequestId: data.workRequestId || null,
-        linkedTaskId: data.linkedTaskId || null,
+        workRequestId: effectiveWrId,
+        linkedTaskId: effectiveTaskId,
+        taskId: effectiveTaskId,
+        task_id: effectiveTaskId,
         linkedTransmittalId: data.linkedTransmittalId || null,
         invoiceNumber: data.invoiceNumber,
         issueDate: data.issueDate,
@@ -215,13 +252,17 @@ const createInvoice = async ({ entityId, userId, data }) => {
  * @returns {Promise<object>}
  */
 const getInvoiceById = async ({ entityId, id, user }) => {
-  const { data: invoice, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('invoices')
     .select('*, clients(name, tin, address)')
     .eq('id', id)
-    .eq('entity_id', entityId)
-    .is('deleted_at', null)
-    .single();
+    .is('deleted_at', null);
+
+  if (entityId && entityId !== 'ALL') {
+    query = query.eq('entity_id', entityId);
+  }
+
+  const { data: invoice, error } = await query.single();
 
   if (error || !invoice) {
     throw new AppError({
@@ -360,6 +401,70 @@ const updateInvoice = async ({ entityId, id, userId, data }) => {
     }
   }
 
+  const effectiveTaskId =
+    data.taskId !== undefined
+      ? data.taskId
+      : data.task_id !== undefined
+      ? data.task_id
+      : data.linkedTaskId !== undefined
+      ? data.linkedTaskId
+      : undefined;
+
+  const effectiveWrId =
+    data.workRequestId !== undefined
+      ? data.workRequestId
+      : data.work_request_id !== undefined
+      ? data.work_request_id
+      : existing.work_request_id;
+
+  // Validation: Task existence & WR association (UAT2-6/12)
+  if (effectiveTaskId) {
+    const { data: task, error: taskErr } = await supabaseAdmin
+      .from('tasks')
+      .select('id, work_request_id')
+      .eq('id', effectiveTaskId)
+      .maybeSingle();
+
+    if (taskErr || !task) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: `Linked task "${effectiveTaskId}" was not found`,
+        code: 'TASK_NOT_FOUND',
+      });
+    }
+
+    if (effectiveWrId && task.work_request_id !== effectiveWrId) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: 'Task does not belong to work request',
+        code: 'TASK_WR_MISMATCH',
+      });
+    }
+  } else if (
+    effectiveTaskId === undefined &&
+    (data.workRequestId !== undefined || data.work_request_id !== undefined)
+  ) {
+    // If only workRequestId is updated, check existing linked task against new WR
+    const existingTaskId = existing.task_id || existing.linked_task_id;
+    if (existingTaskId && effectiveWrId) {
+      const { data: task } = await supabaseAdmin
+        .from('tasks')
+        .select('id, work_request_id')
+        .eq('id', existingTaskId)
+        .maybeSingle();
+      if (task && task.work_request_id !== effectiveWrId) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Bad Request',
+          detail: 'Task does not belong to work request',
+          code: 'TASK_WR_MISMATCH',
+        });
+      }
+    }
+  }
+
   // Atomic update (Spec 2.3 / R-11) with OCC guard (Spec 2.2 / R-10): field
   // updates, line-item replacement, total/balance recomputation, and the
   // version bump happen inside one PostgreSQL function transaction. When
@@ -372,8 +477,13 @@ const updateInvoice = async ({ entityId, id, userId, data }) => {
 
   const rpcUpdates = {};
   if (data.clientId !== undefined) rpcUpdates.client_id = data.clientId;
-  if (data.workRequestId !== undefined) rpcUpdates.work_request_id = data.workRequestId;
-  if (data.linkedTaskId !== undefined) rpcUpdates.linked_task_id = data.linkedTaskId;
+  if (data.workRequestId !== undefined || data.work_request_id !== undefined) {
+    rpcUpdates.work_request_id = effectiveWrId;
+  }
+  if (effectiveTaskId !== undefined) {
+    rpcUpdates.linked_task_id = effectiveTaskId;
+    rpcUpdates.task_id = effectiveTaskId;
+  }
   if (data.linkedTransmittalId !== undefined)
     rpcUpdates.linked_transmittal_id = data.linkedTransmittalId;
   if (data.invoiceNumber !== undefined) rpcUpdates.invoice_number = data.invoiceNumber;
@@ -789,12 +899,17 @@ const buildVoucherHtml = (invoice, entityId) => {
  * @returns {Promise<{ summary: object, details: object[] }>}
  */
 const getAgingReport = async ({ entityId }) => {
-  const { data: invoices, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('invoices')
     .select('*, clients(name)')
-    .eq('entity_id', entityId)
     .is('deleted_at', null)
     .gt('balance', 0);
+
+  if (entityId && entityId !== 'ALL') {
+    query = query.eq('entity_id', entityId);
+  }
+
+  const { data: invoices, error } = await query;
 
   if (error) {
     throw new AppError({
@@ -1004,13 +1119,18 @@ const getInvoiceCounts = async ({ entityId, user }) => {
  * @returns {Promise<object[]>}
  */
 const listTemplates = async ({ entityId }) => {
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('billing_templates')
     .select('*, entities(code), clients(name)')
-    .eq('entity_id', entityId)
     .is('deleted_at', null)
     .eq('active', true)
     .order('name', { ascending: true });
+
+  if (entityId && entityId !== 'ALL') {
+    query = query.eq('entity_id', entityId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw new AppError({

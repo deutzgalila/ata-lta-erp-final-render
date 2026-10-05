@@ -24,6 +24,8 @@ const lineItemSchema = z.object({
 const createInvoiceSchema = z.object({
   clientId: z.string().uuid(),
   workRequestId: z.string().uuid(),
+  taskId: z.string().uuid().optional().nullable(),
+  task_id: z.string().uuid().optional().nullable(),
   linkedTaskId: z.string().uuid().optional().nullable(),
   linkedTransmittalId: z.string().uuid().optional().nullable(),
   invoiceNumber: z.string().min(1).max(50),
@@ -41,6 +43,9 @@ const createInvoiceSchema = z.object({
 const updateInvoiceSchema = z.object({
   clientId: z.string().uuid().optional(),
   workRequestId: z.string().uuid().optional().nullable(),
+  work_request_id: z.string().uuid().optional().nullable(),
+  taskId: z.string().uuid().optional().nullable(),
+  task_id: z.string().uuid().optional().nullable(),
   linkedTaskId: z.string().uuid().optional().nullable(),
   linkedTransmittalId: z.string().uuid().optional().nullable(),
   invoiceNumber: z.string().min(1).max(50).optional(),

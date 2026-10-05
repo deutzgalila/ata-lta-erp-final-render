@@ -11,7 +11,7 @@ base_url: /v1/disbursements
 ## Overview
 Manages firm and client fund expense disbursements, payment releases, funding reconciliation, and approval lifecycles. Enforces role-based initial status assignment (Staff create as `Pending`, Managers/Accounting/Admin create as `Draft`), status anti-forgery guards, and exclusive Admin approval/rejection (`disbursement:approve`).
 
-- **Guards:** Authenticated, entity-scoped (`X-Active-Entity: ATA|LTA`).
+- **Guards:** Authenticated, entity-scoped (`X-Active-Entity: ATA|LTA|ALL`). Omitted header defaults to `ALL` for authorized users.
 - **Base URL:** `/v1/disbursements`
 
 ---
@@ -44,10 +44,11 @@ Manages firm and client fund expense disbursements, payment releases, funding re
 ## 2. Endpoints
 
 ### 2.1 `GET /v1/disbursements`
-Lists disbursements for the active entity with pagination and status filters.
+Lists disbursements for the active entity (or across entities when `X-Active-Entity: ALL`) with pagination and status filters.
 
 - **Guards:** Authenticated, `disbursement:view`.
-- **Since-version:** `1.0.0`.
+- **Since-version:** `1.0.0` (augmented in `2.1.0` with `taskId` filter and `ALL` cross-entity scoping).
+- **Query Parameters:** `status`, `category`, `fundSource`, `workRequestId`, `taskId` (matches `task_id` or `linked_task_id`), `linkedTaskId`, `linkedTransmittalId`, `search`, `archived`, `page`, `limit`.
 - **Events Emitted:** None.
 
 ---
@@ -56,7 +57,7 @@ Lists disbursements for the active entity with pagination and status filters.
 Creates a new disbursement record.
 
 - **Guards:** Authenticated, `disbursement:create`.
-- **Since-version:** `2.0.0` (P0-G role-based initial status, status anti-forgery).
+- **Since-version:** `2.0.0` (augmented in `2.1.0` with `task_id` column dual-write and task WR matching validation).
 - **Events Emitted:** None.
 
 #### Request Body (Zod: `createDisbursementSchema`)
@@ -66,11 +67,11 @@ Creates a new disbursement record.
 | `description` | string (1–2000) | Yes | Expense explanation and purpose |
 | `amount` | number (> 0) | Yes | Positive disbursement amount |
 | `fundSource` | enum (`Firm Fund`, `Client Fund`) | Yes | Source of disbursement funds |
-| `linkedWorkRequestId` | UUID | Yes | Required link to parent work request |
+| `linkedWorkRequestId` / `workRequestId` / `work_request_id` | UUID | Yes | Required link to parent work request |
 | `clientId` | UUID \| null | No | Optional client association |
 | `employeeId` | UUID \| null | No | Optional employee reimbursement target |
 | `linkedInvoiceId` | UUID \| null | No | Optional invoice association |
-| `linkedTaskId` | UUID \| null | No | Optional task association |
+| `taskId` / `task_id` / `linkedTaskId` | UUID \| null | No | Associated task ID. Validated against `tasks` table and work request. Dual-written to `task_id` and `linked_task_id`. |
 | `linkedTransmittalId` | UUID \| null | No | Optional transmittal association |
 | `dueDate` | ISO date string \| null | No | Expense due date |
 | `notes` | string (max 2000) \| null | No | Internal notes |
@@ -82,6 +83,8 @@ Creates a new disbursement record.
 | Status | Code | Trigger Condition |
 | :--- | :--- | :--- |
 | `400 Bad Request` | `VALIDATION_ERROR` | `amount <= 0`, missing required fields, or explicit `status` supplied |
+| `400 Bad Request` | `TASK_NOT_FOUND` | Specified `taskId` does not exist in `tasks` table |
+| `400 Bad Request` | `TASK_WR_MISMATCH` | Specified `taskId` belongs to a different work request |
 | `403 Forbidden` | `FORBIDDEN` | Missing `disbursement:create` permission |
 
 ---

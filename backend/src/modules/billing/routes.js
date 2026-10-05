@@ -75,11 +75,36 @@ router.get(
   billingController.getInvoiceCounts
 );
 
-// Resolve entity code → UUID for all remaining routes in this module
+// --- Listing and Read Endpoints (allowAll: true) ---
+router.get(
+  '/templates',
+  resolveEntity({ allowAll: true }),
+  requirePermission('billing:view'),
+  billingController.listTemplates
+);
+router.get(
+  '/aging',
+  resolveEntity({ allowAll: true }),
+  requirePermission('billing:view'),
+  billingController.getAgingReport
+);
+router.get(
+  '/',
+  resolveEntity({ allowAll: true }),
+  requirePermission('billing:view'),
+  billingController.listInvoices
+);
+router.get(
+  '/:id',
+  resolveEntity({ allowAll: true }),
+  requirePermission('billing:view'),
+  billingController.getInvoice
+);
+
+// Resolve entity code → UUID for all remaining mutation routes in this module
 router.use(resolveEntity());
 
-// --- Billing Templates (must come before /:id routes) ---
-router.get('/templates', requirePermission('billing:view'), billingController.listTemplates);
+// --- Billing Templates Mutations ---
 router.post(
   '/templates',
   requirePermission('billing:templates'),
@@ -99,18 +124,13 @@ router.delete(
   billingController.deleteTemplate
 );
 
-// --- Aging Report ---
-router.get('/aging', requirePermission('billing:view'), billingController.getAgingReport);
-
-// --- Invoice CRUD ---
-router.get('/', requirePermission('billing:view'), billingController.listInvoices);
+// --- Invoice Mutations ---
 router.post(
   '/',
   requirePermission('billing:edit'),
   audit('invoice.create', { table: 'invoices' }),
   billingController.createInvoice
 );
-router.get('/:id', requirePermission('billing:view'), billingController.getInvoice);
 router.put(
   '/:id',
   fieldLevelSecurity,

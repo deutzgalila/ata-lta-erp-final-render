@@ -31,7 +31,10 @@ const listRequests = async ({ entityId, filters = {} }) => {
 
   let query = supabaseAdmin
     .from('operations_requests')
-    .select('*, clients(name), work_requests(title)', { count: 'exact' })
+    .select(
+      '*, clients(id, name, code), work_requests(id, title, entity, entity_id, status, phase, assignee_id, assignee_name, co_assignees, tasks(id, title, status, phase, qa_status, assignee_id, assignee_name)), requester:requested_by(id, name, email), fulfiller:fulfilled_by(id, name, email)',
+      { count: 'exact' }
+    )
     .or('status.eq.pending,status.eq.fulfilled,status.eq.rejected');
 
   if (entityId && entityId !== 'ALL') {
@@ -58,7 +61,110 @@ const listRequests = async ({ entityId, filters = {} }) => {
     });
   }
 
-  return { data: (data || []).map(parseRequestPayload), count: count || 0 };
+  const parsed = (data || []).map(parseRequestPayload);
+  const enriched = await batchEnrichRequests(parsed);
+  return { data: enriched, count: count || 0 };
+};
+
+/**
+ * Batch enrichment helper for operations requests.
+ * Fills in clients(id, name, code), full work_requests + tasks, and requester/fulfiller
+ * when relational joins are missing (e.g. Supabase test runner mock).
+ * @param {object[]} rows
+ * @returns {Promise<object[]>}
+ */
+const batchEnrichRequests = async (rows) => {
+  if (!rows || rows.length === 0) return rows;
+
+  const clientIds = Array.from(new Set(rows.map((r) => r.client_id).filter(Boolean)));
+  const wrIds = Array.from(new Set(rows.map((r) => r.work_request_id).filter(Boolean)));
+  const userIds = Array.from(
+    new Set(
+      rows
+        .map((r) => r.requested_by)
+        .concat(rows.map((r) => r.fulfilled_by))
+        .filter(Boolean)
+    )
+  );
+
+  const [clientsRes, wrsRes, tasksRes, usersRes] = await Promise.all([
+    clientIds.length > 0
+      ? supabaseAdmin.from('clients').select('id, name, code').in('id', clientIds)
+      : { data: [] },
+    wrIds.length > 0
+      ? supabaseAdmin
+          .from('work_requests')
+          .select('id, title, entity, entity_id, status, phase, assignee_id, assignee_name, co_assignees')
+          .in('id', wrIds)
+      : { data: [] },
+    wrIds.length > 0
+      ? supabaseAdmin
+          .from('tasks')
+          .select('id, work_request_id, title, status, phase, qa_status, assignee_id, assignee_name')
+          .in('work_request_id', wrIds)
+      : { data: [] },
+    userIds.length > 0
+      ? supabaseAdmin.from('users').select('id, name, email').in('id', userIds)
+      : { data: [] },
+  ]);
+
+  const clientMap = new Map((clientsRes.data || []).map((c) => [c.id, c]));
+  const wrMap = new Map((wrsRes.data || []).map((w) => [w.id, w]));
+  const userMap = new Map((usersRes.data || []).map((u) => [u.id, u]));
+
+  const tasksByWr = new Map();
+  (tasksRes.data || []).forEach((t) => {
+    if (!tasksByWr.has(t.work_request_id)) tasksByWr.set(t.work_request_id, []);
+    tasksByWr.get(t.work_request_id).push({
+      id: t.id,
+      title: t.title,
+      status: t.status,
+      phase: t.phase,
+      qa_status: t.qa_status,
+      assignee_id: t.assignee_id,
+      assignee_name: t.assignee_name,
+    });
+  });
+
+  return rows.map((r) => {
+    const row = { ...r };
+    // Enrich client if missing or incomplete
+    if (row.client_id && (!row.clients || !row.clients.code)) {
+      const c = clientMap.get(row.client_id);
+      if (c) row.clients = { id: c.id, name: c.name, code: c.code || null };
+    }
+    // Enrich work request & tasks if missing or incomplete
+    if (row.work_request_id && (!row.work_requests || !row.work_requests.tasks)) {
+      const wr = wrMap.get(row.work_request_id);
+      if (wr) {
+        row.work_requests = {
+          id: wr.id,
+          title: wr.title,
+          entity: wr.entity || null,
+          entity_id: wr.entity_id || null,
+          status: wr.status || null,
+          phase: wr.phase || null,
+          assignee_id: wr.assignee_id || null,
+          assignee_name: wr.assignee_name || null,
+          co_assignees: wr.co_assignees || null,
+          tasks: tasksByWr.get(wr.id) || [],
+        };
+      }
+    } else if (row.work_requests && !row.work_requests.tasks && row.work_request_id) {
+      row.work_requests.tasks = tasksByWr.get(row.work_request_id) || [];
+    }
+    // Enrich requester
+    if (row.requested_by && (!row.requester || !row.requester.email)) {
+      const u = userMap.get(row.requested_by);
+      if (u) row.requester = { id: u.id, name: u.name, email: u.email };
+    }
+    // Enrich fulfiller
+    if (row.fulfilled_by && (!row.fulfiller || !row.fulfiller.email)) {
+      const u = userMap.get(row.fulfilled_by);
+      if (u) row.fulfiller = { id: u.id, name: u.name, email: u.email };
+    }
+    return row;
+  });
 };
 
 const parseRequestPayload = (row) => {
@@ -268,7 +374,9 @@ const createRequest = async ({ entityId, userId, data }) => {
         }
       }
 
-      return parseRequestPayload(request);
+      const parsed = parseRequestPayload(request);
+      const [enriched] = await batchEnrichRequests([parsed]);
+      return enriched;
     } finally {
       inFlightRequests.delete(dedupeKey);
     }
@@ -289,7 +397,7 @@ const getRequestById = async ({ entityId, id }) => {
   const { data, error } = await supabaseAdmin
     .from('operations_requests')
     .select(
-      '*, clients(name), work_requests(title), requester:requested_by(name), fulfiller:fulfilled_by(name)'
+      '*, clients(id, name, code), work_requests(id, title, entity, entity_id, status, phase, assignee_id, assignee_name, co_assignees, tasks(id, title, status, phase, qa_status, assignee_id, assignee_name)), requester:requested_by(id, name, email), fulfiller:fulfilled_by(id, name, email)'
     )
     .eq('id', id)
     .eq('entity_id', entityId)
@@ -304,7 +412,9 @@ const getRequestById = async ({ entityId, id }) => {
     });
   }
 
-  return parseRequestPayload(data);
+  const parsed = parseRequestPayload(data);
+  const [enriched] = await batchEnrichRequests([parsed]);
+  return enriched;
 };
 
 /**
@@ -656,4 +766,5 @@ module.exports = {
   updateRequest,
   deleteRequest,
   getCounts,
+  batchEnrichRequests,
 };
