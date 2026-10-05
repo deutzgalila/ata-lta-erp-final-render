@@ -116,10 +116,106 @@ export function TransmittalPrintModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
-        className="max-w-3xl max-h-[92vh] overflow-y-auto p-0"
+        className="max-w-4xl max-h-[92vh] overflow-y-auto p-0 print:p-0 print:m-0 print:max-w-none print:max-h-none print:w-full print:static print:transform-none print:border-none print:shadow-none print:overflow-visible print:bg-white print:rounded-none"
         data-testid="transmittal-print-modal"
       >
-        <DialogHeader className="p-4 border-b bg-slate-50 flex flex-row items-center justify-between">
+        {/* Print Stylesheet: ensures document prints authentically without modal screenshot artifacts */}
+        <style>{`
+          @media print {
+            @page {
+              size: letter portrait;
+              margin: 10mm 15mm;
+            }
+            html, body {
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              color: #000000 !important;
+              width: 100% !important;
+              height: auto !important;
+              min-height: 0 !important;
+              overflow: visible !important;
+            }
+            #root,
+            body > *:not([data-radix-portal]) {
+              display: none !important;
+              visibility: hidden !important;
+            }
+            [data-radix-portal] {
+              position: static !important;
+              width: 100% !important;
+              margin: 0 !important;
+              padding: 0 !important;
+            }
+            [data-radix-portal] > [class*="fixed"][class*="inset-0"],
+            [data-radix-portal] [data-state*="open"][class*="bg-black"],
+            div[class*="backdrop-blur"] {
+              display: none !important;
+              visibility: hidden !important;
+              background: transparent !important;
+              opacity: 0 !important;
+            }
+            [data-testid="transmittal-print-modal"],
+            [data-radix-portal] [role="dialog"] {
+              position: static !important;
+              inset: auto !important;
+              top: 0 !important;
+              left: 0 !important;
+              transform: none !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              width: 100% !important;
+              max-width: 100% !important;
+              max-height: none !important;
+              height: auto !important;
+              box-shadow: none !important;
+              border: none !important;
+              border-radius: 0 !important;
+              background: #ffffff !important;
+              overflow: visible !important;
+            }
+            [data-testid="transmittal-print-modal"] > header,
+            [data-testid="transmittal-print-modal"] > footer,
+            [data-testid="transmittal-print-modal"] button,
+            [data-testid="print-action-btn"],
+            [data-testid="print-close-btn"],
+            button[class*="absolute right-4 top-4"],
+            .print\\:hidden {
+              display: none !important;
+              visibility: hidden !important;
+            }
+            #transmittal-print-area {
+              display: block !important;
+              visibility: visible !important;
+              position: static !important;
+              top: 0 !important;
+              left: 0 !important;
+              margin: 0 !important;
+              margin-left: 0 !important;
+              margin-right: 0 !important;
+              margin-top: 0 !important;
+              padding: 0 !important;
+              padding-top: 0 !important;
+              width: 100% !important;
+              max-width: 100% !important;
+              box-shadow: none !important;
+              border: none !important;
+            }
+            #transmittal-print-area * {
+              visibility: visible !important;
+            }
+            #transmittal-print-area table {
+              width: 100% !important;
+              border-collapse: collapse !important;
+              page-break-inside: auto;
+            }
+            #transmittal-print-area tr {
+              page-break-inside: avoid;
+            }
+          }
+        `}</style>
+
+        <DialogHeader className="p-4 border-b bg-slate-50 flex flex-row items-center justify-between print:hidden">
           <DialogTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
             <Printer className="h-4 w-4 text-blue-600" />
             Transmittal Letter Preview
@@ -128,7 +224,7 @@ export function TransmittalPrintModal({
             <Button
               size="sm"
               onClick={handlePrint}
-              className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white gap-1 cursor-pointer"
+              className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white gap-1 cursor-pointer print:hidden"
               data-testid="print-action-btn"
             >
               <Printer className="h-3.5 w-3.5" />
@@ -140,7 +236,7 @@ export function TransmittalPrintModal({
         {/* Printable Document Sheet (Verbatim 1:1 Prototype Boxed Form) */}
         <div
           ref={printAreaRef}
-          className="p-8 bg-white text-black font-sans text-xs space-y-4 print:p-0 print:m-0 w-full max-w-[700px] mx-auto box-border"
+          className="p-6 pt-2 bg-white text-black font-sans text-xs space-y-4 w-full box-border text-left m-0 ml-0 mr-auto print:p-0 print:m-0 print:pt-0 print:mt-0 print:w-full print:max-w-none print:space-y-4"
           id="transmittal-print-area"
         >
           {/* Header Box Table (preview-header-table) */}
@@ -346,12 +442,12 @@ export function TransmittalPrintModal({
           </div>
         </div>
 
-        <DialogFooter className="p-3 border-t bg-slate-50 flex items-center justify-end">
+        <DialogFooter className="p-3 border-t bg-slate-50 flex items-center justify-end print:hidden">
           <Button
             size="sm"
             variant="outline"
             onClick={onClose}
-            className="h-8 text-xs cursor-pointer"
+            className="h-8 text-xs cursor-pointer print:hidden"
             data-testid="print-close-btn"
           >
             Close
