@@ -6,14 +6,7 @@
 export type EntityCode = 'ATA' | 'LTA';
 
 export type InvoiceStatus =
-  | 'Draft'
-  | 'Pending'
-  | 'Approved'
-  | 'Sent'
-  | 'Partially Paid'
-  | 'Paid'
-  | 'Overdue'
-  | 'Cancelled';
+  'Draft' | 'Pending' | 'Approved' | 'Sent' | 'Partially Paid' | 'Paid' | 'Overdue' | 'Cancelled';
 
 export type LineItemType = 'Professional Fee' | 'Government Fee' | 'Other';
 
@@ -155,6 +148,8 @@ export interface CreateInvoiceInput {
   clientId: string;
   workRequestId: string;
   linkedTaskId?: string | null;
+  taskId?: string | null;
+  task_id?: string | null;
   linkedTransmittalId?: string | null;
   invoiceNumber: string;
   issueDate: string;

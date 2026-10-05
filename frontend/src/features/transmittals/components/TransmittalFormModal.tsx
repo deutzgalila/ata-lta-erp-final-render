@@ -6,16 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import {
-  Plus,
-  Trash2,
-  FileText,
-  AlertCircle,
-  Building,
-  Briefcase,
-  User,
-  Hash,
-} from 'lucide-react';
+import { Plus, Trash2, FileText, AlertCircle, Building, Briefcase, User, Hash } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -26,21 +17,26 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-const Label = ({ className = '', children, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) => (
+const Label = ({
+  className = '',
+  children,
+  ...props
+}: React.LabelHTMLAttributes<HTMLLabelElement>) => (
   <label className={`block text-xs font-semibold text-slate-700 ${className}`} {...props}>
     {children}
   </label>
 );
 
-const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTMLAttributes<HTMLTextAreaElement>>(
-  ({ className = '', ...props }, ref) => (
-    <textarea
-      ref={ref}
-      className={`flex min-h-[60px] w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-xs shadow-xs placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
-      {...props}
-    />
-  )
-);
+const Textarea = React.forwardRef<
+  HTMLTextAreaElement,
+  React.TextareaHTMLAttributes<HTMLTextAreaElement>
+>(({ className = '', ...props }, ref) => (
+  <textarea
+    ref={ref}
+    className={`flex min-h-[60px] w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-xs shadow-xs placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+    {...props}
+  />
+));
 Textarea.displayName = 'Textarea';
 import {
   Select,
@@ -54,10 +50,7 @@ import { useWorkRequests } from '@/features/operations/api/useWorkRequests';
 import { useWorkRequestTasks } from '@/features/operations/api/useTasks';
 import { useCreateTransmittal, useUpdateTransmittal } from '../api/useTransmittals';
 import { DOCUMENT_CATEGORIES } from '../api/schemas';
-import type {
-  Transmittal,
-  CreateTransmittalItemInput,
-} from '../api/types';
+import type { Transmittal, CreateTransmittalItemInput } from '../api/types';
 
 /**
  * Frozen Financial Prefill Contract (UAT2-7-contract-side)
@@ -116,46 +109,64 @@ export function TransmittalFormModal({
     { id: 'item-1', description: '', documentType: 'Contract', quantity: 1 },
   ]);
 
+  // Filter available work requests by clientId when client is selected or prefilled (Contract Rule 3)
+  const availableWorkRequests = React.useMemo(() => {
+    if (clientId) {
+      return workRequests.filter((wr) => (wr.client_id || wr.clientId) === clientId);
+    }
+    return workRequests;
+  }, [workRequests, clientId]);
+
   // Form validation errors
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Tasks query for selected work request
-  const { data: tasksData = [] } = useWorkRequestTasks(
-    workRequestId || undefined,
-    { enabled: isOpen && Boolean(workRequestId) }
-  );
+  const { data: tasksData = [] } = useWorkRequestTasks(workRequestId || undefined, {
+    enabled: isOpen && Boolean(workRequestId),
+  });
   const tasks = tasksData || [];
 
   // Reset or Populate form on open/change
   useEffect(() => {
-    if (transmittalToEdit) {
-      setClientId(transmittalToEdit.client_id || '');
-      setWorkRequestId(transmittalToEdit.work_request_id || '');
-      setSelectedTaskId(transmittalToEdit.linked_task_id || transmittalToEdit.linkedTaskId || '');
-      setTrackingNumber(transmittalToEdit.tracking_number || '');
-      setRecipientName(transmittalToEdit.recipient_name || '');
-      setRecipientDetails(transmittalToEdit.recipient_details || '');
-      setNotes(transmittalToEdit.notes || '');
+    if (isOpen) {
+      if (transmittalToEdit) {
+        setClientId(transmittalToEdit.client_id || '');
+        setWorkRequestId(transmittalToEdit.work_request_id || '');
+        setSelectedTaskId(transmittalToEdit.linked_task_id || transmittalToEdit.linkedTaskId || '');
+        setTrackingNumber(transmittalToEdit.tracking_number || '');
+        setRecipientName(transmittalToEdit.recipient_name || '');
+        setRecipientDetails(transmittalToEdit.recipient_details || '');
+        setNotes(transmittalToEdit.notes || '');
 
-      if (transmittalToEdit.items && transmittalToEdit.items.length > 0) {
-        setItems(
-          transmittalToEdit.items.map((item, idx) => ({
-            id: item.id || `item-${idx}`,
-            description: item.description,
-            documentType: item.document_type || item.documentType || 'Contract',
-            quantity: item.quantity || 1,
-          }))
-        );
+        if (transmittalToEdit.items && transmittalToEdit.items.length > 0) {
+          setItems(
+            transmittalToEdit.items.map((item, idx) => ({
+              id: item.id || `item-${idx}`,
+              description: item.description,
+              documentType: item.document_type || item.documentType || 'Contract',
+              quantity: item.quantity || 1,
+            }))
+          );
+        } else {
+          setItems([{ id: 'item-1', description: '', documentType: 'Contract', quantity: 1 }]);
+        }
       } else {
+        // Create defaults
+        const autoTracking = `TR-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+        setTrackingNumber(autoTracking);
+        setWorkRequestId(prefill?.workRequestId || '');
+        setClientId(prefill?.clientId || '');
+        setSelectedTaskId(prefill?.taskId || '');
+        setRecipientName('');
+        setRecipientDetails('');
+        setNotes('');
         setItems([{ id: 'item-1', description: '', documentType: 'Contract', quantity: 1 }]);
       }
     } else {
-      // Create defaults
-      const autoTracking = `TR-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-      setTrackingNumber(autoTracking);
-      setWorkRequestId(prefill?.workRequestId || '');
-      setClientId(prefill?.clientId || '');
-      setSelectedTaskId(prefill?.taskId || '');
+      // Modal closed: reset form state so reopening does not leak stale values
+      setClientId('');
+      setWorkRequestId('');
+      setSelectedTaskId('');
       setRecipientName('');
       setRecipientDetails('');
       setNotes('');
@@ -166,20 +177,33 @@ export function TransmittalFormModal({
 
   // Auto-detect client from work request in create mode
   useEffect(() => {
-    if (isOpen && !isEditMode && workRequestId && workRequests.length > 0) {
+    if (isOpen && !isEditMode && workRequestId && workRequests.length > 0 && !prefill?.clientId) {
       const matchedWr = workRequests.find((w) => w.id === workRequestId);
-      if (matchedWr?.client_id && !clientId) {
+      if (matchedWr?.client_id && matchedWr.client_id !== clientId) {
         setClientId(matchedWr.client_id);
       }
     }
-  }, [isOpen, isEditMode, workRequestId, workRequests, clientId]);
+  }, [isOpen, isEditMode, workRequestId, workRequests, prefill?.clientId, clientId]);
+
+  const handleClientChange = (newClientId: string) => {
+    setClientId(newClientId);
+    if (workRequestId) {
+      const currentWr = workRequests.find((w) => w.id === workRequestId);
+      if (currentWr && (currentWr.client_id || currentWr.clientId) !== newClientId) {
+        setWorkRequestId('');
+        setSelectedTaskId('');
+      }
+    }
+  };
 
   const handleWorkRequestChange = (newWrId: string) => {
     setWorkRequestId(newWrId);
     setSelectedTaskId('');
-    const matchedWr = workRequests.find((w) => w.id === newWrId);
-    if (matchedWr?.client_id) {
-      setClientId(matchedWr.client_id);
+    if (!prefill?.clientId) {
+      const matchedWr = workRequests.find((w) => w.id === newWrId);
+      if (matchedWr?.client_id) {
+        setClientId(matchedWr.client_id);
+      }
     }
   };
 
@@ -318,7 +342,10 @@ export function TransmittalFormModal({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Tracking Number */}
             <div className="space-y-1.5">
-              <Label htmlFor="trackingNumber" className="text-xs font-semibold flex items-center gap-1 text-slate-700">
+              <Label
+                htmlFor="trackingNumber"
+                className="text-xs font-semibold flex items-center gap-1 text-slate-700"
+              >
                 <Hash className="h-3.5 w-3.5" />
                 Tracking Number *
               </Label>
@@ -340,11 +367,14 @@ export function TransmittalFormModal({
 
             {/* Client Picker */}
             <div className="space-y-1.5">
-              <Label htmlFor="client" className="text-xs font-semibold flex items-center gap-1 text-slate-700">
+              <Label
+                htmlFor="client"
+                className="text-xs font-semibold flex items-center gap-1 text-slate-700"
+              >
                 <Building className="h-3.5 w-3.5" />
                 Client *
               </Label>
-              <Select value={clientId} onValueChange={setClientId} disabled={isClientLocked}>
+              <Select value={clientId} onValueChange={handleClientChange} disabled={isClientLocked}>
                 <SelectTrigger id="client" className="text-xs" data-testid="client-select">
                   <SelectValue placeholder="Select client..." />
                 </SelectTrigger>
@@ -366,16 +396,27 @@ export function TransmittalFormModal({
 
             {/* Work Request linkage */}
             <div className="space-y-1.5 md:col-span-2">
-              <Label htmlFor="workRequest" className="text-xs font-semibold flex items-center gap-1 text-slate-700">
+              <Label
+                htmlFor="workRequest"
+                className="text-xs font-semibold flex items-center gap-1 text-slate-700"
+              >
                 <Briefcase className="h-3.5 w-3.5" />
                 Work Request {isEditMode ? '(Optional)' : '*'}
               </Label>
-              <Select value={workRequestId} onValueChange={handleWorkRequestChange} disabled={isWrLocked}>
-                <SelectTrigger id="workRequest" className="text-xs" data-testid="work-request-select">
+              <Select
+                value={workRequestId}
+                onValueChange={handleWorkRequestChange}
+                disabled={isWrLocked}
+              >
+                <SelectTrigger
+                  id="workRequest"
+                  className="text-xs"
+                  data-testid="work-request-select"
+                >
                   <SelectValue placeholder="Link to work request..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {workRequests.map((wr) => (
+                  {availableWorkRequests.map((wr) => (
                     <SelectItem key={wr.id} value={wr.id}>
                       {wr.tracking_number || wr.title} — {wr.client_name || 'Client'}
                     </SelectItem>
@@ -392,7 +433,10 @@ export function TransmittalFormModal({
 
             {/* Linked Task (Optional) */}
             <div className="space-y-1.5 md:col-span-2">
-              <Label htmlFor="workRequestTask" className="text-xs font-semibold flex items-center gap-1 text-slate-700">
+              <Label
+                htmlFor="workRequestTask"
+                className="text-xs font-semibold flex items-center gap-1 text-slate-700"
+              >
                 <Briefcase className="h-3.5 w-3.5" />
                 Linked Task (Optional)
               </Label>
@@ -423,7 +467,10 @@ export function TransmittalFormModal({
 
             {/* Recipient Person Name */}
             <div className="space-y-1.5">
-              <Label htmlFor="recipientName" className="text-xs font-semibold flex items-center gap-1 text-slate-700">
+              <Label
+                htmlFor="recipientName"
+                className="text-xs font-semibold flex items-center gap-1 text-slate-700"
+              >
                 <User className="h-3.5 w-3.5" />
                 Recipient Name
               </Label>
@@ -478,7 +525,10 @@ export function TransmittalFormModal({
             </div>
 
             {errors.items && (
-              <div className="p-2.5 bg-rose-50 border border-rose-200 rounded text-rose-700 text-xs flex items-center gap-2" data-testid="items-error-message">
+              <div
+                className="p-2.5 bg-rose-50 border border-rose-200 rounded text-rose-700 text-xs flex items-center gap-2"
+                data-testid="items-error-message"
+              >
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 <span>{errors.items}</span>
               </div>
@@ -502,7 +552,10 @@ export function TransmittalFormModal({
                       value={item.documentType}
                       onValueChange={(val) => handleItemChange(item.id, 'documentType', val)}
                     >
-                      <SelectTrigger className="h-8 text-xs bg-white" data-testid={`item-category-select-${index}`}>
+                      <SelectTrigger
+                        className="h-8 text-xs bg-white"
+                        data-testid={`item-category-select-${index}`}
+                      >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -532,7 +585,13 @@ export function TransmittalFormModal({
                       type="number"
                       min={1}
                       value={item.quantity}
-                      onChange={(e) => handleItemChange(item.id, 'quantity', Math.max(1, parseInt(e.target.value, 10) || 1))}
+                      onChange={(e) =>
+                        handleItemChange(
+                          item.id,
+                          'quantity',
+                          Math.max(1, parseInt(e.target.value, 10) || 1)
+                        )
+                      }
                       className="h-8 text-xs bg-white text-center"
                       title="Quantity"
                       data-testid={`item-quantity-input-${index}`}

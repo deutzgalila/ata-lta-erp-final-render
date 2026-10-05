@@ -80,8 +80,6 @@ export function TransmittalPrintModal({
   let toLine2 = '';
   if (pocName && clientName) {
     toLine2 = isATA ? `(${clientName})` : clientName;
-  } else if (clientName) {
-    toLine2 = isATA ? `(${clientName})` : clientName;
   }
 
   const address = transmittal.clients?.address || '';
@@ -243,10 +241,7 @@ export function TransmittalPrintModal({
             </div>
 
             {/* Document Table (preview-document-table) */}
-            <table
-              className="w-full border-collapse table-fixed"
-              data-testid="print-items-table"
-            >
+            <table className="w-full border-collapse table-fixed" data-testid="print-items-table">
               <colgroup>
                 <col style={{ width: '35%' }} />
                 <col style={{ width: '65%' }} />
@@ -255,7 +250,11 @@ export function TransmittalPrintModal({
                 <tr>
                   <th
                     className="border-b-2 border-r-2 border-black px-2.5 py-1.5 font-bold text-left text-[10pt] text-black bg-white"
-                    style={{ width: '35%', borderBottom: '2px solid #000', borderRight: '2px solid #000' }}
+                    style={{
+                      width: '35%',
+                      borderBottom: '2px solid #000',
+                      borderRight: '2px solid #000',
+                    }}
                   >
                     CATEGORY
                   </th>
@@ -310,11 +309,17 @@ export function TransmittalPrintModal({
                   RECEIVED
                 </div>
                 {(transmittal.received_by_name || transmittal.recipient_name) && (
-                  <div className="text-[10px] font-bold uppercase" data-testid="stamp-recipient-name">
+                  <div
+                    className="text-[10px] font-bold uppercase"
+                    data-testid="stamp-recipient-name"
+                  >
                     {transmittal.received_by_name || transmittal.recipient_name}
                   </div>
                 )}
-                <div className="text-[10px] text-blue-700 font-semibold" data-testid="stamp-acknowledged-date">
+                <div
+                  className="text-[10px] text-blue-700 font-semibold"
+                  data-testid="stamp-acknowledged-date"
+                >
                   {acknowledgedDateFormatted || 'Date Recorded'}
                 </div>
               </div>

@@ -12,14 +12,13 @@ export const createInvoiceSchema = z.object({
   clientId: z.string().uuid('Please select a valid client'),
   workRequestId: z.string().uuid('Please select an associated work request'),
   linkedTaskId: z.string().uuid().optional().nullable(),
+  taskId: z.string().uuid().optional().nullable(),
+  task_id: z.string().uuid().optional().nullable(),
   linkedTransmittalId: z.string().uuid().optional().nullable(),
   invoiceNumber: z.string().min(1, 'Invoice number is required').max(50, 'Max 50 characters'),
   issueDate: z.string().min(1, 'Issue date is required'),
   dueDate: z.string().min(1, 'Due date is required'),
-  status: z
-    .enum(['Draft', 'Pending'])
-    .optional()
-    .default('Draft'),
+  status: z.enum(['Draft', 'Pending']).optional().default('Draft'),
   lineItems: z.array(lineItemSchema).min(1, 'At least one line item is required'),
   notes: z.string().max(2000, 'Notes cannot exceed 2000 characters').optional().nullable(),
   terms: z.string().max(2000, 'Terms cannot exceed 2000 characters').optional().nullable(),

@@ -99,44 +99,40 @@ export function InvoiceCreateModal({
   const workRequests = useMemo(() => workRequestsData?.data || [], [workRequestsData]);
 
   // Work Request Tasks query (UAT2-6: disabled/empty until WR chosen)
-  const { data: tasksData } = useWorkRequestTasks(
-    workRequestId || undefined,
-    { enabled: isOpen && Boolean(workRequestId) }
-  );
+  const { data: tasksData } = useWorkRequestTasks(workRequestId || undefined, {
+    enabled: isOpen && Boolean(workRequestId),
+  });
   const tasks = tasksData || [];
 
   // Existing Invoices for sequential number calculation
-  const { data: existingInvoicesData } = useInvoices(
-    { limit: 100 },
-    { enabled: isOpen }
-  );
+  const { data: existingInvoicesData } = useInvoices({ limit: 100 }, { enabled: isOpen });
 
   // Prefill contract synchronization (UAT2-7-contract-side)
   useEffect(() => {
     if (isOpen) {
-      if (prefill?.workRequestId) {
-        setWorkRequestId(prefill.workRequestId);
-      }
-      if (prefill?.clientId) {
-        setClientId(prefill.clientId);
-      }
-      if (prefill?.taskId) {
-        setSelectedTaskId(prefill.taskId);
-      }
+      setWorkRequestId(prefill?.workRequestId || '');
+      setClientId(prefill?.clientId || '');
+      setSelectedTaskId(prefill?.taskId || '');
+      setFormError(null);
     } else {
+      setWorkRequestId('');
+      setClientId('');
+      setSelectedTaskId('');
+      setInvoiceNumber('');
+      setNotes('');
       setFormError(null);
     }
   }, [isOpen, prefill]);
 
   // Auto-detect and populate associated client when work request is selected
   useEffect(() => {
-    if (isOpen && workRequestId && workRequests.length > 0) {
+    if (isOpen && workRequestId && workRequests.length > 0 && !prefill?.clientId) {
       const matchedWr = workRequests.find((w) => w.id === workRequestId);
-      if (matchedWr?.client_id && !clientId) {
+      if (matchedWr?.client_id && matchedWr.client_id !== clientId) {
         setClientId(matchedWr.client_id);
       }
     }
-  }, [isOpen, workRequestId, workRequests, clientId]);
+  }, [isOpen, workRequestId, workRequests, prefill?.clientId, clientId]);
 
   const handleClientChange = (newClientId: string) => {
     setClientId(newClientId);
@@ -147,9 +143,11 @@ export function InvoiceCreateModal({
   const handleWorkRequestChange = (newWrId: string) => {
     setWorkRequestId(newWrId);
     setSelectedTaskId('');
-    const matchedWr = workRequests.find((w) => w.id === newWrId);
-    if (matchedWr?.client_id) {
-      setClientId(matchedWr.client_id);
+    if (!prefill?.clientId) {
+      const matchedWr = workRequests.find((w) => w.id === newWrId);
+      if (matchedWr?.client_id) {
+        setClientId(matchedWr.client_id);
+      }
     }
   };
 
@@ -208,11 +206,7 @@ export function InvoiceCreateModal({
     });
   };
 
-  const handleUpdateLineItem = (
-    index: number,
-    field: keyof EditableLineItem,
-    value: string
-  ) => {
+  const handleUpdateLineItem = (index: number, field: keyof EditableLineItem, value: string) => {
     setLineItems((prev) => {
       const copy = [...prev];
       copy[index] = { ...copy[index]!, [field]: value };
@@ -233,7 +227,10 @@ export function InvoiceCreateModal({
     const payload = {
       clientId,
       workRequestId,
-      linkedTaskId: selectedTaskId || null,
+      linkedTaskId: !SUPPORT_TASK_ID_PAYLOAD ? selectedTaskId || null : undefined,
+      ...(SUPPORT_TASK_ID_PAYLOAD && selectedTaskId
+        ? { taskId: selectedTaskId, task_id: selectedTaskId }
+        : {}),
       invoiceNumber: invoiceNumber.trim(),
       issueDate,
       dueDate,
@@ -272,7 +269,8 @@ export function InvoiceCreateModal({
             <span>Create New Invoice</span>
           </DialogTitle>
           <p className="text-xs text-slate-500">
-            Generate an official invoice record with dynamic line items and automated total computation.
+            Generate an official invoice record with dynamic line items and automated total
+            computation.
           </p>
         </DialogHeader>
 
@@ -290,11 +288,18 @@ export function InvoiceCreateModal({
           {/* 1. Header Information Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label htmlFor="create-invoice-client" className="text-xs font-semibold text-slate-700 block mb-1">
+              <label
+                htmlFor="create-invoice-client"
+                className="text-xs font-semibold text-slate-700 block mb-1"
+              >
                 Client*
               </label>
               <Select value={clientId} onValueChange={handleClientChange} disabled={isClientLocked}>
-                <SelectTrigger id="create-invoice-client" className="h-9 text-xs" data-testid="select-client">
+                <SelectTrigger
+                  id="create-invoice-client"
+                  className="h-9 text-xs"
+                  data-testid="select-client"
+                >
                   <SelectValue placeholder="Select a client..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -308,11 +313,22 @@ export function InvoiceCreateModal({
             </div>
 
             <div>
-              <label htmlFor="create-invoice-wr" className="text-xs font-semibold text-slate-700 block mb-1">
+              <label
+                htmlFor="create-invoice-wr"
+                className="text-xs font-semibold text-slate-700 block mb-1"
+              >
                 Associated Work Request*
               </label>
-              <Select value={workRequestId} onValueChange={handleWorkRequestChange} disabled={isWrLocked}>
-                <SelectTrigger id="create-invoice-wr" className="h-9 text-xs" data-testid="select-work-request">
+              <Select
+                value={workRequestId}
+                onValueChange={handleWorkRequestChange}
+                disabled={isWrLocked}
+              >
+                <SelectTrigger
+                  id="create-invoice-wr"
+                  className="h-9 text-xs"
+                  data-testid="select-work-request"
+                >
                   <SelectValue placeholder="Select work request..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -326,7 +342,10 @@ export function InvoiceCreateModal({
             </div>
 
             <div>
-              <label htmlFor="create-invoice-task" className="text-xs font-semibold text-slate-700 block mb-1">
+              <label
+                htmlFor="create-invoice-task"
+                className="text-xs font-semibold text-slate-700 block mb-1"
+              >
                 Linked Task (Optional)
               </label>
               <Select
@@ -334,12 +353,14 @@ export function InvoiceCreateModal({
                 onValueChange={(val) => setSelectedTaskId(val === '__none__' ? '' : val)}
                 disabled={isTaskLocked || !workRequestId}
               >
-                <SelectTrigger id="create-invoice-task" className="h-9 text-xs" data-testid="select-work-request-task">
+                <SelectTrigger
+                  id="create-invoice-task"
+                  className="h-9 text-xs"
+                  data-testid="select-work-request-task"
+                >
                   <SelectValue
                     placeholder={
-                      !workRequestId
-                        ? 'Select work request first...'
-                        : 'Select task (optional)...'
+                      !workRequestId ? 'Select work request first...' : 'Select task (optional)...'
                     }
                   />
                 </SelectTrigger>
@@ -355,7 +376,10 @@ export function InvoiceCreateModal({
             </div>
 
             <div>
-              <label htmlFor="create-invoice-number" className="text-xs font-semibold text-slate-700 block mb-1">
+              <label
+                htmlFor="create-invoice-number"
+                className="text-xs font-semibold text-slate-700 block mb-1"
+              >
                 Invoice Number*
               </label>
               <Input
@@ -372,7 +396,10 @@ export function InvoiceCreateModal({
 
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label htmlFor="create-invoice-issue-date" className="text-xs font-semibold text-slate-700 block mb-1">
+                <label
+                  htmlFor="create-invoice-issue-date"
+                  className="text-xs font-semibold text-slate-700 block mb-1"
+                >
                   Issue Date*
                 </label>
                 <Input
@@ -386,7 +413,10 @@ export function InvoiceCreateModal({
                 />
               </div>
               <div>
-                <label htmlFor="create-invoice-due-date" className="text-xs font-semibold text-slate-700 block mb-1">
+                <label
+                  htmlFor="create-invoice-due-date"
+                  className="text-xs font-semibold text-slate-700 block mb-1"
+                >
                   Due Date*
                 </label>
                 <Input
@@ -442,9 +472,7 @@ export function InvoiceCreateModal({
                     <Input
                       type="text"
                       value={item.description}
-                      onChange={(e) =>
-                        handleUpdateLineItem(index, 'description', e.target.value)
-                      }
+                      onChange={(e) => handleUpdateLineItem(index, 'description', e.target.value)}
                       placeholder="Item description..."
                       className="h-8 text-xs bg-white"
                       required
@@ -456,11 +484,12 @@ export function InvoiceCreateModal({
                   <div className="w-36">
                     <Select
                       value={item.type}
-                      onValueChange={(val) =>
-                        handleUpdateLineItem(index, 'type', val)
-                      }
+                      onValueChange={(val) => handleUpdateLineItem(index, 'type', val)}
                     >
-                      <SelectTrigger className="h-8 text-xs bg-white" data-testid={`line-item-type-${index}`}>
+                      <SelectTrigger
+                        className="h-8 text-xs bg-white"
+                        data-testid={`line-item-type-${index}`}
+                      >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -480,9 +509,7 @@ export function InvoiceCreateModal({
                       step="0.01"
                       min="0"
                       value={item.amount}
-                      onChange={(e) =>
-                        handleUpdateLineItem(index, 'amount', e.target.value)
-                      }
+                      onChange={(e) => handleUpdateLineItem(index, 'amount', e.target.value)}
                       placeholder="0.00"
                       className="h-8 text-xs bg-white text-right font-mono"
                       required
@@ -547,7 +574,12 @@ export function InvoiceCreateModal({
           {/* 3. Notes & Terms */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200">
             <div>
-              <label htmlFor="create-invoice-notes" className="text-xs font-semibold text-slate-700 block mb-1">Notes</label>
+              <label
+                htmlFor="create-invoice-notes"
+                className="text-xs font-semibold text-slate-700 block mb-1"
+              >
+                Notes
+              </label>
               <Input
                 id="create-invoice-notes"
                 type="text"
@@ -559,7 +591,12 @@ export function InvoiceCreateModal({
               />
             </div>
             <div>
-              <label htmlFor="create-invoice-terms" className="text-xs font-semibold text-slate-700 block mb-1">Payment Terms</label>
+              <label
+                htmlFor="create-invoice-terms"
+                className="text-xs font-semibold text-slate-700 block mb-1"
+              >
+                Payment Terms
+              </label>
               <Input
                 id="create-invoice-terms"
                 type="text"
