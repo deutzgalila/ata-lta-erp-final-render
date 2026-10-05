@@ -30,13 +30,18 @@ export interface ClientFilters {
 
 export function useClients(filters?: ClientFilters) {
   const activeEntity = useSessionStore((state) => state.activeEntity);
-  const effectiveEntity = filters?.entity ?? (activeEntity !== 'ALL' ? activeEntity : undefined);
+  const effectiveEntity =
+    filters?.entity && filters.entity !== 'ALL'
+      ? filters.entity
+      : activeEntity !== 'ALL'
+        ? activeEntity
+        : undefined;
 
   return useQuery<ClientSummary[], ApiError>({
     queryKey: ['clients', 'list', effectiveEntity, filters?.search, filters?.status],
     queryFn: async () => {
       const searchParams = new URLSearchParams();
-      if (effectiveEntity) {
+      if (effectiveEntity && effectiveEntity !== 'ALL') {
         searchParams.append('entity', effectiveEntity);
       }
       if (filters?.search) {

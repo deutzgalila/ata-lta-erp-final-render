@@ -91,11 +91,14 @@ export async function apiRequest<T = unknown>(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  if (activeEntity && activeEntity !== 'ALL' && !headers['X-Active-Entity']) {
+  if (activeEntity && activeEntity !== 'ALL' && !headers['X-Active-Entity'] && !headers['x-active-entity']) {
     headers['X-Active-Entity'] = activeEntity;
   }
   if (headers['X-Active-Entity'] === 'ALL') {
     delete headers['X-Active-Entity'];
+  }
+  if (headers['x-active-entity'] === 'ALL') {
+    delete headers['x-active-entity'];
   }
 
   const methodUpper = (options.method || 'GET').toUpperCase();

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest, ApiError } from '@/lib/api';
+import { useSessionStore } from '@/lib/session';
 import { operationsKeys } from './queryKeys';
 import type {
   DmsDocument,
@@ -16,13 +17,14 @@ export function useDocuments(
   filterParams?: DocumentFilterParams | string,
   options?: { enabled?: boolean }
 ) {
+  const activeEntity = useSessionStore((state) => state.activeEntity);
   const params: DocumentFilterParams =
     typeof filterParams === 'string'
       ? { workRequestId: filterParams }
       : filterParams ?? {};
 
   return useQuery({
-    queryKey: operationsKeys.documentsList(params),
+    queryKey: [...operationsKeys.documentsList(params), activeEntity],
     queryFn: async () => {
       const searchParams = new URLSearchParams();
       if (params.workRequestId) searchParams.append('workRequestId', params.workRequestId);

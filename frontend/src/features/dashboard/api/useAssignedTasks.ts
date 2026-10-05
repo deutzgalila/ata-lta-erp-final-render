@@ -19,11 +19,12 @@ import type { WorkRequest, Task } from '@/features/operations/api/types';
 export function useAssignedTasks() {
   const user = useSessionStore((state) => state.user);
   const permissions = useSessionStore((state) => state.permissions);
+  const activeEntity = useSessionStore((state) => state.activeEntity);
   const canEditAll = hasPermission(permissions, 'timelog:edit_all');
   const userId = user?.id;
 
   const query = useQuery({
-    queryKey: dashboardKeys.assignedTasks.scoped(userId),
+    queryKey: [...dashboardKeys.assignedTasks.scoped(userId), activeEntity],
     queryFn: async (): Promise<AssignableTaskOption[]> => {
       // Query active work requests with their tasks
       const response = await apiRequest<{ data: WorkRequest[] }>(
