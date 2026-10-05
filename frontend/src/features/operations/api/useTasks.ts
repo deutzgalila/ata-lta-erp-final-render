@@ -48,6 +48,58 @@ export function useTaskDetail(
   });
 }
 
+export interface TaskRelatedRecords {
+  invoices: Array<{
+    id: string;
+    invoice_number?: string;
+    invoiceNumber?: string;
+    amount?: number;
+    status?: string;
+    created_at?: string;
+    clients?: { name: string } | null;
+  }>;
+  disbursements: Array<{
+    id: string;
+    disbursement_number?: string;
+    disbursementNumber?: string;
+    category?: string;
+    description?: string;
+    amount?: number;
+    status?: string;
+    created_at?: string;
+    clients?: { name: string } | null;
+  }>;
+  transmittals: Array<{
+    id: string;
+    transmittal_number?: string;
+    transmittalNumber?: string;
+    tracking_number?: string;
+    trackingNumber?: string;
+    recipient_name?: string;
+    recipientName?: string;
+    status?: string;
+    created_at?: string;
+    clients?: { name: string } | null;
+  }>;
+}
+
+export function useTaskRelated(
+  taskId: string | undefined,
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    queryKey: ['operations', 'tasks', taskId, 'related'],
+    queryFn: async () => {
+      if (!taskId) throw new Error('Task ID is required');
+      const res = await apiRequest<{ data: TaskRelatedRecords }>(
+        `/operations/tasks/${taskId}/related`
+      );
+      return res.data;
+    },
+    enabled: Boolean(taskId) && (options?.enabled ?? true),
+  });
+}
+
 // ============================================================================
 // Mutations (Zero Optimistic Updates Doctrine)
 // ============================================================================
