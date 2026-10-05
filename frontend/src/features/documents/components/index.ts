@@ -6,3 +6,4 @@ export * from './DocumentFilterBar';
 export * from './DocumentTable';
 export * from './DocumentUploadModal';
 export * from './DocumentLifecycleModal';
+export * from './DocumentViewerModal';
