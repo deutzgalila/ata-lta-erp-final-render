@@ -174,7 +174,7 @@ export function OperationsArchiveTab({
 
                   {/* Client */}
                   <TableCell className="text-xs text-slate-700">
-                    {wr.clientName || '— Internal —'}
+                    {wr.clientName || '—'}
                   </TableCell>
 
                   {/* Entity */}

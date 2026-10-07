@@ -23,6 +23,7 @@ import { useDocuments } from '../api/useDocuments';
 import { useTeam } from '../api/useTeam';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
+import { getPhaseBadgeInfo, getStatusBadgeInfo } from '../lib/statusBadges';
 import type { WorkRequest, Task, Phase } from '../api/types';
 
 export interface WorkRequestSidePeekProps {
@@ -200,17 +201,34 @@ export function WorkRequestSidePeek({
                     >
                       {workRequest.priority} Priority
                     </Badge>
-                    <Badge
-                      variant="outline"
-                      size="compact"
-                      className="font-semibold text-blue-700 bg-blue-50"
-                      data-testid="side-peek-phase"
-                    >
-                      Phase: {workRequest.phase.replace('_', ' ')}
-                    </Badge>
-                    <Badge variant="secondary" size="compact" data-testid="side-peek-status">
-                      {workRequest.status}
-                    </Badge>
+                    {(() => {
+                      const phaseInfo = getPhaseBadgeInfo(workRequest.phase);
+                      const PhaseIcon = phaseInfo.Icon;
+                      return (
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold border ${phaseInfo.badgeClass}`}
+                          data-testid="side-peek-phase"
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${phaseInfo.dotClass}`} />
+                          <PhaseIcon className="w-3.5 h-3.5 shrink-0" />
+                          <span>Phase: {workRequest.phase.replace('_', ' ')}</span>
+                        </span>
+                      );
+                    })()}
+                    {(() => {
+                      const statusInfo = getStatusBadgeInfo(workRequest.status);
+                      const StatusIcon = statusInfo.Icon;
+                      return (
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${statusInfo.badgeClass}`}
+                          data-testid="side-peek-status"
+                        >
+                          <span className={`w-1 h-1 rounded-full ${statusInfo.dotClass}`} />
+                          <StatusIcon className="w-3 h-3 shrink-0" />
+                          <span>{workRequest.status}</span>
+                        </span>
+                      );
+                    })()}
                   </>
                 )}
               </div>
@@ -309,7 +327,7 @@ export function WorkRequestSidePeek({
                       data-testid="side-peek-client"
                     >
                       <Building className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                      <span className="truncate">{workRequest.clientName || 'Internal Client'}</span>
+                      <span className="truncate">{workRequest.clientName || '—'}</span>
                     </div>
                   </div>
 

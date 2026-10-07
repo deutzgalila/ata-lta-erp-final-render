@@ -28,7 +28,7 @@ import { useTeam } from '../api/useTeam';
 import { operationsKeys } from '../api/queryKeys';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
-import type { Phase } from '../api/types';
+import type { Phase, OperationsRequest } from '../api/types';
 
 export interface PendingApprovalsInboxProps {
   onNavigateToWr?: (wrId: string) => void;
@@ -52,11 +52,18 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
   // Queries
   const { data: rawRequests, isLoading } = useOperationsRequests({
     status: activeSubTab === 'all' ? undefined : activeSubTab,
-    type: 'wr_phase_transition',
   });
-  const requests = useMemo(() => {
-    if (Array.isArray(rawRequests)) return rawRequests;
-    return rawRequests?.data ?? [];
+  const requests = useMemo((): OperationsRequest[] => {
+    if (Array.isArray(rawRequests)) return rawRequests as OperationsRequest[];
+    if (
+      rawRequests &&
+      typeof rawRequests === 'object' &&
+      'data' in rawRequests &&
+      Array.isArray((rawRequests as { data: unknown[] }).data)
+    ) {
+      return (rawRequests as { data: OperationsRequest[] }).data;
+    }
+    return (rawRequests?.data as OperationsRequest[]) ?? [];
   }, [rawRequests]);
 
   const { data: counts } = useOperationsRequestCounts();
@@ -360,7 +367,7 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
                       {req.entity_id || 'ATA'}
                     </Badge>
                     <span className="truncate max-w-[200px]" data-testid={`approval-client-${req.id}`}>
-                      {req.clients?.name || (req as unknown as { clientName?: string }).clientName || 'Internal Client'}
+                      {req.clients?.name || (req as unknown as { clientName?: string }).clientName || '—'}
                     </span>
                   </div>
 
@@ -450,7 +457,7 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
                   <div className="flex items-center gap-1.5 font-medium text-slate-800 truncate" data-testid="request-client-name">
                     <Building className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                     <span className="truncate">
-                      {wrDetail?.clientName || wrDetail?.client?.name || selectedRequest.clients?.name || (selectedRequest as unknown as { clientName?: string }).clientName || 'Internal Client'}
+                      {wrDetail?.clientName || wrDetail?.client?.name || selectedRequest.clients?.name || (selectedRequest as unknown as { clientName?: string }).clientName || '—'}
                     </span>
                   </div>
                 </div>

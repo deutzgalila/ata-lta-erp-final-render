@@ -34,7 +34,17 @@ import type { WorkRequest, EntityCode, RetainerTemplate } from '@/features/opera
 export default function OperationsPage() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('tab') || 'work-requests';
+  const rawTab = searchParams.get('tab') || 'work-requests';
+  const activeTab =
+    rawTab === 'pending' || rawTab === 'pending-items' || rawTab === 'pending-approvals'
+      ? 'pending-approvals'
+      : rawTab === 'work-requests' || rawTab === 'requests'
+        ? 'work-requests'
+        : rawTab === 'templates' || rawTab === 'retainer-templates'
+          ? 'retainer-templates'
+          : rawTab === 'archived' || rawTab === 'archive'
+            ? 'archive'
+            : rawTab;
   const activeView = searchParams.get('view') || 'list';
 
   // Modal Visibility States
@@ -407,7 +417,16 @@ export default function OperationsPage() {
 
         {/* Tab 3 Content: Pending Approvals Inbox */}
         <TabsContent value="pending-approvals" className="mt-0">
-          <PendingApprovalsInbox />
+          <PendingApprovalsInbox
+            onNavigateToWr={(wrId) => {
+              setSearchParams((prev) => {
+                const next = new URLSearchParams(prev);
+                next.set('tab', 'work-requests');
+                next.set('wrId', wrId);
+                return next;
+              });
+            }}
+          />
         </TabsContent>
 
         {/* Tab 4 Content: Operations Archive */}

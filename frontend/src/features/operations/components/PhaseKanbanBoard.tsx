@@ -36,6 +36,7 @@ import { RerouteModal } from './RerouteModal';
 import { WorkRequestModal } from './WorkRequestModal';
 import { TaskDetailModal } from './TaskDetailModal';
 import { operationsKeys } from '../api/queryKeys';
+import { getPhaseBadgeInfo, getStatusBadgeInfo } from '../lib/statusBadges';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
 import type {
@@ -347,9 +348,32 @@ export function PhaseKanbanBoard({
               >
                 {activeWr.priority} Priority
               </Badge>
-              <Badge variant="outline" size="compact" className="font-semibold text-blue-700 bg-blue-50">
-                Phase: {activeWr.phase.replace('_', ' ')}
-              </Badge>
+              {(() => {
+                const phaseInfo = getPhaseBadgeInfo(activeWr.phase);
+                const statusInfo = getStatusBadgeInfo(activeWr.status);
+                const PhaseIcon = phaseInfo.Icon;
+                const StatusIcon = statusInfo.Icon;
+                return (
+                  <>
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold border ${phaseInfo.badgeClass}`}
+                      title={`Phase: ${phaseInfo.label}`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${phaseInfo.dotClass}`} />
+                      <PhaseIcon className="w-3.5 h-3.5 shrink-0" />
+                      <span>Phase: {phaseInfo.label}</span>
+                    </span>
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${statusInfo.badgeClass}`}
+                      title={`Status: ${statusInfo.label}`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dotClass}`} />
+                      <StatusIcon className="w-3 h-3 shrink-0" />
+                      <span>{statusInfo.label}</span>
+                    </span>
+                  </>
+                );
+              })()}
             </div>
           )}
         </div>

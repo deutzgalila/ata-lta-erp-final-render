@@ -400,6 +400,14 @@ export function WorkRequestModal({
                   phase: t.phase,
                   assigneeId: t.assigneeId || null,
                   assignees,
+                  checklist: t.checklist
+                    ?.filter((c) => c.text.trim())
+                    .map((c) => ({
+                      text: c.text.trim(),
+                      completed: c.completed,
+                      category: c.category,
+                      periodYear: c.periodYear ? String(c.periodYear) : null,
+                    })),
                 },
               });
             }
@@ -447,7 +455,60 @@ export function WorkRequestModal({
               processing: { tasks: procTasks },
             },
           };
-          return await createWorkRequest(createPayload);
+          const savedWr = await createWorkRequest(createPayload);
+
+          // Persist checklist/subtasks for newly created tasks if any
+          const tasksWithChecklist = tasks.filter(
+            (t) => t.title.trim() && t.checklist && t.checklist.some((c) => c.text.trim())
+          );
+
+          if (tasksWithChecklist.length > 0 && savedWr?.id) {
+            const createdTasks = [
+              ...(savedWr.tasks || []),
+              ...(savedWr.phases?.pre_processing?.tasks || []),
+              ...(savedWr.phases?.processing?.tasks || []),
+            ];
+
+            for (const t of tasksWithChecklist) {
+              const matchedTask = createdTasks.find((ct) => {
+                const ctLocal = ct as unknown as { localId?: string; local_id?: string };
+                return (
+                  (ctLocal.localId && ctLocal.localId === t.localId) ||
+                  (ctLocal.local_id && ctLocal.local_id === t.localId) ||
+                  ct.title?.trim() === t.title.trim()
+                );
+              });
+
+              if (matchedTask?.id) {
+                const validChecklist = t.checklist!
+                  .filter((c) => c.text.trim())
+                  .map((c) => ({
+                    id: c.id,
+                    text: c.text.trim(),
+                    completed: c.completed,
+                    category: c.category,
+                    periodYear: c.periodYear ? String(c.periodYear) : null,
+                    dependsOn: c.dependsOn || null,
+                  }));
+
+                if (validChecklist.length > 0) {
+                  try {
+                    await updateTask({
+                      workRequestId: savedWr.id,
+                      taskId: matchedTask.id,
+                      data: {
+                        checklist: validChecklist,
+                      },
+                    });
+                  } catch (chkErr) {
+                    console.error('Failed to save task checklist:', chkErr);
+                  }
+                }
+              }
+            }
+          }
+
+          return savedWr;
         }
       },
       successTitle: isEditMode ? 'Work Request Updated' : 'Work Request Created',
@@ -602,7 +663,7 @@ export function WorkRequestModal({
                   <SelectValue placeholder="Select Client..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="unselected">— No Client (Internal) —</SelectItem>
+                  <SelectItem value="unselected">— No Client —</SelectItem>
                   {clients
                     .filter((c) => !isEntityLocked || c.entity === entity)
                     .map((c) => (

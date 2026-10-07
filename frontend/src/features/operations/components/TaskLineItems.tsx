@@ -459,64 +459,112 @@ export function TaskLineItems({
                 </div>
               )}
 
-              {/* Co-Assignees Row */}
-              <div className="flex items-center gap-2 pl-6 text-xs">
-                <span className="text-slate-400 text-[11px] shrink-0">Co-Assignees:</span>
-                <div className="flex flex-wrap gap-1 items-center flex-1">
-                  {task.coAssignees.map((cid) => {
-                    const member = staffById.get(cid);
-                    return (
-                      <Badge
-                        key={cid}
-                        variant="secondary"
-                        size="compact"
-                        className="bg-slate-100 text-slate-700 text-[10px] flex items-center gap-1"
+              {/* Co-Assignees & Subtasks Action Row */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pl-6 text-xs">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-slate-400 text-[11px] shrink-0">Co-Assignees:</span>
+                  <div className="flex flex-wrap gap-1 items-center">
+                    {task.coAssignees.map((cid) => {
+                      const member = staffById.get(cid);
+                      return (
+                        <Badge
+                          key={cid}
+                          variant="secondary"
+                          size="compact"
+                          className="bg-slate-100 text-slate-700 text-[10px] flex items-center gap-1"
+                        >
+                          <span>{member?.name || cid}</span>
+                          {!disabled && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const filtered = task.coAssignees.filter((id) => id !== cid);
+                                handleUpdateTask(index, 'coAssignees', filtered);
+                              }}
+                              className="text-slate-400 hover:text-slate-700 focus:outline-none"
+                            >
+                              <X className="h-2.5 w-2.5" />
+                            </button>
+                          )}
+                        </Badge>
+                      );
+                    })}
+                    {!disabled && (
+                      <Select
+                        value=""
+                        onValueChange={(val) => {
+                          if (val && !task.coAssignees.includes(val)) {
+                            handleUpdateTask(index, 'coAssignees', [
+                              ...task.coAssignees,
+                              val,
+                            ]);
+                          }
+                        }}
                       >
-                        <span>{member?.name || cid}</span>
-                        {!disabled && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const filtered = task.coAssignees.filter((id) => id !== cid);
-                              handleUpdateTask(index, 'coAssignees', filtered);
-                            }}
-                            className="text-slate-400 hover:text-slate-700 focus:outline-none"
-                          >
-                            <X className="h-2.5 w-2.5" />
-                          </button>
-                        )}
-                      </Badge>
-                    );
-                  })}
-                  {!disabled && (
-                    <Select
-                      value=""
-                      onValueChange={(val) => {
-                        if (val && !task.coAssignees.includes(val)) {
-                          handleUpdateTask(index, 'coAssignees', [
-                            ...task.coAssignees,
-                            val,
-                          ]);
-                        }
-                      }}
+                        <SelectTrigger className="h-5 text-[10px] px-1.5 py-0 border-dashed w-auto min-w-20 bg-transparent text-slate-500">
+                          <SelectValue placeholder="+ Co-worker" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {projectTeam
+                            .filter(
+                              (m) =>
+                                m.id !== task.assigneeId &&
+                                !task.coAssignees.includes(m.id)
+                            )
+                            .map((m) => (
+                              <SelectItem key={m.id} value={m.id} className="text-xs">
+                                {m.name}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                </div>
+
+                {/* Subtasks / Checklist Quick Actions */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {task.checklist && task.checklist.length > 0 ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      onClick={() => toggleExpand(task.localId)}
+                      className="h-5 text-[10px] px-1.5 py-0 bg-blue-50/70 border-blue-200 text-blue-700 hover:bg-blue-100 flex items-center gap-1 font-medium"
+                      title={isExpanded ? 'Collapse subtasks checklist' : 'Expand subtasks checklist'}
+                      data-testid={`task-checklist-badge-${task.localId}`}
                     >
-                      <SelectTrigger className="h-5 text-[10px] px-1.5 py-0 border-dashed w-auto min-w-20 bg-transparent text-slate-500">
-                        <SelectValue placeholder="+ Co-worker" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {projectTeam
-                          .filter(
-                            (m) =>
-                              m.id !== task.assigneeId &&
-                              !task.coAssignees.includes(m.id)
-                          )
-                          .map((m) => (
-                            <SelectItem key={m.id} value={m.id} className="text-xs">
-                              {m.name}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
+                      <CheckSquare className="h-2.5 w-2.5 text-blue-600" />
+                      <span>
+                        Subtasks ({task.checklist.filter((c) => c.completed).length}/{task.checklist.length})
+                      </span>
+                    </Button>
+                  ) : null}
+
+                  {!disabled && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => {
+                        if (!isExpanded) {
+                          setExpandedRow(task.localId);
+                        }
+                        const current = task.checklist || [];
+                        const newItem: ChecklistItemData = {
+                          id: `chk-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+                          text: '',
+                          completed: false,
+                          category: 'subtask',
+                        };
+                        handleUpdateTask(index, 'checklist', [...current, newItem]);
+                      }}
+                      className="h-5 text-[10px] px-1.5 py-0 border border-dashed border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-300 flex items-center gap-1"
+                      data-testid={`task-add-checklist-btn-${task.localId}`}
+                    >
+                      <Plus className="h-2.5 w-2.5 text-slate-400" />
+                      <span>+ Subtask</span>
+                    </Button>
                   )}
                 </div>
               </div>
@@ -544,19 +592,19 @@ export function TaskLineItems({
                   {/* Checklist Items */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
-                        <CheckSquare className="h-3 w-3" />
-                        Checklist & Required Documents
+                      <span className="text-[11px] font-semibold text-slate-700 flex items-center gap-1.5">
+                        <CheckSquare className="h-3.5 w-3.5 text-blue-600" />
+                        Checklist & Subtasks ({task.checklist?.length || 0})
                       </span>
                       {!disabled && (
                         <Button
                           type="button"
-                          variant="ghost"
+                          variant="outline"
                           size="xs"
                           onClick={() => {
                             const currentChecklist = task.checklist || [];
                             const newItem: ChecklistItemData = {
-                              id: `chk-${Date.now()}`,
+                              id: `chk-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
                               text: '',
                               completed: false,
                               category: 'subtask',
@@ -566,10 +614,11 @@ export function TaskLineItems({
                               newItem,
                             ]);
                           }}
-                          className="h-5 text-[10px] text-blue-600"
+                          className="h-6 text-[11px] text-blue-600 hover:bg-blue-50 border-blue-200 gap-1"
+                          data-testid={`add-subtask-btn-${task.localId}`}
                         >
                           <Plus className="h-3 w-3 mr-0.5" />
-                          Add item
+                          Add Subtask
                         </Button>
                       )}
                     </div>

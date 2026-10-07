@@ -44,6 +44,7 @@ import { useClients } from '../api/useClients';
 import { useTeam } from '../api/useTeam';
 import { useDebounce } from '../hooks/useDebounce';
 import { operationsKeys } from '../api/queryKeys';
+import { getPhaseBadgeInfo, getStatusBadgeInfo } from '../lib/statusBadges';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
 import type { WorkRequest, Phase, AdvancePhaseTarget } from '../api/types';
@@ -731,7 +732,7 @@ export function WorkRequestList({
                     {/* Client & Entity */}
                     <TableCell className="text-xs text-slate-700">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-medium">{wr.clientName || '— Internal —'}</span>
+                        <span className="font-medium">{wr.clientName || '—'}</span>
                         <Badge variant={wr.entity === 'LTA' ? 'lta' : 'ata'} size="compact">
                           {wr.entity}
                         </Badge>
@@ -756,12 +757,32 @@ export function WorkRequestList({
 
                     {/* Phase & Status */}
                     <TableCell>
-                      <div className="flex flex-col space-y-0.5">
-                        <span className="text-xs font-semibold text-slate-800 capitalize">
-                          {wr.phase.replace('_', ' ')}
-                        </span>
-                        <span className="text-[10px] text-slate-500">{wr.status}</span>
-                      </div>
+                      {(() => {
+                        const phaseInfo = getPhaseBadgeInfo(wr.phase);
+                        const statusInfo = getStatusBadgeInfo(wr.status);
+                        const PhaseIcon = phaseInfo.Icon;
+                        const StatusIcon = statusInfo.Icon;
+                        return (
+                          <div className="flex flex-col gap-1 items-start">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${phaseInfo.badgeClass}`}
+                              title={`Phase: ${phaseInfo.label}`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${phaseInfo.dotClass}`} />
+                              <PhaseIcon className="w-3 h-3 shrink-0" />
+                              <span>{phaseInfo.label}</span>
+                            </span>
+                            <span
+                              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border ${statusInfo.badgeClass}`}
+                              title={`Status: ${statusInfo.label}`}
+                            >
+                              <span className={`w-1 h-1 rounded-full ${statusInfo.dotClass}`} />
+                              <StatusIcon className="w-2.5 h-2.5 shrink-0" />
+                              <span>{statusInfo.label}</span>
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </TableCell>
 
                     {/* Due Date */}
@@ -902,7 +923,7 @@ export function WorkRequestList({
                     </h4>
                     <div className="flex items-center gap-1.5 text-xs text-slate-500">
                       <Building className="h-3 w-3" />
-                      <span className="truncate max-w-40">{wr.clientName || 'Internal'}</span>
+                      <span className="truncate max-w-40">{wr.clientName || '—'}</span>
                       <Badge variant={wr.entity === 'LTA' ? 'lta' : 'ata'} size="compact">
                         {wr.entity}
                       </Badge>
@@ -923,6 +944,36 @@ export function WorkRequestList({
                   </Badge>
                 </div>
 
+                {/* Phase & Status Pills */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {(() => {
+                    const phaseInfo = getPhaseBadgeInfo(wr.phase);
+                    const statusInfo = getStatusBadgeInfo(wr.status);
+                    const PhaseIcon = phaseInfo.Icon;
+                    const StatusIcon = statusInfo.Icon;
+                    return (
+                      <>
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${phaseInfo.badgeClass}`}
+                          title={`Phase: ${phaseInfo.label}`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${phaseInfo.dotClass}`} />
+                          <PhaseIcon className="w-3 h-3 shrink-0" />
+                          <span>{phaseInfo.label}</span>
+                        </span>
+                        <span
+                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border ${statusInfo.badgeClass}`}
+                          title={`Status: ${statusInfo.label}`}
+                        >
+                          <span className={`w-1 h-1 rounded-full ${statusInfo.dotClass}`} />
+                          <StatusIcon className="w-2.5 h-2.5 shrink-0" />
+                          <span>{statusInfo.label}</span>
+                        </span>
+                      </>
+                    );
+                  })()}
+                </div>
+
                 {/* Blocker Alert */}
                 {blocker.hasBlockers && (
                   <div
@@ -937,7 +988,6 @@ export function WorkRequestList({
                 {/* Footer Metadata & Actions */}
                 <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
                   <div className="flex items-center gap-2 text-slate-500 text-[11px]">
-                    <span className="capitalize font-medium">{wr.phase.replace('_', ' ')}</span>
                     {wr.dueDate && (
                       <span className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />

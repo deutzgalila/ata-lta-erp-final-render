@@ -444,7 +444,7 @@ describe('Adversarial Challenger 2 Stress Suite: Parcel OPS', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByTestId('side-peek-client')).toHaveTextContent('Internal Client');
+        expect(screen.getByTestId('side-peek-client')).toHaveTextContent('—');
       });
       expect(screen.getByText('Unassigned')).toBeInTheDocument();
       expect(screen.getByText('No due date')).toBeInTheDocument();
