@@ -483,8 +483,8 @@ export function ClientModal({
                     <SelectValue placeholder="Select Entity" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ATA">ATA (Albay Tax & Accounting)</SelectItem>
-                    <SelectItem value="LTA">LTA (LTA Business Management)</SelectItem>
+                    <SelectItem value="ATA">ATA</SelectItem>
+                    <SelectItem value="LTA">LTA</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

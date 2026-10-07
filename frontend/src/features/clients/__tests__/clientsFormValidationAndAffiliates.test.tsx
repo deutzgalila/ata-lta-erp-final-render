@@ -249,6 +249,25 @@ describe('Clients Module: Validation, Input Locks, Point of Contact & Related Co
     });
   });
 
+  it('renders entity selector with concise "ATA" and "LTA" labels without expanded company names', async () => {
+    const { wrapper } = createWrapper();
+    render(<ClientsPage />, { wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('new-client-btn')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId('new-client-btn'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('client-select-entity')).toBeInTheDocument();
+    });
+
+    // Expanded names must not be present in the document
+    expect(screen.queryByText(/Albay Tax & Accounting/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/LTA Business Management/i)).not.toBeInTheDocument();
+  });
+
   it('enforces TIN input lock: cannot accept more than 14 digits', async () => {
     const { wrapper } = createWrapper();
     render(<ClientsPage />, { wrapper });

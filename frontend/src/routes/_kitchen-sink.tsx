@@ -153,8 +153,8 @@ export default function KitchenSinkPage() {
                 <SelectValue placeholder="Choose entity" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ATA">ATA Entity (Corporate)</SelectItem>
-                <SelectItem value="LTA">LTA Entity (Corporate)</SelectItem>
+                <SelectItem value="ATA">ATA</SelectItem>
+                <SelectItem value="LTA">LTA</SelectItem>
                 <SelectItem value="Option 1">Consolidated (ALL)</SelectItem>
               </SelectContent>
             </Select>
