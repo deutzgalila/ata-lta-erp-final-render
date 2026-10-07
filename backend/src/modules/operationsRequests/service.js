@@ -92,22 +92,22 @@ const batchEnrichRequests = async (rows) => {
 
   const [clientsRes, wrsRes, tasksRes, usersRes] = await Promise.all([
     clientIds.length > 0
-      ? supabaseAdmin.from('clients').select('id, name, code').in('id', clientIds)
+      ? supabaseAdmin.from('clients').select('*').in('id', clientIds)
       : { data: [] },
     wrIds.length > 0
       ? supabaseAdmin
           .from('work_requests')
-          .select('id, title, entity, entity_id, status, phase, assignee_id, assignee_name, co_assignees')
+          .select('*')
           .in('id', wrIds)
       : { data: [] },
     wrIds.length > 0
       ? supabaseAdmin
           .from('tasks')
-          .select('id, work_request_id, title, status, phase, qa_status, assignee_id, assignee_name')
+          .select('*')
           .in('work_request_id', wrIds)
       : { data: [] },
     userIds.length > 0
-      ? supabaseAdmin.from('users').select('id, name, email').in('id', userIds)
+      ? supabaseAdmin.from('users').select('*').in('id', userIds)
       : { data: [] },
   ]);
 
@@ -170,15 +170,16 @@ const batchEnrichRequests = async (rows) => {
     if (row.work_request_id && (!row.work_requests || !row.work_requests.tasks)) {
       const wr = wrMap.get(row.work_request_id);
       if (wr) {
+        const assigneeId = wr.assignee_id || wr.assigned_to || null;
         row.work_requests = {
           id: wr.id,
           title: wr.title,
-          entity: wr.entity || null,
+          entity: wr.entity || (wr.entity_id ? entityCodeMap.get(wr.entity_id) || 'ATA' : 'ATA'),
           entity_id: wr.entity_id || null,
           status: wr.status || null,
           phase: wr.phase || null,
-          assignee_id: wr.assignee_id || null,
-          assignee_name: wr.assignee_name || null,
+          assignee_id: assigneeId,
+          assignee_name: wr.assignee_name || (assigneeId ? userMap.get(assigneeId)?.name : null) || null,
           co_assignees: wr.co_assignees || null,
           tasks: tasksByWr.get(wr.id) || [],
         };
