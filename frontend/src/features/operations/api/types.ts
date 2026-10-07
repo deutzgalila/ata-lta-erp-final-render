@@ -238,6 +238,7 @@ export interface OperationsRequestPayload {
 export interface OperationsRequest {
   id: string;
   entity_id: string;
+  entity?: EntityCode;
   type: RequestType;
   work_request_id: string | null;
   workRequestId?: string | null;

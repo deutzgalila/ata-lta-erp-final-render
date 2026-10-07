@@ -50,7 +50,7 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
   const canRequest = hasPermission(permissions, 'workflow:transition_request');
 
   // Queries
-  const { data: rawRequests, isLoading } = useOperationsRequests({
+  const { data: rawRequests, isLoading, isError, refetch } = useOperationsRequests({
     status: activeSubTab === 'all' ? undefined : activeSubTab,
   });
   const requests = useMemo((): OperationsRequest[] => {
@@ -271,20 +271,30 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
             variant={activeSubTab === 'rejected' ? 'default' : 'ghost'}
             size="xs"
             onClick={() => setActiveSubTab('rejected')}
-            className="text-xs"
+            className="text-xs gap-1.5"
             data-testid="tab-rejected"
           >
-            Rejected
+            <span>Rejected</span>
+            {(counts?.rejected ?? 0) > 0 && (
+              <Badge variant="secondary" size="compact" className="bg-rose-100 text-rose-800 font-bold px-1.5" data-testid="rejected-badge-count">
+                {counts?.rejected}
+              </Badge>
+            )}
           </Button>
           <Button
             type="button"
             variant={activeSubTab === 'fulfilled' ? 'default' : 'ghost'}
             size="xs"
             onClick={() => setActiveSubTab('fulfilled')}
-            className="text-xs"
+            className="text-xs gap-1.5"
             data-testid="tab-fulfilled"
           >
-            Fulfilled
+            <span>Fulfilled</span>
+            {(counts?.fulfilled ?? 0) > 0 && (
+              <Badge variant="secondary" size="compact" className="bg-emerald-100 text-emerald-800 font-bold px-1.5" data-testid="fulfilled-badge-count">
+                {counts?.fulfilled}
+              </Badge>
+            )}
           </Button>
           <Button
             type="button"
@@ -315,6 +325,19 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
         <div className="w-[380px] border-r border-slate-200 overflow-y-auto divide-y divide-slate-100 bg-slate-50/50">
           {isLoading ? (
             <div className="p-8 text-center text-xs text-slate-400">Loading transition queue...</div>
+          ) : isError ? (
+            <div className="p-8 text-center text-xs text-rose-500 space-y-2">
+              <p>Failed to load transition requests.</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                onClick={() => refetch()}
+                className="text-xs"
+              >
+                Retry
+              </Button>
+            </div>
           ) : filteredRequests.length === 0 ? (
             <div className="p-8 text-center text-xs text-slate-400 italic">
               No {activeSubTab} transition requests found.
@@ -363,8 +386,8 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
                   </div>
 
                   <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
-                    <Badge variant={req.entity_id === 'LTA' ? 'lta' : 'ata'} size="compact" className="text-[9px]">
-                      {req.entity_id || 'ATA'}
+                    <Badge variant={(req.entity || req.entity_id) === 'LTA' ? 'lta' : 'ata'} size="compact" className="text-[9px]">
+                      {req.entity || (req.entity_id === 'LTA' || req.entity_id === 'ATA' ? req.entity_id : 'ATA')}
                     </Badge>
                     <span className="truncate max-w-[200px]" data-testid={`approval-client-${req.id}`}>
                       {req.clients?.name || (req as unknown as { clientName?: string }).clientName || '—'}
@@ -397,11 +420,11 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge
-                      variant={(wrDetail?.entity || selectedRequest.entity_id) === 'LTA' ? 'lta' : 'ata'}
+                      variant={(wrDetail?.entity || selectedRequest.entity || selectedRequest.entity_id) === 'LTA' ? 'lta' : 'ata'}
                       size="compact"
                       data-testid="request-detail-entity"
                     >
-                      {wrDetail?.entity || selectedRequest.entity_id || 'ATA'}
+                      {wrDetail?.entity || selectedRequest.entity || (selectedRequest.entity_id === 'LTA' || selectedRequest.entity_id === 'ATA' ? selectedRequest.entity_id : 'ATA')}
                     </Badge>
                     <h3 className="font-bold text-base text-slate-900" data-testid="request-detail-title">
                       {selectedRequest.work_requests?.title ||
