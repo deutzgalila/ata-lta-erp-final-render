@@ -156,7 +156,7 @@ export function ClientModal({
   const handleAddContact = () => {
     setContactDetails((prev) => [
       ...prev,
-      { type: 'email', value: '', label: '' },
+      { type: 'mobile', value: '', label: '' },
     ]);
   };
 
@@ -187,7 +187,7 @@ export function ClientModal({
   };
 
   const handleContactValueChange = (index: number, rawVal: string) => {
-    const currentType = contactDetails[index]?.type || 'email';
+    const currentType = contactDetails[index]?.type || 'mobile';
     const formattedVal = formatContactValue(currentType, rawVal);
     setContactDetails((prev) =>
       prev.map((c, i) => (i === index ? { ...c, value: formattedVal } : c))
@@ -700,8 +700,8 @@ export function ClientModal({
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="email">Email</SelectItem>
                           <SelectItem value="mobile">Mobile</SelectItem>
+                          <SelectItem value="email">Email</SelectItem>
                           <SelectItem value="phone">Phone</SelectItem>
                           <SelectItem value="landline">Landline</SelectItem>
                           <SelectItem value="other">Other</SelectItem>

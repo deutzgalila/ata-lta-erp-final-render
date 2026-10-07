@@ -309,22 +309,29 @@ describe('Clients Module: Validation, Input Locks, Point of Contact & Related Co
       expect(screen.getByTestId('client-add-contact-btn')).toBeInTheDocument();
     });
 
-    // Add first contact row (change to mobile)
+    // Add first contact row (default category is now mobile)
     fireEvent.click(screen.getByTestId('client-add-contact-btn'));
     await waitFor(() => {
       expect(screen.getByTestId('contact-row-0')).toBeInTheDocument();
     });
 
-    // Default is email, let's change to mobile
+    // Default category is mobile with mobile placeholder and 11-digit max length
     const mobileInput = screen.getByTestId('contact-value-0');
-    fireEvent.change(mobileInput, { target: { value: '0917-123-4567-8999' } });
+    expect(mobileInput).toHaveAttribute('placeholder', 'e.g. 09123456789 (11 digits)');
+    expect(mobileInput).toHaveAttribute('maxLength', '11');
 
-    // Since it starts as email, let's simulate switching or typing digits
-    // Add second contact row
+    fireEvent.change(mobileInput, { target: { value: '0917-123-4567-8999' } });
+    expect(mobileInput).toHaveValue('09171234567');
+
+    // Add second contact row (also defaults to mobile)
     fireEvent.click(screen.getByTestId('client-add-contact-btn'));
     await waitFor(() => {
       expect(screen.getByTestId('contact-row-1')).toBeInTheDocument();
     });
+
+    const secondMobileInput = screen.getByTestId('contact-value-1');
+    expect(secondMobileInput).toHaveAttribute('placeholder', 'e.g. 09123456789 (11 digits)');
+    expect(secondMobileInput).toHaveAttribute('maxLength', '11');
   });
 
   it('Point of Contact dropdown displays registered users and sets contactUserId and contactPerson', async () => {
