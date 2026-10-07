@@ -682,21 +682,6 @@ export function ClientModal({
                 </p>
               </div>
 
-              {/* Primary Contact Person name input */}
-              <div className="space-y-1 max-w-sm">
-                <label className="text-xs font-semibold text-slate-700">
-                  Primary Contact Person Name (Optional)
-                </label>
-                <Input
-                  type="text"
-                  placeholder="e.g. Maria Santos (Chief Accountant)"
-                  value={contactPerson}
-                  onChange={(e) => setContactPerson(e.target.value)}
-                  className="text-xs h-9"
-                  data-testid="client-input-contact-person"
-                />
-              </div>
-
               {/* Dynamic contact rows */}
               {contactDetails.map((cd, index) => (
                 <div key={index} className="space-y-1">
