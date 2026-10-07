@@ -25,6 +25,7 @@ import type {
   ClientListResponse,
   ClientDetailResponse,
   ClientCountsResponse,
+  RegisteredUser,
 } from './types';
 
 // ============================================================================
@@ -98,6 +99,38 @@ export function useClientDetail(id: string | undefined, includeArchived = false)
     },
     enabled: Boolean(id),
     staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * 3b. Fetch registered users for Point of Contact dropdown.
+ * Tries /v1/admin/users if user holds users:view, falls back to /v1/me/team.
+ */
+export function useRegisteredUsers() {
+  const permissions = useSessionStore((state) => state.permissions);
+  const canViewAdminUsers = permissions.has('users:view');
+
+  return useQuery<RegisteredUser[], ApiError>({
+    queryKey: ['registered-users', canViewAdminUsers ? 'admin' : 'team'],
+    queryFn: async () => {
+      if (canViewAdminUsers) {
+        try {
+          const res = await apiRequest<{ data: RegisteredUser[] }>('/admin/users');
+          if (Array.isArray(res.data) && res.data.length > 0) {
+            return res.data;
+          }
+        } catch {
+          // fallback to /me/team if /admin/users fails
+        }
+      }
+      try {
+        const teamRes = await apiRequest<{ data: RegisteredUser[] }>('/me/team');
+        return Array.isArray(teamRes.data) ? teamRes.data : [];
+      } catch {
+        return [];
+      }
+    },
+    staleTime: 60 * 1000,
   });
 }
 

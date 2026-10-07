@@ -19,6 +19,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { usePermission } from '@/lib/permissions';
+import { useRegisteredUsers, useClientsList } from '../api/useClients';
 import type { Client } from '../api/types';
 
 export interface ClientDetailModalProps {
@@ -35,10 +36,16 @@ export function ClientDetailModal({
   onEdit,
 }: ClientDetailModalProps) {
   const canEditClients = usePermission('clients:edit');
+  const { data: registeredUsers = [] } = useRegisteredUsers();
+  const { data: clientsData } = useClientsList({ limit: 100 });
+  const allClients = clientsData?.data || [];
 
   if (!client) return null;
 
   const isArchived = client.status === 'Archived' || Boolean(client.deletedAt);
+  const pocUser = client.contactUserId
+    ? registeredUsers.find((u) => u.id === client.contactUserId)
+    : null;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -157,9 +164,9 @@ export function ClientDetailModal({
           </h4>
           <div className="p-3 bg-white border border-slate-200 rounded-lg space-y-2">
             <div className="text-xs">
-              <span className="text-slate-500">Contact Person: </span>
+              <span className="text-slate-500">Point of Contact: </span>
               <span className="font-semibold text-slate-800" data-testid="client-detail-contact-person">
-                {client.contactPerson || '—'}
+                {pocUser ? `${pocUser.name}${pocUser.role ? ` (${pocUser.role})` : ''}` : client.contactPerson || '—'}
               </span>
             </div>
 
@@ -208,9 +215,21 @@ export function ClientDetailModal({
                   key={rc.id || idx}
                   className="flex items-center justify-between p-2 bg-slate-50 rounded border border-slate-100 text-xs"
                 >
-                  <div className="flex items-center gap-1.5 font-mono text-slate-700">
-                    <Layers className="h-3.5 w-3.5 text-slate-400" />
-                    <span>Client ID: {rc.relatedClientId}</span>
+                  <div className="flex items-center gap-1.5 text-slate-700">
+                    <Layers className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                    {(() => {
+                      const relClient = allClients.find((c) => c.id === rc.relatedClientId);
+                      return relClient ? (
+                        <span className="font-semibold text-slate-800">
+                          {relClient.name}{' '}
+                          <span className="text-[11px] font-normal text-slate-500 font-mono">
+                            ({relClient.entity})
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="font-mono text-xs">Client ID: {rc.relatedClientId}</span>
+                      );
+                    })()}
                   </div>
                   {rc.relationship && (
                     <Badge variant="outline" className="text-[10px] bg-white text-slate-600">

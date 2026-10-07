@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Building2, User, CreditCard } from 'lucide-react';
+import { Plus, Trash2, Building2, User, CreditCard, Link as LinkIcon } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -17,8 +17,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useCreateClient, useUpdateClient } from '../api/useClients';
+import {
+  useCreateClient,
+  useUpdateClient,
+  useClientsList,
+  useRegisteredUsers,
+} from '../api/useClients';
 import { useSessionStore } from '@/lib/session';
+import {
+  formatTin,
+  formatRdoCode,
+  formatContactValue,
+  getContactPlaceholder,
+  getContactMaxLength,
+} from '../lib/formatters';
 import type { Client, ContactDetailType } from '../api/types';
 
 export interface ClientModalProps {
@@ -51,6 +63,12 @@ export function ClientModal({
   const { createWithBlocking } = useCreateClient();
   const { updateWithBlocking } = useUpdateClient();
 
+  // Queries for registered users (Point of Contact) and existing clients (Affiliates)
+  const { data: registeredUsers = [] } = useRegisteredUsers();
+  const { data: clientsData } = useClientsList({ limit: 100 });
+  const allClients = clientsData?.data || [];
+  const availableClients = allClients.filter((c) => c.id !== client?.id);
+
   const isEditing = Boolean(client);
 
   // Form Fields
@@ -60,7 +78,8 @@ export function ClientModal({
   const [address, setAddress] = useState('');
   const [entity, setEntity] = useState<'ATA' | 'LTA'>(defaultEntity);
   const [tradeName, setTradeName] = useState('');
-  const [contactPerson, setContactPerson] = useState('');
+  const [contactUserId, setContactUserId] = useState<string>('');
+  const [contactPerson, setContactPerson] = useState<string>('');
   const [retainer, setRetainer] = useState(false);
   const [retainerFee, setRetainerFee] = useState<string>('');
 
@@ -74,25 +93,30 @@ export function ClientModal({
   useEffect(() => {
     if (client) {
       setName(client.name || '');
-      setTin(client.tin || '');
-      setRdoCode(client.rdoCode || '');
+      setTin(client.tin ? formatTin(client.tin) : '');
+      setRdoCode(client.rdoCode ? formatRdoCode(client.rdoCode) : '');
       setAddress(client.address || '');
       setEntity(client.entity === 'LTA' ? 'LTA' : 'ATA');
       setTradeName(client.tradeName || '');
+      setContactUserId(client.contactUserId || '');
       setContactPerson(client.contactPerson || '');
       setRetainer(client.retainer || false);
-      setRetainerFee(client.retainerFee !== null && client.retainerFee !== undefined ? String(client.retainerFee) : '');
+      setRetainerFee(
+        client.retainerFee !== null && client.retainerFee !== undefined
+          ? String(client.retainerFee)
+          : ''
+      );
       setContactDetails(
         (client.contactDetails || []).map((cd) => ({
           type: cd.type,
-          value: cd.value,
+          value: cd.value ? formatContactValue(cd.type, cd.value) : '',
           label: cd.label || '',
         }))
       );
       setRelatedCompanies(
         (client.relatedCompanies || []).map((rc) => ({
-          relatedClientId: rc.relatedClientId,
-          relationship: rc.relationship || '',
+          relatedClientId: rc.relatedClientId || '',
+          relationship: rc.relationship || 'Affiliate',
         }))
       );
     } else {
@@ -102,6 +126,7 @@ export function ClientModal({
       setAddress('');
       setEntity(defaultEntity);
       setTradeName('');
+      setContactUserId('');
       setContactPerson('');
       setRetainer(false);
       setRetainerFee('');
@@ -110,6 +135,23 @@ export function ClientModal({
     }
     setErrors({});
   }, [client, isOpen, defaultEntity]);
+
+  // Point of Contact Selection Handler
+  const handlePocChange = (val: string) => {
+    if (val === 'none') {
+      setContactUserId('');
+      setContactPerson('');
+    } else if (val.startsWith('custom:')) {
+      setContactUserId('');
+      setContactPerson(val.replace('custom:', '').trim());
+    } else {
+      setContactUserId(val);
+      const matched = registeredUsers.find((u) => u.id === val);
+      if (matched) {
+        setContactPerson(matched.name);
+      }
+    }
+  };
 
   const handleAddContact = () => {
     setContactDetails((prev) => [
@@ -120,44 +162,165 @@ export function ClientModal({
 
   const handleRemoveContact = (index: number) => {
     setContactDetails((prev) => prev.filter((_, i) => i !== index));
+    setErrors((prev) => {
+      const updated = { ...prev };
+      delete updated[`contact_${index}`];
+      return updated;
+    });
   };
 
-  const handleContactChange = (index: number, field: keyof ContactRow, val: string) => {
+  const handleContactTypeChange = (index: number, newType: ContactDetailType) => {
     setContactDetails((prev) =>
-      prev.map((c, i) => (i === index ? { ...c, [field]: val } : c))
+      prev.map((c, i) => {
+        if (i !== index) return c;
+        const reFormatted = formatContactValue(newType, c.value);
+        return { ...c, type: newType, value: reFormatted };
+      })
+    );
+    if (errors[`contact_${index}`]) {
+      setErrors((prev) => {
+        const updated = { ...prev };
+        delete updated[`contact_${index}`];
+        return updated;
+      });
+    }
+  };
+
+  const handleContactValueChange = (index: number, rawVal: string) => {
+    const currentType = contactDetails[index]?.type || 'email';
+    const formattedVal = formatContactValue(currentType, rawVal);
+    setContactDetails((prev) =>
+      prev.map((c, i) => (i === index ? { ...c, value: formattedVal } : c))
+    );
+    if (errors[`contact_${index}`]) {
+      setErrors((prev) => {
+        const updated = { ...prev };
+        delete updated[`contact_${index}`];
+        return updated;
+      });
+    }
+  };
+
+  const handleContactLabelChange = (index: number, labelVal: string) => {
+    setContactDetails((prev) =>
+      prev.map((c, i) => (i === index ? { ...c, label: labelVal.slice(0, 50) } : c))
     );
   };
 
   const handleAddRelatedCompany = () => {
     setRelatedCompanies((prev) => [
       ...prev,
-      { relatedClientId: '', relationship: '' },
+      { relatedClientId: '', relationship: 'Affiliate' },
     ]);
   };
 
   const handleRemoveRelatedCompany = (index: number) => {
     setRelatedCompanies((prev) => prev.filter((_, i) => i !== index));
+    setErrors((prev) => {
+      const updated = { ...prev };
+      delete updated[`related_${index}`];
+      return updated;
+    });
   };
 
-  const handleRelatedCompanyChange = (index: number, field: keyof RelatedCompanyRow, val: string) => {
+  const handleRelatedCompanyChange = (
+    index: number,
+    field: keyof RelatedCompanyRow,
+    val: string
+  ) => {
     setRelatedCompanies((prev) =>
       prev.map((rc, i) => (i === index ? { ...rc, [field]: val } : rc))
     );
+    if (errors[`related_${index}`]) {
+      setErrors((prev) => {
+        const updated = { ...prev };
+        delete updated[`related_${index}`];
+        return updated;
+      });
+    }
   };
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
-    if (!name.trim()) newErrors.name = 'Client name is required';
-    if (!tin.trim()) newErrors.tin = 'TIN is required';
-    if (retainer && retainerFee) {
-      const num = Number(retainerFee);
-      if (isNaN(num) || num < 0) newErrors.retainerFee = 'Retainer fee must be a valid positive amount';
+
+    // 1. Client Registered Name
+    if (!name.trim()) {
+      newErrors.name = 'Client registered name is required';
+    } else if (name.trim().length > 255) {
+      newErrors.name = 'Client name cannot exceed 255 characters';
     }
 
-    // Validate contacts
+    // 2. TIN validation
+    if (!tin.trim()) {
+      newErrors.tin = 'TIN is required';
+    } else {
+      const digitsOnly = tin.replace(/\D/g, '');
+      if (digitsOnly.length < 9) {
+        newErrors.tin = 'TIN must contain at least 9 digits (format: 000-000-000-00000)';
+      } else if (!/^\d{3}-\d{3}-\d{3}(-\d{3,5})?$/.test(tin.trim())) {
+        newErrors.tin = 'TIN must be in format 000-000-000-00000 (or 000-000-000-000)';
+      }
+    }
+
+    // 3. RDO Code validation (optional, 3-4 alphanumeric characters)
+    if (rdoCode.trim() && !/^[A-Z0-9]{3,4}$/.test(rdoCode.trim())) {
+      newErrors.rdoCode = 'RDO Code must be 3 or 4 alphanumeric characters (e.g. 044, 034A)';
+    }
+
+    // 4. Trade Name length guard
+    if (tradeName.trim().length > 255) {
+      newErrors.tradeName = 'Trade name cannot exceed 255 characters';
+    }
+
+    // 5. Address length guard
+    if (address.trim().length > 500) {
+      newErrors.address = 'Official address cannot exceed 500 characters';
+    }
+
+    // 6. Retainer Fee validation
+    if (retainer) {
+      if (!retainerFee.trim()) {
+        newErrors.retainerFee = 'Monthly retainer fee is required when retainer agreement is active';
+      } else {
+        const num = Number(retainerFee);
+        if (isNaN(num) || num < 0) {
+          newErrors.retainerFee = 'Retainer fee must be a valid non-negative amount';
+        }
+      }
+    }
+
+    // 7. Contact Details validation
     contactDetails.forEach((cd, idx) => {
-      if (!cd.value.trim()) {
+      const val = cd.value.trim();
+      if (!val) {
         newErrors[`contact_${idx}`] = 'Contact value cannot be blank';
+      } else if (cd.type === 'mobile') {
+        if (!/^\d{11}$/.test(val)) {
+          newErrors[`contact_${idx}`] = 'Mobile number must be exactly 11 digits (e.g. 09123456789)';
+        }
+      } else if (cd.type === 'landline' || cd.type === 'phone') {
+        if (!/^\d{7,10}$/.test(val)) {
+          newErrors[`contact_${idx}`] = 'Landline/phone must be 7 to 10 digits';
+        }
+      } else if (cd.type === 'email') {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+          newErrors[`contact_${idx}`] = 'Please enter a valid email address';
+        }
+      }
+    });
+
+    // 8. Related Companies validation
+    const seenRelatedIds = new Set<string>();
+    relatedCompanies.forEach((rc, idx) => {
+      const targetId = rc.relatedClientId.trim();
+      if (!targetId) {
+        newErrors[`related_${idx}`] = 'Please select a related company or remove this row';
+      } else if (client && targetId === client.id) {
+        newErrors[`related_${idx}`] = 'A client cannot be a related company of itself';
+      } else if (seenRelatedIds.has(targetId)) {
+        newErrors[`related_${idx}`] = 'This company has already been added as a related affiliate';
+      } else {
+        seenRelatedIds.add(targetId);
       }
     });
 
@@ -169,6 +332,22 @@ export function ClientModal({
     e.preventDefault();
     if (!validateForm()) return;
 
+    // Sanitize and filter out empty items before submission
+    const sanitizedContactDetails = contactDetails
+      .filter((cd) => cd.value.trim().length > 0)
+      .map((cd) => ({
+        type: cd.type,
+        value: cd.value.trim(),
+        label: cd.label.trim() || undefined,
+      }));
+
+    const sanitizedRelatedCompanies = relatedCompanies
+      .filter((rc) => rc.relatedClientId && rc.relatedClientId.trim().length > 0)
+      .map((rc) => ({
+        relatedClientId: rc.relatedClientId.trim(),
+        relationship: rc.relationship.trim() || 'Affiliate',
+      }));
+
     const payload = {
       name: name.trim(),
       tin: tin.trim(),
@@ -176,18 +355,12 @@ export function ClientModal({
       address: address.trim() || undefined,
       entity,
       tradeName: tradeName.trim() || undefined,
-      contactPerson: contactPerson.trim() || undefined,
+      contactUserId: contactUserId.trim() || null,
+      contactPerson: contactPerson.trim() || null,
       retainer,
       retainerFee: retainer && retainerFee.trim() ? Number(retainerFee) : null,
-      contactDetails: contactDetails.map((cd) => ({
-        type: cd.type,
-        value: cd.value.trim(),
-        label: cd.label.trim() || undefined,
-      })),
-      relatedCompanies: relatedCompanies.map((rc) => ({
-        relatedClientId: rc.relatedClientId.trim(),
-        relationship: rc.relationship.trim() || undefined,
-      })),
+      contactDetails: sanitizedContactDetails,
+      relatedCompanies: sanitizedRelatedCompanies,
     };
 
     try {
@@ -206,6 +379,21 @@ export function ClientModal({
       // Handled and presented by BlockingActionModal
     }
   };
+
+  // Track already selected related clients across other rows to prevent duplicate selections
+  const getSelectedOtherClientIds = (currentIndex: number) => {
+    return new Set(
+      relatedCompanies
+        .filter((_, i) => i !== currentIndex)
+        .map((r) => r.relatedClientId)
+        .filter(Boolean)
+    );
+  };
+
+  // Selected value for Point of Contact dropdown
+  const currentPocSelectValue =
+    contactUserId ||
+    (contactPerson ? `custom:${contactPerson}` : 'none');
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -267,10 +455,18 @@ export function ClientModal({
                   type="text"
                   placeholder="e.g. Acme Stores"
                   value={tradeName}
-                  onChange={(e) => setTradeName(e.target.value)}
-                  className="text-xs h-9"
+                  onChange={(e) => {
+                    setTradeName(e.target.value);
+                    if (errors.tradeName) setErrors((prev) => ({ ...prev, tradeName: '' }));
+                  }}
+                  className={`text-xs h-9 ${errors.tradeName ? 'border-red-500' : ''}`}
                   data-testid="client-input-trade-name"
                 />
+                {errors.tradeName && (
+                  <p className="text-[11px] text-red-500" data-testid="error-client-trade-name">
+                    {errors.tradeName}
+                  </p>
+                )}
               </div>
 
               {/* Entity */}
@@ -300,10 +496,12 @@ export function ClientModal({
                 </label>
                 <Input
                   type="text"
-                  placeholder="000-000-000-000"
+                  placeholder="000-000-000-00000"
+                  maxLength={17}
                   value={tin}
                   onChange={(e) => {
-                    setTin(e.target.value);
+                    const formatted = formatTin(e.target.value, tin);
+                    setTin(formatted);
                     if (errors.tin) setErrors((prev) => ({ ...prev, tin: '' }));
                   }}
                   className={`text-xs h-9 font-mono ${errors.tin ? 'border-red-500' : ''}`}
@@ -324,12 +522,22 @@ export function ClientModal({
                 </label>
                 <Input
                   type="text"
-                  placeholder="e.g. 044, 047"
+                  placeholder="e.g. 044, 034A"
+                  maxLength={4}
                   value={rdoCode}
-                  onChange={(e) => setRdoCode(e.target.value)}
-                  className="text-xs h-9 font-mono"
+                  onChange={(e) => {
+                    const formatted = formatRdoCode(e.target.value);
+                    setRdoCode(formatted);
+                    if (errors.rdoCode) setErrors((prev) => ({ ...prev, rdoCode: '' }));
+                  }}
+                  className={`text-xs h-9 font-mono ${errors.rdoCode ? 'border-red-500' : ''}`}
                   data-testid="client-input-rdo"
                 />
+                {errors.rdoCode && (
+                  <p className="text-[11px] text-red-500" data-testid="error-client-rdo">
+                    {errors.rdoCode}
+                  </p>
+                )}
               </div>
 
               {/* Registered Address */}
@@ -341,10 +549,18 @@ export function ClientModal({
                   type="text"
                   placeholder="e.g. Unit 123 Tower Building, Ayala Ave, Makati City"
                   value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  className="text-xs h-9"
+                  onChange={(e) => {
+                    setAddress(e.target.value);
+                    if (errors.address) setErrors((prev) => ({ ...prev, address: '' }));
+                  }}
+                  className={`text-xs h-9 ${errors.address ? 'border-red-500' : ''}`}
                   data-testid="client-input-address"
                 />
+                {errors.address && (
+                  <p className="text-[11px] text-red-500" data-testid="error-client-address">
+                    {errors.address}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -360,7 +576,12 @@ export function ClientModal({
                 <input
                   type="checkbox"
                   checked={retainer}
-                  onChange={(e) => setRetainer(e.target.checked)}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setRetainer(checked);
+                    if (!checked) setRetainerFee('');
+                    if (errors.retainerFee) setErrors((prev) => ({ ...prev, retainerFee: '' }));
+                  }}
                   className="h-4 w-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
                   data-testid="client-checkbox-retainer"
                 />
@@ -372,7 +593,7 @@ export function ClientModal({
               {retainer && (
                 <div className="space-y-1 max-w-xs pt-1">
                   <label className="text-xs font-semibold text-slate-700">
-                    Monthly Retainer Fee (PHP)
+                    Monthly Retainer Fee (PHP) <span className="text-red-500">*</span>
                   </label>
                   <Input
                     type="number"
@@ -380,19 +601,24 @@ export function ClientModal({
                     min="0"
                     placeholder="0.00"
                     value={retainerFee}
-                    onChange={(e) => setRetainerFee(e.target.value)}
-                    className="text-xs h-9 font-mono"
+                    onChange={(e) => {
+                      setRetainerFee(e.target.value);
+                      if (errors.retainerFee) setErrors((prev) => ({ ...prev, retainerFee: '' }));
+                    }}
+                    className={`text-xs h-9 font-mono ${errors.retainerFee ? 'border-red-500' : ''}`}
                     data-testid="client-input-retainer-fee"
                   />
                   {errors.retainerFee && (
-                    <p className="text-[11px] text-red-500">{errors.retainerFee}</p>
+                    <p className="text-[11px] text-red-500" data-testid="error-client-retainer-fee">
+                      {errors.retainerFee}
+                    </p>
                   )}
                 </div>
               )}
             </div>
           </div>
 
-          {/* Section 3: Contact Person & Details */}
+          {/* Section 3: Point of Contact & Contact Channels */}
           <div className="space-y-3 pt-2 border-t border-slate-100">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
@@ -412,10 +638,54 @@ export function ClientModal({
               </Button>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-3">
+              {/* Point of Contact Dropdown (showing registered users) */}
+              <div className="space-y-1 max-w-sm">
+                <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                  Point of Contact
+                </label>
+                <Select
+                  value={currentPocSelectValue}
+                  onValueChange={handlePocChange}
+                >
+                  <SelectTrigger className="text-xs h-9 bg-white" data-testid="client-select-poc">
+                    <SelectValue placeholder="-- Select Point of Contact --" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">-- Select Point of Contact --</SelectItem>
+                    {registeredUsers.map((u) => (
+                      <SelectItem
+                        key={u.id}
+                        value={u.id}
+                        className="text-xs"
+                        data-testid={`poc-user-${u.id}`}
+                      >
+                        {u.name} {u.role ? `(${u.role})` : u.email ? `(${u.email})` : ''}
+                      </SelectItem>
+                    ))}
+                    {client &&
+                      client.contactPerson &&
+                      !contactUserId &&
+                      !registeredUsers.some((u) => u.name === client.contactPerson) && (
+                        <SelectItem
+                          value={`custom:${client.contactPerson}`}
+                          className="text-xs"
+                          data-testid="poc-user-custom"
+                        >
+                          {client.contactPerson} (Custom)
+                        </SelectItem>
+                      )}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-slate-400">
+                  Select an internal user account as the firm representative for this client.
+                </p>
+              </div>
+
+              {/* Primary Contact Person name input */}
               <div className="space-y-1 max-w-sm">
                 <label className="text-xs font-semibold text-slate-700">
-                  Primary Contact Person
+                  Primary Contact Person Name (Optional)
                 </label>
                 <Input
                   type="text"
@@ -429,70 +699,86 @@ export function ClientModal({
 
               {/* Dynamic contact rows */}
               {contactDetails.map((cd, index) => (
-                <div
-                  key={index}
-                  className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-                  data-testid={`contact-row-${index}`}
-                >
-                  <div className="w-28 shrink-0">
-                    <Select
-                      value={cd.type}
-                      onValueChange={(val: ContactDetailType) =>
-                        handleContactChange(index, 'type', val)
-                      }
+                <div key={index} className="space-y-1">
+                  <div
+                    className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                    data-testid={`contact-row-${index}`}
+                  >
+                    <div className="w-28 shrink-0">
+                      <Select
+                        value={cd.type}
+                        onValueChange={(val: ContactDetailType) =>
+                          handleContactTypeChange(index, val)
+                        }
+                      >
+                        <SelectTrigger className="text-xs h-8 bg-white" data-testid={`contact-type-${index}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="email">Email</SelectItem>
+                          <SelectItem value="mobile">Mobile</SelectItem>
+                          <SelectItem value="phone">Phone</SelectItem>
+                          <SelectItem value="landline">Landline</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <Input
+                      type="text"
+                      placeholder={getContactPlaceholder(cd.type)}
+                      maxLength={getContactMaxLength(cd.type)}
+                      value={cd.value}
+                      onChange={(e) => handleContactValueChange(index, e.target.value)}
+                      className={`text-xs h-8 flex-1 bg-white ${
+                        errors[`contact_${index}`] ? 'border-red-500' : ''
+                      }`}
+                      data-testid={`contact-value-${index}`}
+                    />
+
+                    <Input
+                      type="text"
+                      placeholder="Label (e.g. Finance)"
+                      value={cd.label}
+                      onChange={(e) => handleContactLabelChange(index, e.target.value)}
+                      className="text-xs h-8 w-28 bg-white"
+                      data-testid={`contact-label-${index}`}
+                    />
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveContact(index)}
+                      className="h-8 w-8 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 shrink-0"
+                      data-testid={`contact-remove-btn-${index}`}
                     >
-                      <SelectTrigger className="text-xs h-8 bg-white" data-testid={`contact-type-${index}`}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="email">Email</SelectItem>
-                        <SelectItem value="mobile">Mobile</SelectItem>
-                        <SelectItem value="phone">Phone</SelectItem>
-                        <SelectItem value="landline">Landline</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
 
-                  <Input
-                    type="text"
-                    placeholder="e.g. client@company.com"
-                    value={cd.value}
-                    onChange={(e) => handleContactChange(index, 'value', e.target.value)}
-                    className="text-xs h-8 flex-1 bg-white"
-                    data-testid={`contact-value-${index}`}
-                  />
-
-                  <Input
-                    type="text"
-                    placeholder="Label (e.g. Finance)"
-                    value={cd.label}
-                    onChange={(e) => handleContactChange(index, 'label', e.target.value)}
-                    className="text-xs h-8 w-28 bg-white"
-                    data-testid={`contact-label-${index}`}
-                  />
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleRemoveContact(index)}
-                    className="h-8 w-8 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 shrink-0"
-                    data-testid={`contact-remove-btn-${index}`}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  {errors[`contact_${index}`] && (
+                    <p className="text-[11px] text-red-500 pl-1" data-testid={`error-contact-${index}`}>
+                      {errors[`contact_${index}`]}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Section 4: Related Companies */}
+          {/* Section 4: Related Companies & Affiliates */}
           <div className="space-y-3 pt-2 border-t border-slate-100">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">
-                Related Companies & Affiliates
-              </h4>
+              <div>
+                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+                  <LinkIcon className="h-3.5 w-3.5 text-slate-500" />
+                  Related Companies & Affiliates
+                </h4>
+                <p className="text-[11px] text-slate-400">
+                  Select registered clients from the master corporate directory.
+                </p>
+              </div>
               <Button
                 type="button"
                 variant="outline"
@@ -506,44 +792,108 @@ export function ClientModal({
               </Button>
             </div>
 
-            {relatedCompanies.map((rc, index) => (
-              <div
-                key={index}
-                className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-                data-testid={`related-row-${index}`}
-              >
-                <Input
-                  type="text"
-                  placeholder="Related Client UUID"
-                  value={rc.relatedClientId}
-                  onChange={(e) =>
-                    handleRelatedCompanyChange(index, 'relatedClientId', e.target.value)
-                  }
-                  className="text-xs h-8 flex-1 font-mono bg-white"
-                  data-testid={`related-client-id-${index}`}
-                />
-                <Input
-                  type="text"
-                  placeholder="Relationship (e.g. Subsidiary)"
-                  value={rc.relationship}
-                  onChange={(e) =>
-                    handleRelatedCompanyChange(index, 'relationship', e.target.value)
-                  }
-                  className="text-xs h-8 w-44 bg-white"
-                  data-testid={`related-relationship-${index}`}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleRemoveRelatedCompany(index)}
-                  className="h-8 w-8 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 shrink-0"
-                  data-testid={`related-remove-btn-${index}`}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            ))}
+            {relatedCompanies.map((rc, index) => {
+              const selectedOtherIds = getSelectedOtherClientIds(index);
+
+              return (
+                <div key={index} className="space-y-1">
+                  <div
+                    className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                    data-testid={`related-row-${index}`}
+                  >
+                    {/* Client Dropdown */}
+                    <div className="flex-1 min-w-[160px]">
+                      <Select
+                        value={rc.relatedClientId}
+                        onValueChange={(val) =>
+                          handleRelatedCompanyChange(index, 'relatedClientId', val)
+                        }
+                      >
+                        <SelectTrigger
+                          className={`text-xs h-8 bg-white ${
+                            errors[`related_${index}`] ? 'border-red-500' : ''
+                          }`}
+                          data-testid={`related-client-id-${index}`}
+                        >
+                          <SelectValue placeholder="— Select Client —" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableClients.length === 0 ? (
+                            <SelectItem value="none" disabled>
+                              No other clients available
+                            </SelectItem>
+                          ) : (
+                            availableClients.map((c) => (
+                              <SelectItem
+                                key={c.id}
+                                value={c.id}
+                                disabled={selectedOtherIds.has(c.id)}
+                                className="text-xs"
+                                data-testid={`related-client-option-${c.id}`}
+                              >
+                                {c.name} {c.entity ? `(${c.entity})` : ''}
+                              </SelectItem>
+                            ))
+                          )}
+                          {/* If rc.relatedClientId is set but not in availableClients, keep it visible */}
+                          {rc.relatedClientId &&
+                            !availableClients.some((c) => c.id === rc.relatedClientId) && (
+                              <SelectItem
+                                key={rc.relatedClientId}
+                                value={rc.relatedClientId}
+                                className="text-xs"
+                              >
+                                Client ID: {rc.relatedClientId}
+                              </SelectItem>
+                            )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Relationship Dropdown */}
+                    <div className="w-40 shrink-0">
+                      <Select
+                        value={rc.relationship || 'Affiliate'}
+                        onValueChange={(val) =>
+                          handleRelatedCompanyChange(index, 'relationship', val)
+                        }
+                      >
+                        <SelectTrigger
+                          className="text-xs h-8 bg-white"
+                          data-testid={`related-relationship-${index}`}
+                        >
+                          <SelectValue placeholder="Relationship" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Parent">Parent</SelectItem>
+                          <SelectItem value="Subsidiary">Subsidiary</SelectItem>
+                          <SelectItem value="Sister Company">Sister Company</SelectItem>
+                          <SelectItem value="Affiliate">Affiliate</SelectItem>
+                          <SelectItem value="Branch">Branch</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveRelatedCompany(index)}
+                      className="h-8 w-8 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 shrink-0"
+                      data-testid={`related-remove-btn-${index}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+
+                  {errors[`related_${index}`] && (
+                    <p className="text-[11px] text-red-500 pl-1" data-testid={`error-related-${index}`}>
+                      {errors[`related_${index}`]}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <DialogFooter className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
