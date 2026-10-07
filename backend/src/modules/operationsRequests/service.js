@@ -9,6 +9,7 @@ const AppError = require('../../lib/AppError');
 const { buildPermissionSet, hasPermission } = require('../../lib/permissions');
 const { checkAdvancementGate, PHASE_SEQUENCE, PHASE_STATUS_MAP } = require('../operations/service');
 const { notify } = require('../../services/notify');
+const { resolveEntityCode } = require('../../lib/entityResolver');
 
 /**
  * List operations requests for the active entity.
@@ -31,17 +32,18 @@ const listRequests = async ({ entityId, filters = {} }) => {
 
   let query = supabaseAdmin
     .from('operations_requests')
-    .select(
-      '*, clients(id, name, code), work_requests(id, title, entity, entity_id, status, phase, assignee_id, assignee_name, co_assignees, tasks(id, title, status, phase, qa_status, assignee_id, assignee_name)), requester:requested_by(id, name, email), fulfiller:fulfilled_by(id, name, email)',
-      { count: 'exact' }
-    )
-    .or('status.eq.pending,status.eq.fulfilled,status.eq.rejected');
+    .select('*', { count: 'exact' });
+
+  if (status) {
+    query = query.eq('status', status);
+  } else {
+    query = query.or('status.eq.pending,status.eq.fulfilled,status.eq.rejected');
+  }
 
   if (entityId && entityId !== 'ALL') {
     query = query.eq('entity_id', entityId);
   }
 
-  if (status) query = query.eq('status', status);
   if (type) query = query.eq('type', type);
   if (workRequestId) query = query.eq('work_request_id', workRequestId);
   if (clientId) query = query.eq('client_id', clientId);
@@ -57,7 +59,7 @@ const listRequests = async ({ entityId, filters = {} }) => {
     throw new AppError({
       statusCode: 500,
       title: 'Database Error',
-      detail: 'Failed to fetch operations requests',
+      detail: `Failed to fetch operations requests: ${error.message || String(error)}`,
     });
   }
 
@@ -86,6 +88,7 @@ const batchEnrichRequests = async (rows) => {
         .filter(Boolean)
     )
   );
+  const uniqueEntityIds = Array.from(new Set(rows.map((r) => r.entity_id).filter(Boolean)));
 
   const [clientsRes, wrsRes, tasksRes, usersRes] = await Promise.all([
     clientIds.length > 0
@@ -108,6 +111,14 @@ const batchEnrichRequests = async (rows) => {
       : { data: [] },
   ]);
 
+  const entityCodeMap = new Map();
+  await Promise.all(
+    uniqueEntityIds.map(async (eid) => {
+      const code = await resolveEntityCode(eid);
+      entityCodeMap.set(eid, code);
+    })
+  );
+
   const clientMap = new Map((clientsRes.data || []).map((c) => [c.id, c]));
   const wrMap = new Map((wrsRes.data || []).map((w) => [w.id, w]));
   const userMap = new Map((usersRes.data || []).map((u) => [u.id, u]));
@@ -128,11 +139,33 @@ const batchEnrichRequests = async (rows) => {
 
   return rows.map((r) => {
     const row = { ...r };
+    const entityCode = r.entity_id ? entityCodeMap.get(r.entity_id) || 'ATA' : 'ATA';
+    row.entity = entityCode;
+
+    // CamelCase compatibility fields
+    row.workRequestId = r.work_request_id;
+    row.clientId = r.client_id;
+    row.linkedTaskId = r.linked_task_id;
+    row.requestedBy = r.requested_by;
+    row.fulfilledBy = r.fulfilled_by;
+    row.fulfilledAt = r.fulfilled_at;
+    row.rejectionReason = r.rejection_reason;
+    row.createdAt = r.created_at;
+    row.updatedAt = r.updated_at;
+    row.fromPhase = r.from_phase;
+    row.toPhase = r.to_phase;
+
     // Enrich client if missing or incomplete
     if (row.client_id && (!row.clients || !row.clients.code)) {
       const c = clientMap.get(row.client_id);
-      if (c) row.clients = { id: c.id, name: c.name, code: c.code || null };
+      if (c) {
+        row.clients = { id: c.id, name: c.name, code: c.code || null };
+        row.clientName = c.name;
+      }
+    } else if (row.clients) {
+      row.clientName = row.clients.name;
     }
+
     // Enrich work request & tasks if missing or incomplete
     if (row.work_request_id && (!row.work_requests || !row.work_requests.tasks)) {
       const wr = wrMap.get(row.work_request_id);
@@ -149,20 +182,37 @@ const batchEnrichRequests = async (rows) => {
           co_assignees: wr.co_assignees || null,
           tasks: tasksByWr.get(wr.id) || [],
         };
+        row.workRequestTitle = wr.title;
       }
-    } else if (row.work_requests && !row.work_requests.tasks && row.work_request_id) {
-      row.work_requests.tasks = tasksByWr.get(row.work_request_id) || [];
+    } else if (row.work_requests) {
+      if (!row.work_requests.tasks && row.work_request_id) {
+        row.work_requests.tasks = tasksByWr.get(row.work_request_id) || [];
+      }
+      row.workRequestTitle = row.work_requests.title;
     }
+
     // Enrich requester
     if (row.requested_by && (!row.requester || !row.requester.email)) {
       const u = userMap.get(row.requested_by);
-      if (u) row.requester = { id: u.id, name: u.name, email: u.email };
+      if (u) {
+        row.requester = { id: u.id, name: u.name, email: u.email };
+        row.requestedByName = u.name;
+      }
+    } else if (row.requester) {
+      row.requestedByName = row.requester.name;
     }
+
     // Enrich fulfiller
     if (row.fulfilled_by && (!row.fulfiller || !row.fulfiller.email)) {
       const u = userMap.get(row.fulfilled_by);
-      if (u) row.fulfiller = { id: u.id, name: u.name, email: u.email };
+      if (u) {
+        row.fulfiller = { id: u.id, name: u.name, email: u.email };
+        row.fulfillerName = u.name;
+      }
+    } else if (row.fulfiller) {
+      row.fulfillerName = row.fulfiller.name;
     }
+
     return row;
   });
 };
@@ -220,7 +270,7 @@ const createRequest = async ({ entityId, userId, data }) => {
       const fiveSecondsAgo = new Date(Date.now() - 5000).toISOString();
       let dupQuery = supabaseAdmin
         .from('operations_requests')
-        .select('*, clients(name), work_requests(title)')
+        .select('*')
         .eq('entity_id', entityId)
         .eq('type', reqType)
         .eq('requested_by', userId)
@@ -394,17 +444,27 @@ const createRequest = async ({ entityId, userId, data }) => {
  * @returns {Promise<object>}
  */
 const getRequestById = async ({ entityId, id }) => {
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('operations_requests')
-    .select(
-      '*, clients(id, name, code), work_requests(id, title, entity, entity_id, status, phase, assignee_id, assignee_name, co_assignees, tasks(id, title, status, phase, qa_status, assignee_id, assignee_name)), requester:requested_by(id, name, email), fulfiller:fulfilled_by(id, name, email)'
-    )
+    .select('*')
     .eq('id', id)
-    .eq('entity_id', entityId)
-    .or('status.eq.pending,status.eq.fulfilled,status.eq.rejected')
-    .single();
+    .or('status.eq.pending,status.eq.fulfilled,status.eq.rejected');
 
-  if (error || !data) {
+  if (entityId && entityId !== 'ALL') {
+    query = query.eq('entity_id', entityId);
+  }
+
+  const { data, error } = await query.maybeSingle();
+
+  if (error) {
+    throw new AppError({
+      statusCode: 500,
+      title: 'Database Error',
+      detail: `Failed to fetch operations request: ${error.message || String(error)}`,
+    });
+  }
+
+  if (!data) {
     throw new AppError({
       statusCode: 404,
       title: 'Not Found',
@@ -428,6 +488,7 @@ const getRequestById = async ({ entityId, id }) => {
  */
 const updateRequest = async ({ entityId, id, userId, data }) => {
   const existing = await getRequestById({ entityId, id });
+  const targetEntityId = entityId && entityId !== 'ALL' ? entityId : existing.entity_id;
 
   if (existing.status !== 'pending') {
     throw new AppError({
@@ -467,7 +528,7 @@ const updateRequest = async ({ entityId, id, userId, data }) => {
     const { data: rows, error: rpcError } = await supabaseAdmin.rpc('operations_request_fulfill', {
       p_id: id,
       p_fulfilled_by: data.fulfilledBy || userId,
-      p_entity_id: entityId,
+      p_entity_id: targetEntityId,
     });
 
     if (rpcError) {
@@ -513,7 +574,7 @@ const updateRequest = async ({ entityId, id, userId, data }) => {
         action: 'work_request.phase_advance',
         table: 'work_requests',
         recordId: wrId,
-        entity: entityId,
+        entity: targetEntityId,
         userId,
         details: {
           from_phase: fromPhase,
@@ -544,7 +605,7 @@ const updateRequest = async ({ entityId, id, userId, data }) => {
       action: 'operations_request.update',
       table: 'operations_requests',
       recordId: id,
-      entity: entityId,
+      entity: targetEntityId,
       userId,
       details: { status: 'fulfilled', fulfilledBy: data.fulfilledBy || userId },
     });
@@ -567,7 +628,7 @@ const updateRequest = async ({ entityId, id, userId, data }) => {
       p_id: id,
       p_rejection_reason: rejectionReason.trim(),
       p_user_id: userId,
-      p_entity_id: entityId,
+      p_entity_id: targetEntityId,
     });
 
     if (rpcError) {
@@ -616,7 +677,7 @@ const updateRequest = async ({ entityId, id, userId, data }) => {
       action: 'operations_request.update',
       table: 'operations_requests',
       recordId: id,
-      entity: entityId,
+      entity: targetEntityId,
       userId,
       details: { status: 'rejected', rejectionReason: rejectionReason.trim() },
     });
@@ -639,11 +700,16 @@ const updateRequest = async ({ entityId, id, userId, data }) => {
     updates.rejection_reason = null;
   }
 
-  const { data: updated, error } = await supabaseAdmin
+  let updateQuery = supabaseAdmin
     .from('operations_requests')
     .update(updates)
-    .eq('id', id)
-    .eq('entity_id', entityId)
+    .eq('id', id);
+
+  if (entityId && entityId !== 'ALL') {
+    updateQuery = updateQuery.eq('entity_id', entityId);
+  }
+
+  const { data: updated, error } = await updateQuery
     .select()
     .single();
 
@@ -659,7 +725,7 @@ const updateRequest = async ({ entityId, id, userId, data }) => {
     action: 'operations_request.update',
     table: 'operations_requests',
     recordId: id,
-    entity: entityId,
+    entity: targetEntityId,
     userId,
     details: {
       status: updates.status,
@@ -680,12 +746,18 @@ const updateRequest = async ({ entityId, id, userId, data }) => {
  */
 const deleteRequest = async ({ entityId, id }) => {
   const existing = await getRequestById({ entityId, id });
+  const targetEntityId = entityId && entityId !== 'ALL' ? entityId : existing.entity_id;
 
-  const { data: deleted, error } = await supabaseAdmin
+  let deleteQuery = supabaseAdmin
     .from('operations_requests')
     .update({ status: 'cancelled', updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .eq('entity_id', entityId)
+    .eq('id', id);
+
+  if (entityId && entityId !== 'ALL') {
+    deleteQuery = deleteQuery.eq('entity_id', entityId);
+  }
+
+  const { data: deleted, error } = await deleteQuery
     .select()
     .single();
 
@@ -701,7 +773,7 @@ const deleteRequest = async ({ entityId, id }) => {
     action: 'operations_request.delete',
     table: 'operations_requests',
     recordId: id,
-    entity: entityId,
+    entity: targetEntityId,
     userId: existing.requested_by,
     details: { previousStatus: existing.status },
   });
