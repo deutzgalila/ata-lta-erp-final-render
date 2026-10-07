@@ -19,6 +19,15 @@ export interface RelatedCompany {
   relationship?: string | null;
 }
 
+export interface RegisteredUser {
+  id: string;
+  name: string;
+  email: string;
+  role?: string;
+  departments?: string[];
+  entities?: string[];
+}
+
 export interface Client {
   id: string;
   entity: 'ATA' | 'LTA' | string;
