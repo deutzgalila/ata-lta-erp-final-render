@@ -58,15 +58,34 @@ export const clearTokens = (): void => {
 /**
  * Global QueryClient per Spec §3.1:
  * staleTime: 30s, retry: 1
+ *
+ * Instant-feel tuning: cached pages render immediately on navigation
+ * (staleTime window), while focus refetching (background, keeps previous data
+ * rendered) and full stale-marking after every blocking mutation guarantee the
+ * UI never shows records older than the latest write — no manual refresh
+ * required anywhere in the app.
  */
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30 * 1000,
       retry: 1,
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true,
     },
   },
+});
+
+/**
+ * Entity switch ⇒ every query is stale. All module lists/tasks/reports scope
+ * by the X-Active-Entity header, so changing the entity must refresh whatever
+ * is mounted. invalidateQueries() marks all entries stale and refetches the
+ * active ones in the background (previous data stays rendered during the
+ * refetch — no flash, no skeleton).
+ */
+useSessionStore.subscribe((state, prevState) => {
+  if (state.activeEntity !== prevState.activeEntity) {
+    void queryClient.invalidateQueries();
+  }
 });
 
 export interface RequestOptions extends RequestInit {

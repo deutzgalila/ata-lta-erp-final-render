@@ -277,6 +277,14 @@ export async function runBlockingAction<T>(options: RunBlockingActionOptions<T>)
       );
     }
 
+    // 1b. Mark every OTHER query stale (no refetch). Explicit keys above were
+    // refreshed in the background before the success modal shows, so the
+    // current view is instantly correct on close; everything else (other
+    // modules, other tabs/views of the same module) refetches on next mount.
+    // Without this, cross-module staleness lingers inside the 30s staleTime
+    // window and users reached for manual page reloads.
+    void queryClient.invalidateQueries({ refetchType: 'none' });
+
     // 2. Run custom success hook if provided
     if (options.onSuccess) {
       await options.onSuccess(result);
