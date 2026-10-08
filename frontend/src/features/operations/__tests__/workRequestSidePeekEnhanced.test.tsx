@@ -250,7 +250,11 @@ describe('WorkRequestSidePeek Enhanced Notion-like Features', () => {
     fireEvent.click(screen.getByTestId('status-option-For Supervisor Review'));
 
     await waitFor(() => {
-      expect(patchedData).toEqual({ status: 'For Supervisor Review', entity: 'ATA' });
+      expect(patchedData).toEqual({
+        status: 'For Supervisor Review',
+        entity: 'ATA',
+        expectedVersion: 1,
+      });
     });
   });
 

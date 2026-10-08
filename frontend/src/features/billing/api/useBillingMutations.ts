@@ -1,14 +1,48 @@
-import { apiRequest } from '@/lib/api';
+import { apiRequest, queryClient } from '@/lib/api';
 import { runBlockingAction } from '@/features/operations/components/BlockingActionModal';
 import { useSessionStore } from '@/lib/session';
+import { broadcastEntityChange } from '@/lib/tabSync';
 import { billingKeys } from './queryKeys';
 import type {
   Invoice,
+  InvoiceListResponse,
   CreateInvoiceInput,
   UpdateInvoiceInput,
   RecordPaymentInput,
   InvoicePayment,
 } from './types';
+
+function pinAndBroadcastInvoice(serverInvoice: Invoice): void {
+  // 1. Authoritative detail cache pinning
+  queryClient.setQueryData<Invoice>(
+    billingKeys.invoiceDetail(serverInvoice.id),
+    serverInvoice
+  );
+
+  // 2. Multi-list in-place cache pinning
+  const allLists = queryClient.getQueriesData<InvoiceListResponse>({
+    queryKey: billingKeys.invoices(),
+  });
+  for (const [key, value] of allLists) {
+    if (value && typeof value === 'object' && Array.isArray(value.data)) {
+      if (value.data.some((inv) => inv?.id === serverInvoice.id)) {
+        queryClient.setQueryData(key, {
+          ...value,
+          data: value.data.map((inv) =>
+            inv?.id === serverInvoice.id ? { ...inv, ...serverInvoice } : inv
+          ),
+        });
+      }
+    }
+  }
+
+  // 3. Cross-tab tab sync broadcast
+  broadcastEntityChange({
+    domain: 'billing',
+    entityId: serverInvoice.id,
+    entityData: serverInvoice,
+  });
+}
 
 // ============================================================================
 // Direct Blocking Action Runners (Zero Optimistic Updates)
@@ -54,10 +88,10 @@ export async function updateInvoiceAction(
       });
       return res.data;
     },
+    onSuccess: (serverInvoice) => {
+      pinAndBroadcastInvoice(serverInvoice);
+    },
     invalidateQueries: [
-      billingKeys.all,
-      billingKeys.invoices(),
-      billingKeys.invoiceDetail(id),
       billingKeys.counts(activeEntity),
       billingKeys.aging(activeEntity),
     ],
@@ -91,10 +125,10 @@ export async function updateClientAddressAction(
       });
       return res.data;
     },
+    onSuccess: (serverInvoice) => {
+      pinAndBroadcastInvoice(serverInvoice);
+    },
     invalidateQueries: [
-      billingKeys.all,
-      billingKeys.invoices(),
-      billingKeys.invoiceDetail(id),
       billingKeys.counts(activeEntity),
       billingKeys.aging(activeEntity),
     ],

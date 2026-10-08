@@ -135,12 +135,16 @@ describe('CHALLENGER FIN 2 EMPIRICAL ADVERSARIAL SUITE', () => {
 
       // 2. updateInvoiceAction
       await updateInvoiceAction('inv-test-1', { notes: 'Updated notes' }, 'ATA');
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: billingKeys.all });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: billingKeys.counts('ATA') });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: billingKeys.aging('ATA') });
+      expect(invalidateSpy).not.toHaveBeenCalledWith({ queryKey: billingKeys.all });
       invalidateSpy.mockClear();
 
       // 3. updateClientAddressAction
       await updateClientAddressAction('inv-test-1', 'New Address Line 1', 1, 'ATA');
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: billingKeys.all });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: billingKeys.counts('ATA') });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: billingKeys.aging('ATA') });
+      expect(invalidateSpy).not.toHaveBeenCalledWith({ queryKey: billingKeys.all });
       invalidateSpy.mockClear();
 
       // 4. recordPaymentAction

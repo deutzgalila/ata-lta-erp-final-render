@@ -5,9 +5,10 @@
  * Doctrine: Zero Optimistic Updates — non-dismissible blocking execution, verbatim RFC 7807 surfacing.
  */
 
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData, type QueryClient } from '@tanstack/react-query';
 import { apiRequest, ApiError } from '@/lib/api';
 import { useSessionStore } from '@/lib/session';
+import { broadcastEntityChange } from '@/lib/tabSync';
 import { runBlockingAction } from '@/features/operations/components/BlockingActionModal';
 import { disbursementKeys } from './queryKeys';
 import {
@@ -26,6 +27,39 @@ import type {
   DisbursementDetailResponse,
   DisbursementCountsResponse,
 } from './types';
+
+function pinAndBroadcastDisbursement(
+  queryClient: QueryClient,
+  updated: Disbursement
+): void {
+  // 1. Authoritative detail cache pinning
+  queryClient.setQueryData<Disbursement>(
+    disbursementKeys.detail(updated.id),
+    updated
+  );
+
+  // 2. Patch matching list query items across all active/cached lists
+  const allLists = queryClient.getQueriesData<DisbursementListResponse>({
+    queryKey: disbursementKeys.lists(),
+  });
+  for (const [key, value] of allLists) {
+    if (value && typeof value === 'object' && Array.isArray(value.data)) {
+      if (value.data.some((d) => d?.id === updated.id)) {
+        queryClient.setQueryData(key, {
+          ...value,
+          data: value.data.map((d) => (d?.id === updated.id ? { ...d, ...updated } : d)),
+        });
+      }
+    }
+  }
+
+  // 3. Dispatch cross-tab sync broadcast
+  broadcastEntityChange({
+    domain: 'disbursements',
+    entityId: updated.id,
+    entityData: updated,
+  });
+}
 
 function isTestWithoutMock(): boolean {
   const isTest =
@@ -210,7 +244,8 @@ export function useUpdateDisbursement() {
   const mutation = useMutation<
     Disbursement,
     ApiError,
-    { id: string; data: UpdateDisbursementInput }
+    { id: string; data: UpdateDisbursementInput },
+    { snapshots: Array<[readonly unknown[], unknown]> }
   >({
     mutationFn: async ({ id, data }) => {
       const validated = updateDisbursementSchema.parse(data);
@@ -220,11 +255,24 @@ export function useUpdateDisbursement() {
       });
       return res.data;
     },
-    onSuccess: (updated) => {
-      queryClient.invalidateQueries({
-        queryKey: disbursementKeys.detail(updated.id),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: disbursementKeys.all });
+      const snapshots = queryClient.getQueriesData<unknown>({
+        queryKey: disbursementKeys.all,
       });
-      queryClient.invalidateQueries({ queryKey: disbursementKeys.lists() });
+      return { snapshots };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.snapshots) {
+        for (const [key, value] of context.snapshots) {
+          queryClient.setQueryData(key, value);
+        }
+      }
+    },
+    onSuccess: (updated) => {
+      pinAndBroadcastDisbursement(queryClient, updated);
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: disbursementKeys.counts(activeEntity),
       });
@@ -241,8 +289,6 @@ export function useUpdateDisbursement() {
       actionName: 'Update Disbursement',
       apiCall: async () => mutation.mutateAsync(params),
       invalidateQueries: [
-        disbursementKeys.detail(params.id),
-        disbursementKeys.lists(),
         disbursementKeys.counts(activeEntity),
       ],
       successTitle: 'Disbursement Updated',
@@ -319,7 +365,12 @@ export function useApproveDisbursement() {
   const queryClient = useQueryClient();
   const activeEntity = useSessionStore((state) => state.activeEntity);
 
-  const mutation = useMutation<Disbursement, ApiError, string | { id: string }>({
+  const mutation = useMutation<
+    Disbursement,
+    ApiError,
+    string | { id: string },
+    { snapshots: Array<[readonly unknown[], unknown]> }
+  >({
     mutationFn: async (arg) => {
       const id = typeof arg === 'string' ? arg : arg.id;
       const res = await apiRequest<DisbursementDetailResponse>(
@@ -330,11 +381,24 @@ export function useApproveDisbursement() {
       );
       return res.data;
     },
-    onSuccess: (updated) => {
-      queryClient.invalidateQueries({
-        queryKey: disbursementKeys.detail(updated.id),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: disbursementKeys.all });
+      const snapshots = queryClient.getQueriesData<unknown>({
+        queryKey: disbursementKeys.all,
       });
-      queryClient.invalidateQueries({ queryKey: disbursementKeys.lists() });
+      return { snapshots };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.snapshots) {
+        for (const [key, value] of context.snapshots) {
+          queryClient.setQueryData(key, value);
+        }
+      }
+    },
+    onSuccess: (updated) => {
+      pinAndBroadcastDisbursement(queryClient, updated);
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: disbursementKeys.counts(activeEntity),
       });
@@ -348,8 +412,6 @@ export function useApproveDisbursement() {
       actionName: 'Approve Disbursement',
       apiCall: async () => mutation.mutateAsync(id),
       invalidateQueries: [
-        disbursementKeys.detail(id),
-        disbursementKeys.lists(),
         disbursementKeys.counts(activeEntity),
       ],
       successTitle: 'Disbursement Approved',
@@ -377,7 +439,8 @@ export function useRejectDisbursement() {
   const mutation = useMutation<
     Disbursement,
     ApiError,
-    { id: string; reason: string }
+    { id: string; reason: string },
+    { snapshots: Array<[readonly unknown[], unknown]> }
   >({
     mutationFn: async ({ id, reason }) => {
       const validated = rejectDisbursementSchema.parse({ reason });
@@ -390,11 +453,24 @@ export function useRejectDisbursement() {
       );
       return res.data;
     },
-    onSuccess: (updated) => {
-      queryClient.invalidateQueries({
-        queryKey: disbursementKeys.detail(updated.id),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: disbursementKeys.all });
+      const snapshots = queryClient.getQueriesData<unknown>({
+        queryKey: disbursementKeys.all,
       });
-      queryClient.invalidateQueries({ queryKey: disbursementKeys.lists() });
+      return { snapshots };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.snapshots) {
+        for (const [key, value] of context.snapshots) {
+          queryClient.setQueryData(key, value);
+        }
+      }
+    },
+    onSuccess: (updated) => {
+      pinAndBroadcastDisbursement(queryClient, updated);
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: disbursementKeys.counts(activeEntity),
       });
@@ -411,8 +487,6 @@ export function useRejectDisbursement() {
       actionName: 'Reject Disbursement',
       apiCall: async () => mutation.mutateAsync(params),
       invalidateQueries: [
-        disbursementKeys.detail(params.id),
-        disbursementKeys.lists(),
         disbursementKeys.counts(activeEntity),
       ],
       successTitle: 'Disbursement Rejected',
@@ -439,7 +513,8 @@ export function useReleaseDisbursement() {
   const mutation = useMutation<
     Disbursement,
     ApiError,
-    { id: string; data?: ReleasePaymentInput }
+    { id: string; data?: ReleasePaymentInput },
+    { snapshots: Array<[readonly unknown[], unknown]> }
   >({
     mutationFn: async ({ id, data }) => {
       const validated = data ? releasePaymentSchema.parse(data) : {};
@@ -452,11 +527,24 @@ export function useReleaseDisbursement() {
       );
       return res.data;
     },
-    onSuccess: (updated) => {
-      queryClient.invalidateQueries({
-        queryKey: disbursementKeys.detail(updated.id),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: disbursementKeys.all });
+      const snapshots = queryClient.getQueriesData<unknown>({
+        queryKey: disbursementKeys.all,
       });
-      queryClient.invalidateQueries({ queryKey: disbursementKeys.lists() });
+      return { snapshots };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.snapshots) {
+        for (const [key, value] of context.snapshots) {
+          queryClient.setQueryData(key, value);
+        }
+      }
+    },
+    onSuccess: (updated) => {
+      pinAndBroadcastDisbursement(queryClient, updated);
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: disbursementKeys.counts(activeEntity),
       });
@@ -473,8 +561,6 @@ export function useReleaseDisbursement() {
       actionName: 'Release Funds',
       apiCall: async () => mutation.mutateAsync(params),
       invalidateQueries: [
-        disbursementKeys.detail(params.id),
-        disbursementKeys.lists(),
         disbursementKeys.counts(activeEntity),
       ],
       successTitle: 'Funds Released',
@@ -488,6 +574,8 @@ export function useReleaseDisbursement() {
     releaseWithBlocking,
   };
 }
+
+export const useReleasePayment = useReleaseDisbursement;
 
 /**
  * 10. Mark released disbursement as funded / reconciled (Released → Funded).

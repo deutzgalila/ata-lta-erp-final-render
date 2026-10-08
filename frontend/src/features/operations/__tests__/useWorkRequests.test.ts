@@ -15,6 +15,9 @@ import {
 } from '../api';
 import { ApiError } from '@/lib/api';
 import { useSessionStore } from '@/lib/session';
+import * as tabSync from '@/lib/tabSync';
+import * as flags from '@/lib/flags';
+import { isConcurrencyConflictError } from '@/components/common/ConflictResolutionModal';
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -338,6 +341,276 @@ describe('useWorkRequests & Operations Data Layer (Zero Optimistic Updates Doctr
         operationsKeys.workRequestsList('ATA')
       );
       expect(listData?.data[0]?.status).toBe('For Supervisor Review');
+    });
+
+    it('statusOptimistic attaches expectedVersion when strict_occ is enabled', async () => {
+      vi.spyOn(flags, 'isFeatureEnabled').mockImplementation((flag) => flag === 'strict_occ');
+
+      const initialWr = {
+        id: 'wr-occ-1',
+        title: 'Tax Assessment',
+        entity: 'ATA',
+        status: 'In Progress',
+        version: 3,
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { ...initialWr, status: 'Completed', version: 4 } }),
+      } as Response);
+
+      const { queryClient, wrapper } = createWrapper();
+      queryClient.setQueryData(operationsKeys.workRequestDetail('wr-occ-1'), initialWr);
+
+      const { result } = renderHook(() => useWorkRequestMutations(), { wrapper });
+
+      await result.current.statusOptimistic({
+        id: 'wr-occ-1',
+        status: 'Completed',
+        entity: 'ATA',
+        expectedVersion: 3,
+      });
+
+      const fetchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(fetchCall).toBeDefined();
+      const body = JSON.parse(fetchCall![1].body as string);
+      expect(body.expectedVersion).toBe(3);
+      expect(body.status).toBe('Completed');
+    });
+
+    it('statusOptimistic omits expectedVersion when strict_occ is disabled', async () => {
+      vi.spyOn(flags, 'isFeatureEnabled').mockImplementation(() => false);
+
+      const initialWr = {
+        id: 'wr-occ-2',
+        title: 'Financial Review',
+        entity: 'ATA',
+        status: 'Draft',
+        version: 2,
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { ...initialWr, status: 'In Progress', version: 3 } }),
+      } as Response);
+
+      const { queryClient, wrapper } = createWrapper();
+      queryClient.setQueryData(operationsKeys.workRequestDetail('wr-occ-2'), initialWr);
+
+      const { result } = renderHook(() => useWorkRequestMutations(), { wrapper });
+
+      await result.current.statusOptimistic({
+        id: 'wr-occ-2',
+        status: 'In Progress',
+        entity: 'ATA',
+        expectedVersion: 2,
+      });
+
+      const fetchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(fetchCall).toBeDefined();
+      const body = JSON.parse(fetchCall![1].body as string);
+      expect(body.expectedVersion).toBeUndefined();
+      expect(body.status).toBe('In Progress');
+    });
+
+    it('statusOptimistic rolls back optimistic cache on 409 concurrency conflict', async () => {
+      const initialWr = {
+        id: 'wr-conflict-1',
+        title: 'SEC Registration',
+        entity: 'ATA',
+        status: 'Received',
+        version: 1,
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        statusText: 'Conflict',
+        json: async () => ({
+          status: 409,
+          code: 'ERR_CONCURRENCY_CONFLICT',
+          title: 'Conflict',
+          detail: 'The record was modified by another user. Please reload the latest version before editing.',
+        }),
+      } as Response);
+
+      const { queryClient, wrapper } = createWrapper();
+      queryClient.setQueryData(operationsKeys.workRequestDetail('wr-conflict-1'), initialWr);
+      queryClient.setQueryData(operationsKeys.workRequestsList('ATA'), {
+        data: [initialWr],
+        meta: { total: 1 },
+      });
+
+      const { result } = renderHook(() => useWorkRequestMutations(), { wrapper });
+
+      let caughtConflictError: unknown;
+      try {
+        await result.current.statusOptimistic({
+          id: 'wr-conflict-1',
+          status: 'In Progress',
+          entity: 'ATA',
+          expectedVersion: 1,
+        });
+      } catch (err) {
+        caughtConflictError = err;
+      }
+
+      expect(caughtConflictError).toBeDefined();
+      expect(caughtConflictError).toBeInstanceOf(ApiError);
+      expect((caughtConflictError as ApiError).status).toBe(409);
+      expect(isConcurrencyConflictError(caughtConflictError)).toBe(true);
+
+      // Verify cache rolled back to original status
+      const detail = queryClient.getQueryData<typeof initialWr>(
+        operationsKeys.workRequestDetail('wr-conflict-1')
+      );
+      expect(detail?.status).toBe('Received');
+
+      const listData = queryClient.getQueryData<{ data: Array<typeof initialWr> }>(
+        operationsKeys.workRequestsList('ATA')
+      );
+      expect(listData?.data[0]?.status).toBe('Received');
+    });
+
+    it('statusOptimistic omits expectedVersion when expectedVersion is omitted (undefined) even if strict_occ is enabled', async () => {
+      vi.spyOn(flags, 'isFeatureEnabled').mockImplementation((flag) => flag === 'strict_occ');
+
+      const initialWr = {
+        id: 'wr-occ-undef-1',
+        title: 'Tax Assessment Undefined',
+        entity: 'ATA',
+        status: 'In Progress',
+        version: 3,
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { ...initialWr, status: 'Completed', version: 4 } }),
+      } as Response);
+
+      const { queryClient, wrapper } = createWrapper();
+      queryClient.setQueryData(operationsKeys.workRequestDetail('wr-occ-undef-1'), initialWr);
+
+      const { result } = renderHook(() => useWorkRequestMutations(), { wrapper });
+
+      await result.current.statusOptimistic({
+        id: 'wr-occ-undef-1',
+        status: 'Completed',
+        entity: 'ATA',
+        expectedVersion: undefined,
+      });
+
+      const fetchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(fetchCall).toBeDefined();
+      const body = JSON.parse(fetchCall![1].body as string);
+      expect(body.expectedVersion).toBeUndefined();
+      expect(body.status).toBe('Completed');
+    });
+
+    it('statusOptimistic rolls back cache on non-409 error (HTTP 500) and bypasses conflict modal', async () => {
+      const initialWr = {
+        id: 'wr-500-1',
+        title: 'Server Crash Test',
+        entity: 'ATA',
+        status: 'Draft',
+        version: 1,
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+        json: async () => ({
+          status: 500,
+          code: 'INTERNAL_SERVER_ERROR',
+          title: 'Internal Server Error',
+          detail: 'Database pool connection exhausted',
+        }),
+      } as Response);
+
+      const { queryClient, wrapper } = createWrapper();
+      queryClient.setQueryData(operationsKeys.workRequestDetail('wr-500-1'), initialWr);
+      queryClient.setQueryData(operationsKeys.workRequestsList('ATA'), {
+        data: [initialWr],
+        meta: { total: 1 },
+      });
+
+      const { result } = renderHook(() => useWorkRequestMutations(), { wrapper });
+
+      let caughtError: unknown;
+      try {
+        await result.current.statusOptimistic({
+          id: 'wr-500-1',
+          status: 'In Progress',
+          entity: 'ATA',
+          expectedVersion: 1,
+        });
+      } catch (err) {
+        caughtError = err;
+      }
+
+      // 1. Verify mutation re-throws ApiError with HTTP 500
+      expect(caughtError).toBeInstanceOf(ApiError);
+      expect((caughtError as ApiError).status).toBe(500);
+      expect((caughtError as ApiError).code).toBe('INTERNAL_SERVER_ERROR');
+
+      // 2. Verify cache rolls back to original pre-mutation status
+      const detail = queryClient.getQueryData<typeof initialWr>(
+        operationsKeys.workRequestDetail('wr-500-1')
+      );
+      expect(detail?.status).toBe('Draft');
+
+      const listData = queryClient.getQueryData<{ data: Array<typeof initialWr> }>(
+        operationsKeys.workRequestsList('ATA')
+      );
+      expect(listData?.data[0]?.status).toBe('Draft');
+
+      // 3. Verify error is NOT recognized as a concurrency conflict (bypasses ConflictResolutionModal)
+      expect(isConcurrencyConflictError(caughtError)).toBe(false);
+    });
+
+    it('statusOptimistic dispatches broadcastEntityChange on mutation success', async () => {
+      const broadcastSpy = vi.spyOn(tabSync, 'broadcastEntityChange');
+
+      const initialWr = {
+        id: 'wr-broadcast-1',
+        title: 'Quarterly Filing',
+        entity: 'ATA',
+        status: 'In Progress',
+        version: 5,
+      };
+      const serverWr = {
+        ...initialWr,
+        status: 'For Supervisor Review',
+        version: 6,
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: serverWr }),
+      } as Response);
+
+      const { queryClient, wrapper } = createWrapper();
+      queryClient.setQueryData(operationsKeys.workRequestDetail('wr-broadcast-1'), initialWr);
+
+      const { result } = renderHook(() => useWorkRequestMutations(), { wrapper });
+
+      await result.current.statusOptimistic({
+        id: 'wr-broadcast-1',
+        status: 'For Supervisor Review',
+        entity: 'ATA',
+        expectedVersion: 5,
+      });
+
+      expect(broadcastSpy).toHaveBeenCalledWith({
+        domain: 'operations',
+        entityId: 'wr-broadcast-1',
+        entityData: serverWr,
+      });
     });
 
     it('propagates verbatim RFC 7807 code and detail when createWorkRequest fails with TASK_LIMIT_EXCEEDED', async () => {

@@ -37,6 +37,7 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   useWorkRequestDetail,
   useWorkRequestMutations,
@@ -50,6 +51,12 @@ import { isUserAdmin } from '../lib/taskScope';
 import { getPhaseBadgeInfo, getStatusBadgeInfo } from '../lib/statusBadges';
 import { TaskDetailModal } from './TaskDetailModal';
 import { DocumentViewerModal } from './DocumentViewerModal';
+import {
+  ConflictResolutionModal,
+  isConcurrencyConflictError,
+} from '@/components/common/ConflictResolutionModal';
+import { operationsKeys } from '../api/queryKeys';
+import type { ApiError } from '@/lib/api';
 import {
   type WorkRequest,
   type Task,
@@ -83,7 +90,17 @@ export function WorkRequestSidePeek({
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [previewDoc, setPreviewDoc] = useState<DmsDocument | null>(null);
   const [viewerDoc, setViewerDoc] = useState<DmsDocument | null>(null);
+  const [conflictModalState, setConflictModalState] = useState<{
+    isOpen: boolean;
+    attemptedStatus: WorkRequestStatus | null;
+    error: ApiError | null;
+  }>({
+    isOpen: false,
+    attemptedStatus: null,
+    error: null,
+  });
   const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(new Set());
+  const queryClient = useQueryClient();
 
   // Fetch work request detail
   const {
@@ -211,9 +228,18 @@ export function WorkRequestSidePeek({
         id: workRequest.id,
         status: newStatus,
         entity: workRequest.entity,
+        expectedVersion: workRequest.version,
       });
       toast.success(`Work request status updated to "${newStatus}"`);
     } catch (err: unknown) {
+      if (isConcurrencyConflictError(err)) {
+        setConflictModalState({
+          isOpen: true,
+          attemptedStatus: newStatus,
+          error: err as ApiError,
+        });
+        return;
+      }
       const msg = err instanceof Error ? err.message : 'Failed to update work request status';
       toast.error(msg);
     }
@@ -937,6 +963,30 @@ export function WorkRequestSidePeek({
           workRequest={workRequest}
         />
       )}
+
+      {/* Conflict Resolution Modal for OCC Concurrency Conflicts */}
+      <ConflictResolutionModal
+        isOpen={conflictModalState.isOpen}
+        onClose={() => setConflictModalState((prev) => ({ ...prev, isOpen: false }))}
+        error={conflictModalState.error}
+        entityTitle={workRequest?.title}
+        entityType="Work Request"
+        expectedVersion={workRequest?.version}
+        attemptedStatus={conflictModalState.attemptedStatus}
+        currentStatus={workRequest?.status}
+        onRefreshAndKeepLatest={async () => {
+          if (workRequest?.id) {
+            await queryClient.refetchQueries({
+              queryKey: operationsKeys.workRequestDetail(workRequest.id),
+            });
+            await queryClient.refetchQueries({
+              queryKey: operationsKeys.workRequests(),
+            });
+          }
+          setConflictModalState((prev) => ({ ...prev, isOpen: false }));
+        }}
+        onCancel={() => setConflictModalState((prev) => ({ ...prev, isOpen: false }))}
+      />
     </>
   );
 }

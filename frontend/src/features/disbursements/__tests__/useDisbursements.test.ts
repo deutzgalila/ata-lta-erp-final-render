@@ -12,11 +12,13 @@ import {
   useApproveDisbursement,
   useRejectDisbursement,
   useReleaseDisbursement,
+  useReleasePayment,
   useFundDisbursement,
 } from '../api/useDisbursements';
 import { disbursementKeys } from '../api/queryKeys';
 import { ApiError } from '@/lib/api';
 import { useSessionStore } from '@/lib/session';
+import * as tabSync from '@/lib/tabSync';
 import { extractRfc7807Error, useBlockingModalStore } from '@/features/operations/components/BlockingActionModal';
 
 function createWrapper() {
@@ -228,9 +230,16 @@ describe('Disbursements Data Layer & Zero Optimistic Updates Doctrine', () => {
       });
     });
 
-    it('5. useUpdateDisbursement updates via PUT /v1/disbursements/:id', async () => {
-      const updatedRecord = {
+    it('5. useUpdateDisbursement updates via PUT /v1/disbursements/:id, pins cache, dispatches tabSync broadcast', async () => {
+      const initialRecord = {
         id: 'disb-1',
+        description: 'Original expense description',
+        amount: 450,
+        status: 'Draft',
+        version: 1,
+      };
+      const updatedRecord = {
+        ...initialRecord,
         description: 'Updated expense description',
         version: 2,
       };
@@ -242,8 +251,16 @@ describe('Disbursements Data Layer & Zero Optimistic Updates Doctrine', () => {
         json: async () => ({ data: updatedRecord }),
       });
 
+      const broadcastSpy = vi.spyOn(tabSync, 'broadcastEntityChange');
       const { queryClient, wrapper } = createWrapper();
       const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+      // Seed detail and list caches
+      queryClient.setQueryData(disbursementKeys.detail('disb-1'), initialRecord);
+      queryClient.setQueryData(disbursementKeys.list('ATA'), {
+        data: [initialRecord],
+        meta: { total: 1, page: 1, limit: 20 },
+      });
 
       const { result } = renderHook(() => useUpdateDisbursement(), { wrapper });
 
@@ -256,7 +273,28 @@ describe('Disbursements Data Layer & Zero Optimistic Updates Doctrine', () => {
       expect(fetchCall[0]).toContain('/disbursements/disb-1');
       expect(fetchCall[1]!.method).toBe('PUT');
 
+      // 1. Authoritative server truth pinned into detail cache
+      expect(queryClient.getQueryData(disbursementKeys.detail('disb-1'))).toEqual(updatedRecord);
+
+      // 2. Authoritative server truth patched into list cache
+      const cachedList = queryClient.getQueryData<{ data: typeof updatedRecord[] }>(
+        disbursementKeys.list('ATA')
+      );
+      expect(cachedList?.data[0]?.description).toBe('Updated expense description');
+      expect(cachedList?.data[0]?.version).toBe(2);
+
+      // 3. Tab sync broadcast dispatched
+      expect(broadcastSpy).toHaveBeenCalledWith({
+        domain: 'disbursements',
+        entityId: 'disb-1',
+        entityData: updatedRecord,
+      });
+
+      // 4. Secondary counts invalidated, detail cache NEVER invalidated (eliminating flash-revert)
       expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: disbursementKeys.counts('ATA'),
+      });
+      expect(invalidateSpy).not.toHaveBeenCalledWith({
         queryKey: disbursementKeys.detail('disb-1'),
       });
     });
@@ -280,15 +318,35 @@ describe('Disbursements Data Layer & Zero Optimistic Updates Doctrine', () => {
       expect(fetchCall[1]!.method).toBe('POST');
     });
 
-    it('7. useApproveDisbursement approves Pending voucher (POST /:id/approve)', async () => {
+    it('7. useApproveDisbursement approves Pending voucher, pins server truth, and broadcasts tabSync', async () => {
+      const initialRecord = {
+        id: 'disb-1',
+        status: 'Pending',
+        version: 1,
+      };
+      const approvedRecord = {
+        ...initialRecord,
+        status: 'Approved',
+        version: 2,
+      };
+
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
         headers: new Headers({ 'content-type': 'application/json' }),
-        json: async () => ({ data: { id: 'disb-1', status: 'Approved' } }),
+        json: async () => ({ data: approvedRecord }),
       });
 
-      const { wrapper } = createWrapper();
+      const broadcastSpy = vi.spyOn(tabSync, 'broadcastEntityChange');
+      const { queryClient, wrapper } = createWrapper();
+      const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+      queryClient.setQueryData(disbursementKeys.detail('disb-1'), initialRecord);
+      queryClient.setQueryData(disbursementKeys.list('ATA'), {
+        data: [initialRecord],
+        meta: { total: 1, page: 1, limit: 20 },
+      });
+
       const { result } = renderHook(() => useApproveDisbursement(), { wrapper });
 
       const res = await result.current.approveDisbursement('disb-1');
@@ -297,23 +355,64 @@ describe('Disbursements Data Layer & Zero Optimistic Updates Doctrine', () => {
       const fetchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]!;
       expect(fetchCall[0]).toContain('/disbursements/disb-1/approve');
       expect(fetchCall[1]!.method).toBe('POST');
+
+      // Authoritative detail cache pinned
+      expect(queryClient.getQueryData(disbursementKeys.detail('disb-1'))).toEqual(approvedRecord);
+
+      // List cache patched in place
+      const cachedList = queryClient.getQueryData<{ data: typeof approvedRecord[] }>(
+        disbursementKeys.list('ATA')
+      );
+      expect(cachedList?.data[0]?.status).toBe('Approved');
+
+      // Tab sync broadcast
+      expect(broadcastSpy).toHaveBeenCalledWith({
+        domain: 'disbursements',
+        entityId: 'disb-1',
+        entityData: approvedRecord,
+      });
+
+      // Secondary counts only
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: disbursementKeys.counts('ATA'),
+      });
+      expect(invalidateSpy).not.toHaveBeenCalledWith({
+        queryKey: disbursementKeys.detail('disb-1'),
+      });
     });
 
-    it('8. useRejectDisbursement rejects Pending voucher with reason (POST /:id/reject)', async () => {
+    it('8. useRejectDisbursement rejects Pending voucher with reason, pins server truth, and broadcasts tabSync', async () => {
+      const initialRecord = {
+        id: 'disb-1',
+        status: 'Pending',
+        version: 1,
+      };
+      const rejectedRecord = {
+        ...initialRecord,
+        status: 'Rejected',
+        rejection_reason: 'Disallowed expenditure item',
+        version: 2,
+      };
+
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
         headers: new Headers({ 'content-type': 'application/json' }),
         json: async () => ({
-          data: {
-            id: 'disb-1',
-            status: 'Rejected',
-            rejection_reason: 'Disallowed expenditure item',
-          },
+          data: rejectedRecord,
         }),
       });
 
-      const { wrapper } = createWrapper();
+      const broadcastSpy = vi.spyOn(tabSync, 'broadcastEntityChange');
+      const { queryClient, wrapper } = createWrapper();
+      const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+      queryClient.setQueryData(disbursementKeys.detail('disb-1'), initialRecord);
+      queryClient.setQueryData(disbursementKeys.list('ATA'), {
+        data: [initialRecord],
+        meta: { total: 1, page: 1, limit: 20 },
+      });
+
       const { result } = renderHook(() => useRejectDisbursement(), { wrapper });
 
       const res = await result.current.rejectDisbursement({
@@ -327,17 +426,57 @@ describe('Disbursements Data Layer & Zero Optimistic Updates Doctrine', () => {
       expect(fetchCall[1]!.method).toBe('POST');
       const body = JSON.parse(fetchCall[1]!.body as string);
       expect(body.reason).toBe('Disallowed expenditure item');
+
+      // Authoritative detail pinned
+      expect(queryClient.getQueryData(disbursementKeys.detail('disb-1'))).toEqual(rejectedRecord);
+
+      // Tab sync broadcast
+      expect(broadcastSpy).toHaveBeenCalledWith({
+        domain: 'disbursements',
+        entityId: 'disb-1',
+        entityData: rejectedRecord,
+      });
+
+      // Secondary counts only
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: disbursementKeys.counts('ATA'),
+      });
+      expect(invalidateSpy).not.toHaveBeenCalledWith({
+        queryKey: disbursementKeys.detail('disb-1'),
+      });
     });
 
-    it('9. useReleaseDisbursement records payment release (POST /:id/release)', async () => {
+    it('9. useReleaseDisbursement records payment release, pins server truth, and verifies useReleasePayment alias', async () => {
+      const initialRecord = {
+        id: 'disb-1',
+        status: 'Approved',
+        version: 2,
+      };
+      const releasedRecord = {
+        ...initialRecord,
+        status: 'Released',
+        version: 3,
+      };
+
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
         headers: new Headers({ 'content-type': 'application/json' }),
-        json: async () => ({ data: { id: 'disb-1', status: 'Released' } }),
+        json: async () => ({ data: releasedRecord }),
       });
 
-      const { wrapper } = createWrapper();
+      const broadcastSpy = vi.spyOn(tabSync, 'broadcastEntityChange');
+      const { queryClient, wrapper } = createWrapper();
+
+      queryClient.setQueryData(disbursementKeys.detail('disb-1'), initialRecord);
+      queryClient.setQueryData(disbursementKeys.list('ATA'), {
+        data: [initialRecord],
+        meta: { total: 1, page: 1, limit: 20 },
+      });
+
+      // Contract alias verification
+      expect(useReleasePayment).toBe(useReleaseDisbursement);
+
       const { result } = renderHook(() => useReleaseDisbursement(), { wrapper });
 
       const res = await result.current.releaseDisbursement({
@@ -352,6 +491,16 @@ describe('Disbursements Data Layer & Zero Optimistic Updates Doctrine', () => {
 
       const fetchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]!;
       expect(fetchCall[0]).toContain('/disbursements/disb-1/release');
+
+      // Authoritative detail pinned
+      expect(queryClient.getQueryData(disbursementKeys.detail('disb-1'))).toEqual(releasedRecord);
+
+      // Tab sync broadcast
+      expect(broadcastSpy).toHaveBeenCalledWith({
+        domain: 'disbursements',
+        entityId: 'disb-1',
+        entityData: releasedRecord,
+      });
     });
 
     it('10. useFundDisbursement marks as funded (POST /:id/fund)', async () => {
@@ -370,6 +519,58 @@ describe('Disbursements Data Layer & Zero Optimistic Updates Doctrine', () => {
 
       const fetchCall = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0]!;
       expect(fetchCall[0]).toContain('/disbursements/disb-1/fund');
+    });
+
+    it('11. rolls back cache to snapshot on mutation failure (Phase 1 snapshot -> onError restore)', async () => {
+      const initialRecord = {
+        id: 'disb-rollback-1',
+        status: 'Pending',
+        description: 'Original description',
+        version: 1,
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        statusText: 'Conflict',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({
+          status: 409,
+          code: 'ERR_CONCURRENCY_CONFLICT',
+          detail: 'Record was modified by another user.',
+        }),
+      });
+
+      const { queryClient, wrapper } = createWrapper();
+
+      // Seed cache snapshot
+      queryClient.setQueryData(disbursementKeys.detail('disb-rollback-1'), initialRecord);
+      queryClient.setQueryData(disbursementKeys.list('ATA'), {
+        data: [initialRecord],
+        meta: { total: 1, page: 1, limit: 20 },
+      });
+
+      const { result } = renderHook(() => useUpdateDisbursement(), { wrapper });
+
+      await expect(
+        result.current.updateDisbursement({
+          id: 'disb-rollback-1',
+          data: { description: 'Conflicting edit', expectedVersion: 1 },
+        })
+      ).rejects.toThrow();
+
+      // Cache remains exactly the snapshot version after rollback
+      const detailAfterError = queryClient.getQueryData<typeof initialRecord>(
+        disbursementKeys.detail('disb-rollback-1')
+      );
+      expect(detailAfterError?.description).toBe('Original description');
+      expect(detailAfterError?.status).toBe('Pending');
+      expect(detailAfterError?.version).toBe(1);
+
+      const listAfterError = queryClient.getQueryData<{ data: typeof initialRecord[] }>(
+        disbursementKeys.list('ATA')
+      );
+      expect(listAfterError?.data[0]?.description).toBe('Original description');
     });
   });
 

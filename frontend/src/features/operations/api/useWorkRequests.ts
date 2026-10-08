@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { apiRequest, ApiError, queryClient } from '@/lib/api';
+import { isFeatureEnabled } from '@/lib/flags';
+import { broadcastEntityChange } from '@/lib/tabSync';
 import { useSessionStore } from '@/lib/session';
 import { operationsKeys } from './queryKeys';
 import type {
@@ -210,21 +212,28 @@ export function useWorkRequestMutations() {
   const statusOptimisticMutation = useMutation<
     WorkRequest,
     ApiError,
-    { id: string; status: WorkRequestStatus; entity?: string },
+    { id: string; status: WorkRequestStatus; entity?: string; expectedVersion?: number },
     { snapshots: QuerySnapshot }
   >({
-    mutationFn: async ({ id, status, entity }) => {
+    mutationFn: async ({ id, status, entity, expectedVersion }) => {
       const headers: Record<string, string> = {};
       if (entity && entity !== 'ALL') headers['X-Active-Entity'] = entity;
+
+      const bodyPayload: Record<string, unknown> = {
+        status,
+        ...(entity && entity !== 'ALL' ? { entity } : {}),
+      };
+
+      if (isFeatureEnabled('strict_occ') && typeof expectedVersion === 'number') {
+        bodyPayload.expectedVersion = expectedVersion;
+      }
+
       const res = await apiRequest<WorkRequestDetailResponse>(
         `/operations/work-requests/${id}`,
         {
           method: 'PUT',
           headers,
-          body: JSON.stringify({
-            status,
-            ...(entity && entity !== 'ALL' ? { entity } : {}),
-          }),
+          body: JSON.stringify(bodyPayload),
         }
       );
       return res.data;
@@ -290,6 +299,13 @@ export function useWorkRequestMutations() {
           }
         }
       }
+
+      // 3. Cross-Tab Synchronization
+      broadcastEntityChange({
+        domain: 'operations',
+        entityId: serverWr.id,
+        entityData: serverWr,
+      });
     },
     onError: (_err, _vars, context) => {
       if (context?.snapshots) {

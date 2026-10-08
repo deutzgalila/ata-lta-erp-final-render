@@ -46,8 +46,13 @@ import {
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 import { ArchiveConfirmModal, type ArchiveActionType } from './ArchiveConfirmModal';
 import { WorkRequestSidePeek } from './WorkRequestSidePeek';
+import {
+  ConflictResolutionModal,
+  isConcurrencyConflictError,
+} from '@/components/common/ConflictResolutionModal';
 import { runBlockingAction } from './BlockingActionModal';
 import { useWorkRequests, useWorkRequestMutations, prefetchWorkRequestDetail } from '../api/useWorkRequests';
 import { usePhaseTransitions } from '../api/usePhaseTransitions';
@@ -59,10 +64,12 @@ import { getPhaseBadgeInfo, getStatusBadgeInfo } from '../lib/statusBadges';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
 import { isUserAdmin } from '../lib/taskScope';
+import type { ApiError } from '@/lib/api';
 import {
   type WorkRequest,
   type Phase,
   type AdvancePhaseTarget,
+  type WorkRequestStatus,
   WORK_REQUEST_STATUS_OPTIONS,
 } from '../api/types';
 
@@ -111,6 +118,20 @@ export function WorkRequestList({
     workRequest: null,
   });
 
+  // OCC Conflict Resolution Modal State
+  const [conflictState, setConflictState] = useState<{
+    isOpen: boolean;
+    workRequest: WorkRequest | null;
+    attemptedStatus: WorkRequestStatus | null;
+    error: ApiError | null;
+  }>({
+    isOpen: false,
+    workRequest: null,
+    attemptedStatus: null,
+    error: null,
+  });
+
+  const queryClient = useQueryClient();
   const activeEntity = useSessionStore((state) => state.activeEntity);
   const permissions = useSessionStore((state) => state.permissions);
   const user = useSessionStore((state) => state.user);
@@ -828,9 +849,19 @@ export function WorkRequestList({
                                             id: wr.id,
                                             status: opt,
                                             entity: wr.entity,
+                                            expectedVersion: wr.version,
                                           });
                                           toast.success(`Status updated to "${opt}"`);
                                         } catch (e: unknown) {
+                                          if (isConcurrencyConflictError(e)) {
+                                            setConflictState({
+                                              isOpen: true,
+                                              workRequest: wr,
+                                              attemptedStatus: opt,
+                                              error: e as ApiError,
+                                            });
+                                            return;
+                                          }
                                           toast.error(e instanceof Error ? e.message : 'Update failed');
                                         }
                                       }}
@@ -1189,6 +1220,30 @@ export function WorkRequestList({
         onClose={() => setPeekWrId(null)}
         onEdit={onEdit}
         onViewInBoard={onViewDetails}
+      />
+
+      {/* OCC Concurrency Conflict Resolution Modal */}
+      <ConflictResolutionModal
+        isOpen={conflictState.isOpen}
+        onClose={() => setConflictState((prev) => ({ ...prev, isOpen: false }))}
+        error={conflictState.error}
+        entityTitle={conflictState.workRequest?.title}
+        entityType="Work Request"
+        expectedVersion={conflictState.workRequest?.version}
+        attemptedStatus={conflictState.attemptedStatus}
+        currentStatus={conflictState.workRequest?.status}
+        onRefreshAndKeepLatest={async () => {
+          await queryClient.refetchQueries({
+            queryKey: operationsKeys.workRequests(),
+          });
+          if (conflictState.workRequest?.id) {
+            await queryClient.refetchQueries({
+              queryKey: operationsKeys.workRequestDetail(conflictState.workRequest.id),
+            });
+          }
+          setConflictState((prev) => ({ ...prev, isOpen: false }));
+        }}
+        onCancel={() => setConflictState((prev) => ({ ...prev, isOpen: false }))}
       />
     </div>
   );

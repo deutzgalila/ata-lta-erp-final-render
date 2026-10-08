@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { apiRequest, ApiError } from '@/lib/api';
+import { useSessionStore } from '@/lib/session';
+import { broadcastEntityChange } from '@/lib/tabSync';
 import { operationsKeys } from './queryKeys';
 import type {
   Task,
@@ -146,6 +148,7 @@ export interface AddTimeLogsVariables {
 
 export function useTaskMutations(boundWorkRequestId?: string) {
   const queryClient = useQueryClient();
+  const activeEntity = useSessionStore((state) => state.activeEntity);
 
   // 1. Create Task
   const createMutation = useMutation<Task, ApiError, CreateTaskVariables>({
@@ -191,30 +194,34 @@ export function useTaskMutations(boundWorkRequestId?: string) {
       return res.data;
     },
     onMutate: async (variables) => {
-      const dataKeys = Object.keys(variables.data);
-      if (dataKeys.length !== 1 || dataKeys[0] !== 'status') return undefined;
       const wrId = variables.workRequestId || boundWorkRequestId;
       if (!wrId) return undefined;
 
       await queryClient.cancelQueries({ queryKey: operationsKeys.tasks(wrId) });
+      await queryClient.cancelQueries({
+        queryKey: operationsKeys.taskDetail(wrId, variables.taskId),
+      });
 
       const prevList = queryClient.getQueryData<Task[]>(operationsKeys.tasks(wrId));
       const prevDetail = queryClient.getQueryData<Task>(
         operationsKeys.taskDetail(wrId, variables.taskId)
       );
-      const status = (variables.data as { status: TaskStatus }).status;
 
-      if (prevList) {
-        queryClient.setQueryData<Task[]>(
-          operationsKeys.tasks(wrId),
-          prevList.map((t) => (t.id === variables.taskId ? { ...t, status } : t))
-        );
-      }
-      if (prevDetail) {
-        queryClient.setQueryData<Task>(
-          operationsKeys.taskDetail(wrId, variables.taskId),
-          { ...prevDetail, status }
-        );
+      const dataKeys = Object.keys(variables.data);
+      if (dataKeys.length === 1 && dataKeys[0] === 'status') {
+        const status = (variables.data as { status: TaskStatus }).status;
+        if (prevList) {
+          queryClient.setQueryData<Task[]>(
+            operationsKeys.tasks(wrId),
+            prevList.map((t) => (t.id === variables.taskId ? { ...t, status } : t))
+          );
+        }
+        if (prevDetail) {
+          queryClient.setQueryData<Task>(
+            operationsKeys.taskDetail(wrId, variables.taskId),
+            { ...prevDetail, status }
+          );
+        }
       }
 
       return { wrId, prevList, prevDetail };
@@ -231,13 +238,39 @@ export function useTaskMutations(boundWorkRequestId?: string) {
         );
       }
     },
+    onSuccess: (updatedTask, variables) => {
+      const wrId = variables.workRequestId || boundWorkRequestId || updatedTask.workRequestId;
+      if (wrId) {
+        // Pin authoritative server truth into detail cache
+        queryClient.setQueryData<Task>(
+          operationsKeys.taskDetail(wrId, updatedTask.id),
+          updatedTask
+        );
+        // Pin authoritative server truth into task list cache
+        const currentList = queryClient.getQueryData<Task[]>(operationsKeys.tasks(wrId));
+        if (currentList) {
+          queryClient.setQueryData<Task[]>(
+            operationsKeys.tasks(wrId),
+            currentList.map((t) => (t.id === updatedTask.id ? { ...t, ...updatedTask } : t))
+          );
+        }
+      }
+
+      // Broadcast entity change cross-tab
+      broadcastEntityChange({
+        domain: 'operations',
+        entityId: updatedTask.id,
+        entityData: updatedTask,
+      });
+    },
     onSettled: (task, _err, variables) => {
       const wrId = variables.workRequestId || boundWorkRequestId || task?.workRequestId;
       if (!wrId) return;
-      queryClient.invalidateQueries({ queryKey: operationsKeys.workRequestDetail(wrId) });
-      queryClient.invalidateQueries({ queryKey: operationsKeys.tasks(wrId) });
+      // Invalidate ONLY secondary queries (parent WR detail, counters).
+      // Never invalidate the newly pinned task detail or task list to strictly eliminate flash-revert.
+      queryClient.invalidateQueries({ queryKey: operationsKeys.workRequestDetail(wrId), exact: true });
       queryClient.invalidateQueries({
-        queryKey: operationsKeys.taskDetail(wrId, variables.taskId),
+        queryKey: operationsKeys.workRequestCounts(activeEntity),
       });
     },
   });
