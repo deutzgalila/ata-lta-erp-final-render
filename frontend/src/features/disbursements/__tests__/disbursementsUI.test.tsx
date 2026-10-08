@@ -9,6 +9,7 @@ import { DisbursementsTable } from '../components/DisbursementsTable';
 import { DisbursementStatusBadge } from '../components/DisbursementStatusBadge';
 import { useSessionStore, type SessionState } from '@/lib/session';
 import { useBlockingModalStore } from '@/features/operations/components/BlockingActionModal';
+import { supabase } from '@/lib/supabase';
 import type { Disbursement } from '../api/types';
 
 // UAT-SH6: Isolate useSessionStore per test to prevent concurrent cross-suite state leakage
@@ -519,6 +520,14 @@ describe('Disbursements UI Components & Integration', () => {
       expect(badge).toBeInTheDocument();
       expect(badge?.getAttribute('data-test-status')).toBe('approved');
       expect(badge?.textContent).toBe('Approved');
+    });
+
+    it('subscribes to realtime CDC channel for disbursements', () => {
+      const channelSpy = vi.spyOn(supabase, 'channel');
+      const { wrapper } = createHarness();
+      render(<DisbursementsTable onSelectDisbursement={vi.fn()} />, { wrapper });
+
+      expect(channelSpy).toHaveBeenCalledWith('cdc_disbursements');
     });
   });
 });

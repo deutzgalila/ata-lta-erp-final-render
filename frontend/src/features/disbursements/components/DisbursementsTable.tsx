@@ -25,6 +25,7 @@ import {
 import { useDisbursementsList } from '../api/useDisbursements';
 import { DisbursementStatusBadge } from './DisbursementStatusBadge';
 import { FundsReleaseActions } from './FundsReleaseActions';
+import { useEntityRealtimeSync } from '@/lib/realtime';
 import type {
   Disbursement,
   DisbursementStatus,
@@ -40,6 +41,9 @@ export function DisbursementsTable({
   onSelectDisbursement,
   statusFilter,
 }: DisbursementsTableProps) {
+  // Realtime CDC Subscriptions (Parcel E)
+  useEntityRealtimeSync({ table: 'disbursements' });
+
   const [search, setSearch] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<DisbursementStatus | ''>(
     statusFilter || ''

@@ -6,6 +6,7 @@ import { WorkRequestList } from '../components/WorkRequestList';
 import { WorkRequestModal } from '../components/WorkRequestModal';
 import { useBlockingModalStore } from '../components/BlockingActionModal';
 import { useSessionStore } from '@/lib/session';
+import { supabase } from '@/lib/supabase';
 import type { WorkRequest } from '../api/types';
 
 function createHarness() {
@@ -252,6 +253,15 @@ describe('Work Request Parity Feature Set (Step 3)', () => {
         expect(screen.getByTestId('bulk-actions-bar')).toBeInTheDocument();
         expect(screen.getByText(/1 work requests selected/i)).toBeInTheDocument();
       });
+    });
+
+    it('subscribes to realtime CDC channels for work_requests and tasks', () => {
+      const channelSpy = vi.spyOn(supabase, 'channel');
+      const { wrapper } = createHarness();
+      render(<WorkRequestList />, { wrapper });
+
+      expect(channelSpy).toHaveBeenCalledWith('cdc_work_requests');
+      expect(channelSpy).toHaveBeenCalledWith('cdc_tasks');
     });
   });
 

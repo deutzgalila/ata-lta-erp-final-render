@@ -64,6 +64,7 @@ import { getPhaseBadgeInfo, getStatusBadgeInfo } from '../lib/statusBadges';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
 import { isUserAdmin } from '../lib/taskScope';
+import { useEntityRealtimeSync } from '@/lib/realtime';
 import type { ApiError } from '@/lib/api';
 import {
   type WorkRequest,
@@ -84,6 +85,10 @@ export function WorkRequestList({
   onEdit,
   onCreateNew,
 }: WorkRequestListProps) {
+  // Realtime CDC Subscriptions (Parcel E)
+  useEntityRealtimeSync({ table: 'work_requests' });
+  useEntityRealtimeSync({ table: 'tasks' });
+
   // View mode: Table vs Compact Card List
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
 

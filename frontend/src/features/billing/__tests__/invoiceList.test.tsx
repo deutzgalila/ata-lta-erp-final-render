@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { InvoiceList } from '../components/InvoiceList';
 import { useBlockingModalStore } from '@/features/operations/components/BlockingActionModal';
 import { useSessionStore } from '@/lib/session';
+import { supabase } from '@/lib/supabase';
 import type { Invoice } from '../api/types';
 
 function createHarness() {
@@ -359,5 +360,13 @@ describe('InvoiceList Component', () => {
 
     fireEvent.click(screen.getByTestId('clear-filters-button'));
     expect(screen.queryByTestId('clear-filters-button')).not.toBeInTheDocument();
+  });
+
+  it('subscribes to realtime CDC channel for invoices', () => {
+    const channelSpy = vi.spyOn(supabase, 'channel');
+    const { wrapper } = createHarness();
+    render(<InvoiceList />, { wrapper });
+
+    expect(channelSpy).toHaveBeenCalledWith('cdc_invoices');
   });
 });

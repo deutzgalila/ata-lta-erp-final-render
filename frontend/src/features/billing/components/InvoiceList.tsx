@@ -36,6 +36,7 @@ import { useDebounce } from '../hooks/useDebounce';
 import { usePermission } from '@/lib/permissions';
 import { formatCurrency, getStatusBadgeVariant } from '../utils/formatters';
 import { ViewModeToggle } from './ViewModeToggle';
+import { useEntityRealtimeSync } from '@/lib/realtime';
 import type { Invoice, InvoiceStatus } from '../api/types';
 
 export interface InvoiceListProps {
@@ -61,6 +62,9 @@ export function InvoiceList({
   onRecordPayment,
   onPrintPreview,
 }: InvoiceListProps) {
+  // Realtime CDC Subscriptions (Parcel E)
+  useEntityRealtimeSync({ table: 'invoices' });
+
   // View mode
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
 
