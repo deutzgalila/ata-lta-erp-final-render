@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { apiRequest, ApiError } from '@/lib/api';
 import { operationsKeys } from './queryKeys';
 import type {
@@ -27,6 +27,8 @@ export function useWorkRequestTasks(
       return res.data;
     },
     enabled: Boolean(workRequestId) && (options?.enabled ?? true),
+    // Instant feel: kanban columns/list keep previous rows during refetch.
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -35,6 +37,8 @@ export function useTaskDetail(
   taskId: string | undefined,
   options?: { enabled?: boolean }
 ) {
+  const queryClient = useQueryClient();
+
   return useQuery({
     queryKey: operationsKeys.taskDetail(workRequestId ?? '', taskId ?? ''),
     queryFn: async () => {
@@ -45,6 +49,13 @@ export function useTaskDetail(
       return res.data;
     },
     enabled: Boolean(workRequestId && taskId) && (options?.enabled ?? true),
+    // Instant feel: seed from the work request's task list cache while the
+    // detail fetch completes. Placeholder never persists into the cache.
+    placeholderData: () => {
+      if (!workRequestId || !taskId) return undefined;
+      const tasks = queryClient.getQueryData<Task[]>(operationsKeys.tasks(workRequestId));
+      return tasks?.find((t) => t.id === taskId);
+    },
   });
 }
 

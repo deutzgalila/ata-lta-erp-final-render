@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { apiRequest, type ApiError } from '@/lib/api';
 import { runBlockingAction } from '@/features/operations/components/BlockingActionModal';
 import { useSessionStore } from '@/lib/session';
@@ -30,6 +30,8 @@ export function useRetainerTemplatesList(options?: UseRetainerTemplatesOptions) 
     },
     enabled: options?.enabled ?? true,
     staleTime: 60 * 1000,
+    // Instant feel: keep previous entity's rows while the next fetch lands.
+    placeholderData: keepPreviousData,
   });
 }
 

@@ -5,7 +5,7 @@
  * Policy: Zero Optimistic Updates — all mutations use runBlockingAction.
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { apiRequest, type ApiError } from '@/lib/api';
 import { useSessionStore } from '@/lib/session';
 import { runBlockingAction } from '@/features/operations/components/BlockingActionModal';
@@ -64,6 +64,9 @@ export function useClientsList(filters?: ClientFilters) {
       };
     },
     staleTime: 30 * 1000,
+    // Instant feel: keep previous page/filter rows rendered while the next
+    // list fetch is in flight (no skeleton flash).
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -89,6 +92,8 @@ export function useClientCounts() {
  * Endpoint: GET /v1/clients/:id
  */
 export function useClientDetail(id: string | undefined, includeArchived = false) {
+  const queryClient = useQueryClient();
+
   return useQuery<Client, ApiError>({
     queryKey: clientKeys.detail(id),
     queryFn: async () => {
@@ -99,6 +104,18 @@ export function useClientDetail(id: string | undefined, includeArchived = false)
     },
     enabled: Boolean(id),
     staleTime: 30 * 1000,
+    // Instant feel: render from the matching list row (already fetched) while
+    // the detail fetch completes. Placeholder never persists into the cache.
+    placeholderData: () => {
+      if (!id) return undefined;
+      for (const [, list] of queryClient.getQueriesData<ClientListResponse>({
+        queryKey: clientKeys.lists(),
+      })) {
+        const hit = list?.data?.find((c) => c.id === id);
+        if (hit) return hit;
+      }
+      return undefined;
+    },
   });
 }
 

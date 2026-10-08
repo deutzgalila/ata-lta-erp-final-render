@@ -7,7 +7,7 @@
  * - Citation: docs/api-contracts/modules/time-entries.md
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api';
 import { dashboardKeys } from './queryKeys';
 import type {
@@ -105,6 +105,8 @@ export function useTimeEntriesList(filters?: TimeEntryListFilters) {
       return items.map(mapRawTimeEntry);
     },
     staleTime: 30 * 1000,
+    // Instant feel: keep previous filter range's rows while the next fetch lands.
+    placeholderData: keepPreviousData,
   });
 }
 

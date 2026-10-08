@@ -49,7 +49,7 @@ import { toast } from 'sonner';
 import { ArchiveConfirmModal, type ArchiveActionType } from './ArchiveConfirmModal';
 import { WorkRequestSidePeek } from './WorkRequestSidePeek';
 import { runBlockingAction } from './BlockingActionModal';
-import { useWorkRequests, useWorkRequestMutations } from '../api/useWorkRequests';
+import { useWorkRequests, useWorkRequestMutations, prefetchWorkRequestDetail } from '../api/useWorkRequests';
 import { usePhaseTransitions } from '../api/usePhaseTransitions';
 import { useClients } from '../api/useClients';
 import { useTeam } from '../api/useTeam';
@@ -704,6 +704,7 @@ export function WorkRequestList({
                 return (
                   <TableRow
                     key={wr.id}
+                    onMouseEnter={() => prefetchWorkRequestDetail(wr.id)}
                     className={`hover:bg-slate-50/70 transition-colors ${
                       isSelected ? 'bg-blue-50/40' : ''
                     }`}

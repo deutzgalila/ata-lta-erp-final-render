@@ -8,7 +8,7 @@
  * - Citation: docs/api-contracts/modules/notifications.md
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api';
 import { useSessionStore } from '@/lib/session';
 import { dashboardKeys } from './queryKeys';
@@ -88,6 +88,8 @@ export function useNotifications(params?: { limit?: number; cursor?: string }) {
     },
     staleTime: 30 * 1000,
     refetchInterval: 30 * 1000,
+    // Instant feel: poll refetches keep the previous page rendered.
+    placeholderData: keepPreviousData,
   });
 }
 

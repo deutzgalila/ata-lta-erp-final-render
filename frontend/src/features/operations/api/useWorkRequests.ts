@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { apiRequest, ApiError } from '@/lib/api';
+import { apiRequest, ApiError, queryClient } from '@/lib/api';
 import { useSessionStore } from '@/lib/session';
 import { operationsKeys } from './queryKeys';
 import type {
@@ -60,6 +60,8 @@ export function useWorkRequestDetail(
   id: string | undefined,
   options?: { enabled?: boolean }
 ) {
+  const queryClient = useQueryClient();
+
   return useQuery({
     queryKey: operationsKeys.workRequestDetail(id ?? ''),
     queryFn: async () => {
@@ -70,6 +72,35 @@ export function useWorkRequestDetail(
       return res.data;
     },
     enabled: Boolean(id) && (options?.enabled ?? true),
+    // Instant feel: render the side peek from the matching list row (already
+    // fetched) while the detail fetch completes. Placeholder never persists.
+    placeholderData: () => {
+      if (!id) return undefined;
+      for (const [, list] of queryClient.getQueriesData<WorkRequestListResponse>({
+        queryKey: [...operationsKeys.workRequests(), 'list'],
+      })) {
+        const hit = list?.data?.find((wr) => wr.id === id);
+        if (hit) return hit;
+      }
+      return undefined;
+    },
+  });
+}
+
+/**
+ * Pre-warm the detail cache on row hover/focus so opening the side peek is
+ * instant even before the placeholder paint completes.
+ */
+export function prefetchWorkRequestDetail(id: string): void {
+  void queryClient.prefetchQuery({
+    queryKey: operationsKeys.workRequestDetail(id),
+    queryFn: async () => {
+      const res = await apiRequest<WorkRequestDetailResponse>(
+        `/operations/work-requests/${id}`
+      );
+      return res.data;
+    },
+    staleTime: 30 * 1000,
   });
 }
 

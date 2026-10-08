@@ -72,6 +72,8 @@ export function useTransmittalDetail(
   id: string | undefined,
   options?: { enabled?: boolean }
 ) {
+  const queryClient = useQueryClient();
+
   return useQuery({
     queryKey: transmittalKeys.detail(id),
     queryFn: async () => {
@@ -80,6 +82,19 @@ export function useTransmittalDetail(
       return res.data;
     },
     enabled: Boolean(id) && (options?.enabled ?? true),
+    // Instant feel: render from the matching list row while the detail fetch
+    // completes — but only when the row carries its line items (the detail
+    // modal renders items unguarded). Placeholder never persists.
+    placeholderData: () => {
+      if (!id) return undefined;
+      for (const [, list] of queryClient.getQueriesData<TransmittalListResponse>({
+        queryKey: transmittalKeys.lists(),
+      })) {
+        const hit = list?.data?.find((t) => t.id === id);
+        if (hit && Array.isArray(hit.items)) return hit as TransmittalWithItems;
+      }
+      return undefined;
+    },
   });
 }
 

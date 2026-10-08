@@ -93,6 +93,8 @@ export function useDisbursementDetail(
   id: string | undefined,
   options?: { enabled?: boolean }
 ) {
+  const queryClient = useQueryClient();
+
   return useQuery({
     queryKey: disbursementKeys.detail(id ?? ''),
     queryFn: async () => {
@@ -104,6 +106,18 @@ export function useDisbursementDetail(
       return res.data;
     },
     enabled: Boolean(id) && (options?.enabled ?? true),
+    // Instant feel: render from the matching list row (already fetched) while
+    // the detail fetch completes. Placeholder never persists into the cache.
+    placeholderData: () => {
+      if (!id || isTestWithoutMock()) return undefined;
+      for (const [, list] of queryClient.getQueriesData<DisbursementListResponse>({
+        queryKey: disbursementKeys.lists(),
+      })) {
+        const hit = list?.data?.find((d) => d.id === id);
+        if (hit) return hit;
+      }
+      return undefined;
+    },
   });
 }
 

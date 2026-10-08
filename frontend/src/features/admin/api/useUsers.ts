@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { apiRequest, type ApiError } from '@/lib/api';
 import { runBlockingAction } from '@/features/operations/components/BlockingActionModal';
 import { useSessionStore } from '@/lib/session';
@@ -26,10 +26,14 @@ export function useUsersList(options?: UseUsersListOptions) {
     },
     enabled: options?.enabled ?? true,
     staleTime: 30 * 1000,
+    // Instant feel: keep previous entity's rows while the next fetch lands.
+    placeholderData: keepPreviousData,
   });
 }
 
 export function useUserDetail(id: string | null | undefined, enabled = true) {
+  const queryClient = useQueryClient();
+
   return useQuery<AdminUser, ApiError>({
     queryKey: adminKeys.userDetail(id || ''),
     queryFn: async () => {
@@ -39,6 +43,20 @@ export function useUserDetail(id: string | null | undefined, enabled = true) {
     },
     enabled: Boolean(id) && enabled,
     staleTime: 30 * 1000,
+    // Instant feel: seed from the users list cache (bare arrays) while the
+    // detail fetch completes. Detail caches live under the same prefix but
+    // hold objects, so only array values are considered.
+    placeholderData: () => {
+      if (!id) return undefined;
+      for (const [, list] of queryClient.getQueriesData<unknown>({
+        queryKey: adminKeys.allUsers(),
+      })) {
+        if (!Array.isArray(list)) continue;
+        const hit = (list as AdminUser[]).find((u) => u.id === id);
+        if (hit) return hit;
+      }
+      return undefined;
+    },
   });
 }
 

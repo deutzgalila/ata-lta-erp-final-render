@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { apiRequest, ApiError } from '@/lib/api';
 import { useSessionStore } from '@/lib/session';
 import { operationsKeys } from './queryKeys';
@@ -25,6 +25,8 @@ export function useRetainerTemplates(options?: { enabled?: boolean }) {
       return res.data;
     },
     enabled: options?.enabled ?? true,
+    // Instant feel: keep previous entity's rows while the next fetch lands.
+    placeholderData: keepPreviousData,
   });
 }
 
