@@ -1364,7 +1364,10 @@ const updateWorkRequest = async ({ id, entityId, data, user }) => {
 
   if (data.status && data.status !== existing.status) {
     const isAdmin = Boolean(
-      user && (user.role === 'Admin' || user.email === 'lorein@ata-lta.ph')
+      user &&
+        (user.role === 'Admin' ||
+          user.role?.toLowerCase() === 'admin' ||
+          user.email?.toLowerCase() === 'lorein@ata-lta.ph')
     );
     if (!isAdmin) {
       const allowed = VALID_TRANSITIONS[existing.status] || [];
@@ -1407,7 +1410,11 @@ const updateWorkRequest = async ({ id, entityId, data, user }) => {
     updates.version = (existing.version || 1) + 1;
   }
 
-  let query = supabaseAdmin.from('work_requests').update(updates).eq('id', id).eq('entity_id', entityId);
+  let query = supabaseAdmin
+    .from('work_requests')
+    .update(updates)
+    .eq('id', id)
+    .is('deleted_at', null);
   if (expectedVersion !== null) {
     query = query.eq('version', expectedVersion);
   }
@@ -1420,11 +1427,19 @@ const updateWorkRequest = async ({ id, entityId, data, user }) => {
     });
   }
 
-  if (expectedVersion !== null && (!updatedRows || updatedRows.length === 0)) {
-    throw concurrencyConflict();
+  if (!updatedRows || updatedRows.length === 0) {
+    if (expectedVersion !== null) {
+      throw concurrencyConflict();
+    }
+    throw new AppError({
+      statusCode: 404,
+      title: 'Not Found',
+      detail: 'Work request not found or not updated',
+    });
   }
 
-  return getWorkRequestById({ id, entityId, user });
+  const updatedRow = updatedRows[0];
+  return getWorkRequestById({ id, entityId: updatedRow.entity_id, user });
 };
 
 const archiveWorkRequest = async ({ id, entityId, user }) => {
