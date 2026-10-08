@@ -112,7 +112,9 @@ export function useTaskRelated(
 }
 
 // ============================================================================
-// Mutations (Zero Optimistic Updates Doctrine)
+// Mutations (Zero Optimistic Updates Doctrine — sanctioned exception: a
+// status-ONLY task update is optimistic-with-rollback, mirroring the admin
+// WR status dropdown, so assignee status flips render instantly)
 // ============================================================================
 
 export interface CreateTaskVariables {
@@ -167,7 +169,16 @@ export function useTaskMutations(boundWorkRequestId?: string) {
   });
 
   // 2. Update Task (Phase is immutable)
-  const updateMutation = useMutation<Task, ApiError, UpdateTaskVariables>({
+  // Status-ONLY payloads ({status}) take the optimistic path: the per-WR
+  // task list and the task detail cache flip instantly, restore from
+  // snapshots on failure, and reconcile on settle. Multi-field edits (title,
+  // checklist, dates...) remain plain mutate→await→invalidate.
+  const updateMutation = useMutation<
+    Task,
+    ApiError,
+    UpdateTaskVariables,
+    { wrId: string; prevList?: Task[]; prevDetail?: Task } | undefined
+  >({
     mutationFn: async ({ workRequestId = boundWorkRequestId, taskId, data }) => {
       if (!workRequestId) throw new Error('Work request ID is required');
       const res = await apiRequest<{ data: Task }>(
@@ -179,8 +190,50 @@ export function useTaskMutations(boundWorkRequestId?: string) {
       );
       return res.data;
     },
-    onSuccess: (task, variables) => {
-      const wrId = variables.workRequestId || boundWorkRequestId || task.workRequestId;
+    onMutate: async (variables) => {
+      const dataKeys = Object.keys(variables.data);
+      if (dataKeys.length !== 1 || dataKeys[0] !== 'status') return undefined;
+      const wrId = variables.workRequestId || boundWorkRequestId;
+      if (!wrId) return undefined;
+
+      await queryClient.cancelQueries({ queryKey: operationsKeys.tasks(wrId) });
+
+      const prevList = queryClient.getQueryData<Task[]>(operationsKeys.tasks(wrId));
+      const prevDetail = queryClient.getQueryData<Task>(
+        operationsKeys.taskDetail(wrId, variables.taskId)
+      );
+      const status = (variables.data as { status: TaskStatus }).status;
+
+      if (prevList) {
+        queryClient.setQueryData<Task[]>(
+          operationsKeys.tasks(wrId),
+          prevList.map((t) => (t.id === variables.taskId ? { ...t, status } : t))
+        );
+      }
+      if (prevDetail) {
+        queryClient.setQueryData<Task>(
+          operationsKeys.taskDetail(wrId, variables.taskId),
+          { ...prevDetail, status }
+        );
+      }
+
+      return { wrId, prevList, prevDetail };
+    },
+    onError: (_err, variables, context) => {
+      if (!context) return;
+      if (context.prevList) {
+        queryClient.setQueryData(operationsKeys.tasks(context.wrId), context.prevList);
+      }
+      if (context.prevDetail) {
+        queryClient.setQueryData(
+          operationsKeys.taskDetail(context.wrId, variables.taskId),
+          context.prevDetail
+        );
+      }
+    },
+    onSettled: (task, _err, variables) => {
+      const wrId = variables.workRequestId || boundWorkRequestId || task?.workRequestId;
+      if (!wrId) return;
       queryClient.invalidateQueries({ queryKey: operationsKeys.workRequestDetail(wrId) });
       queryClient.invalidateQueries({ queryKey: operationsKeys.tasks(wrId) });
       queryClient.invalidateQueries({

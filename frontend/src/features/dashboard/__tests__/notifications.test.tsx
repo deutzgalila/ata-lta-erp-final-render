@@ -7,7 +7,9 @@ import {
   useNotifications,
   useMarkNotificationRead,
   useMarkAllNotificationsRead,
+  mapRawNotificationItem,
 } from '../api/useNotifications';
+import { dashboardKeys } from '../api/queryKeys';
 import { NotificationBellPanel } from '../components/NotificationBellPanel';
 import { useSessionStore } from '@/lib/session';
 import * as api from '@/lib/api';
@@ -132,6 +134,13 @@ describe('Notifications API & NotificationBellPanel (notifications@2.0.0)', () =
       });
 
       const wrapper = createWrapper();
+      // Seed the list cache the way the bell panel would have loaded it: the
+      // optimistic decrement fires only for an item observed unread in cache.
+      queryClient.setQueryData(dashboardKeys.notifications.list({ limit: 50 }), {
+        data: sampleNotifications.map(mapRawNotificationItem),
+        meta: { unreadCount: 2, hasMore: false },
+      });
+
       const { result } = renderHook(() => useMarkNotificationRead(), { wrapper });
 
       await result.current.mutateAsync('notif-1');

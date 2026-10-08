@@ -3,6 +3,9 @@
  *
  * Rules:
  * - R2: No optimistic updates (blocking-flow doctrine: mutate -> await -> invalidate)
+ *   Sanctioned exception: update/delete of the user's own time entries are
+ *   optimistic-with-rollback — user-scoped, unnumbered rows restored from
+ *   snapshots on failure and reconciled on settle. Create stays blocking.
  * - R3: Verbatim RFC 7807 error surfacing
  * - Citation: docs/api-contracts/modules/time-entries.md
  */
@@ -111,7 +114,8 @@ export function useTimeEntriesList(filters?: TimeEntryListFilters) {
 }
 
 // ============================================================================
-// 3. Mutation Hooks (Strict Blocking Flow — No Optimistic Updates)
+// 3. Mutation Hooks (update/delete optimistic-with-rollback per the
+// sanctioned exception noted above; create stays blocking)
 // ============================================================================
 
 /**
@@ -161,6 +165,8 @@ export function useCreateTimeEntry() {
 
 /**
  * Update an existing time entry (duration, date, note, or task).
+ * Optimistic-with-rollback on the list caches; summaries and operations
+ * caches reconcile on settle.
  */
 export function useUpdateTimeEntry() {
   const queryClient = useQueryClient();
@@ -189,10 +195,47 @@ export function useUpdateTimeEntry() {
 
       return mapRawTimeEntry(response.data);
     },
-    onSuccess: async () => {
+    onMutate: async ({ id, input }) => {
+      await queryClient.cancelQueries({ queryKey: dashboardKeys.timeEntries.all });
+
+      const snapshots = queryClient.getQueriesData<TimeEntry[]>({
+        queryKey: dashboardKeys.timeEntries.lists(),
+      });
+
+      for (const [key, val] of snapshots) {
+        if (!Array.isArray(val)) continue;
+        queryClient.setQueryData(
+          key,
+          val.map((te) =>
+            te.id === id
+              ? {
+                  ...te,
+                  ...(input.taskId !== undefined ? { taskId: input.taskId } : {}),
+                  ...(input.entryDate !== undefined ? { entryDate: input.entryDate } : {}),
+                  ...(input.durationMinutes !== undefined
+                    ? { durationMinutes: input.durationMinutes }
+                    : {}),
+                  ...(input.note !== undefined ? { note: input.note } : {}),
+                  updatedAt: new Date().toISOString(),
+                }
+              : te
+          )
+        );
+      }
+
+      return { snapshots };
+    },
+    onError: (_err, _vars, context) => {
+      if (!context) return;
+      for (const [key, val] of context.snapshots) {
+        queryClient.setQueryData(key, val);
+      }
+    },
+    onSettled: async () => {
       await queryClient.invalidateQueries({
         queryKey: dashboardKeys.timeEntries.all,
       });
+      // Also invalidate operations work-requests in case task detail view displays time logs
       await queryClient.invalidateQueries({
         queryKey: ['operations'],
       });
@@ -202,6 +245,8 @@ export function useUpdateTimeEntry() {
 
 /**
  * Delete a time entry.
+ * Optimistic-with-rollback: the row vanishes instantly and is restored from
+ * the snapshot if the server rejects the delete.
  */
 export function useDeleteTimeEntry() {
   const queryClient = useQueryClient();
@@ -212,7 +257,30 @@ export function useDeleteTimeEntry() {
         method: 'DELETE',
       });
     },
-    onSuccess: async () => {
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: dashboardKeys.timeEntries.all });
+
+      const snapshots = queryClient.getQueriesData<TimeEntry[]>({
+        queryKey: dashboardKeys.timeEntries.lists(),
+      });
+
+      for (const [key, val] of snapshots) {
+        if (!Array.isArray(val)) continue;
+        queryClient.setQueryData(
+          key,
+          val.filter((te) => te.id !== id)
+        );
+      }
+
+      return { snapshots };
+    },
+    onError: (_err, _id, context) => {
+      if (!context) return;
+      for (const [key, val] of context.snapshots) {
+        queryClient.setQueryData(key, val);
+      }
+    },
+    onSettled: async () => {
       await queryClient.invalidateQueries({
         queryKey: dashboardKeys.timeEntries.all,
       });

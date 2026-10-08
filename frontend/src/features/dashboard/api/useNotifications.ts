@@ -4,6 +4,9 @@
  * Rules:
  * - 30s polling (no websockets)
  * - R2: No optimistic updates (mutate -> await -> invalidate)
+ *   Sanctioned exception: read-state flips (mark read / mark all read) are
+ *   optimistic-with-rollback — pure local read flags plus the session badge
+ *   counter, snapshotted and restored on failure, reconciled on settle.
  * - R3: Verbatim RFC 7807 error surfacing
  * - Citation: docs/api-contracts/modules/notifications.md
  */
@@ -94,16 +97,19 @@ export function useNotifications(params?: { limit?: number; cursor?: string }) {
 }
 
 // ============================================================================
-// 3. Mutation Hooks (Strict Blocking Flow)
+// 3. Mutation Hooks (read-state flips are optimistic-with-rollback per the
+// sanctioned exception noted above)
 // ============================================================================
 
 /**
  * Mark a single notification as read.
+ * Optimistic-with-rollback: the item and the badge counter flip instantly;
+ * on failure all caches and the counter restore from snapshots; server
+ * truth is re-fetched on settle.
  */
 export function useMarkNotificationRead() {
   const queryClient = useQueryClient();
   const setUnreadCount = useSessionStore((state) => state.setUnreadCount);
-  const unreadCount = useSessionStore((state) => state.unreadCount);
 
   return useMutation({
     mutationFn: async (id: string): Promise<{ id: string; readAt: string }> => {
@@ -118,10 +124,42 @@ export function useMarkNotificationRead() {
         readAt: res.data.read_at,
       };
     },
-    onSuccess: async () => {
-      // Decrement unread count defensively
-      setUnreadCount(Math.max(0, unreadCount - 1));
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: dashboardKeys.notifications.all });
 
+      const lists = queryClient.getQueriesData<NotificationListResponse>({
+        queryKey: dashboardKeys.notifications.all,
+      });
+      const prevUnread = useSessionStore.getState().unreadCount;
+
+      const wasUnread = lists.some(([, val]) =>
+        val?.data?.some((n) => n.id === id && !n.readAt)
+      );
+
+      const now = new Date().toISOString();
+      for (const [key, val] of lists) {
+        if (!val || !Array.isArray(val.data)) continue;
+        queryClient.setQueryData(key, {
+          ...val,
+          data: val.data.map((n) => (n.id === id && !n.readAt ? { ...n, readAt: now } : n)),
+          meta:
+            val.meta && typeof val.meta.unreadCount === 'number' && wasUnread
+              ? { ...val.meta, unreadCount: Math.max(0, val.meta.unreadCount - 1) }
+              : val.meta,
+        });
+      }
+      if (wasUnread) setUnreadCount(Math.max(0, prevUnread - 1));
+
+      return { lists, prevUnread };
+    },
+    onError: (_err, _id, context) => {
+      if (!context) return;
+      for (const [key, val] of context.lists) {
+        queryClient.setQueryData(key, val);
+      }
+      setUnreadCount(context.prevUnread);
+    },
+    onSettled: async () => {
       await queryClient.invalidateQueries({
         queryKey: dashboardKeys.notifications.all,
       });
@@ -135,6 +173,7 @@ export function useMarkNotificationRead() {
 
 /**
  * Mark all unread notifications as read.
+ * Optimistic-with-rollback (same pattern as the single-item mutation).
  */
 export function useMarkAllNotificationsRead() {
   const queryClient = useQueryClient();
@@ -152,8 +191,38 @@ export function useMarkAllNotificationsRead() {
         updatedCount: res.data.updated_count,
       };
     },
-    onSuccess: async () => {
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: dashboardKeys.notifications.all });
+
+      const lists = queryClient.getQueriesData<NotificationListResponse>({
+        queryKey: dashboardKeys.notifications.all,
+      });
+      const prevUnread = useSessionStore.getState().unreadCount;
+
+      const now = new Date().toISOString();
+      for (const [key, val] of lists) {
+        if (!val || !Array.isArray(val.data)) continue;
+        queryClient.setQueryData(key, {
+          ...val,
+          data: val.data.map((n) => (n.readAt ? n : { ...n, readAt: now })),
+          meta:
+            val.meta && typeof val.meta.unreadCount === 'number'
+              ? { ...val.meta, unreadCount: 0 }
+              : val.meta,
+        });
+      }
       setUnreadCount(0);
+
+      return { lists, prevUnread };
+    },
+    onError: (_err, _vars, context) => {
+      if (!context) return;
+      for (const [key, val] of context.lists) {
+        queryClient.setQueryData(key, val);
+      }
+      setUnreadCount(context.prevUnread);
+    },
+    onSettled: async () => {
       await queryClient.invalidateQueries({
         queryKey: dashboardKeys.notifications.all,
       });
