@@ -202,9 +202,11 @@ export function useWorkRequestMutations() {
   // 3. Admin Status Transition — OPTIMISTIC (single sanctioned exception to the
   // zero-optimistic doctrine, per product request). The status badge and all
   // open lists/boards flip instantly; the server call runs underneath. On
-  // failure every touched cache is rolled back from snapshots and the error
-  // rethrows so the caller surfaces the verbatim RFC 7807 detail. Server truth
-  // is re-fetched on settle, so nothing can drift.
+  // 3. Admin Status Transition — OPTIMISTIC:
+  // The status flips immediately on click across both detail and list caches.
+  // On success, confirmed server truth is pinned directly into the caches so
+  // background refetches cannot revert the status. On failure, snapshots
+  // rollback and the error re-throws.
   const statusOptimisticMutation = useMutation<
     WorkRequest,
     ApiError,
@@ -213,18 +215,22 @@ export function useWorkRequestMutations() {
   >({
     mutationFn: async ({ id, status, entity }) => {
       const headers: Record<string, string> = {};
-      if (entity) headers['X-Active-Entity'] = entity;
+      if (entity && entity !== 'ALL') headers['X-Active-Entity'] = entity;
       const res = await apiRequest<WorkRequestDetailResponse>(
         `/operations/work-requests/${id}`,
         {
           method: 'PUT',
           headers,
-          body: JSON.stringify({ status }),
+          body: JSON.stringify({
+            status,
+            ...(entity && entity !== 'ALL' ? { entity } : {}),
+          }),
         }
       );
       return res.data;
     },
     onMutate: async ({ id, status }) => {
+      // Cancel active workRequest queries so in-flight requests don't overwrite optimistic data
       await queryClient.cancelQueries({ queryKey: operationsKeys.workRequests() });
 
       // Snapshot every operations/workRequests cache before mutating
@@ -232,14 +238,24 @@ export function useWorkRequestMutations() {
         queryKey: operationsKeys.workRequests(),
       }) as QuerySnapshot;
 
-      // Detail cache stores the bare WorkRequest
+      // Detail cache: store or update the bare WorkRequest
       const detailKey = operationsKeys.workRequestDetail(id);
       const prevDetail = queryClient.getQueryData<WorkRequest>(detailKey);
       if (prevDetail) {
         queryClient.setQueryData<WorkRequest>(detailKey, { ...prevDetail, status });
+      } else {
+        // Seed detail cache from list snapshots if not yet populated
+        for (const [, value] of snapshots) {
+          const list = value as WorkRequestListResponse | undefined;
+          const hit = list?.data?.find((wr) => wr.id === id);
+          if (hit) {
+            queryClient.setQueryData<WorkRequest>(detailKey, { ...hit, status });
+            break;
+          }
+        }
       }
 
-      // List caches store ApiResponse<WorkRequest[]>; rewrite the item in place
+      // List caches: rewrite the item in place
       for (const [key, value] of snapshots) {
         const list = value as WorkRequestListResponse | undefined;
         if (list && typeof list === 'object' && Array.isArray(list.data)) {
@@ -254,6 +270,27 @@ export function useWorkRequestMutations() {
 
       return { snapshots };
     },
+    onSuccess: (serverWr, { id }) => {
+      if (!serverWr) return;
+      // 1. Immediately pin confirmed server truth into the detail cache
+      const detailKey = operationsKeys.workRequestDetail(id);
+      queryClient.setQueryData<WorkRequest>(detailKey, serverWr);
+
+      // 2. Immediately pin confirmed server truth into all list caches
+      const allListQueries = queryClient.getQueriesData<WorkRequestListResponse>({
+        queryKey: operationsKeys.workRequests(),
+      });
+      for (const [key, value] of allListQueries) {
+        if (value && typeof value === 'object' && Array.isArray(value.data)) {
+          if (value.data.some((wr) => wr.id === id)) {
+            queryClient.setQueryData(key, {
+              ...value,
+              data: value.data.map((wr) => (wr.id === id ? { ...wr, ...serverWr } : wr)),
+            });
+          }
+        }
+      }
+    },
     onError: (_err, _vars, context) => {
       if (context?.snapshots) {
         for (const [key, value] of context.snapshots) {
@@ -262,10 +299,8 @@ export function useWorkRequestMutations() {
       }
     },
     onSettled: (_data, _err, { id }) => {
-      // Reconcile against server truth
-      queryClient.invalidateQueries({ queryKey: operationsKeys.workRequestDetail(id) });
+      // Reconcile secondary counters and tasks without blasting the confirmed detail cache
       queryClient.invalidateQueries({ queryKey: operationsKeys.tasks(id) });
-      queryClient.invalidateQueries({ queryKey: operationsKeys.workRequests() });
       queryClient.invalidateQueries({
         queryKey: operationsKeys.workRequestCounts(activeEntity),
       });

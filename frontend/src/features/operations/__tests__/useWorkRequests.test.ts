@@ -292,6 +292,54 @@ describe('useWorkRequests & Operations Data Layer (Zero Optimistic Updates Doctr
       });
     });
 
+    it('statusOptimistic updates cache immediately, commits confirmed server response, and persists', async () => {
+      const initialWr = {
+        id: 'wr-1',
+        title: 'Audit Report',
+        entity: 'ATA',
+        status: 'In Progress',
+        phase: 'processing',
+      };
+      const updatedServerWr = {
+        ...initialWr,
+        status: 'For Supervisor Review',
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: updatedServerWr }),
+      } as Response);
+
+      const { queryClient, wrapper } = createWrapper();
+      // Seed detail and list cache
+      queryClient.setQueryData(operationsKeys.workRequestDetail('wr-1'), initialWr);
+      queryClient.setQueryData(operationsKeys.workRequestsList('ATA'), {
+        data: [initialWr],
+        meta: { total: 1 },
+      });
+
+      const { result } = renderHook(() => useWorkRequestMutations(), { wrapper });
+
+      await result.current.statusOptimistic({
+        id: 'wr-1',
+        status: 'For Supervisor Review',
+        entity: 'ATA',
+      });
+
+      // Verify detail cache has confirmed server truth
+      const detail = queryClient.getQueryData<typeof initialWr>(
+        operationsKeys.workRequestDetail('wr-1')
+      );
+      expect(detail?.status).toBe('For Supervisor Review');
+
+      // Verify list cache has updated status in place
+      const listData = queryClient.getQueryData<{ data: Array<typeof initialWr> }>(
+        operationsKeys.workRequestsList('ATA')
+      );
+      expect(listData?.data[0]?.status).toBe('For Supervisor Review');
+    });
+
     it('propagates verbatim RFC 7807 code and detail when createWorkRequest fails with TASK_LIMIT_EXCEEDED', async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
