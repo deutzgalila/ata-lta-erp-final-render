@@ -1,5 +1,6 @@
 import { QueryClient } from '@tanstack/react-query';
 import { useSessionStore, type UserProfile } from './session';
+import { setupTabSyncListener } from './tabSync';
 
 export const API_BASE_URL =
   (import.meta.env.ERP_API_BASE_URL as string | undefined) ||
@@ -57,7 +58,7 @@ export const clearTokens = (): void => {
 
 /**
  * Global QueryClient per Spec §3.1:
- * staleTime: 30s, retry: 1
+ * staleTime: 30s, retry: 1, refetchOnWindowFocus: true, refetchOnReconnect: true
  *
  * Instant-feel tuning: cached pages render immediately on navigation
  * (staleTime window), while focus refetching (background, keeps previous data
@@ -71,9 +72,14 @@ export const queryClient = new QueryClient({
       staleTime: 30 * 1000,
       retry: 1,
       refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
     },
   },
 });
+
+// Mount cross-tab synchronization listener across open tabs (Spec §4.2, Parcel A)
+setupTabSyncListener(queryClient);
+
 
 /**
  * Entity switch ⇒ every query is stale. All module lists/tasks/reports scope
