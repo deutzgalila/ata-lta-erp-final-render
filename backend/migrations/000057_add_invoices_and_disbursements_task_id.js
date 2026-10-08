@@ -131,6 +131,8 @@ exports.up = (pgm) => {
         FOR v_item IN SELECT * FROM jsonb_array_elements(p_line_items)
         LOOP
           INSERT INTO invoice_line_items (
+            invoice_id, description, amount, type, sort_order
+          ) VALUES (
             p_invoice_id,
             v_item->>'description',
             (v_item->>'amount')::numeric,

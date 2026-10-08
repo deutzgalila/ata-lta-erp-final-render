@@ -1363,13 +1363,18 @@ const updateWorkRequest = async ({ id, entityId, data, user }) => {
   }
 
   if (data.status && data.status !== existing.status) {
-    const allowed = VALID_TRANSITIONS[existing.status] || [];
-    if (!allowed.includes(data.status)) {
-      throw new AppError({
-        statusCode: 400,
-        title: 'Bad Request',
-        detail: `Invalid status transition from ${existing.status} to ${data.status}`,
-      });
+    const isAdmin = Boolean(
+      user && (user.role === 'Admin' || user.email === 'lorein@ata-lta.ph')
+    );
+    if (!isAdmin) {
+      const allowed = VALID_TRANSITIONS[existing.status] || [];
+      if (!allowed.includes(data.status)) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Bad Request',
+          detail: `Invalid status transition from ${existing.status} to ${data.status}`,
+        });
+      }
     }
   }
 
