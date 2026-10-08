@@ -130,7 +130,7 @@ export function WorkRequestList({
   const { data: clients = [] } = useClients();
   const { data: team = [] } = useTeam();
   const { advancePhase } = usePhaseTransitions();
-  const { archiveWorkRequest, cancelWorkRequest, updateWorkRequest } = useWorkRequestMutations();
+  const { archiveWorkRequest, cancelWorkRequest, statusOptimistic } = useWorkRequestMutations();
 
   // Filter application
   const filteredRequests = useMemo(() => {
@@ -821,9 +821,12 @@ export function WorkRequestList({
                                       key={opt}
                                       onClick={async () => {
                                         try {
-                                          await updateWorkRequest({
+                                          // Optimistic-with-rollback: the chip flips
+                                          // instantly; on failure caches restore and
+                                          // the verbatim error toasts.
+                                          await statusOptimistic({
                                             id: wr.id,
-                                            data: { status: opt },
+                                            status: opt,
                                             entity: wr.entity,
                                           });
                                           toast.success(`Status updated to "${opt}"`);
