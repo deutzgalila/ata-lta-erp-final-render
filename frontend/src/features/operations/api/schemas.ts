@@ -37,15 +37,25 @@ export const taskStatusEnum = z.enum([
 ]);
 
 export const workRequestStatusEnum = z.enum([
+  'Received',
+  'For Client Approval',
+  'For Requirements',
+  'Pending Requirements',
+  'For Assignment',
+  'In Progress',
+  'For Supervisor Review',
+  'For Billing',
+  'For Payment',
+  'For Submission',
+  'For Quality Check',
+  'Completed',
   'Draft',
   'Pre-processing',
-  'In Progress',
   'Processing',
   'For Review',
-  'Billing',
+  'Quality Assurance',
   'Disbursement',
   'On Hold',
-  'Completed',
   'Cancelled',
 ]);
 

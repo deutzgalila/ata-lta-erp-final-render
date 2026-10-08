@@ -28,16 +28,41 @@ export type TaskStatus =
   | 'Cancelled';
 
 export type WorkRequestStatus =
+  | 'Received'
+  | 'For Client Approval'
+  | 'For Requirements'
+  | 'Pending Requirements'
+  | 'For Assignment'
+  | 'In Progress'
+  | 'For Supervisor Review'
+  | 'For Billing'
+  | 'For Payment'
+  | 'For Submission'
+  | 'For Quality Check'
+  | 'Completed'
   | 'Draft'
   | 'Pre-processing'
-  | 'In Progress'
   | 'Processing'
   | 'For Review'
-  | 'Billing'
+  | 'Quality Assurance'
   | 'Disbursement'
   | 'On Hold'
-  | 'Completed'
   | 'Cancelled';
+
+export const WORK_REQUEST_STATUS_OPTIONS: readonly WorkRequestStatus[] = [
+  'Received',
+  'For Client Approval',
+  'For Requirements',
+  'Pending Requirements',
+  'For Assignment',
+  'In Progress',
+  'For Supervisor Review',
+  'For Billing',
+  'For Payment',
+  'For Submission',
+  'For Quality Check',
+  'Completed',
+] as const;
 
 export type QaStatus = 'none' | 'passed' | 'failed';
 

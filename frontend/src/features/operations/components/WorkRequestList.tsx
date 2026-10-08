@@ -16,6 +16,8 @@ import {
   Plus,
   Calendar,
   Building,
+  ChevronDown,
+  Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -35,6 +37,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import { toast } from 'sonner';
 import { ArchiveConfirmModal, type ArchiveActionType } from './ArchiveConfirmModal';
 import { WorkRequestSidePeek } from './WorkRequestSidePeek';
 import { runBlockingAction } from './BlockingActionModal';
@@ -47,7 +58,13 @@ import { operationsKeys } from '../api/queryKeys';
 import { getPhaseBadgeInfo, getStatusBadgeInfo } from '../lib/statusBadges';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
-import type { WorkRequest, Phase, AdvancePhaseTarget } from '../api/types';
+import { isUserAdmin } from '../lib/taskScope';
+import {
+  type WorkRequest,
+  type Phase,
+  type AdvancePhaseTarget,
+  WORK_REQUEST_STATUS_OPTIONS,
+} from '../api/types';
 
 export interface WorkRequestListProps {
   onViewDetails?: (id: string) => void;
@@ -96,8 +113,10 @@ export function WorkRequestList({
 
   const activeEntity = useSessionStore((state) => state.activeEntity);
   const permissions = useSessionStore((state) => state.permissions);
+  const user = useSessionStore((state) => state.user);
   const canEdit = hasPermission(permissions, 'workflow:edit');
   const canAdvance = hasPermission(permissions, 'workflow:phase_transition');
+  const isAdmin = isUserAdmin(user);
 
   // Data Queries
   const { data: rawWorkRequests, isLoading } = useWorkRequests({
@@ -111,7 +130,7 @@ export function WorkRequestList({
   const { data: clients = [] } = useClients();
   const { data: team = [] } = useTeam();
   const { advancePhase } = usePhaseTransitions();
-  const { archiveWorkRequest, cancelWorkRequest } = useWorkRequestMutations();
+  const { archiveWorkRequest, cancelWorkRequest, updateWorkRequest } = useWorkRequestMutations();
 
   // Filter application
   const filteredRequests = useMemo(() => {
@@ -442,15 +461,17 @@ export function WorkRequestList({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Statuses</SelectItem>
+              {WORK_REQUEST_STATUS_OPTIONS.map((st) => (
+                <SelectItem key={st} value={st}>
+                  {st}
+                </SelectItem>
+              ))}
               <SelectItem value="Draft">Draft</SelectItem>
               <SelectItem value="Pre-processing">Pre-processing</SelectItem>
-              <SelectItem value="In Progress">In Progress</SelectItem>
               <SelectItem value="Processing">Processing</SelectItem>
               <SelectItem value="For Review">For Review</SelectItem>
-              <SelectItem value="Billing">Billing</SelectItem>
               <SelectItem value="Disbursement">Disbursement</SelectItem>
               <SelectItem value="On Hold">On Hold</SelectItem>
-              <SelectItem value="Completed">Completed</SelectItem>
               <SelectItem value="Cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
@@ -772,14 +793,63 @@ export function WorkRequestList({
                               <PhaseIcon className="w-3 h-3 shrink-0" />
                               <span>{phaseInfo.label}</span>
                             </span>
-                            <span
-                              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border ${statusInfo.badgeClass}`}
-                              title={`Status: ${statusInfo.label}`}
-                            >
-                              <span className={`w-1 h-1 rounded-full ${statusInfo.dotClass}`} />
-                              <StatusIcon className="w-2.5 h-2.5 shrink-0" />
-                              <span>{statusInfo.label}</span>
-                            </span>
+                            {isAdmin ? (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border transition-all cursor-pointer hover:shadow-xs ${statusInfo.badgeClass}`}
+                                    title="Change Work Request Status (Admin)"
+                                  >
+                                    <span className={`w-1 h-1 rounded-full ${statusInfo.dotClass}`} />
+                                    <StatusIcon className="w-2.5 h-2.5 shrink-0" />
+                                    <span>{statusInfo.label}</span>
+                                    <ChevronDown className="w-2.5 h-2.5 ml-0.5 opacity-60" />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent
+                                  align="start"
+                                  className="w-56 p-1 bg-white shadow-lg border border-slate-200 rounded-lg max-h-80 overflow-y-auto z-50"
+                                >
+                                  <DropdownMenuLabel className="text-[10px] uppercase font-bold text-slate-500 px-2 py-1">
+                                    Set Status (Admin)
+                                  </DropdownMenuLabel>
+                                  <DropdownMenuSeparator className="my-1 bg-slate-100" />
+                                  {WORK_REQUEST_STATUS_OPTIONS.map((opt) => (
+                                    <DropdownMenuItem
+                                      key={opt}
+                                      onClick={async () => {
+                                        try {
+                                          await updateWorkRequest({
+                                            id: wr.id,
+                                            data: { status: opt },
+                                            entity: wr.entity,
+                                          });
+                                          toast.success(`Status updated to "${opt}"`);
+                                        } catch (e: unknown) {
+                                          toast.error(e instanceof Error ? e.message : 'Update failed');
+                                        }
+                                      }}
+                                      className={`text-xs px-2 py-1.5 cursor-pointer flex items-center justify-between hover:bg-slate-50 ${
+                                        wr.status === opt ? 'font-bold bg-slate-100' : ''
+                                      }`}
+                                    >
+                                      <span>{opt}</span>
+                                      {wr.status === opt && <Check className="w-3 h-3 text-emerald-600" />}
+                                    </DropdownMenuItem>
+                                  ))}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            ) : (
+                              <span
+                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border ${statusInfo.badgeClass}`}
+                                title={`Status: ${statusInfo.label}`}
+                              >
+                                <span className={`w-1 h-1 rounded-full ${statusInfo.dotClass}`} />
+                                <StatusIcon className="w-2.5 h-2.5 shrink-0" />
+                                <span>{statusInfo.label}</span>
+                              </span>
+                            )}
                           </div>
                         );
                       })()}
