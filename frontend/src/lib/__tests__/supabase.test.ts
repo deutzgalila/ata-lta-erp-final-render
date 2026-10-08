@@ -98,4 +98,49 @@ describe('Supabase Client & Mock Fallback', () => {
     channel.emit('UPDATE', payload);
     expect(listener).toHaveBeenCalledTimes(2);
   });
+
+  it('handles in-memory presence tracking and untrack lifecycle correctly', async () => {
+    const channel = new MockRealtimeChannel('realtime:presence:test');
+    const syncListener = vi.fn();
+    const joinListener = vi.fn();
+    const leaveListener = vi.fn();
+
+    channel.on('presence', { event: 'sync' }, syncListener);
+    channel.on('presence', { event: 'join' }, joinListener);
+    channel.on('presence', { event: 'leave' }, leaveListener);
+
+    // Track user
+    await channel.track({
+      userId: 'user-alice-1',
+      name: 'Alice',
+      role: 'Staff',
+    });
+
+    const stateAfterTrack = channel.presenceState();
+    expect(stateAfterTrack['user-alice-1']).toBeDefined();
+    expect(stateAfterTrack['user-alice-1']?.[0]).toMatchObject({
+      userId: 'user-alice-1',
+      name: 'Alice',
+      role: 'Staff',
+    });
+    expect(joinListener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'join',
+        key: 'user-alice-1',
+      })
+    );
+    expect(syncListener).toHaveBeenCalled();
+    expect(leaveListener).not.toHaveBeenCalled();
+
+    // Untrack user
+    await channel.untrack();
+    const stateAfterUntrack = channel.presenceState();
+    expect(stateAfterUntrack['user-alice-1']).toBeUndefined();
+    expect(leaveListener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'leave',
+        key: 'user-alice-1',
+      })
+    );
+  });
 });

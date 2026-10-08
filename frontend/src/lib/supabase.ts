@@ -19,6 +19,10 @@ export class MockRealtimeChannel {
   public topic: string;
   public status: string = 'CLOSED';
   private listeners: MockRealtimeListener[] = [];
+  private presenceMap: Record<string, unknown[]> = {};
+  private trackedKeys = new Set<string>();
+
+  private subscribeCallbacks: ((status: string, err?: Error) => void)[] = [];
 
   constructor(topic: string) {
     this.topic = topic;
@@ -46,20 +50,45 @@ export class MockRealtimeChannel {
   subscribe(callback?: (status: string, err?: Error) => void): this {
     this.status = 'SUBSCRIBED';
     if (callback) {
-      setTimeout(() => {
-        try {
-          callback('SUBSCRIBED');
-        } catch {
-          // ignore callback exceptions in mock
-        }
-      }, 0);
+      this.subscribeCallbacks.push(callback);
+      if (typeof queueMicrotask === 'function') {
+        queueMicrotask(() => {
+          try {
+            callback('SUBSCRIBED');
+          } catch {
+            // ignore callback exceptions in mock
+          }
+        });
+      } else {
+        setTimeout(() => {
+          try {
+            callback('SUBSCRIBED');
+          } catch {
+            // ignore callback exceptions in mock
+          }
+        }, 0);
+      }
     }
     return this;
+  }
+
+  emitStatus(status: string, err?: Error): void {
+    this.status = status;
+    for (const cb of this.subscribeCallbacks) {
+      try {
+        cb(status, err);
+      } catch {
+        // ignore callback exceptions in mock
+      }
+    }
   }
 
   async unsubscribe(): Promise<'ok'> {
     this.status = 'CLOSED';
     this.listeners = [];
+    this.subscribeCallbacks = [];
+    this.presenceMap = {};
+    this.trackedKeys.clear();
     return 'ok';
   }
 
@@ -85,6 +114,23 @@ export class MockRealtimeChannel {
         ) {
           listener.callback(payload);
         }
+      } else if (listener.type === 'presence') {
+        const filterEvent = listener.filter?.event
+          ? String(listener.filter.event).toLowerCase()
+          : '*';
+        const normEv = String(event).toLowerCase();
+        const payloadEvent = payloadRecord?.event
+          ? String(payloadRecord.event).toLowerCase()
+          : '';
+
+        const isMatch =
+          filterEvent === '*' ||
+          filterEvent === normEv ||
+          (payloadEvent !== '' && filterEvent === payloadEvent);
+
+        if (isMatch) {
+          listener.callback(payload);
+        }
       } else if (listener.type === event) {
         listener.callback(payload);
       }
@@ -99,15 +145,58 @@ export class MockRealtimeChannel {
     return 'ok';
   }
 
-  presenceState(): Record<string, unknown> {
-    return {};
+  presenceState<T extends Record<string, unknown> = Record<string, unknown>>(): Record<string, T[]> {
+    return { ...this.presenceMap } as Record<string, T[]>;
   }
 
-  async track(_payload: Record<string, unknown>): Promise<'ok'> {
+  setPresenceState(state: Record<string, unknown[]>): void {
+    this.presenceMap = { ...state };
+  }
+
+  async track(payload: Record<string, unknown>): Promise<'ok'> {
+    const key = String(payload.userId || payload.id || 'current_user');
+    this.trackedKeys.add(key);
+    const presenceItem = {
+      ...payload,
+      presence_ref: `ref_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    };
+    this.presenceMap[key] = [presenceItem];
+    this.emit('presence', {
+      event: 'join',
+      key,
+      newPresences: [presenceItem],
+      currentPresences: this.presenceMap[key],
+    });
+    this.emit('presence', {
+      event: 'sync',
+      key,
+      newPresences: [presenceItem],
+      currentPresences: this.presenceMap[key],
+    });
     return 'ok';
   }
 
   async untrack(): Promise<'ok'> {
+    const keysToUntrack = this.trackedKeys.size > 0
+      ? Array.from(this.trackedKeys)
+      : ['current_user'];
+
+    for (const key of keysToUntrack) {
+      const leftPresences = this.presenceMap[key] || [];
+      delete this.presenceMap[key];
+      this.emit('presence', {
+        event: 'leave',
+        key,
+        leftPresences,
+        currentPresences: [],
+      });
+      this.emit('presence', {
+        event: 'sync',
+        key,
+        leftPresences,
+      });
+    }
+    this.trackedKeys.clear();
     return 'ok';
   }
 }
@@ -115,7 +204,7 @@ export class MockRealtimeChannel {
 export class MockSupabaseClient {
   private channels = new Map<string, MockRealtimeChannel>();
 
-  channel(name: string): MockRealtimeChannel {
+  channel(name: string, _opts?: Record<string, unknown>): MockRealtimeChannel {
     const existing = this.channels.get(name);
     if (existing) {
       return existing;

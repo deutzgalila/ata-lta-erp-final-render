@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
+import { supabase, MockRealtimeChannel } from '@/lib/supabase';
 import { useSessionStore, type UserProfile } from '@/lib/session';
 import { WorkRequestSidePeek } from '../components/WorkRequestSidePeek';
 import { WORK_REQUEST_STATUS_OPTIONS, type WorkRequest, type Task, type DmsDocument } from '../api/types';
@@ -345,5 +346,65 @@ describe('WorkRequestSidePeek Enhanced Notion-like Features', () => {
     await waitFor(() => {
       expect(screen.getByTestId('task-detail-modal')).toBeInTheDocument();
     });
+  });
+
+  it('mounts PresenceAvatars in header bar and shows active viewers of the work request', async () => {
+    useSessionStore.getState().setSession({
+      user: userAdmin,
+      permissions: ['workflow:view', 'workflow:edit'],
+      activeEntity: 'ATA',
+    });
+
+    const channelSpy = vi.spyOn(supabase, 'channel');
+    const { wrapper } = createTestHarness();
+
+    const { unmount } = render(
+      <WorkRequestSidePeek
+        isOpen={true}
+        workRequestId="wr-peek-1"
+        onClose={vi.fn()}
+      />,
+      { wrapper }
+    );
+
+    await waitFor(() => {
+      expect(channelSpy).toHaveBeenCalledWith('presence:work_request:wr-peek-1');
+    });
+
+    const channel = supabase.channel('presence:work_request:wr-peek-1') as unknown as MockRealtimeChannel;
+
+    // Simulate another colleague viewing the same WR
+    act(() => {
+      channel.setPresenceState({
+        [userAdmin.id]: [{ ...userAdmin, userId: userAdmin.id }],
+        'user-colleague-2': [
+          {
+            userId: 'user-colleague-2',
+            name: 'Bob Accountant',
+            email: 'bob@ata-lta.ph',
+            role: 'Accounting',
+          },
+        ],
+      });
+      channel.emit('presence', { event: 'sync' });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('presence-avatars')).toBeInTheDocument();
+      expect(screen.getByTestId('presence-avatar-user-colleague-2')).toBeInTheDocument();
+    });
+
+    // Verify hover tooltip
+    const avatar = screen.getByTestId('presence-avatar-user-colleague-2');
+    fireEvent.mouseEnter(avatar);
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Viewing now: Bob Accountant (Accounting)');
+
+    // Verify clean channel untrack and removal on drawer unmount
+    const untrackSpy = vi.spyOn(channel, 'untrack');
+    const removeChannelSpy = vi.spyOn(supabase, 'removeChannel');
+
+    unmount();
+    expect(untrackSpy).toHaveBeenCalled();
+    expect(removeChannelSpy).toHaveBeenCalledWith(channel);
   });
 });

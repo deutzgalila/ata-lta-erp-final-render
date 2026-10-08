@@ -55,6 +55,7 @@ import {
   ConflictResolutionModal,
   isConcurrencyConflictError,
 } from '@/components/common/ConflictResolutionModal';
+import { PresenceAvatars } from '@/components/common/PresenceAvatars';
 import { operationsKeys } from '../api/queryKeys';
 import type { ApiError } from '@/lib/api';
 import {
@@ -424,6 +425,7 @@ export function WorkRequestSidePeek({
 
               {/* Action buttons in header */}
               <div className="flex items-center gap-1.5 shrink-0">
+                {(workRequest || workRequestId) && <PresenceAvatars roomId={workRequest?.id || workRequestId} />}
                 {onViewInBoard && (
                   <Button
                     type="button"
