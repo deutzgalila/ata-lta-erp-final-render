@@ -40,7 +40,11 @@ export function getEligibleStaff(
   currentSelectedIds: string[] = []
 ): TeamMember[] {
   return team.filter((m) => {
-    if (m.role === 'Manager' || m.role === 'Admin') {
+    if (m.role === 'Admin') {
+      return false;
+    }
+    // If Manager is also Operations, allow them to be assigned as team members by other managers
+    if (m.role === 'Manager' && !(m.departments && m.departments.includes('Operations'))) {
       return false;
     }
     if (selectedManagerId && m.id === selectedManagerId) {

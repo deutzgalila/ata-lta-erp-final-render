@@ -97,10 +97,10 @@ describe('Parcel OPS UAT Fix Verification Suite', () => {
     useBlockingModalStore.getState().reset();
     useSessionStore.getState().setSession({
       user: {
-        id: 'u-admin-1',
-        email: 'ops.manager@ata-lta.ph',
-        name: 'Manager Test',
-        role: 'Manager',
+        id: 'user-2',
+        email: 'alice@ata-lta.ph',
+        name: 'Alice Staff',
+        role: 'Staff',
         departments: ['Operations'],
         entities: ['ATA', 'LTA'],
       },

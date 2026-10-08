@@ -294,3 +294,53 @@ export function usePhaseTransitions(boundWorkRequestId?: string) {
       cancelRequestMutation.isPending,
   };
 }
+
+export interface CreateOperationsRequestInput {
+  type: 'billing' | 'transmittal' | 'disbursement' | 'client' | 'workflow' | 'wr_phase_transition';
+  workRequestId?: string;
+  clientId?: string;
+  linkedTaskId?: string;
+  notes?: string;
+  amount?: number;
+}
+
+export function useCreateOperationsRequest() {
+  const queryClient = useQueryClient();
+  const activeEntity = useSessionStore((state) => state.activeEntity);
+
+  return useMutation<OperationsRequest, ApiError, CreateOperationsRequestInput>({
+    mutationFn: async (variables) => {
+      const res = await apiRequest<OperationsRequestSingleResponse>(
+        '/operations-requests',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            request_type: variables.type,
+            type: variables.type,
+            work_request_id: variables.workRequestId,
+            workRequestId: variables.workRequestId,
+            client_id: variables.clientId,
+            clientId: variables.clientId,
+            linked_task_id: variables.linkedTaskId,
+            linkedTaskId: variables.linkedTaskId,
+            notes: variables.notes,
+            amount: variables.amount,
+          }),
+        }
+      );
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: operationsKeys.requests() });
+      queryClient.invalidateQueries({
+        queryKey: operationsKeys.requestCounts(activeEntity),
+      });
+      if (variables.workRequestId) {
+        queryClient.invalidateQueries({
+          queryKey: operationsKeys.workRequestDetail(variables.workRequestId),
+        });
+      }
+    },
+  });
+}
+

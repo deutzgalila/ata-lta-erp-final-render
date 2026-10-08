@@ -44,10 +44,22 @@ import { CreateDisbursementModal } from '@/features/disbursements';
 import { TransmittalFormModal } from '@/features/transmittals';
 import { DocumentUploadModal, DocumentViewerModal } from '@/features/documents';
 import { useDocuments } from '../api/useDocuments';
-import { useTaskMutations, useTaskRelated } from '../api/useTasks';
+import { useTaskMutations, useTaskRelated, useWorkRequestTasks } from '../api/useTasks';
+import { useCreateOperationsRequest, useOperationsRequests } from '../api/usePhaseTransitions';
 import { useTeam } from '../api/useTeam';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
+import {
+  canMutateTaskStatus,
+  canLogTaskTime,
+  canUploadTaskDocument,
+  canLinkInvoice,
+  canLinkTransmittal,
+  canLinkDisbursement,
+  canRequestInvoice,
+  canRequestTransmittal,
+  isUserAdmin,
+} from '../lib/taskScope';
 import { runBlockingAction } from './BlockingActionModal';
 import { operationsKeys } from '../api/queryKeys';
 import type { Task, WorkRequest, DmsDocument, TaskStatus } from '../api/types';
@@ -108,7 +120,8 @@ export function TaskDetailModal({
 
   const queryClient = useQueryClient();
   const permissions = useSessionStore((state) => state.permissions);
-  const currentUserId = useSessionStore((state) => state.user?.id);
+  const currentUser = useSessionStore((state) => state.user);
+  const isAdmin = isUserAdmin(currentUser);
   const canEdit = hasPermission(permissions, 'workflow:edit');
 
   // RBAC permissions for linked financial creation (UAT2-7)
@@ -121,6 +134,38 @@ export function TaskDetailModal({
   const canCreateTransmittal =
     hasPermission(permissions, 'transmittal:create') ||
     hasPermission(permissions, 'transmittal:edit');
+
+  // Sibling tasks for parent WR to verify WR membership
+  const { data: siblingTasksData = [] } = useWorkRequestTasks(task?.workRequestId, {
+    enabled: Boolean(task?.workRequestId),
+  });
+  const siblingTasks = siblingTasksData || [];
+
+  // Check pending operations requests for this task
+  const { data: rawPendingReqs } = useOperationsRequests(
+    {
+      linkedTaskId: task?.id,
+      status: 'pending',
+    },
+    { enabled: Boolean(task?.id) }
+  );
+  const pendingReqs = useMemo(() => {
+    if (Array.isArray(rawPendingReqs)) return rawPendingReqs;
+    if (
+      rawPendingReqs &&
+      typeof rawPendingReqs === 'object' &&
+      'data' in rawPendingReqs &&
+      Array.isArray((rawPendingReqs as { data: unknown[] }).data)
+    ) {
+      return (rawPendingReqs as { data: Array<{ id: string; type: string }> }).data;
+    }
+    return [];
+  }, [rawPendingReqs]);
+
+  const hasPendingInvoiceReq = pendingReqs.some((r) => r.type === 'billing');
+  const hasPendingTransmittalReq = pendingReqs.some((r) => r.type === 'transmittal');
+
+  const createRequestMutation = useCreateOperationsRequest();
 
   // Financial creation modals state (UAT2-7)
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
@@ -141,7 +186,7 @@ export function TaskDetailModal({
   const teamList = useMemo(() => {
     if (Array.isArray(rawTeam)) return rawTeam;
     if (rawTeam && typeof rawTeam === 'object' && 'data' in rawTeam && Array.isArray((rawTeam as { data: unknown[] }).data)) {
-      return (rawTeam as { data: Array<{ id: string; name: string; role: string }> }).data;
+      return (rawTeam as { data: Array<{ id: string; name: string; role: string; departments?: string[] }> }).data;
     }
     return [];
   }, [rawTeam]);
@@ -162,7 +207,14 @@ export function TaskDetailModal({
   }, [task]);
 
   const availableTeamMembers = useMemo(() => {
-    return teamList.filter((m) => m && m.id && !currentAssigneeIds.has(m.id));
+    return teamList.filter((m) => {
+      if (!m || !m.id || currentAssigneeIds.has(m.id)) return false;
+      if (m.role === 'Admin') return false;
+      if (m.role === 'Manager' && !(m.departments && m.departments.includes('Operations'))) {
+        return false;
+      }
+      return true;
+    });
   }, [teamList, currentAssigneeIds]);
 
   // Comprehensive assigned team members (lead + all co-assignees)
@@ -195,16 +247,19 @@ export function TaskDetailModal({
     });
   }, [task, currentAssigneeIds, teamList]);
 
-  // Check if current caller is an assignee or workflow:edit holder (UAT2-9-frontend)
-  const isAssignee = useMemo(() => {
-    if (!currentUserId || !task) return false;
-    if (task.assigneeId === currentUserId) return true;
-    if (Array.isArray(task.assignees) && task.assignees.includes(currentUserId)) return true;
-    if (Array.isArray(task.taskAssignees) && task.taskAssignees.some((ta) => (ta.userId || ta.user_id) === currentUserId)) return true;
-    return false;
-  }, [currentUserId, task]);
+  // Task Scoping Rules:
+  // 1. Only assigned employee or Admin can mutate status, log time, upload docs
+  const canMutateStatus = canMutateTaskStatus(currentUser, task);
+  const canLogTime = canLogTaskTime(currentUser, task);
+  const canUploadDoc = canUploadTaskDocument(currentUser, task);
 
-  const canMutateStatus = canEdit || isAssignee;
+  // 2. Financial record linking vs requesting:
+  const canLinkInv = canLinkInvoice(currentUser, task, workRequest, siblingTasks) && canCreateInvoice;
+  const canLinkTrans = canLinkTransmittal(currentUser, task, workRequest, siblingTasks) && canCreateTransmittal;
+  const canLinkDisb = canLinkDisbursement(currentUser, task, canCreateDisbursement);
+
+  const canReqInv = canRequestInvoice(currentUser, task, workRequest, siblingTasks);
+  const canReqTrans = canRequestTransmittal(currentUser, task, workRequest, siblingTasks);
 
   // Handle adding a co-assignee (UAT2-8 + multi-assignee)
   const handleAddCoAssignee = async (employeeId: string) => {
@@ -348,7 +403,9 @@ export function TaskDetailModal({
         });
       },
       successTitle: 'Task Updated',
-      successMessage: `Task "${task.title}" status changed to ${nextStatus}.`,
+      successMessage: isAdmin
+        ? `Task "${task.title}" status changed to ${nextStatus} (Directly approved by Admin).`
+        : `Task "${task.title}" status changed to ${nextStatus}.`,
       onSuccess: (updated) => {
         if (updated && onTaskUpdated) {
           onTaskUpdated(updated as Task);
@@ -358,6 +415,48 @@ export function TaskDetailModal({
         operationsKeys.tasks(task.workRequestId),
         operationsKeys.workRequestDetail(task.workRequestId),
       ],
+    });
+  };
+
+  // Handle requesting billing invoice from accounting
+  const handleRequestInvoice = async () => {
+    if (!task || !task.workRequestId) return;
+    await runBlockingAction({
+      title: 'Requesting Invoice',
+      message: `Submitting request to Accounting for task "${task.title}"...`,
+      apiCall: async () => {
+        return await createRequestMutation.mutateAsync({
+          type: 'billing',
+          workRequestId: task.workRequestId,
+          linkedTaskId: task.id,
+          clientId: workRequest?.clientId || undefined,
+          notes: `Invoice requested for task "${task.title}"`,
+        });
+      },
+      successTitle: 'Invoice Requested',
+      successMessage: 'Invoice request has been queued for Accounting review.',
+      invalidateQueries: [operationsKeys.requests()],
+    });
+  };
+
+  // Handle requesting transmittal from documentation
+  const handleRequestTransmittal = async () => {
+    if (!task || !task.workRequestId) return;
+    await runBlockingAction({
+      title: 'Requesting Transmittal',
+      message: `Submitting request to Documentation for task "${task.title}"...`,
+      apiCall: async () => {
+        return await createRequestMutation.mutateAsync({
+          type: 'transmittal',
+          workRequestId: task.workRequestId,
+          linkedTaskId: task.id,
+          clientId: workRequest?.clientId || undefined,
+          notes: `Transmittal requested for task "${task.title}"`,
+        });
+      },
+      successTitle: 'Transmittal Requested',
+      successMessage: 'Transmittal request has been queued for Documentation review.',
+      invalidateQueries: [operationsKeys.requests()],
     });
   };
 
@@ -654,7 +753,7 @@ export function TaskDetailModal({
                           </Badge>
                         ) : (
                           <Badge variant="outline" size="compact" className="text-[10px] text-slate-500">
-                            {member.role || 'Co-Assignee'}
+                            {member.role === 'Admin' || member.name === 'Lorein Wong' ? 'Admin' : (member.role || 'Co-Assignee')}
                           </Badge>
                         )}
                       </div>
@@ -758,16 +857,18 @@ export function TaskDetailModal({
                   <FileText className="h-3.5 w-3.5" />
                   Linked Documents ({linkedDocs.length})
                 </h4>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="xs"
-                  onClick={() => setIsUploadDocModalOpen(true)}
-                  className="text-xs gap-1"
-                  data-testid="task-upload-doc-btn"
-                >
-                  <Upload className="h-3 w-3" /> Upload Document
-                </Button>
+                {canUploadDoc && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    onClick={() => setIsUploadDocModalOpen(true)}
+                    className="text-xs gap-1"
+                    data-testid="task-upload-doc-btn"
+                  >
+                    <Upload className="h-3 w-3" /> Upload Document
+                  </Button>
+                )}
               </div>
 
               {isLoadingDocs ? (
@@ -825,8 +926,8 @@ export function TaskDetailModal({
                   </h4>
                 </div>
 
-                <div className="flex items-center gap-1.5">
-                  {canCreateInvoice && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {canLinkInv && (
                     <Button
                       type="button"
                       variant="outline"
@@ -838,7 +939,21 @@ export function TaskDetailModal({
                       <Receipt className="h-3 w-3" /> + Invoice
                     </Button>
                   )}
-                  {canCreateDisbursement && (
+                  {canReqInv && invoices.length === 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      onClick={handleRequestInvoice}
+                      disabled={hasPendingInvoiceReq}
+                      className="text-xs gap-1 text-blue-700 bg-blue-50/50 hover:bg-blue-50 border-blue-200"
+                      data-testid="request-invoice-btn"
+                    >
+                      <Receipt className="h-3 w-3" />
+                      {hasPendingInvoiceReq ? 'Invoice Requested' : 'Request Invoice'}
+                    </Button>
+                  )}
+                  {canLinkDisb && (
                     <Button
                       type="button"
                       variant="outline"
@@ -850,7 +965,7 @@ export function TaskDetailModal({
                       <CreditCard className="h-3 w-3" /> + Disbursement
                     </Button>
                   )}
-                  {canCreateTransmittal && (
+                  {canLinkTrans && (
                     <Button
                       type="button"
                       variant="outline"
@@ -860,6 +975,20 @@ export function TaskDetailModal({
                       data-testid="link-transmittal-btn"
                     >
                       <Send className="h-3 w-3" /> + Transmittal
+                    </Button>
+                  )}
+                  {canReqTrans && transmittals.length === 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      onClick={handleRequestTransmittal}
+                      disabled={hasPendingTransmittalReq}
+                      className="text-xs gap-1 text-purple-700 bg-purple-50/50 hover:bg-purple-50 border-purple-200"
+                      data-testid="request-transmittal-btn"
+                    >
+                      <Send className="h-3 w-3" />
+                      {hasPendingTransmittalReq ? 'Transmittal Requested' : 'Request Transmittal'}
                     </Button>
                   )}
                 </div>
@@ -1001,7 +1130,7 @@ export function TaskDetailModal({
                   </h4>
                 </div>
 
-                {!showLogForm && (
+                {canLogTime && !showLogForm && (
                   <Button
                     type="button"
                     variant="outline"
@@ -1016,7 +1145,7 @@ export function TaskDetailModal({
               </div>
 
               {/* Quick Log Time Form */}
-              {showLogForm && (
+              {canLogTime && showLogForm && (
                 <form
                   onSubmit={handleLogTimeSubmit}
                   className="p-4 bg-blue-50/50 border border-blue-200 rounded-lg space-y-3 text-xs"

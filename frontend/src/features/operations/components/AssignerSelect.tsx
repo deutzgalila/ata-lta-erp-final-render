@@ -44,7 +44,10 @@ export function AssignerSelect({
   // strictly excluding the selected primary assignee and already selected co-assignees
   const eligibleCoAssignees = React.useMemo(() => {
     return availableStaff.filter((m) => {
-      if (managerOnlyPrimary && (m.role === 'Manager' || m.role === 'Admin')) {
+      if (m.role === 'Admin') {
+        return false;
+      }
+      if (managerOnlyPrimary && m.role === 'Manager' && !(m.departments && m.departments.includes('Operations'))) {
         return false;
       }
       if (primaryAssigneeId && m.id === primaryAssigneeId) {

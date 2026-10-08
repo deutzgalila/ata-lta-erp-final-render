@@ -173,7 +173,7 @@ describe('UAT Wave 2: Operations Linkage, Assignee Controls, and Modals', () => 
         id: 'u-lead-1',
         email: 'maria@ata-lta.ph',
         name: 'Maria Santos',
-        role: 'Manager',
+        role: 'Admin',
         departments: ['Operations'],
         entities: ['ATA', 'LTA'],
       },

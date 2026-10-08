@@ -94,7 +94,7 @@ export function Topbar() {
                   {user?.name || 'User'}
                 </span>
                 <span className="text-[10px] text-[#9494a0] leading-tight">
-                  {user?.role || 'Staff'}
+                  {user?.role === 'Admin' || user?.email === 'lorein@ata-lta.ph' ? 'Admin' : (user?.role || 'Staff')}
                 </span>
               </div>
             </button>
@@ -108,7 +108,7 @@ export function Topbar() {
             </DropdownMenuLabel>
             <div className="px-2 py-1">
               <Badge variant="secondary" className="text-[10px]">
-                Role: {user?.role}
+                Role: {user?.role === 'Admin' || user?.email === 'lorein@ata-lta.ph' ? 'Admin' : user?.role}
               </Badge>
             </div>
             <DropdownMenuSeparator />

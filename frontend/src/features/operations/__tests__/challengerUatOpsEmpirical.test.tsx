@@ -728,6 +728,18 @@ describe('Empirical Adversarial Challenge Suite: Parcel OPS UAT Fixes', () => {
     });
 
     it('6.2 Toggling task status triggers blocking action modal and updates status', async () => {
+      useSessionStore.getState().setSession({
+        ...useSessionStore.getState(),
+        user: {
+          id: 'user-carlos',
+          email: 'carlos@ata-lta.ph',
+          name: 'Carlos Analyst',
+          role: 'Staff',
+          departments: ['Operations'],
+          entities: ['ATA', 'LTA'],
+        },
+      });
+
       const { wrapper } = createHarness();
 
       let patchedStatus = '';

@@ -311,17 +311,23 @@ export function UserListTable({
                     <TableCell>
                       <div className="flex flex-wrap gap-1 max-w-[220px]">
                         {user.departments.length > 0 ? (
-                          user.departments.map((dept) => (
-                            <Badge
-                              key={dept}
-                              variant="outline"
-                              className={`text-[10px] py-0 px-1.5 ${
-                                DEPARTMENT_BADGE_COLORS[dept] ?? 'bg-slate-50 text-slate-700 border-slate-200'
-                              }`}
-                            >
-                              {dept}
-                            </Badge>
-                          ))
+                          user.departments.map((dept) => {
+                            const isAdminUser = user.role === 'Admin' || user.email === 'lorein@ata-lta.ph';
+                            const displayDept = isAdminUser && dept === 'Management' ? 'Admin' : dept;
+                            return (
+                              <Badge
+                                key={dept}
+                                variant="outline"
+                                className={`text-[10px] py-0 px-1.5 ${
+                                  displayDept === 'Admin'
+                                    ? 'bg-red-50 text-red-700 border-red-200'
+                                    : DEPARTMENT_BADGE_COLORS[dept] ?? 'bg-slate-50 text-slate-700 border-slate-200'
+                                }`}
+                              >
+                                {displayDept}
+                              </Badge>
+                            );
+                          })
                         ) : (
                           <span className="text-slate-400 text-xs">—</span>
                         )}

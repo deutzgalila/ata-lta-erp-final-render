@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   CheckCircle2,
   XCircle,
@@ -12,6 +12,9 @@ import {
   User,
   Users,
   CheckSquare,
+  Receipt,
+  Send,
+  CreditCard,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +31,7 @@ import { useTeam } from '../api/useTeam';
 import { operationsKeys } from '../api/queryKeys';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
+import { isUserAdmin } from '../lib/taskScope';
 import type { Phase, OperationsRequest } from '../api/types';
 
 export interface PendingApprovalsInboxProps {
@@ -44,7 +48,9 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
 
   const activeEntity = useSessionStore((state) => state.activeEntity);
   const permissions = useSessionStore((state) => state.permissions);
-  const currentUserId = useSessionStore((state) => state.user?.id);
+  const currentUser = useSessionStore((state) => state.user);
+  const currentUserId = currentUser?.id;
+  const isAdmin = isUserAdmin(currentUser);
 
   const canApprove = hasPermission(permissions, 'workflow:phase_transition');
   const canRequest = hasPermission(permissions, 'workflow:transition_request');
@@ -172,19 +178,24 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
     return null;
   }, [wrDetail, selectedRequest]);
 
-  // Handle Approve & Advance
+  // Handle Approve & Advance / Fulfill
   const handleApprove = async () => {
     if (!selectedRequest) return;
     const reqId = selectedRequest.id;
+    const isTransition = selectedRequest.type === 'wr_phase_transition' || !selectedRequest.type;
 
     await runBlockingAction({
-      title: 'Approving Phase Transition',
-      message: 'Fulfilling request and advancing work request phase...',
+      title: isTransition ? 'Approving Phase Transition' : 'Approving Request',
+      message: isTransition
+        ? 'Fulfilling request and advancing work request phase...'
+        : 'Fulfilling request and notifying requester...',
       apiCall: async () => {
         return await fulfillRequest(reqId);
       },
-      successTitle: 'Phase Transition Approved',
-      successMessage: 'Work request phase has been advanced successfully.',
+      successTitle: isAdmin ? 'Approved by Admin' : (isTransition ? 'Phase Transition Approved' : 'Request Approved'),
+      successMessage: isAdmin
+        ? 'Request has been approved and fulfilled directly by Admin.'
+        : (isTransition ? 'Work request phase has been advanced successfully.' : 'Request has been approved and fulfilled successfully.'),
       invalidateQueries: [
         operationsKeys.requests(),
         operationsKeys.requestCounts(activeEntity),
@@ -394,12 +405,29 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
                     </span>
                   </div>
 
-                  {/* Route Badge */}
-                  <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
-                    <span className="font-medium capitalize">{fromP.replace('_', ' ')}</span>
-                    <ArrowRight className="h-3 w-3 text-slate-400" />
-                    <span className="font-medium capitalize text-blue-700">{toP.replace('_', ' ')}</span>
-                  </div>
+                  {/* Route Badge or Request Type Badge */}
+                  {req.type === 'billing' ? (
+                    <div className="flex items-center gap-1.5 text-[11px] text-blue-700 font-medium">
+                      <Receipt className="h-3.5 w-3.5 shrink-0" />
+                      <span>Invoice Request</span>
+                    </div>
+                  ) : req.type === 'transmittal' ? (
+                    <div className="flex items-center gap-1.5 text-[11px] text-purple-700 font-medium">
+                      <Send className="h-3.5 w-3.5 shrink-0" />
+                      <span>Transmittal Request</span>
+                    </div>
+                  ) : req.type === 'disbursement' ? (
+                    <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 font-medium">
+                      <CreditCard className="h-3.5 w-3.5 shrink-0" />
+                      <span>Disbursement Request</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
+                      <span className="font-medium capitalize">{fromP.replace('_', ' ')}</span>
+                      <ArrowRight className="h-3 w-3 text-slate-400" />
+                      <span className="font-medium capitalize text-blue-700">{toP.replace('_', ' ')}</span>
+                    </div>
+                  )}
 
                   <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5">
                     <span>By {submitter}</span>
@@ -514,33 +542,76 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
                 )}
               </div>
 
-              {/* Side-by-side Phase Transition Flow */}
-              <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
-                <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                  Phase Transition Flow
-                </h4>
-                <div className="flex items-center justify-center gap-4 py-3">
-                  <div className="px-4 py-2 bg-white rounded-md border border-slate-200 text-xs font-semibold text-slate-700 capitalize shadow-xs">
-                    {(selectedRequest.from_phase || (selectedRequest as unknown as { fromPhase?: Phase }).fromPhase || 'pre_processing').replace('_', ' ')}
+              {/* Side-by-side Flow or Non-Transition Request Card */}
+              {selectedRequest.type === 'billing' || selectedRequest.type === 'transmittal' || selectedRequest.type === 'disbursement' ? (
+                <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-white rounded-md border border-slate-200 shadow-2xs">
+                      {selectedRequest.type === 'billing' && <Receipt className="h-5 w-5 text-blue-600" />}
+                      {selectedRequest.type === 'transmittal' && <Send className="h-5 w-5 text-purple-600" />}
+                      {selectedRequest.type === 'disbursement' && <CreditCard className="h-5 w-5 text-emerald-600" />}
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                        {selectedRequest.type === 'billing'
+                          ? 'Invoice Generation Request'
+                          : selectedRequest.type === 'transmittal'
+                          ? 'Transmittal Documentation Request'
+                          : 'Disbursement Voucher Request'}
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        {selectedRequest.type === 'billing'
+                          ? 'Request submitted to Accounting to issue and link an invoice.'
+                          : selectedRequest.type === 'transmittal'
+                          ? 'Request submitted to Documentation to generate and link a transmittal.'
+                          : 'Request submitted for financial disbursement approval.'}
+                      </p>
+                    </div>
                   </div>
-                  <ArrowRight className="h-5 w-5 text-blue-600" />
-                  <div className="px-4 py-2 bg-blue-50 border border-blue-200 text-xs font-semibold text-blue-700 capitalize shadow-xs">
-                    {(selectedRequest.to_phase || (selectedRequest as unknown as { toPhase?: Phase }).toPhase || 'processing').replace('_', ' ')}
-                  </div>
-                </div>
-                {selectedRequest.notes && (
-                  <div className="text-xs text-slate-600 bg-white p-2.5 rounded border border-slate-200">
-                    <span className="font-semibold text-slate-700">Submitter Notes: </span>
-                    {selectedRequest.notes}
-                  </div>
-                )}
-              </div>
 
-              {/* Gate Prerequisite Inspector */}
-              <div className="space-y-3" data-testid="gate-inspector">
-                <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                  Phase Gate Checklist Inspector
-                </h4>
+                  {selectedRequest.linked_task_id && (
+                    <div className="text-xs text-slate-700 bg-white p-2.5 rounded border border-slate-200 flex items-center justify-between">
+                      <span className="text-slate-500 font-medium">Linked Task ID:</span>
+                      <span className="font-mono text-slate-800">{selectedRequest.linked_task_id}</span>
+                    </div>
+                  )}
+
+                  {selectedRequest.notes && (
+                    <div className="text-xs text-slate-600 bg-white p-2.5 rounded border border-slate-200">
+                      <span className="font-semibold text-slate-700">Submitter Notes: </span>
+                      {selectedRequest.notes}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
+                  <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    Phase Transition Flow
+                  </h4>
+                  <div className="flex items-center justify-center gap-4 py-3">
+                    <div className="px-4 py-2 bg-white rounded-md border border-slate-200 text-xs font-semibold text-slate-700 capitalize shadow-xs">
+                      {(selectedRequest.from_phase || (selectedRequest as unknown as { fromPhase?: Phase }).fromPhase || 'pre_processing').replace('_', ' ')}
+                    </div>
+                    <ArrowRight className="h-5 w-5 text-blue-600" />
+                    <div className="px-4 py-2 bg-blue-50 border border-blue-200 text-xs font-semibold text-blue-700 capitalize shadow-xs">
+                      {(selectedRequest.to_phase || (selectedRequest as unknown as { toPhase?: Phase }).toPhase || 'processing').replace('_', ' ')}
+                    </div>
+                  </div>
+                  {selectedRequest.notes && (
+                    <div className="text-xs text-slate-600 bg-white p-2.5 rounded border border-slate-200">
+                      <span className="font-semibold text-slate-700">Submitter Notes: </span>
+                      {selectedRequest.notes}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Gate Prerequisite Inspector (Only for phase transitions) */}
+              {(selectedRequest.type === 'wr_phase_transition' || !selectedRequest.type) && (
+                <div className="space-y-3" data-testid="gate-inspector">
+                  <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    Phase Gate Checklist Inspector
+                  </h4>
 
                 {gateEvaluation ? (
                   <div className="space-y-3">
@@ -597,6 +668,7 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
                   </div>
                 )}
               </div>
+            )}
 
               {/* Full Work Request Tasks Breakdown (UAT2-4) */}
               {wrDetail && wrDetail.tasks && wrDetail.tasks.length > 0 && (
@@ -698,7 +770,10 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
                         className="text-xs gap-1 bg-emerald-600 hover:bg-emerald-700"
                         data-testid="approve-btn"
                       >
-                        <Check className="h-3.5 w-3.5" /> Approve & Advance
+                        <Check className="h-3.5 w-3.5" />{' '}
+                        {selectedRequest.type === 'wr_phase_transition' || !selectedRequest.type
+                          ? 'Approve & Advance'
+                          : 'Approve Request'}
                       </Button>
                     </>
                   )}

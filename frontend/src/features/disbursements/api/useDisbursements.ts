@@ -159,6 +159,9 @@ export function useCreateDisbursement() {
   });
 
   const createWithBlocking = async (input: CreateDisbursementInput): Promise<Disbursement> => {
+    const user = useSessionStore.getState().user;
+    const isAdmin = user?.role === 'Admin' || user?.email === 'lorein@ata-lta.ph';
+
     return runBlockingAction({
       title: 'Creating Disbursement',
       message: 'Submitting disbursement voucher to the server...',
@@ -168,8 +171,10 @@ export function useCreateDisbursement() {
         disbursementKeys.all,
         disbursementKeys.counts(activeEntity),
       ],
-      successTitle: 'Disbursement Created',
-      successMessage: 'Disbursement record has been created successfully.',
+      successTitle: isAdmin ? 'Disbursement Approved' : 'Disbursement Created',
+      successMessage: isAdmin
+        ? 'Disbursement voucher created and directly approved by Admin.'
+        : 'Disbursement voucher submitted for Admin approval.',
     });
   };
 

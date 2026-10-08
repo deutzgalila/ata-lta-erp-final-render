@@ -111,7 +111,11 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
               <Layers className="h-3.5 w-3.5 text-slate-400" />
               <span>
                 Departments:{' '}
-                {user.departments.length > 0 ? user.departments.join(', ') : 'None assigned'}
+                {user.role === 'Admin' || user.email === 'lorein@ata-lta.ph'
+                  ? 'Admin'
+                  : user.departments.length > 0
+                    ? user.departments.join(', ')
+                    : 'None assigned'}
               </span>
             </div>
             <div className="flex items-center gap-2 text-slate-600">
