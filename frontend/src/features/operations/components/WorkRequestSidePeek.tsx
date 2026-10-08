@@ -93,7 +93,7 @@ export function WorkRequestSidePeek({
     enabled: Boolean(isOpen && workRequestId),
   });
 
-  const { updateWorkRequest, isPending: isUpdatingWr } = useWorkRequestMutations();
+  const { statusOptimistic, isStatusOptimisticPending: isUpdatingWr } = useWorkRequestMutations();
 
   // Fetch tasks
   const {
@@ -201,13 +201,15 @@ export function WorkRequestSidePeek({
     };
   }, [workRequest, tasks]);
 
-  // Handle Admin status transition with no strict guard
+  // Handle Admin status transition with no strict guard — OPTIMISTIC:
+  // the badge flips instantly; a failed write rolls the cache back and the
+  // verbatim server error surfaces via toast.
   const handleStatusChange = async (newStatus: WorkRequestStatus) => {
     if (!workRequest || workRequest.status === newStatus) return;
     try {
-      await updateWorkRequest({
+      await statusOptimistic({
         id: workRequest.id,
-        data: { status: newStatus },
+        status: newStatus,
         entity: workRequest.entity,
       });
       toast.success(`Work request status updated to "${newStatus}"`);

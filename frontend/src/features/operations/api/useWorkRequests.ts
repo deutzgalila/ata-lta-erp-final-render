@@ -4,6 +4,7 @@ import { useSessionStore } from '@/lib/session';
 import { operationsKeys } from './queryKeys';
 import type {
   WorkRequest,
+  WorkRequestStatus,
   WorkRequestFilters,
   CreateWorkRequestInput,
   UpdateWorkRequestInput,
@@ -12,6 +13,8 @@ import type {
   WorkRequestCountsResponse,
   WorkRequestRelatedResponse,
 } from './types';
+
+type QuerySnapshot = Array<[readonly unknown[], unknown]>;
 
 // ============================================================================
 // Queries
@@ -100,7 +103,9 @@ export function useWorkRequestRelated(
 }
 
 // ============================================================================
-// Mutations (Zero Optimistic Updates Doctrine)
+// Mutations (Zero Optimistic Updates Doctrine — sole sanctioned exception:
+// the admin WR status transition, mutation #3 below, is optimistic-with-
+// rollback per product request for instant feedback)
 // ============================================================================
 
 export function useWorkRequestMutations() {
@@ -163,7 +168,80 @@ export function useWorkRequestMutations() {
     },
   });
 
-  // 3. Archive Work Request (Blocking flow)
+  // 3. Admin Status Transition — OPTIMISTIC (single sanctioned exception to the
+  // zero-optimistic doctrine, per product request). The status badge and all
+  // open lists/boards flip instantly; the server call runs underneath. On
+  // failure every touched cache is rolled back from snapshots and the error
+  // rethrows so the caller surfaces the verbatim RFC 7807 detail. Server truth
+  // is re-fetched on settle, so nothing can drift.
+  const statusOptimisticMutation = useMutation<
+    WorkRequest,
+    ApiError,
+    { id: string; status: WorkRequestStatus; entity?: string },
+    { snapshots: QuerySnapshot }
+  >({
+    mutationFn: async ({ id, status, entity }) => {
+      const headers: Record<string, string> = {};
+      if (entity) headers['X-Active-Entity'] = entity;
+      const res = await apiRequest<WorkRequestDetailResponse>(
+        `/operations/work-requests/${id}`,
+        {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({ status }),
+        }
+      );
+      return res.data;
+    },
+    onMutate: async ({ id, status }) => {
+      await queryClient.cancelQueries({ queryKey: operationsKeys.workRequests() });
+
+      // Snapshot every operations/workRequests cache before mutating
+      const snapshots = queryClient.getQueriesData<unknown>({
+        queryKey: operationsKeys.workRequests(),
+      }) as QuerySnapshot;
+
+      // Detail cache stores the bare WorkRequest
+      const detailKey = operationsKeys.workRequestDetail(id);
+      const prevDetail = queryClient.getQueryData<WorkRequest>(detailKey);
+      if (prevDetail) {
+        queryClient.setQueryData<WorkRequest>(detailKey, { ...prevDetail, status });
+      }
+
+      // List caches store ApiResponse<WorkRequest[]>; rewrite the item in place
+      for (const [key, value] of snapshots) {
+        const list = value as WorkRequestListResponse | undefined;
+        if (list && typeof list === 'object' && Array.isArray(list.data)) {
+          if (list.data.some((wr) => wr.id === id)) {
+            queryClient.setQueryData(key, {
+              ...list,
+              data: list.data.map((wr) => (wr.id === id ? { ...wr, status } : wr)),
+            });
+          }
+        }
+      }
+
+      return { snapshots };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.snapshots) {
+        for (const [key, value] of context.snapshots) {
+          queryClient.setQueryData(key, value);
+        }
+      }
+    },
+    onSettled: (_data, _err, { id }) => {
+      // Reconcile against server truth
+      queryClient.invalidateQueries({ queryKey: operationsKeys.workRequestDetail(id) });
+      queryClient.invalidateQueries({ queryKey: operationsKeys.tasks(id) });
+      queryClient.invalidateQueries({ queryKey: operationsKeys.workRequests() });
+      queryClient.invalidateQueries({
+        queryKey: operationsKeys.workRequestCounts(activeEntity),
+      });
+    },
+  });
+
+  // 4. Archive Work Request (Blocking flow)
   const archiveMutation = useMutation<WorkRequest, ApiError, { id: string; entity?: string }>({
     mutationFn: async ({ id, entity }) => {
       const headers: Record<string, string> = {};
@@ -267,6 +345,8 @@ export function useWorkRequestMutations() {
       const payload = typeof arg === 'string' ? { id: arg } : arg;
       return cancelMutation.mutateAsync(payload);
     },
+    statusOptimistic: statusOptimisticMutation.mutateAsync,
+    isStatusOptimisticPending: statusOptimisticMutation.isPending,
     createMutation,
     updateMutation,
     archiveMutation,
