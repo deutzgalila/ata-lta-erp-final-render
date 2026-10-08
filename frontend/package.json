@@ -7,7 +7,7 @@
     "dev": "vite --port 8081",
     "build": "tsc -b && vite build",
     "preview": "vite preview --port 8081",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -b",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src",

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import React from 'react';
+import type { ReactNode } from 'react';
 import { useSessionStore, type UserProfile } from '@/lib/session';
 import { useBlockingModalStore } from '../components/BlockingActionModal';
 import { TaskDetailModal } from '../components/TaskDetailModal';
@@ -33,8 +33,8 @@ const mockTask: Task = {
   assigneeName: 'Assigned Lead Staff',
   assignees: ['emp-assigned-1', 'emp-assigned-2'],
   taskAssignees: [
-    { userId: 'emp-assigned-1', name: 'Assigned Lead Staff' },
-    { userId: 'emp-assigned-2', name: 'Assigned Co Staff' },
+    { taskId: 'task-scope-1', userId: 'emp-assigned-1', assignedBy: null, assignedAt: null, userName: 'Assigned Lead Staff' },
+    { taskId: 'task-scope-1', userId: 'emp-assigned-2', assignedBy: null, assignedAt: null, userName: 'Assigned Co Staff' },
   ],
   predecessors: [],
   dueDate: '2026-04-15T00:00:00Z',
@@ -48,28 +48,25 @@ const mockTask: Task = {
 const mockWr: WorkRequest = {
   id: 'wr-scope-1',
   title: 'Q1 Corporate Review',
+  description: 'Detailed financial worksheets review',
   entity: 'ATA',
   clientId: 'client-1',
   clientName: 'Alpha Corp',
   phase: 'processing',
   status: 'In Progress',
+  priority: 'High',
+  archived: false,
+  onHold: false,
+  phaseEnteredAt: '2026-03-01T00:00:00Z',
+  dueDate: '2026-04-30T00:00:00Z',
+  requestedBy: 'user-req-1',
   assignedTo: 'mgr-lead-1',
   assignedToName: 'Manager Lead',
   coAssignees: ['emp-assigned-1', 'emp-assigned-2', 'emp-accounting-1', 'emp-doc-1'],
-  targetCompletionDate: '2026-04-30T00:00:00Z',
-  phaseEnteredAt: '2026-03-01T00:00:00Z',
+  version: 1,
   createdAt: '2026-03-01T00:00:00Z',
   updatedAt: '2026-03-01T00:00:00Z',
   tasks: [mockTask],
-  entity_id: 'ATA',
-  version: 1,
-  billingStatus: 'unbilled',
-  invoicesCount: 0,
-  disbursementsCount: 0,
-  transmittalsCount: 0,
-  tasksTotal: 1,
-  tasksCompleted: 0,
-  blockedTasksCount: 0,
 };
 
 const userAdmin: UserProfile = {
@@ -125,9 +122,15 @@ describe('Task Scoping Utility Unit Tests (taskScope.ts)', () => {
     expect(isTaskAssignee(userAdmin, mockTask)).toBe(false);
   });
 
+  it('correctly determines work request team membership', () => {
+    expect(isWrTeamMember(userAccountingTeam, mockWr, [mockTask])).toBe(true);
+    expect(isWrTeamMember(userUnassignedManager, mockWr, [mockTask])).toBe(false);
+    expect(isWrTeamMember(userAssignedStaff, mockWr, [mockTask])).toBe(true);
+  });
+
   it('correctly identifies Admin users including Lorein Wong', () => {
     expect(isUserAdmin(userAdmin)).toBe(true);
-    expect(isUserAdmin({ id: 'any-id', email: 'lorein@ata-lta.ph', name: 'Lorein Wong', role: 'Staff' })).toBe(true);
+    expect(isUserAdmin({ id: 'any-id', email: 'lorein@ata-lta.ph', name: 'Lorein Wong', role: 'Staff', departments: [], entities: [] })).toBe(true);
     expect(isUserAdmin(userAssignedStaff)).toBe(false);
     expect(isUserAdmin(userUnassignedManager)).toBe(false);
   });
@@ -230,7 +233,7 @@ describe('TaskDetailModal UI Scoping Integration', () => {
     const qc = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
-    return ({ children }: { children: React.ReactNode }) => (
+    return ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={qc}>{children}</QueryClientProvider>
     );
   };
