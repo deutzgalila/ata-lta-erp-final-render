@@ -101,6 +101,7 @@ const WR_STATUSES = [
   'Pending Requirements',
   'For Assignment',
   'For Supervisor Review',
+  'For Billing',
   'For Payment',
   'For Submission',
   'For Quality Check',
