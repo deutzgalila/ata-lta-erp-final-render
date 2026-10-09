@@ -34,19 +34,48 @@ export interface SessionState {
   setLoading: (isLoading: boolean) => void;
 }
 
+export const ACTIVE_ENTITY_STORAGE_KEY = 'erp_active_entity';
+
+const initialStoredEntity =
+  typeof localStorage !== 'undefined'
+    ? localStorage.getItem(ACTIVE_ENTITY_STORAGE_KEY)
+    : null;
+
 export const useSessionStore = create<SessionState>((set) => ({
   user: null,
   permissions: new Set<string>(),
-  activeEntity: null,
+  activeEntity: initialStoredEntity,
   unreadCount: 0,
   isAuthenticated: false,
   isLoading: true,
 
   setSession: ({ user, permissions, activeEntity, unreadCount }) => {
     const permSet = permissions instanceof Set ? permissions : new Set(permissions);
-    const chosenEntity =
-      activeEntity ||
-      (user.entities.length > 0 ? user.entities[0] ?? null : null);
+
+    let chosenEntity: string | null = null;
+    if (activeEntity !== undefined) {
+      chosenEntity = activeEntity;
+    } else {
+      const stored =
+        typeof localStorage !== 'undefined'
+          ? localStorage.getItem(ACTIVE_ENTITY_STORAGE_KEY)
+          : null;
+      if (stored && (stored === 'ALL' || (Array.isArray(user.entities) && user.entities.includes(stored)))) {
+        chosenEntity = stored;
+      } else if (user.entities && user.entities.length > 0) {
+        chosenEntity = user.entities[0] ?? null;
+      }
+    }
+
+    try {
+      if (chosenEntity) {
+        localStorage.setItem(ACTIVE_ENTITY_STORAGE_KEY, chosenEntity);
+      } else {
+        localStorage.removeItem(ACTIVE_ENTITY_STORAGE_KEY);
+      }
+    } catch {
+      // ignore
+    }
 
     set({
       user,
@@ -59,6 +88,15 @@ export const useSessionStore = create<SessionState>((set) => ({
   },
 
   setActiveEntity: (entity) => {
+    try {
+      if (entity) {
+        localStorage.setItem(ACTIVE_ENTITY_STORAGE_KEY, entity);
+      } else {
+        localStorage.removeItem(ACTIVE_ENTITY_STORAGE_KEY);
+      }
+    } catch {
+      // ignore
+    }
     set({ activeEntity: entity });
   },
 
@@ -70,6 +108,7 @@ export const useSessionStore = create<SessionState>((set) => ({
     try {
       localStorage.removeItem('erp_access_token');
       localStorage.removeItem('erp_refresh_token');
+      localStorage.removeItem(ACTIVE_ENTITY_STORAGE_KEY);
     } catch {
       // ignore
     }

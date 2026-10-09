@@ -141,6 +141,7 @@ export async function apiRequest<T = unknown>(
 
   let res = await fetch(url, {
     ...options,
+    cache: 'no-cache',
     headers,
   });
 
@@ -165,6 +166,7 @@ export async function apiRequest<T = unknown>(
 
           res = await fetch(url, {
             ...options,
+            cache: 'no-cache',
             headers,
           });
 

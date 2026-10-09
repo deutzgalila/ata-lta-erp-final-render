@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PhaseKanbanBoard } from '../components/PhaseKanbanBoard';
 import { RerouteModal } from '../components/RerouteModal';
 import { useSessionStore } from '@/lib/session';
 import { useBlockingModalStore } from '../components/BlockingActionModal';
+import { supabase, MockRealtimeChannel } from '@/lib/supabase';
+import { operationsKeys } from '../api/queryKeys';
 import type { WorkRequest, Task } from '../api/types';
 
 function createTestHarness() {
@@ -333,6 +335,103 @@ describe('Phase Kanban Board & Routing Features (Milestone 3)', () => {
         to_phase: 'processing',
         reason: 'Discrepancy in line 14 deductions requires recalculation',
       });
+    });
+  });
+
+  it('mounts PresenceAvatars with roomId=effectiveWrId in the header toolbar', async () => {
+    const { wrapper } = createTestHarness();
+
+    vi.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes('/operations/work-requests?')) {
+        return new Response(JSON.stringify({ data: mockWorkRequests }), { status: 200 });
+      }
+      if (url.includes('/operations/work-requests/wr-101/tasks')) {
+        return new Response(JSON.stringify({ data: mockPreTasks }), { status: 200 });
+      }
+      if (url.includes('/operations/work-requests/wr-101')) {
+        return new Response(JSON.stringify({ data: mockWorkRequests[0] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
+    });
+
+    render(<PhaseKanbanBoard initialWorkRequestId="wr-101" />, { wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('kanban-wr-select')).toBeInTheDocument();
+    });
+
+    // MockRealtimeChannel sets up presence for 'presence:work_request:wr-101'
+    const channel = supabase.channel('presence:work_request:wr-101') as unknown as MockRealtimeChannel;
+    act(() => {
+      channel.setPresenceState({
+        'u-admin-1': [{ userId: 'u-admin-1', name: 'Admin Test' }],
+        'user-colleague-1': [
+          {
+            userId: 'user-colleague-1',
+            name: 'Jane Doe',
+            email: 'jane@ata-lta.ph',
+            role: 'Senior Reviewer',
+          },
+        ],
+      });
+      channel.emit('presence', { event: 'sync' });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('presence-avatars')).toBeInTheDocument();
+      expect(screen.getByTestId('presence-avatar-user-colleague-1')).toBeInTheDocument();
+    });
+  });
+
+  it('reactively re-renders activeWr, phase column highlight, and gate progress on query cache updates', async () => {
+    const { queryClient, wrapper } = createTestHarness();
+
+    vi.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes('/operations/work-requests?')) {
+        return new Response(JSON.stringify({ data: mockWorkRequests }), { status: 200 });
+      }
+      if (url.includes('/operations/work-requests/wr-101/tasks')) {
+        return new Response(JSON.stringify({ data: mockPreTasks }), { status: 200 });
+      }
+      if (url.includes('/operations/work-requests/wr-101')) {
+        return new Response(JSON.stringify({ data: mockWorkRequests[0] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
+    });
+
+    render(<PhaseKanbanBoard initialWorkRequestId="wr-101" />, { wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByText('Phase: Pre-processing')).toBeInTheDocument();
+    });
+
+    // Simulate TanStack Query cache update from a work_requests CDC event changing phase to processing
+    act(() => {
+      queryClient.setQueryData(
+        operationsKeys.workRequestDetail('wr-101'),
+        (old: any) => ({
+          ...old,
+          phase: 'processing',
+        })
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Phase: Processing')).toBeInTheDocument();
+    });
+
+    // Simulate TanStack Query cache update from a tasks CDC event completing remaining task
+    act(() => {
+      queryClient.setQueryData(
+        operationsKeys.tasks('wr-101'),
+        mockPreTasks.map((t) => ({ ...t, status: 'Completed' }))
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('gate-progress-pre_processing')).toHaveTextContent('2/2 completed');
     });
   });
 });

@@ -19,3 +19,12 @@ export {
   isSelfOriginatedPayload,
   clearLocalMutationsForTesting,
 } from './loopPrevention';
+export {
+  resolveEntityUUID,
+  resolveEntityCodeFromUUID,
+  registerEntityMapping,
+  resetEntityMappingsForTesting,
+  ENTITY_MAP,
+  UUID_TO_CODE_MAP,
+} from './tenantResolver';
+

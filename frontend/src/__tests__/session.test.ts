@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { useSessionStore } from '@/lib/session';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { useSessionStore, ACTIVE_ENTITY_STORAGE_KEY } from '@/lib/session';
+import { apiRequest } from '@/lib/api';
 
-describe('useSessionStore (Zustand 5 store, Spec §3.1)', () => {
+describe('useSessionStore (Zustand 5 store, Spec §3.1 & Parcel R4)', () => {
   beforeEach(() => {
     localStorage.clear();
     useSessionStore.getState().clearSession();
@@ -43,6 +44,7 @@ describe('useSessionStore (Zustand 5 store, Spec §3.1)', () => {
     expect(state.permissions.has('workflow:view')).toBe(true);
     expect(state.permissions.has('billing:view')).toBe(true);
     expect(state.permissions.has('approve_change:*')).toBe(true);
+    expect(localStorage.getItem(ACTIVE_ENTITY_STORAGE_KEY)).toBe('ATA');
   });
 
   it('defaults activeEntity to user first entity if not provided', () => {
@@ -60,13 +62,86 @@ describe('useSessionStore (Zustand 5 store, Spec §3.1)', () => {
 
     const state = useSessionStore.getState();
     expect(state.activeEntity).toBe('LTA');
+    expect(localStorage.getItem(ACTIVE_ENTITY_STORAGE_KEY)).toBe('LTA');
   });
 
-  it('updates activeEntity via setActiveEntity', () => {
+  it('updates activeEntity via setActiveEntity and writes to localStorage', () => {
     useSessionStore.getState().setActiveEntity('LTA');
     expect(useSessionStore.getState().activeEntity).toBe('LTA');
+    expect(localStorage.getItem(ACTIVE_ENTITY_STORAGE_KEY)).toBe('LTA');
+
     useSessionStore.getState().setActiveEntity('ALL');
     expect(useSessionStore.getState().activeEntity).toBe('ALL');
+    expect(localStorage.getItem(ACTIVE_ENTITY_STORAGE_KEY)).toBe('ALL');
+  });
+
+  it('removes erp_active_entity from localStorage when setActiveEntity is called with null', () => {
+    useSessionStore.getState().setActiveEntity('ATA');
+    expect(localStorage.getItem(ACTIVE_ENTITY_STORAGE_KEY)).toBe('ATA');
+
+    useSessionStore.getState().setActiveEntity(null);
+    expect(useSessionStore.getState().activeEntity).toBeNull();
+    expect(localStorage.getItem(ACTIVE_ENTITY_STORAGE_KEY)).toBeNull();
+  });
+
+  it('restores stored entity (LTA) from localStorage when activeEntity is undefined', () => {
+    localStorage.setItem(ACTIVE_ENTITY_STORAGE_KEY, 'LTA');
+
+    useSessionStore.getState().setSession({
+      user: {
+        id: 'user-3',
+        email: 'user3@test.ph',
+        name: 'User Three',
+        role: 'Operations',
+        departments: [],
+        entities: ['ATA', 'LTA'],
+      },
+      permissions: [],
+    });
+
+    const state = useSessionStore.getState();
+    expect(state.activeEntity).toBe('LTA');
+    expect(localStorage.getItem(ACTIVE_ENTITY_STORAGE_KEY)).toBe('LTA');
+  });
+
+  it('restores stored entity (ALL) from localStorage when activeEntity is undefined', () => {
+    localStorage.setItem(ACTIVE_ENTITY_STORAGE_KEY, 'ALL');
+
+    useSessionStore.getState().setSession({
+      user: {
+        id: 'user-4',
+        email: 'user4@test.ph',
+        name: 'User Four',
+        role: 'Operations',
+        departments: [],
+        entities: ['ATA', 'LTA'],
+      },
+      permissions: [],
+    });
+
+    const state = useSessionStore.getState();
+    expect(state.activeEntity).toBe('ALL');
+    expect(localStorage.getItem(ACTIVE_ENTITY_STORAGE_KEY)).toBe('ALL');
+  });
+
+  it('falls back to user.entities[0] when stored entity is not permitted for the user', () => {
+    localStorage.setItem(ACTIVE_ENTITY_STORAGE_KEY, 'LTA');
+
+    useSessionStore.getState().setSession({
+      user: {
+        id: 'user-5',
+        email: 'user5@test.ph',
+        name: 'User Five',
+        role: 'Operations',
+        departments: [],
+        entities: ['ATA'], // LTA not permitted
+      },
+      permissions: [],
+    });
+
+    const state = useSessionStore.getState();
+    expect(state.activeEntity).toBe('ATA');
+    expect(localStorage.getItem(ACTIVE_ENTITY_STORAGE_KEY)).toBe('ATA');
   });
 
   it('updates unread count via setUnreadCount', () => {
@@ -77,9 +152,10 @@ describe('useSessionStore (Zustand 5 store, Spec §3.1)', () => {
     expect(useSessionStore.getState().unreadCount).toBe(0);
   });
 
-  it('clears session and removes tokens on clearSession', () => {
+  it('clears session and removes tokens and erp_active_entity on clearSession', () => {
     localStorage.setItem('erp_access_token', 'test-token');
     localStorage.setItem('erp_refresh_token', 'test-refresh');
+    localStorage.setItem(ACTIVE_ENTITY_STORAGE_KEY, 'LTA');
 
     useSessionStore.getState().setSession({
       user: {
@@ -88,13 +164,16 @@ describe('useSessionStore (Zustand 5 store, Spec §3.1)', () => {
         name: 'Test',
         role: 'Admin',
         departments: [],
-        entities: ['ATA'],
+        entities: ['ATA', 'LTA'],
       },
       permissions: ['workflow:view'],
+      activeEntity: 'LTA',
       unreadCount: 3,
     });
 
     expect(useSessionStore.getState().isAuthenticated).toBe(true);
+    expect(useSessionStore.getState().activeEntity).toBe('LTA');
+    expect(localStorage.getItem(ACTIVE_ENTITY_STORAGE_KEY)).toBe('LTA');
 
     useSessionStore.getState().clearSession();
 
@@ -106,5 +185,102 @@ describe('useSessionStore (Zustand 5 store, Spec §3.1)', () => {
     expect(state.activeEntity).toBeNull();
     expect(localStorage.getItem('erp_access_token')).toBeNull();
     expect(localStorage.getItem('erp_refresh_token')).toBeNull();
+    expect(localStorage.getItem(ACTIVE_ENTITY_STORAGE_KEY)).toBeNull();
+  });
+
+  it('removes erp_active_entity if setSession is called with activeEntity: null', () => {
+    localStorage.setItem(ACTIVE_ENTITY_STORAGE_KEY, 'ATA');
+
+    useSessionStore.getState().setSession({
+      user: {
+        id: 'u-1',
+        email: 'test@ata.ph',
+        name: 'Test',
+        role: 'Admin',
+        departments: [],
+        entities: ['ATA'],
+      },
+      permissions: [],
+      activeEntity: null,
+    });
+
+    expect(useSessionStore.getState().activeEntity).toBeNull();
+    expect(localStorage.getItem(ACTIVE_ENTITY_STORAGE_KEY)).toBeNull();
+  });
+});
+
+describe('apiRequest fetch hardening (Parcel R4)', () => {
+  it('includes cache: "no-cache" on HTTP fetch options', async () => {
+    const originalFetch = globalThis.fetch;
+    const fetchCalls: Array<{ url: string; options: RequestInit }> = [];
+
+    globalThis.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      fetchCalls.push({ url: String(url), options: init || {} });
+      return {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => ({ success: true }),
+      } as Response;
+    });
+
+    try {
+      await apiRequest('/test-cache');
+      expect(fetchCalls.length).toBe(1);
+      expect(fetchCalls[0]?.options.cache).toBe('no-cache');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('preserves cache: "no-cache" during 401 retry fetch', async () => {
+    const originalFetch = globalThis.fetch;
+    const fetchCalls: Array<{ url: string; options: RequestInit }> = [];
+    localStorage.setItem('erp_refresh_token', 'mock-refresh-token');
+
+    let callCount = 0;
+    globalThis.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      fetchCalls.push({ url: String(url), options: init || {} });
+      callCount++;
+      if (callCount === 1) {
+        // Initial request returns 401
+        return {
+          ok: false,
+          status: 401,
+          statusText: 'Unauthorized',
+          json: async () => ({ message: 'Unauthorized' }),
+        } as Response;
+      }
+      if (callCount === 2) {
+        // Refresh token endpoint returns new tokens
+        return {
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: async () => ({
+            data: { accessToken: 'new-acc', refreshToken: 'new-ref' },
+          }),
+        } as Response;
+      }
+      // Retried request returns 200
+      return {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => ({ retried: true }),
+      } as Response;
+    });
+
+    try {
+      const res = await apiRequest<{ retried: boolean }>('/secure-resource');
+      expect(res).toEqual({ retried: true });
+      expect(fetchCalls.length).toBe(3);
+      // Initial call
+      expect(fetchCalls[0]?.options.cache).toBe('no-cache');
+      // Retried call
+      expect(fetchCalls[2]?.options.cache).toBe('no-cache');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { PresenceAvatars } from '@/components/common/PresenceAvatars';
 import {
   useWorkRequests,
   useWorkRequestDetail,
@@ -378,8 +379,9 @@ export function PhaseKanbanBoard({
           )}
         </div>
 
-        {activeWr && canEdit && (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          {effectiveWrId && <PresenceAvatars roomId={effectiveWrId} />}
+          {activeWr && canEdit && (
             <Button
               type="button"
               variant="outline"
@@ -394,8 +396,8 @@ export function PhaseKanbanBoard({
               <Edit3 className="h-3.5 w-3.5 text-slate-500" />
               Edit Work Request
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* 2. 4-Phase Kanban Grid */}

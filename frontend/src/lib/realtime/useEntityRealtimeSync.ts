@@ -20,6 +20,7 @@ import { isSelfOriginatedPayload, isLocalMutation } from './loopPrevention';
 import { operationsKeys } from '@/features/operations/api/queryKeys';
 import { billingKeys } from '@/features/billing/api/queryKeys';
 import { disbursementKeys } from '@/features/disbursements/api/queryKeys';
+import { resolveEntityUUID, resolveEntityCodeFromUUID } from './tenantResolver';
 
 export type RealtimeTable =
   | 'work_requests'
@@ -45,6 +46,7 @@ interface GenericEntityRecord {
   entity_id?: string;
   entityId?: string;
   entity?: string;
+  entity_code?: string;
   work_request_id?: string;
   workRequestId?: string;
   phases?: Record<string, { tasks?: Array<{ id?: string }> }>;
@@ -208,7 +210,7 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
     options.activeEntity !== undefined
       ? options.activeEntity
       : useSessionStore.getState().activeEntity;
-  const activeEntityUUID = options.activeEntityUUID;
+  const targetUUID = options.activeEntityUUID || resolveEntityUUID(activeEntity);
 
   if (activeEntity !== 'ALL') {
     // Preserve explicit null values; do not coalesce null into undefined
@@ -216,24 +218,49 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
       incomingRecord.entity_id !== undefined
         ? incomingRecord.entity_id
         : incomingRecord.entityId;
-    const recordEntity = incomingRecord.entity;
+    const recordEntity =
+      incomingRecord.entity !== undefined
+        ? incomingRecord.entity
+        : incomingRecord.entity_code;
 
     // Gracefully allow tables like `tasks` where entity_id and entity are not present
     const hasEntityField = recordEntityId !== undefined || recordEntity !== undefined;
     if (hasEntityField) {
+      // Discard if session is unassigned
+      if (!activeEntity) {
+        return false;
+      }
+
+      // Discard if payload has explicit null for entity identifiers
+      if (recordEntityId === null && recordEntity === null) {
+        return false;
+      }
+      if (recordEntityId === null && recordEntity === undefined) {
+        return false;
+      }
+      if (recordEntity === null && recordEntityId === undefined) {
+        return false;
+      }
+
+      const recordCode =
+        recordEntity ||
+        (recordEntityId != null ? resolveEntityCodeFromUUID(String(recordEntityId)) : undefined);
+      const recordUUID =
+        (recordEntityId != null ? String(recordEntityId) : undefined) ||
+        (recordEntity != null ? resolveEntityUUID(String(recordEntity)) : undefined);
+
       // 1. UUID matching: Case-insensitive and trimmed (RFC 4122 compliance)
       const matchesUUID = Boolean(
-        activeEntityUUID &&
-        recordEntityId != null &&
-        String(recordEntityId).trim().toLowerCase() === String(activeEntityUUID).trim().toLowerCase()
+        targetUUID &&
+        recordUUID &&
+        String(recordUUID).trim().toLowerCase() === String(targetUUID).trim().toLowerCase()
       );
 
       // 2. Entity code matching: Case-insensitive and trimmed
       const matchesEntityCode = Boolean(
-        activeEntity && (
-          (recordEntityId != null && String(recordEntityId).trim().toUpperCase() === String(activeEntity).trim().toUpperCase()) ||
-          (recordEntity != null && String(recordEntity).trim().toUpperCase() === String(activeEntity).trim().toUpperCase())
-        )
+        activeEntity &&
+        recordCode &&
+        String(recordCode).trim().toUpperCase() === String(activeEntity).trim().toUpperCase()
       );
 
       const matches = matchesUUID || matchesEntityCode;

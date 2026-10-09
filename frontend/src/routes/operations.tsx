@@ -29,6 +29,7 @@ import { useRetainerTemplates } from '@/features/operations/api/useRetainers';
 import { operationsKeys } from '@/features/operations/api/queryKeys';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
+import { useEntityRealtimeSync } from '@/lib/realtime';
 import type { WorkRequest, EntityCode, RetainerTemplate } from '@/features/operations/api/types';
 
 export default function OperationsPage() {
@@ -59,6 +60,10 @@ export default function OperationsPage() {
   const permissions = useSessionStore((state) => state.permissions);
   const activeEntity = useSessionStore((state) => state.activeEntity);
   const setActiveEntity = useSessionStore((state) => state.setActiveEntity);
+
+  // Top-level CDC Subscriptions across all Operations views (List & Board)
+  useEntityRealtimeSync({ table: 'work_requests' });
+  useEntityRealtimeSync({ table: 'tasks' });
 
   // Permission Checks
   const canViewModule = hasPermission(permissions, 'workflow:view');

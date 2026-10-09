@@ -272,6 +272,138 @@ describe('useEntityRealtimeSync and Three-Guard CDC Engine (R4 Criteria)', () =>
       const processed = handleRealtimePayload(queryClient, { table: 'work_requests' }, payload);
       expect(processed).toBe(false);
     });
+
+    it('resolves ATA entity UUID automatically when payload contains raw ATA entity_id UUID and activeEntity is ATA', () => {
+      useSessionStore.setState({ activeEntity: 'ATA' });
+
+      // CDC row payload from Supabase has raw UUID entity_id and no entity code
+      const payload = {
+        eventType: 'UPDATE',
+        new: {
+          id: 'wr-ata-cdc',
+          entity_id: 'e83dc90b-d9b5-4854-8adf-7fe21c2e6822', // ATA Canonical UUID
+          version: 2,
+          title: 'ATA Live CDC Update',
+        },
+        old: {
+          id: 'wr-ata-cdc',
+          entity_id: 'e83dc90b-d9b5-4854-8adf-7fe21c2e6822',
+          version: 1,
+        },
+      };
+
+      // Notice options.activeEntityUUID is NOT provided
+      const processed = handleRealtimePayload(
+        queryClient,
+        { table: 'work_requests' },
+        payload
+      );
+      expect(processed).toBe(true);
+
+      const cached = queryClient.getQueryData<TestRecord>(
+        operationsKeys.workRequestDetail('wr-ata-cdc')
+      );
+      expect(cached?.title).toBe('ATA Live CDC Update');
+    });
+
+    it('discards payload with raw LTA entity_id UUID when activeEntity is ATA (without activeEntityUUID)', () => {
+      useSessionStore.setState({ activeEntity: 'ATA' });
+
+      // Foreign tenant payload with raw LTA UUID
+      const payload = {
+        eventType: 'UPDATE',
+        new: {
+          id: 'wr-lta-cdc',
+          entity_id: '16749820-0129-44a8-9435-a6013d07a370', // LTA Canonical UUID
+          version: 2,
+          title: 'LTA Live CDC Update',
+        },
+      };
+
+      const processed = handleRealtimePayload(
+        queryClient,
+        { table: 'work_requests' },
+        payload
+      );
+      expect(processed).toBe(false);
+
+      const cached = queryClient.getQueryData(
+        operationsKeys.workRequestDetail('wr-lta-cdc')
+      );
+      expect(cached).toBeUndefined();
+    });
+
+    it('resolves LTA entity UUID automatically when payload contains raw LTA entity_id UUID and activeEntity is LTA', () => {
+      useSessionStore.setState({ activeEntity: 'LTA' });
+
+      const payload = {
+        eventType: 'UPDATE',
+        new: {
+          id: 'wr-lta-match',
+          entity_id: '16749820-0129-44a8-9435-a6013d07a370', // LTA Canonical UUID
+          version: 2,
+          title: 'LTA Live Match',
+        },
+      };
+
+      const processed = handleRealtimePayload(
+        queryClient,
+        { table: 'work_requests' },
+        payload
+      );
+      expect(processed).toBe(true);
+
+      const cached = queryClient.getQueryData<TestRecord>(
+        operationsKeys.workRequestDetail('wr-lta-match')
+      );
+      expect(cached?.title).toBe('LTA Live Match');
+    });
+
+    it('discards payload with raw ATA entity_id UUID when activeEntity is LTA', () => {
+      useSessionStore.setState({ activeEntity: 'LTA' });
+
+      const payload = {
+        eventType: 'UPDATE',
+        new: {
+          id: 'wr-ata-foreign',
+          entity_id: 'e83dc90b-d9b5-4854-8adf-7fe21c2e6822', // ATA Canonical UUID
+          version: 2,
+        },
+      };
+
+      const processed = handleRealtimePayload(
+        queryClient,
+        { table: 'work_requests' },
+        payload
+      );
+      expect(processed).toBe(false);
+    });
+
+    it('matches raw entity_id UUID with mixed-case and whitespace against activeEntity without activeEntityUUID', () => {
+      useSessionStore.setState({ activeEntity: 'ATA' });
+
+      const payload = {
+        eventType: 'UPDATE',
+        new: {
+          id: 'wr-casing-cdc',
+          entity_id: '  E83DC90B-D9B5-4854-8ADF-7FE21C2E6822  ', // ATA mixed-case with whitespace
+          version: 2,
+          title: 'Casing Match',
+        },
+      };
+
+      const processed = handleRealtimePayload(
+        queryClient,
+        { table: 'work_requests' },
+        payload
+      );
+      expect(processed).toBe(true);
+
+      const cached = queryClient.getQueryData<TestRecord>(
+        operationsKeys.workRequestDetail('wr-casing-cdc')
+      );
+      expect(cached?.title).toBe('Casing Match');
+    });
   });
 
   // =========================================================================

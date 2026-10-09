@@ -270,16 +270,59 @@ export class MockSupabaseClient {
 }
 
 /**
+ * Staging fallback credentials (Stage 5 Remediation, Parcel R2)
+ * Used in browser/staging environments when build-time environment variables are omitted.
+ * Zero hardcoded secrets in source code to adhere to GitHub push protection.
+ */
+export const STAGING_FALLBACK_URL = 'https://tqtwkmozvhttvbdatrbc.supabase.co';
+export const STAGING_FALLBACK_KEY =
+  (typeof window !== 'undefined'
+    ? (window as unknown as { __SUPABASE_ANON_KEY__?: string }).__SUPABASE_ANON_KEY__ ||
+      sessionStorage.getItem('erp_supabase_anon_key') ||
+      localStorage.getItem('erp_supabase_anon_key')
+    : undefined) || '';
+
+/**
  * Checks whether valid Supabase credentials are configured in the environment.
+ * In test runners without explicit env vars, returns false to preserve MockSupabaseClient.
+ * In browser runtime, falls back to staging credentials.
  */
 export const isSupabaseConfigured = (): boolean => {
   const env = typeof import.meta !== 'undefined' ? import.meta.env : undefined;
-  const url =
+  const isTest =
+    (typeof process !== 'undefined' && (Boolean(process.env?.VITEST) || process.env?.NODE_ENV === 'test')) ||
+    env?.MODE === 'test';
+
+  const rawUrl =
     env?.VITE_SUPABASE_URL ??
-    (typeof process !== 'undefined' ? (process.env?.VITE_SUPABASE_URL as string | undefined) : undefined);
-  const key =
+    (typeof process !== 'undefined' ? (process.env?.VITE_SUPABASE_URL as string | undefined) : undefined) ??
+    (typeof window !== 'undefined'
+      ? sessionStorage.getItem('erp_supabase_url') || localStorage.getItem('erp_supabase_url')
+      : undefined);
+
+  const rawKey =
     env?.VITE_SUPABASE_ANON_KEY ??
-    (typeof process !== 'undefined' ? (process.env?.VITE_SUPABASE_ANON_KEY as string | undefined) : undefined);
+    (typeof process !== 'undefined' ? (process.env?.VITE_SUPABASE_ANON_KEY as string | undefined) : undefined) ??
+    (typeof window !== 'undefined'
+      ? (window as unknown as { __SUPABASE_ANON_KEY__?: string }).__SUPABASE_ANON_KEY__ ||
+        sessionStorage.getItem('erp_supabase_anon_key') ||
+        localStorage.getItem('erp_supabase_anon_key')
+      : undefined);
+
+  if (isTest) {
+    return Boolean(
+      rawUrl &&
+      rawKey &&
+      typeof rawUrl === 'string' &&
+      typeof rawKey === 'string' &&
+      rawUrl.trim() !== '' &&
+      rawKey.trim() !== '' &&
+      !rawUrl.includes('placeholder')
+    );
+  }
+
+  const url = rawUrl ?? STAGING_FALLBACK_URL;
+  const key = rawKey ?? STAGING_FALLBACK_KEY;
 
   return Boolean(
     url &&
@@ -292,16 +335,49 @@ export const isSupabaseConfigured = (): boolean => {
   );
 };
 
-function createSupabaseInstance(): SupabaseClient {
+export function getSupabaseClient(): SupabaseClient {
   const env = typeof import.meta !== 'undefined' ? import.meta.env : undefined;
+  const isTest =
+    (typeof process !== 'undefined' && (Boolean(process.env?.VITEST) || process.env?.NODE_ENV === 'test')) ||
+    env?.MODE === 'test';
+
+  // In test runners without explicit non-placeholder credentials, return MockSupabaseClient
+  if (isTest) {
+    const rawUrl =
+      env?.VITE_SUPABASE_URL ??
+      (typeof process !== 'undefined' ? (process.env?.VITE_SUPABASE_URL as string | undefined) : undefined);
+    const rawKey =
+      env?.VITE_SUPABASE_ANON_KEY ??
+      (typeof process !== 'undefined' ? (process.env?.VITE_SUPABASE_ANON_KEY as string | undefined) : undefined);
+
+    if (rawUrl && rawKey && typeof rawUrl === 'string' && typeof rawKey === 'string' && !rawUrl.includes('placeholder')) {
+      return createClient(rawUrl, rawKey, {
+        realtime: { params: { eventsPerSecond: 10 } },
+      });
+    }
+    return new MockSupabaseClient() as unknown as SupabaseClient;
+  }
+
+  // Browser / Staging / Production runtime: use env vars or fall back to staging credentials
   const url =
     env?.VITE_SUPABASE_URL ??
-    (typeof process !== 'undefined' ? (process.env?.VITE_SUPABASE_URL as string | undefined) : undefined);
+    (typeof process !== 'undefined' ? (process.env?.VITE_SUPABASE_URL as string | undefined) : undefined) ??
+    (typeof window !== 'undefined'
+      ? sessionStorage.getItem('erp_supabase_url') || localStorage.getItem('erp_supabase_url')
+      : undefined) ??
+    STAGING_FALLBACK_URL;
+
   const key =
     env?.VITE_SUPABASE_ANON_KEY ??
-    (typeof process !== 'undefined' ? (process.env?.VITE_SUPABASE_ANON_KEY as string | undefined) : undefined);
+    (typeof process !== 'undefined' ? (process.env?.VITE_SUPABASE_ANON_KEY as string | undefined) : undefined) ??
+    (typeof window !== 'undefined'
+      ? (window as unknown as { __SUPABASE_ANON_KEY__?: string }).__SUPABASE_ANON_KEY__ ||
+        sessionStorage.getItem('erp_supabase_anon_key') ||
+        localStorage.getItem('erp_supabase_anon_key')
+      : undefined) ??
+    STAGING_FALLBACK_KEY;
 
-  if (isSupabaseConfigured() && url && key) {
+  if (url && key && typeof url === 'string' && typeof key === 'string' && !url.includes('placeholder')) {
     return createClient(url, key, {
       realtime: {
         params: {
@@ -314,8 +390,52 @@ function createSupabaseInstance(): SupabaseClient {
   return new MockSupabaseClient() as unknown as SupabaseClient;
 }
 
+export const createSupabaseInstance = getSupabaseClient;
+
+let activeSupabaseClient: SupabaseClient | MockSupabaseClient = createSupabaseInstance();
+
+export function configureSupabase(url: string, key: string): SupabaseClient {
+  if (url && key && typeof url === 'string' && typeof key === 'string' && !url.includes('placeholder')) {
+    activeSupabaseClient = createClient(url, key, {
+      realtime: {
+        params: {
+          eventsPerSecond: 10,
+        },
+      },
+    });
+  }
+  return activeSupabaseClient as SupabaseClient;
+}
+
+export function getActiveSupabaseClient(): SupabaseClient {
+  return activeSupabaseClient as SupabaseClient;
+}
+
 /**
  * Singleton Supabase Client.
  * Guaranteed not to throw at import time even if env vars are undefined.
+ * Proxies/delegates calls to the active underlying SupabaseClient or MockSupabaseClient.
  */
-export const supabase: SupabaseClient = createSupabaseInstance();
+export const supabase: SupabaseClient = {
+  channel: (name: string, opts?: Record<string, unknown>) =>
+    (activeSupabaseClient as unknown as { channel: (n: string, o?: Record<string, unknown>) => RealtimeChannel }).channel(name, opts),
+  removeChannel: (channel: RealtimeChannel | string) =>
+    (activeSupabaseClient as unknown as { removeChannel: (c: RealtimeChannel | string) => Promise<'ok'> }).removeChannel(channel),
+  removeAllChannels: () =>
+    (activeSupabaseClient as unknown as { removeAllChannels: () => Promise<'ok'> }).removeAllChannels(),
+  getChannels: () =>
+    ((activeSupabaseClient as unknown as { getChannels?: () => unknown[] }).getChannels?.() ?? []),
+  getChannel: (name: string) =>
+    (activeSupabaseClient as unknown as { getChannel?: (n: string) => unknown }).getChannel?.(name),
+  from: (relation: string) =>
+    (activeSupabaseClient as unknown as { from: (r: string) => unknown }).from(relation),
+  get auth() {
+    return (activeSupabaseClient as unknown as { auth: unknown }).auth;
+  },
+  get realtime() {
+    return (activeSupabaseClient as unknown as { realtime: unknown }).realtime;
+  },
+  get storage() {
+    return (activeSupabaseClient as unknown as { storage: unknown }).storage;
+  },
+} as unknown as SupabaseClient;

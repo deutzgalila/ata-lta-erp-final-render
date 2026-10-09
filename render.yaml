@@ -56,3 +56,6 @@ projects:
             envVars:
               - key: ERP_API_BASE_URL
                 value: https://ata-lta-erp-api-staging.onrender.com/v1 # Replace "staging" with "uat" for uat
+              - key: VITE_SUPABASE_URL
+                value: https://tqtwkmozvhttvbdatrbc.supabase.co
+              - fromGroup: erp-staging-secrets
