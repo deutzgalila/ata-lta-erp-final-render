@@ -52,8 +52,8 @@ export function RetainerTemplateModal({
   const canEditRetainers = usePermission('retainers:edit');
   const { createTemplate, updateTemplate } = useRetainerTemplateMutations();
 
-  const { data: clients = [] } = useClients();
-  const { data: users = [] } = useUsersList();
+  const { data: clients = [] } = useClients(undefined, { enabled: isOpen });
+  const { data: users = [] } = useUsersList({ enabled: isOpen && canEditRetainers });
 
   const isEditing = Boolean(template);
 

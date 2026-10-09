@@ -28,7 +28,7 @@ export interface ClientFilters {
   status?: string;
 }
 
-export function useClients(filters?: ClientFilters) {
+export function useClients(filters?: ClientFilters, options?: { enabled?: boolean }) {
   const activeEntity = useSessionStore((state) => state.activeEntity);
   const requestedEntity =
     filters?.entity !== undefined
@@ -62,6 +62,7 @@ export function useClients(filters?: ClientFilters) {
       );
       return res.data;
     },
+    enabled: options?.enabled ?? true,
     staleTime: 60 * 1000,
   });
 }

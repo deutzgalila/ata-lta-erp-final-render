@@ -585,7 +585,17 @@ export function useEntityRealtimeSync<T = Record<string, unknown>>(
 
       channel.subscribe((status, err) => {
         if (status === 'CHANNEL_ERROR') {
-          console.warn(`[Realtime] Subscription error on ${options.table}:`, err);
+          const errObj = err as { message?: string; cause?: { code?: number; wasClean?: boolean } } | undefined;
+          const isCleanClose =
+            errObj?.cause?.code === 1000 ||
+            errObj?.cause?.code === 1001 ||
+            errObj?.cause?.wasClean === true ||
+            errObj?.message?.includes('socket closed: 1000') ||
+            errObj?.message?.includes('socket closed: 1001');
+
+          if (!isCleanClose) {
+            console.warn(`[Realtime] Subscription error on ${options.table}:`, err);
+          }
         }
       });
 

@@ -42,8 +42,8 @@ export function RetainerGenerateModal({
   const [error, setError] = useState<string | null>(null);
 
   const { data: templates = [], isLoading: isTemplatesLoading } =
-    useRetainerTemplates();
-  const { data: clients = [] } = useClients();
+    useRetainerTemplates({ enabled: isOpen });
+  const { data: clients = [] } = useClients(undefined, { enabled: isOpen });
   const { generateFromTemplate } = useRetainerMutations();
   const activeEntity = useSessionStore((state) => state.activeEntity);
 

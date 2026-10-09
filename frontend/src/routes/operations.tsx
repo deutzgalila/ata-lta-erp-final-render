@@ -450,22 +450,26 @@ export default function OperationsPage() {
         }}
       />
 
-      <RetainerGenerateModal
-        isOpen={isGenerateModalOpen}
-        onClose={() => setIsGenerateModalOpen(false)}
-      />
+      {isGenerateModalOpen && (
+        <RetainerGenerateModal
+          isOpen={isGenerateModalOpen}
+          onClose={() => setIsGenerateModalOpen(false)}
+        />
+      )}
 
-      <RetainerTemplateModal
-        isOpen={isTemplateModalOpen}
-        template={toAdminTemplate(editingTemplate)}
-        onClose={() => {
-          setIsTemplateModalOpen(false);
-          setEditingTemplate(null);
-        }}
-        onSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: operationsKeys.templates() });
-        }}
-      />
+      {isTemplateModalOpen && (
+        <RetainerTemplateModal
+          isOpen={isTemplateModalOpen}
+          template={toAdminTemplate(editingTemplate)}
+          onClose={() => {
+            setIsTemplateModalOpen(false);
+            setEditingTemplate(null);
+          }}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: operationsKeys.templates() });
+          }}
+        />
+      )}
 
       <BlockingActionModal />
     </div>

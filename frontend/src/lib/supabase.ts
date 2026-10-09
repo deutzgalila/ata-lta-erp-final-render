@@ -274,13 +274,23 @@ export class MockSupabaseClient {
  * Used in browser/staging environments when build-time environment variables are omitted.
  * Zero hardcoded secrets in source code to adhere to GitHub push protection.
  */
+export function getStoredAnonKey(): string {
+  if (typeof window === 'undefined') return '';
+  const stored =
+    (window as unknown as { __SUPABASE_ANON_KEY__?: string }).__SUPABASE_ANON_KEY__ ||
+    sessionStorage.getItem('erp_supabase_anon_key') ||
+    localStorage.getItem('erp_supabase_anon_key') ||
+    '';
+  if (stored && stored.startsWith('sb_secret_')) {
+    sessionStorage.removeItem('erp_supabase_anon_key');
+    localStorage.removeItem('erp_supabase_anon_key');
+    return '';
+  }
+  return stored;
+}
+
 export const STAGING_FALLBACK_URL = 'https://tqtwkmozvhttvbdatrbc.supabase.co';
-export const STAGING_FALLBACK_KEY =
-  (typeof window !== 'undefined'
-    ? (window as unknown as { __SUPABASE_ANON_KEY__?: string }).__SUPABASE_ANON_KEY__ ||
-      sessionStorage.getItem('erp_supabase_anon_key') ||
-      localStorage.getItem('erp_supabase_anon_key')
-    : undefined) || '';
+export const STAGING_FALLBACK_KEY = getStoredAnonKey();
 
 /**
  * Checks whether valid Supabase credentials are configured in the environment.
@@ -303,11 +313,7 @@ export const isSupabaseConfigured = (): boolean => {
   const rawKey =
     env?.VITE_SUPABASE_ANON_KEY ??
     (typeof process !== 'undefined' ? (process.env?.VITE_SUPABASE_ANON_KEY as string | undefined) : undefined) ??
-    (typeof window !== 'undefined'
-      ? (window as unknown as { __SUPABASE_ANON_KEY__?: string }).__SUPABASE_ANON_KEY__ ||
-        sessionStorage.getItem('erp_supabase_anon_key') ||
-        localStorage.getItem('erp_supabase_anon_key')
-      : undefined);
+    (typeof window !== 'undefined' ? getStoredAnonKey() : undefined);
 
   if (isTest) {
     return Boolean(
@@ -370,11 +376,7 @@ export function getSupabaseClient(): SupabaseClient {
   const key =
     env?.VITE_SUPABASE_ANON_KEY ??
     (typeof process !== 'undefined' ? (process.env?.VITE_SUPABASE_ANON_KEY as string | undefined) : undefined) ??
-    (typeof window !== 'undefined'
-      ? (window as unknown as { __SUPABASE_ANON_KEY__?: string }).__SUPABASE_ANON_KEY__ ||
-        sessionStorage.getItem('erp_supabase_anon_key') ||
-        localStorage.getItem('erp_supabase_anon_key')
-      : undefined) ??
+    (typeof window !== 'undefined' ? getStoredAnonKey() : undefined) ??
     STAGING_FALLBACK_KEY;
 
   if (url && key && typeof url === 'string' && typeof key === 'string' && !url.includes('placeholder')) {
@@ -409,6 +411,16 @@ export function configureSupabase(url: string, key: string): SupabaseClient {
       !(activeSupabaseClient instanceof MockSupabaseClient)
     ) {
       return activeSupabaseClient as SupabaseClient;
+    }
+
+    // Gracefully clean up prior client if credentials changed
+    if (activeSupabaseClient && !(activeSupabaseClient instanceof MockSupabaseClient)) {
+      try {
+        void activeSupabaseClient.removeAllChannels();
+        (activeSupabaseClient as unknown as { realtime?: { disconnect?: () => void } }).realtime?.disconnect?.();
+      } catch {
+        // Safe cleanup
+      }
     }
 
     configuredUrl = url;
