@@ -1,89 +1,79 @@
-# Project: Stage 3 (Parcel E) Concurrency & Persistence Architecture
+# Project: Tier 2 UX Parity, Ephemeral Presence & Optimistic Concurrency Control
 
 ## Architecture
-Stage 3 (Parcel E) introduces Supabase Realtime Change Data Capture (CDC) into the ATA/LTA ERP frontend.
-The architecture consists of:
-1. **Safe Singleton Supabase Client** (`src/lib/supabase.ts`):
-   - Multiplexes all WebSocket channel subscriptions over a single instance.
-   - Initialized with `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
-   - Safe mock fallback (`MockSupabaseClient`) with synchronous channel unregistration when credentials are empty/undefined so test runners, CI, and static builds never throw runtime exceptions.
-2. **Generic Guarded CDC Hook** (`src/lib/realtime/useEntityRealtimeSync.ts`):
+The Tier 2 UX Parity and Concurrency architecture delivers real-time collaboration awareness and data-loss prevention across high-traffic ERP domains (Operations, Billing, Disbursements, DMS):
+1. **Ephemeral Presence Subsystem**:
+   - Pure in-memory Supabase WebSockets (`presence:${domain}:${roomId}`) with zero database persistence.
    - Guarded by `isFeatureEnabled('realtime_sync')`.
-   - Subscribes to PostgreSQL changes on `public` schema for the specified table.
-   - Module-level reference-counted multiplexer registry (`activeChannelRegistry`) prevents cross-component unmount collision while keeping canonical channel names `cdc_${table}`.
-   - Enforces 3 safety guards:
-     * Tenant Isolation Guard: Discards cross-tenant payloads when `activeEntity !== 'ALL'`. Handles null entity IDs, RFC 4122 case-insensitive UUID matching, and unassigned sessions. Unpartitioned tables (`tasks`) pass cleanly to parent relational filtering.
-     * Stale Version Rejection Guard: Discards payloads where `payload.new.version <= localCachedVersion`.
-     * Loop Prevention Guard: Discards payloads originated from current browser tab (`getTabId()` / local mutation registry with 10s TTL).
-   - Patches TanStack Query detail cache (`queryClient.setQueryData`) and list caches (`queryClient.getQueriesData`), and invalidates count queries.
-   - Clean teardown on unmount via reference count and `supabase.removeChannel`.
-3. **Domain Component Mounts**:
-   - `src/features/operations/components/WorkRequestList.tsx` (tables: `work_requests`, `tasks`).
-   - `src/features/billing/components/InvoiceList.tsx` (table: `invoices`).
-   - `src/features/disbursements/components/DisbursementsTable.tsx` (table: `disbursements`).
-4. **Dedicated Verification Suite**:
-   - `src/lib/realtime/__tests__/useEntityRealtimeSync.test.ts` exercising all 7 scenarios from R4.
-   - Full regression verification (`npm test`, `npm run typecheck`, `npm run build`).
+   - Rapid lifecycle transitions (< 200ms untrack cleanup upon unmount or dynamic dropdown switching).
+2. **Optimistic Concurrency Control (OCC) Subsystem**:
+   - RFC 7807 HTTP 409 conflict detection via `isConcurrencyConflictError(err)` for stale entity writes.
+   - Guarded by `isFeatureEnabled('strict_occ')` passing `expectedVersion`.
+   - Non-destructive `ConflictResolutionModal` surfaces side-by-side comparison and "Refresh & Keep Latest" query invalidation.
+3. **Cross-Surface Collaboration Protocol**:
+   - Work Request presence synchronization between List View (`WorkRequestSidePeek.tsx`) and Board View (`PhaseKanbanBoard.tsx`).
+   - Dynamic untrack/re-track on dropdown change in Kanban toolbar.
 
 ## Feature Inventory
-| # | Feature | Description | Milestone | Source |
-|---|---------|-------------|-----------|--------|
-| 1 | Supabase SDK Dependency | Add `@supabase/supabase-js` to `frontend/package.json` | M1 | ORIGINAL_REQUEST R1 (DONE) |
-| 2 | Safe Singleton Supabase Client | `src/lib/supabase.ts` exporting `supabase` singleton with safe mock fallback | M1 | ORIGINAL_REQUEST R1 (DONE) |
-| 3 | Environment Variable Types | `src/vite-env.d.ts` typing `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` | M1 | Survey 1, 3 (DONE) |
-| 4 | Feature Flag Gating | `useEntityRealtimeSync` exits early when `isFeatureEnabled('realtime_sync')` is false | M1 | ORIGINAL_REQUEST R2 (DONE) |
-| 5 | Tenant Isolation Guard | Discard cross-tenant CDC events when `activeEntity !== 'ALL'` | M1 | ORIGINAL_REQUEST R2 (DONE) |
-| 6 | Stale Version Guard | Discard incoming events where `payload.new.version <= localCachedVersion` | M1 | ORIGINAL_REQUEST R2 (DONE) |
-| 7 | Loop Prevention Guard | Discard CDC events originated by current browser tab | M1 | ORIGINAL_REQUEST R2 (DONE) |
-| 8 | Query Cache Reconciliation | Patch TanStack Query detail and list caches via `queryClient.setQueryData` | M1 | ORIGINAL_REQUEST R2 (DONE) |
-| 9 | Channel Lifecycle Teardown | Call `supabase.removeChannel` cleanly on hook unmount | M1 | ORIGINAL_REQUEST R2 (DONE) |
-| 10 | Operations CDC Mount | Mount `useEntityRealtimeSync` on `WorkRequestList.tsx` for `work_requests` and `tasks` | M2 | ORIGINAL_REQUEST R3 (PLANNED) |
-| 11 | Billing CDC Mount | Mount `useEntityRealtimeSync` on `InvoiceList.tsx` for `invoices` | M2 | ORIGINAL_REQUEST R3 (PLANNED) |
-| 12 | Disbursements CDC Mount | Mount `useEntityRealtimeSync` on `DisbursementsTable.tsx` for `disbursements` | M2 | ORIGINAL_REQUEST R3 (PLANNED) |
-| 13 | Dedicated Realtime Test Suite | Author `src/lib/realtime/__tests__/useEntityRealtimeSync.test.ts` (all 7 scenarios) | M2 | ORIGINAL_REQUEST R4 (PLANNED) |
-| 14 | Zero Regression Verification | Pass `npm test` (all 87+ suites), `npm run typecheck`, and `npm run build` cleanly | M2 | ORIGINAL_REQUEST R5 (PLANNED) |
+| # | Feature | Description | Milestone | Source | Status |
+|---|---------|-------------|-----------|--------|--------|
+| 1 | Universal Domain Routing in PresenceAvatars | Support optional `domain` prop defaulting to `'work_request'`, format channel name as `presence:${domain}:${roomId}` with prefix protection | M1 | ORIGINAL_REQUEST §R1 | DONE |
+| 2 | Dynamic Untrack and Room Teardown | Cleanly untrack previous channel and reset viewers within ~200ms when `roomId` or `domain` prop changes | M1 | Spec §3 Parcel 2A | DONE |
+| 3 | Realtime Sync Feature Flag Gating | Strictly bypass WebSocket connections and return null when `realtime_sync` flag is false | M1 | ORIGINAL_REQUEST §R1 | DONE |
+| 4 | Kanban Board Toolbar Presence Integration | Mount `<PresenceAvatars roomId={effectiveWrId} />` in PhaseKanbanBoard toolbar beside dropdown | M1 | ORIGINAL_REQUEST §R1 | DONE |
+| 5 | Cross-Surface Work Request Collaboration | Synchronize viewers between WorkRequestSidePeek and PhaseKanbanBoard on identical `work_request` channel | M1 | ORIGINAL_REQUEST §R1 | DONE |
+| 6 | Document Viewer Presence Mount | Mount `<PresenceAvatars domain="document" roomId={doc.id} maxAvatars={4} />` in DocumentViewerModal header | M1 | ORIGINAL_REQUEST §R1 | DONE |
+| 7 | Strict OCC in Billing Mutations | Pass `expectedVersion` in `updateInvoiceAction` and `updateClientAddressAction` when `strict_occ` is enabled | M2 | ORIGINAL_REQUEST §R2 | DONE |
+| 8 | Invoice Presence Avatar Mount | Mount `<PresenceAvatars domain="invoice" roomId={effectiveId} maxAvatars={4} />` in InvoiceDetailModal header | M2 | ORIGINAL_REQUEST §R1 | DONE |
+| 9 | Invoice OCC Conflict Modal | Intercept 409 errors in InvoiceDetailModal and present `<ConflictResolutionModal />` | M2 | ORIGINAL_REQUEST §R2 | DONE |
+| 10 | Invoice Cache Revalidation | Invalidate/refetch `billingKeys.invoiceDetail(effectiveId)` and `billingKeys.invoices()` on conflict refresh | M2 | ORIGINAL_REQUEST §R2 | DONE |
+| 11 | Strict OCC in Disbursement Mutations | Enforce `expectedVersion: item.version` in `useApproveDisbursement`, `useRejectDisbursement`, and `useFundDisbursement` | M3 | ORIGINAL_REQUEST §R3 | DONE |
+| 12 | Disbursement Presence Avatar Mount | Mount `<PresenceAvatars domain="disbursement" roomId={id} maxAvatars={4} />` in DisbursementDetailDrawer header | M3 | ORIGINAL_REQUEST §R1 | DONE |
+| 13 | Disbursement OCC Conflict Modal | Intercept 409 errors on approve/reject/fund in DisbursementDetailDrawer and mount `<ConflictResolutionModal />` | M3 | ORIGINAL_REQUEST §R3 | DONE |
+| 14 | Disbursement Cache Revalidation | Invalidate/refetch `disbursementKeys.detail(id)` and `disbursementKeys.lists()` on conflict refresh | M3 | ORIGINAL_REQUEST §R3 | DONE |
+| 15 | Billing Presence & OCC Test Suite | Unit tests in `frontend/src/features/billing/__tests__/invoicePresenceAndOcc.test.tsx` | M4 | ORIGINAL_REQUEST §R4 | DONE |
+| 16 | Disbursements Presence & OCC Test Suite | Unit tests in `frontend/src/features/disbursements/__tests__/disbursementPresenceAndOcc.test.tsx` | M4 | ORIGINAL_REQUEST §R4 | DONE |
+| 17 | Phase Kanban Dynamic Teardown Test Suite | Enhanced unit tests in `frontend/src/features/operations/__tests__/phaseKanban.test.tsx` verifying dropdown switching | M4 | ORIGINAL_REQUEST §R4 | DONE |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Core Realtime Infrastructure & Hook Engine | Features 1-9: `package.json`, `vite-env.d.ts`, `src/lib/supabase.ts`, `src/lib/realtime/useEntityRealtimeSync.ts`, `src/lib/realtime/index.ts` | Survey | DONE |
-| M2 | Domain Mounts & Comprehensive Verification | Features 10-14: `WorkRequestList.tsx`, `InvoiceList.tsx`, `DisbursementsTable.tsx`, `useEntityRealtimeSync.test.ts`, full verification | M1 | IN_PROGRESS |
+| M1 | Foundation & Presence Core | `PresenceAvatars.tsx`, `PhaseKanbanBoard.tsx`, `DocumentViewerModal.tsx`, `WorkRequestSidePeek.tsx` | none | DONE |
+| M2 | Billing Presence & OCC Guard | `frontend/src/features/billing/api/useBillingMutations.ts`, `frontend/src/features/billing/components/InvoiceDetailModal.tsx` | M1 | DONE |
+| M3 | Disbursements Presence & OCC Guard | `frontend/src/features/disbursements/api/useDisbursements.ts`, `frontend/src/features/disbursements/components/DisbursementDetailDrawer.tsx` | M1 | DONE |
+| M4 | E2E & Unit Test Suites | `invoicePresenceAndOcc.test.tsx`, `disbursementPresenceAndOcc.test.tsx`, `phaseKanban.test.tsx`, `TEST_INFRA.md`, `TEST_READY.md` | M1, M2, M3 | DONE |
+| M5 | Final Verification & Forensic Audit | Full test suite execution (1,376 tests, 100% pass), typecheck (0 errors), build (clean), Reviewers (APPROVE), Challengers (APPROVE), Forensic Auditor (CLEAN) | M4 | DONE |
 
 ## Interface Contracts
-### `src/lib/supabase.ts`
-- `export const supabase: SupabaseClient`
-- `export const isSupabaseConfigured: () => boolean`
-- Safe mock client supports synchronous `removeChannel`, `removeAllChannels`, `getChannels()`.
+### Presence Channel Contract
+- Room ID format: `presence:${domain}:${cleanRoomId}`
+- If `cleanRoomId.startsWith('presence:')`, use `cleanRoomId` directly.
+- Default domain: `'work_request'`
+- Supported domains: `'work_request' | 'invoice' | 'disbursement' | 'document' | string`
+- User presence payload: `{ id, name, email, role, avatarUrl, onlineAt }`
 
-### `src/lib/realtime/index.ts` (and `useEntityRealtimeSync.ts`)
-- Hook signature:
-  ```typescript
-  export interface UseEntityRealtimeSyncOptions<T = any> {
-    table: 'work_requests' | 'tasks' | 'invoices' | 'disbursements';
-    detailQueryKey?: (id: string, record?: T) => readonly unknown[];
-    listRootKey?: readonly unknown[];
-    channelName?: string;
-    filter?: string;
-    activeEntity?: string | null;
-    activeEntityUUID?: string;
-    enabled?: boolean;
-  }
-  export function useEntityRealtimeSync<T = any>(options: UseEntityRealtimeSyncOptions<T>): void
-  ```
-- Defaults if optional keys omitted:
-  - `work_requests`: detail key `operationsKeys.workRequestDetail(id)`, list root `operationsKeys.workRequests()`
-  - `tasks`: detail key `(id, rec) => operationsKeys.taskDetail(rec?.work_request_id, id)`, list root `['operations', 'workRequests']`
-  - `invoices`: detail key `billingKeys.invoiceDetail(id)`, list root `billingKeys.invoices()`
-  - `disbursements`: detail key `disbursementKeys.detail(id)`, list root `disbursementKeys.lists()`
+### Conflict Resolution Contract
+- Error detection: `isConcurrencyConflictError(err)` returns true for `status === 409 || code === 'CONCURRENCY_CONFLICT' || code === 'ERR_CONCURRENCY_CONFLICT'`
+- Modal properties: `<ConflictResolutionModal isOpen={...} onClose={...} error={...} entityTitle={...} entityType={...} expectedVersion={...} onRefreshAndKeepLatest={...} />`
+- Refetch invalidation:
+  - Billing: `billingKeys.invoiceDetail(effectiveId)` and `billingKeys.invoices()`
+  - Disbursements: `disbursementKeys.detail(id)` and `disbursementKeys.lists()`
 
 ## Code Layout
-- `frontend/package.json`: root frontend dependencies (`@supabase/supabase-js: ^2.110.2`)
-- `frontend/src/vite-env.d.ts`: Vite environment typing (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`)
-- `frontend/src/lib/supabase.ts`: Supabase singleton client and safe mock fallback
-- `frontend/src/lib/realtime/useEntityRealtimeSync.ts`: Guarded CDC hook with reference-counted multiplexer
-- `frontend/src/lib/realtime/loopPrevention.ts`: Local mutation tracking & tab origin detection
-- `frontend/src/lib/realtime/index.ts`: Realtime barrel export
-- `frontend/src/lib/realtime/__tests__/`: Realtime test suites (105+ tests)
-- `frontend/src/features/operations/components/WorkRequestList.tsx`: Operations list mount
-- `frontend/src/features/billing/components/InvoiceList.tsx`: Billing list mount
-- `frontend/src/features/disbursements/components/DisbursementsTable.tsx`: Disbursements table mount
+- Common Components:
+  - `frontend/src/components/common/PresenceAvatars.tsx`: Universal presence avatar stack
+  - `frontend/src/components/common/ConflictResolutionModal.tsx`: Shared OCC conflict modal
+- Operations Domain:
+  - `frontend/src/features/operations/components/PhaseKanbanBoard.tsx`: Board toolbar presence & dropdown switcher
+  - `frontend/src/features/operations/components/WorkRequestSidePeek.tsx`: Side peek drawer presence
+  - `frontend/src/features/operations/__tests__/phaseKanban.test.tsx`: Kanban presence tests
+- Billing Domain:
+  - `frontend/src/features/billing/api/useBillingMutations.ts`: OCC version parameter handling
+  - `frontend/src/features/billing/components/InvoiceDetailModal.tsx`: Presence mounting & OCC conflict handling
+  - `frontend/src/features/billing/__tests__/invoicePresenceAndOcc.test.tsx`: Billing presence & OCC tests
+- Disbursements Domain:
+  - `frontend/src/features/disbursements/api/useDisbursements.ts`: Disbursement mutation hooks OCC version handling
+  - `frontend/src/features/disbursements/components/DisbursementDetailDrawer.tsx`: Presence mounting & OCC conflict handling
+  - `frontend/src/features/disbursements/__tests__/disbursementPresenceAndOcc.test.tsx`: Disbursement presence & OCC tests
+- Documents Domain:
+  - `frontend/src/features/documents/components/DocumentViewerModal.tsx`: DMS presence mounting

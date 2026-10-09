@@ -2,6 +2,7 @@ import { apiRequest, queryClient } from '@/lib/api';
 import { runBlockingAction } from '@/features/operations/components/BlockingActionModal';
 import { useSessionStore } from '@/lib/session';
 import { broadcastEntityChange } from '@/lib/tabSync';
+import { isFeatureEnabled } from '@/lib/flags';
 import { billingKeys } from './queryKeys';
 import type {
   Invoice,
@@ -75,16 +76,33 @@ export async function createInvoiceAction(
 export async function updateInvoiceAction(
   id: string,
   data: UpdateInvoiceInput,
+  expectedVersionOrEntity?: number | string | null,
   activeEntity?: string | null
 ): Promise<Invoice> {
+  const explicitVersion =
+    typeof expectedVersionOrEntity === 'number'
+      ? expectedVersionOrEntity
+      : data.expectedVersion;
+  const entity =
+    typeof expectedVersionOrEntity === 'string'
+      ? expectedVersionOrEntity
+      : activeEntity;
+
   return runBlockingAction<Invoice>({
     title: 'Updating Invoice',
     message: 'Persisting invoice modifications to server...',
     actionName: 'Update Invoice',
     apiCall: async () => {
+      const payload: Record<string, unknown> = { ...data };
+      if (isFeatureEnabled('strict_occ') && typeof explicitVersion === 'number') {
+        payload.expectedVersion = explicitVersion;
+      } else if (!isFeatureEnabled('strict_occ')) {
+        delete payload.expectedVersion;
+      }
+
       const res = await apiRequest<{ data: Invoice }>(`/invoices/${id}`, {
         method: 'PATCH',
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
       return res.data;
     },
@@ -92,8 +110,8 @@ export async function updateInvoiceAction(
       pinAndBroadcastInvoice(serverInvoice);
     },
     invalidateQueries: [
-      billingKeys.counts(activeEntity),
-      billingKeys.aging(activeEntity),
+      billingKeys.counts(entity),
+      billingKeys.aging(entity),
     ],
   });
 }
@@ -116,7 +134,7 @@ export async function updateClientAddressAction(
     successMessage: 'Updated invoice snapshot address only. Master client record remains unchanged.',
     apiCall: async () => {
       const payload: Record<string, unknown> = { address };
-      if (expectedVersion !== undefined) {
+      if (isFeatureEnabled('strict_occ') && typeof expectedVersion === 'number') {
         payload.expectedVersion = expectedVersion;
       }
       const res = await apiRequest<{ data: Invoice }>(`/invoices/${id}`, {
@@ -262,8 +280,11 @@ export function useBillingMutations() {
 
   return {
     createInvoice: (data: CreateInvoiceInput) => createInvoiceAction(data, activeEntity),
-    updateInvoice: (id: string, data: UpdateInvoiceInput) =>
-      updateInvoiceAction(id, data, activeEntity),
+    updateInvoice: (
+      id: string,
+      data: UpdateInvoiceInput,
+      expectedVersion?: number
+    ) => updateInvoiceAction(id, data, expectedVersion, activeEntity),
     updateClientAddress: (id: string, address: string, expectedVersion?: number) =>
       updateClientAddressAction(id, address, expectedVersion, activeEntity),
     deleteInvoice: (id: string, invoiceNumber?: string) =>

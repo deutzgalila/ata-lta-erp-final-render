@@ -34,6 +34,14 @@ import { DisbursementPrintModal } from './DisbursementPrintModal';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
 import { disbursementKeys } from '../api/queryKeys';
+import { PresenceAvatars } from '@/components/common/PresenceAvatars';
+import {
+  ConflictResolutionModal,
+  isConcurrencyConflictError,
+} from '@/components/common/ConflictResolutionModal';
+import { useBlockingModalStore } from '@/features/operations/components/BlockingActionModal';
+import { useQueryClient } from '@tanstack/react-query';
+import type { ApiError } from '@/lib/api';
 
 export interface DisbursementDetailDrawerProps {
   id: string | null;
@@ -46,6 +54,7 @@ export function DisbursementDetailDrawer({
   isOpen,
   onClose,
 }: DisbursementDetailDrawerProps) {
+  const queryClient = useQueryClient();
   const permissions = useSessionStore((state) => state.permissions);
   const canApprove = hasPermission(permissions, 'disbursement:approve');
   const canRelease = hasPermission(permissions, 'disbursement:mark_released');
@@ -53,6 +62,7 @@ export function DisbursementDetailDrawer({
   const { data: item, isLoading } = useDisbursementDetail(id ?? undefined, {
     enabled: isOpen && Boolean(id),
   });
+  const voucher = item;
 
   const { submitWithBlocking } = useSubmitDisbursement();
   const { approveWithBlocking } = useApproveDisbursement();
@@ -62,6 +72,11 @@ export function DisbursementDetailDrawer({
   const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [conflictModalState, setConflictModalState] = useState<{
+    isOpen: boolean;
+    error?: unknown;
+    attemptedStatus?: string | null;
+  }>({ isOpen: false });
 
   if (!isOpen) return null;
 
@@ -69,7 +84,16 @@ export function DisbursementDetailDrawer({
     if (!item) return;
     try {
       await submitWithBlocking(item.id);
-    } catch {
+    } catch (err: unknown) {
+      if (isConcurrencyConflictError(err)) {
+        useBlockingModalStore.getState().close();
+        setConflictModalState({
+          isOpen: true,
+          error: err,
+          attemptedStatus: 'Pending',
+        });
+        return;
+      }
       // Handled via BlockingActionModal
     }
   };
@@ -77,8 +101,17 @@ export function DisbursementDetailDrawer({
   const handleApprove = async () => {
     if (!item) return;
     try {
-      await approveWithBlocking(item.id);
-    } catch {
+      await approveWithBlocking(item.id, item.version);
+    } catch (err: unknown) {
+      if (isConcurrencyConflictError(err)) {
+        useBlockingModalStore.getState().close();
+        setConflictModalState({
+          isOpen: true,
+          error: err,
+          attemptedStatus: 'Approved',
+        });
+        return;
+      }
       // Handled via BlockingActionModal
     }
   };
@@ -86,8 +119,17 @@ export function DisbursementDetailDrawer({
   const handleFund = async () => {
     if (!item) return;
     try {
-      await fundWithBlocking(item.id);
-    } catch {
+      await fundWithBlocking(item.id, item.version);
+    } catch (err: unknown) {
+      if (isConcurrencyConflictError(err)) {
+        useBlockingModalStore.getState().close();
+        setConflictModalState({
+          isOpen: true,
+          error: err,
+          attemptedStatus: 'Funded',
+        });
+        return;
+      }
       // Handled via BlockingActionModal
     }
   };
@@ -116,6 +158,9 @@ export function DisbursementDetailDrawer({
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-sm bg-slate-100 text-slate-600">
                     {item.entity_code}
                   </span>
+                )}
+                {id && (
+                  <PresenceAvatars domain="disbursement" roomId={id} maxAvatars={4} />
                 )}
               </div>
               <DialogDescription className="text-xs text-slate-500">
@@ -452,14 +497,46 @@ export function DisbursementDetailDrawer({
             placeholder="e.g. Ineligible reimbursement item..."
             submitLabel="Reject Voucher"
             maxLength={500}
-            onReject={async (id, reason) => {
-              await rejectDisbursement({ id, reason });
+            onReject={async (reqId, reason) => {
+              try {
+                await rejectDisbursement({ id: reqId, reason, expectedVersion: item.version });
+              } catch (err: unknown) {
+                if (isConcurrencyConflictError(err)) {
+                  useBlockingModalStore.getState().close();
+                  setIsRejectModalOpen(false);
+                  setConflictModalState({
+                    isOpen: true,
+                    error: err,
+                    attemptedStatus: 'Rejected',
+                  });
+                  return;
+                }
+                throw err;
+              }
             }}
             invalidateQueries={[disbursementKeys.all]}
             onClose={() => setIsRejectModalOpen(false)}
             onSuccess={() => setIsRejectModalOpen(false)}
           />
         )}
+
+        {/* Conflict Resolution Modal */}
+        <ConflictResolutionModal
+          isOpen={conflictModalState.isOpen}
+          onClose={() => setConflictModalState({ isOpen: false })}
+          error={conflictModalState.error as ApiError | Error | null}
+          entityTitle={voucher?.disbursement_number || id || undefined}
+          entityType="Disbursement"
+          expectedVersion={voucher?.version}
+          attemptedStatus={conflictModalState.attemptedStatus ?? undefined}
+          currentStatus={voucher?.status}
+          onRefreshAndKeepLatest={async () => {
+            if (id) {
+              await queryClient.invalidateQueries({ queryKey: disbursementKeys.detail(id) });
+            }
+            await queryClient.invalidateQueries({ queryKey: disbursementKeys.lists() });
+          }}
+        />
       </DialogContent>
     </Dialog>
   );

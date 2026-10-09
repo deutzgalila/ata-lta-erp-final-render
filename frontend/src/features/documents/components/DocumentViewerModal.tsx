@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { PresenceAvatars } from '@/components/common/PresenceAvatars';
 import {
   Download,
   Upload,
@@ -397,6 +398,13 @@ export function DocumentViewerModal({
             )}
           </div>
           <div className="flex items-center gap-2 pr-6">
+            {(doc?.id || initialDoc?.id) && (
+              <PresenceAvatars
+                domain="document"
+                roomId={doc?.id || initialDoc?.id || ''}
+                maxAvatars={4}
+              />
+            )}
             {/* Full-Page Toggle Button */}
             <Button
               type="button"

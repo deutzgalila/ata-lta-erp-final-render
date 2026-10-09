@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -39,6 +39,34 @@ const mockWorkRequests = [
     updatedAt: '2026-01-01T00:00:00Z',
     tasks: [],
   },
+  {
+    id: 'wr-102',
+    title: 'SEC Statutory Compliance 2026',
+    entity: 'ATA',
+    status: 'In Progress',
+    phase: 'processing',
+    priority: 'Medium',
+    clientId: 'client-2',
+    clientName: 'Global Maritime Ltd',
+    archived: false,
+    createdAt: '2026-01-02T00:00:00Z',
+    updatedAt: '2026-01-02T00:00:00Z',
+    tasks: [],
+  },
+  {
+    id: 'wr-103',
+    title: 'Quarterly VAT Q1',
+    entity: 'LTA',
+    status: 'Draft',
+    phase: 'pre_processing',
+    priority: 'Low',
+    clientId: 'client-3',
+    clientName: 'Pacific Trading Corp',
+    archived: false,
+    createdAt: '2026-01-03T00:00:00Z',
+    updatedAt: '2026-01-03T00:00:00Z',
+    tasks: [],
+  },
 ] as unknown as WorkRequest[];
 
 const mockPreTasks = [
@@ -69,8 +97,21 @@ const mockPreTasks = [
 ] as unknown as Task[];
 
 describe('Phase Kanban Board & Routing Features (Milestone 3)', () => {
+  beforeAll(() => {
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+    window.HTMLElement.prototype.hasPointerCapture = vi.fn();
+    window.HTMLElement.prototype.releasePointerCapture = vi.fn();
+  });
+
+  afterEach(async () => {
+    await supabase.removeAllChannels();
+    localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     useBlockingModalStore.getState().reset();
     useSessionStore.getState().setSession({
       user: {
@@ -434,4 +475,269 @@ describe('Phase Kanban Board & Routing Features (Milestone 3)', () => {
       expect(screen.getByTestId('gate-progress-pre_processing')).toHaveTextContent('2/2 completed');
     });
   });
+
+  // =========================================================================
+  // Milestone 4: Dynamic Dropdown Presence Switching (Parcel 2D)
+  // =========================================================================
+  describe('Milestone 4: Dynamic Dropdown Presence Switching (Parcel 2D)', () => {
+    it('switches presence channels cleanly when work request is changed via dropdown', async () => {
+      const { wrapper } = createTestHarness();
+      const channelSpy = vi.spyOn(supabase, 'channel');
+      const removeChannelSpy = vi.spyOn(supabase, 'removeChannel');
+
+      vi.spyOn(global, 'fetch').mockImplementation(async (input) => {
+        const url = String(input);
+        if (url.includes('/operations/work-requests?')) {
+          return new Response(JSON.stringify({ data: mockWorkRequests }), { status: 200 });
+        }
+        if (url.includes('/operations/work-requests/wr-101/tasks')) {
+          return new Response(JSON.stringify({ data: mockPreTasks }), { status: 200 });
+        }
+        if (url.includes('/operations/work-requests/wr-102/tasks')) {
+          return new Response(JSON.stringify({ data: [] }), { status: 200 });
+        }
+        if (url.includes('/operations/work-requests/wr-101')) {
+          return new Response(JSON.stringify({ data: mockWorkRequests[0] }), { status: 200 });
+        }
+        if (url.includes('/operations/work-requests/wr-102')) {
+          return new Response(JSON.stringify({ data: mockWorkRequests[1] }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      });
+
+      render(<PhaseKanbanBoard initialWorkRequestId="wr-101" />, { wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('kanban-wr-select')).toBeInTheDocument();
+      });
+
+      // 1. Initial presence subscription to wr-101
+      expect(channelSpy).toHaveBeenCalledWith('presence:work_request:wr-101');
+      const channel101 = supabase.channel('presence:work_request:wr-101') as unknown as MockRealtimeChannel;
+      const untrack101Spy = vi.spyOn(channel101, 'untrack');
+
+      // Colleague joins wr-101 room
+      act(() => {
+        channel101.setPresenceState({
+          'u-admin-1': [{ userId: 'u-admin-1', name: 'Admin Test' }],
+          'user-colleague-1': [
+            {
+              userId: 'user-colleague-1',
+              name: 'Jane Doe',
+              email: 'jane@ata-lta.ph',
+              role: 'Senior Reviewer',
+            },
+          ],
+        });
+        channel101.emit('presence', { event: 'sync' });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('presence-avatar-user-colleague-1')).toBeInTheDocument();
+      });
+
+      // 2. Open dropdown and switch to wr-102
+      const selectTrigger = screen.getByTestId('kanban-wr-select');
+      fireEvent.pointerDown(selectTrigger, { button: 0, ctrlKey: false });
+      fireEvent.keyDown(selectTrigger, { key: 'ArrowDown', code: 'ArrowDown' });
+
+      await waitFor(() => {
+        expect(screen.getByText('SEC Statutory Compliance 2026 (ATA)')).toBeInTheDocument();
+      });
+
+      const option102 = screen.getByText('SEC Statutory Compliance 2026 (ATA)');
+      fireEvent.click(option102);
+
+      // 3. Verify previous channel untracked and removed
+      await waitFor(() => {
+        expect(untrack101Spy).toHaveBeenCalled();
+        expect(removeChannelSpy).toHaveBeenCalledWith(channel101);
+      });
+
+      // 4. Verify new channel subscribed for wr-102
+      expect(channelSpy).toHaveBeenCalledWith('presence:work_request:wr-102');
+
+      // 5. Old viewer from wr-101 must be eagerly cleared
+      expect(screen.queryByTestId('presence-avatar-user-colleague-1')).not.toBeInTheDocument();
+
+      // 6. Colleague joins wr-102 room
+      const channel102 = supabase.channel('presence:work_request:wr-102') as unknown as MockRealtimeChannel;
+      act(() => {
+        channel102.setPresenceState({
+          'u-admin-1': [{ userId: 'u-admin-1', name: 'Admin Test' }],
+          'user-colleague-2': [
+            {
+              userId: 'user-colleague-2',
+              name: 'Bob Partner',
+              email: 'bob@ata-lta.ph',
+              role: 'Managing Partner',
+            },
+          ],
+        });
+        channel102.emit('presence', { event: 'sync' });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('presence-avatar-user-colleague-2')).toBeInTheDocument();
+      });
+    });
+
+    it('handles sequential dropdown switching without leaking subscriptions or orphan channels', async () => {
+      const { wrapper } = createTestHarness();
+      const channelSpy = vi.spyOn(supabase, 'channel');
+      const removeChannelSpy = vi.spyOn(supabase, 'removeChannel');
+
+      vi.spyOn(global, 'fetch').mockImplementation(async (input) => {
+        const url = String(input);
+        if (url.includes('/tasks')) {
+          return new Response(JSON.stringify({ data: mockPreTasks }), { status: 200 });
+        }
+        if (url.includes('/operations/work-requests?')) {
+          return new Response(JSON.stringify({ data: mockWorkRequests }), { status: 200 });
+        }
+        if (url.includes('/operations/work-requests/wr-101')) {
+          return new Response(JSON.stringify({ data: mockWorkRequests[0] }), { status: 200 });
+        }
+        if (url.includes('/operations/work-requests/wr-102')) {
+          return new Response(JSON.stringify({ data: mockWorkRequests[1] }), { status: 200 });
+        }
+        if (url.includes('/operations/work-requests/wr-103')) {
+          return new Response(JSON.stringify({ data: mockWorkRequests[2] }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      });
+
+      render(<PhaseKanbanBoard initialWorkRequestId="wr-101" />, { wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('kanban-wr-select')).toBeInTheDocument();
+      });
+
+      const channel101 = supabase.channel('presence:work_request:wr-101') as unknown as MockRealtimeChannel;
+
+      // Switch wr-101 -> wr-102
+      const selectTrigger = screen.getByTestId('kanban-wr-select');
+      fireEvent.pointerDown(selectTrigger, { button: 0, ctrlKey: false });
+      fireEvent.keyDown(selectTrigger, { key: 'ArrowDown', code: 'ArrowDown' });
+
+      await waitFor(() => {
+        expect(screen.getByText('SEC Statutory Compliance 2026 (ATA)')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText('SEC Statutory Compliance 2026 (ATA)'));
+
+      await waitFor(() => {
+        expect(removeChannelSpy).toHaveBeenCalledWith(channel101);
+      });
+
+      const channel102 = supabase.channel('presence:work_request:wr-102') as unknown as MockRealtimeChannel;
+
+      // Switch wr-102 -> wr-103
+      fireEvent.pointerDown(selectTrigger, { button: 0, ctrlKey: false });
+      fireEvent.keyDown(selectTrigger, { key: 'ArrowDown', code: 'ArrowDown' });
+
+      await waitFor(() => {
+        expect(screen.getByText('Quarterly VAT Q1 (LTA)')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText('Quarterly VAT Q1 (LTA)'));
+
+      await waitFor(() => {
+        expect(removeChannelSpy).toHaveBeenCalledWith(channel102);
+      });
+
+      // Confirm presence:work_request:wr-103 channel created
+      expect(channelSpy).toHaveBeenCalledWith('presence:work_request:wr-103');
+    });
+
+    it('verifies zero database writes occur across dropdown presence transitions', async () => {
+      const { wrapper } = createTestHarness();
+      const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(async (input) => {
+        const url = String(input);
+        if (url.includes('/tasks')) {
+          return new Response(JSON.stringify({ data: mockPreTasks }), { status: 200 });
+        }
+        if (url.includes('/operations/work-requests?')) {
+          return new Response(JSON.stringify({ data: mockWorkRequests }), { status: 200 });
+        }
+        if (url.includes('/operations/work-requests/wr-101')) {
+          return new Response(JSON.stringify({ data: mockWorkRequests[0] }), { status: 200 });
+        }
+        if (url.includes('/operations/work-requests/wr-102')) {
+          return new Response(JSON.stringify({ data: mockWorkRequests[1] }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      });
+
+      render(<PhaseKanbanBoard initialWorkRequestId="wr-101" />, { wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('kanban-wr-select')).toBeInTheDocument();
+      });
+
+      const selectTrigger = screen.getByTestId('kanban-wr-select');
+      fireEvent.pointerDown(selectTrigger, { button: 0, ctrlKey: false });
+      fireEvent.keyDown(selectTrigger, { key: 'ArrowDown', code: 'ArrowDown' });
+
+      await waitFor(() => {
+        expect(screen.getByText('SEC Statutory Compliance 2026 (ATA)')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText('SEC Statutory Compliance 2026 (ATA)'));
+
+      // Check all fetch calls - none are mutations for presence (e.g. POST, PUT, DELETE to presence)
+      for (const call of fetchSpy.mock.calls) {
+        const url = String(call[0]);
+        const opts = call[1] as RequestInit | undefined;
+        const method = opts?.method || 'GET';
+        expect(url).not.toContain('/presence');
+        if (method !== 'GET') {
+          // No mutation occurred simply from switching presence dropdown
+          expect(['POST', 'PUT', 'DELETE', 'PATCH']).not.toContain(method);
+        }
+      }
+    });
+
+    it('bypasses presence and creates 0 channels across dropdown switches when realtime_sync is false', async () => {
+      localStorage.setItem('erp_feature_override_realtime_sync', 'false');
+      const { wrapper } = createTestHarness();
+      const channelSpy = vi.spyOn(supabase, 'channel');
+
+      vi.spyOn(global, 'fetch').mockImplementation(async (input) => {
+        const url = String(input);
+        if (url.includes('/tasks')) {
+          return new Response(JSON.stringify({ data: mockPreTasks }), { status: 200 });
+        }
+        if (url.includes('/operations/work-requests?')) {
+          return new Response(JSON.stringify({ data: mockWorkRequests }), { status: 200 });
+        }
+        if (url.includes('/operations/work-requests/wr-101')) {
+          return new Response(JSON.stringify({ data: mockWorkRequests[0] }), { status: 200 });
+        }
+        if (url.includes('/operations/work-requests/wr-102')) {
+          return new Response(JSON.stringify({ data: mockWorkRequests[1] }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      });
+
+      render(<PhaseKanbanBoard initialWorkRequestId="wr-101" />, { wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('kanban-wr-select')).toBeInTheDocument();
+      });
+
+      expect(channelSpy).not.toHaveBeenCalled();
+
+      const selectTrigger = screen.getByTestId('kanban-wr-select');
+      fireEvent.pointerDown(selectTrigger, { button: 0, ctrlKey: false });
+      fireEvent.keyDown(selectTrigger, { key: 'ArrowDown', code: 'ArrowDown' });
+
+      await waitFor(() => {
+        expect(screen.getByText('SEC Statutory Compliance 2026 (ATA)')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByText('SEC Statutory Compliance 2026 (ATA)'));
+
+      // Still 0 channel calls
+      expect(channelSpy).not.toHaveBeenCalled();
+      expect(screen.queryByTestId('presence-avatars')).not.toBeInTheDocument();
+    });
+  });
 });
+

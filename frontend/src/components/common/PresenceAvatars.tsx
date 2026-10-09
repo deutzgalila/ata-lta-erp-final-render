@@ -24,6 +24,7 @@ export interface ViewerPresence {
 
 export interface PresenceAvatarsProps {
   roomId: string;
+  domain?: 'work_request' | 'invoice' | 'disbursement' | 'document' | string;
   className?: string;
   maxAvatars?: number;
 }
@@ -107,6 +108,7 @@ export function extractViewers(
 
 export function PresenceAvatars({
   roomId,
+  domain,
   className = '',
   maxAvatars = 5,
 }: PresenceAvatarsProps) {
@@ -118,14 +120,20 @@ export function PresenceAvatars({
   const [failedAvatarIds, setFailedAvatarIds] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
+    // Eagerly reset otherViewers when roomId/domain changes
+    setOtherViewers((prev) => (prev.length > 0 ? [] : prev));
+
     // Guard: feature flag bypass or empty roomId or unauthenticated session
     if (!isSyncEnabled || !roomId || !roomId.trim() || !user) {
-      setOtherViewers([]);
       return;
     }
 
     let isMounted = true;
-    const channelName = `presence:work_request:${roomId.trim()}`;
+    const cleanRoomId = roomId.trim();
+    const effectiveDomain = domain?.trim() || 'work_request';
+    const channelName = cleanRoomId.startsWith('presence:')
+      ? cleanRoomId
+      : `presence:${effectiveDomain}:${cleanRoomId}`;
     const channel = supabase.channel(channelName);
 
     const updateFromState = (payload?: unknown) => {
@@ -150,7 +158,12 @@ export function PresenceAvatars({
         }
         const viewers = extractViewers(state, user.id, user.email);
         if (isMounted) {
-          setOtherViewers(viewers);
+          setOtherViewers((prev) => {
+            if (prev.length === 0 && viewers.length === 0) {
+              return prev;
+            }
+            return viewers;
+          });
         }
       } catch {
         // purely in-memory presence; safe error swallow
@@ -254,7 +267,7 @@ export function PresenceAvatars({
         // ignore unmount errors
       }
     };
-  }, [roomId, user?.id, user?.name, user?.email, user?.role, user?.avatarUrl, isSyncEnabled]);
+  }, [roomId, domain, user, isSyncEnabled]);
 
   // Renders nothing (null) if feature flag is false, roomId is empty, or no other viewers
   if (!isSyncEnabled || !roomId || !roomId.trim() || !user || otherViewers.length === 0) {

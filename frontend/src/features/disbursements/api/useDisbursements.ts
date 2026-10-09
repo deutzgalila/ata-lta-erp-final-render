@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData, type QueryClie
 import { apiRequest, ApiError } from '@/lib/api';
 import { useSessionStore } from '@/lib/session';
 import { broadcastEntityChange } from '@/lib/tabSync';
+import { isFeatureEnabled } from '@/lib/flags';
 import { runBlockingAction } from '@/features/operations/components/BlockingActionModal';
 import { disbursementKeys } from './queryKeys';
 import {
@@ -368,15 +369,22 @@ export function useApproveDisbursement() {
   const mutation = useMutation<
     Disbursement,
     ApiError,
-    string | { id: string },
+    string | { id: string; expectedVersion?: number },
     { snapshots: Array<[readonly unknown[], unknown]> }
   >({
     mutationFn: async (arg) => {
       const id = typeof arg === 'string' ? arg : arg.id;
+      const expectedVersion = typeof arg === 'object' ? arg.expectedVersion : undefined;
+      const payload: Record<string, unknown> = {};
+      if (isFeatureEnabled('strict_occ') && typeof expectedVersion === 'number') {
+        payload.expectedVersion = expectedVersion;
+      }
+
       const res = await apiRequest<DisbursementDetailResponse>(
         `/disbursements/${id}/approve`,
         {
           method: 'POST',
+          ...(Object.keys(payload).length > 0 ? { body: JSON.stringify(payload) } : {}),
         }
       );
       return res.data;
@@ -405,12 +413,24 @@ export function useApproveDisbursement() {
     },
   });
 
-  const approveWithBlocking = async (id: string): Promise<Disbursement> => {
+  const approveWithBlocking = async (
+    idOrParams: string | { id: string; expectedVersion?: number },
+    maybeExpectedVersion?: number
+  ): Promise<Disbursement> => {
+    const id = typeof idOrParams === 'string' ? idOrParams : idOrParams.id;
+    const expectedVersion =
+      typeof idOrParams === 'object' && idOrParams.expectedVersion !== undefined
+        ? idOrParams.expectedVersion
+        : maybeExpectedVersion;
+
+    const mutationArg =
+      expectedVersion !== undefined ? { id, expectedVersion } : id;
+
     return runBlockingAction({
       title: 'Approving Disbursement',
       message: 'Recording approval and notifying requestor...',
       actionName: 'Approve Disbursement',
-      apiCall: async () => mutation.mutateAsync(id),
+      apiCall: async () => mutation.mutateAsync(mutationArg),
       invalidateQueries: [
         disbursementKeys.counts(activeEntity),
       ],
@@ -439,16 +459,20 @@ export function useRejectDisbursement() {
   const mutation = useMutation<
     Disbursement,
     ApiError,
-    { id: string; reason: string },
+    { id: string; reason: string; expectedVersion?: number },
     { snapshots: Array<[readonly unknown[], unknown]> }
   >({
-    mutationFn: async ({ id, reason }) => {
+    mutationFn: async ({ id, reason, expectedVersion }) => {
       const validated = rejectDisbursementSchema.parse({ reason });
+      const payload: Record<string, unknown> = { reason: validated.reason };
+      if (isFeatureEnabled('strict_occ') && typeof expectedVersion === 'number') {
+        payload.expectedVersion = expectedVersion;
+      }
       const res = await apiRequest<DisbursementDetailResponse>(
         `/disbursements/${id}/reject`,
         {
           method: 'POST',
-          body: JSON.stringify({ reason: validated.reason }),
+          body: JSON.stringify(payload),
         }
       );
       return res.data;
@@ -477,10 +501,16 @@ export function useRejectDisbursement() {
     },
   });
 
-  const rejectWithBlocking = async (params: {
-    id: string;
-    reason: string;
-  }): Promise<Disbursement> => {
+  const rejectWithBlocking = async (
+    paramsOrId: { id: string; reason: string; expectedVersion?: number } | string,
+    maybeReason?: string,
+    maybeExpectedVersion?: number
+  ): Promise<Disbursement> => {
+    const params =
+      typeof paramsOrId === 'string'
+        ? { id: paramsOrId, reason: maybeReason ?? '', expectedVersion: maybeExpectedVersion }
+        : paramsOrId;
+
     return runBlockingAction({
       title: 'Rejecting Disbursement',
       message: 'Recording rejection reason and notifying requestor...',
@@ -513,16 +543,23 @@ export function useReleaseDisbursement() {
   const mutation = useMutation<
     Disbursement,
     ApiError,
-    { id: string; data?: ReleasePaymentInput },
+    string | { id: string; data?: ReleasePaymentInput; expectedVersion?: number },
     { snapshots: Array<[readonly unknown[], unknown]> }
   >({
-    mutationFn: async ({ id, data }) => {
+    mutationFn: async (arg) => {
+      const id = typeof arg === 'string' ? arg : arg.id;
+      const data = typeof arg === 'object' ? arg.data : undefined;
+      const expectedVersion = typeof arg === 'object' ? arg.expectedVersion : undefined;
       const validated = data ? releasePaymentSchema.parse(data) : {};
+      const payload: Record<string, unknown> = { ...validated };
+      if (isFeatureEnabled('strict_occ') && typeof expectedVersion === 'number') {
+        payload.expectedVersion = expectedVersion;
+      }
       const res = await apiRequest<DisbursementDetailResponse>(
         `/disbursements/${id}/release`,
         {
           method: 'POST',
-          body: JSON.stringify(validated),
+          body: JSON.stringify(payload),
         }
       );
       return res.data;
@@ -551,10 +588,16 @@ export function useReleaseDisbursement() {
     },
   });
 
-  const releaseWithBlocking = async (params: {
-    id: string;
-    data?: ReleasePaymentInput;
-  }): Promise<Disbursement> => {
+  const releaseWithBlocking = async (
+    paramsOrId: { id: string; data?: ReleasePaymentInput; expectedVersion?: number } | string,
+    maybeData?: ReleasePaymentInput,
+    maybeExpectedVersion?: number
+  ): Promise<Disbursement> => {
+    const params =
+      typeof paramsOrId === 'string'
+        ? { id: paramsOrId, data: maybeData, expectedVersion: maybeExpectedVersion }
+        : paramsOrId;
+
     return runBlockingAction({
       title: 'Releasing Funds',
       message: 'Recording payment disbursement release...',
@@ -586,13 +629,24 @@ export function useFundDisbursement() {
   const queryClient = useQueryClient();
   const activeEntity = useSessionStore((state) => state.activeEntity);
 
-  const mutation = useMutation<Disbursement, ApiError, string | { id: string }>({
+  const mutation = useMutation<
+    Disbursement,
+    ApiError,
+    string | { id: string; expectedVersion?: number }
+  >({
     mutationFn: async (arg) => {
       const id = typeof arg === 'string' ? arg : arg.id;
+      const expectedVersion = typeof arg === 'object' ? arg.expectedVersion : undefined;
+      const payload: Record<string, unknown> = {};
+      if (isFeatureEnabled('strict_occ') && typeof expectedVersion === 'number') {
+        payload.expectedVersion = expectedVersion;
+      }
+
       const res = await apiRequest<DisbursementDetailResponse>(
         `/disbursements/${id}/fund`,
         {
           method: 'POST',
+          ...(Object.keys(payload).length > 0 ? { body: JSON.stringify(payload) } : {}),
         }
       );
       return res.data;
@@ -608,12 +662,24 @@ export function useFundDisbursement() {
     },
   });
 
-  const fundWithBlocking = async (id: string): Promise<Disbursement> => {
+  const fundWithBlocking = async (
+    idOrParams: string | { id: string; expectedVersion?: number },
+    maybeExpectedVersion?: number
+  ): Promise<Disbursement> => {
+    const id = typeof idOrParams === 'string' ? idOrParams : idOrParams.id;
+    const expectedVersion =
+      typeof idOrParams === 'object' && idOrParams.expectedVersion !== undefined
+        ? idOrParams.expectedVersion
+        : maybeExpectedVersion;
+
+    const mutationArg =
+      expectedVersion !== undefined ? { id, expectedVersion } : id;
+
     return runBlockingAction({
       title: 'Reconciling Funding',
       message: 'Marking disbursement as funded and reconciled...',
       actionName: 'Fund Disbursement',
-      apiCall: async () => mutation.mutateAsync(id),
+      apiCall: async () => mutation.mutateAsync(mutationArg),
       invalidateQueries: [
         disbursementKeys.detail(id),
         disbursementKeys.lists(),

@@ -38,6 +38,14 @@ import {
 } from '../api/useBillingMutations';
 import { usePermission } from '@/lib/permissions';
 import { formatCurrency, getStatusBadgeVariant } from '../utils/formatters';
+import { PresenceAvatars } from '@/components/common/PresenceAvatars';
+import {
+  ConflictResolutionModal,
+  isConcurrencyConflictError,
+} from '@/components/common/ConflictResolutionModal';
+import { useBlockingModalStore } from '@/features/operations/components/BlockingActionModal';
+import { billingKeys } from '../api/queryKeys';
+import { queryClient, type ApiError } from '@/lib/api';
 import type { Invoice } from '../api/types';
 
 export interface InvoiceDetailModalProps {
@@ -80,6 +88,13 @@ export function InvoiceDetailModal({
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notesInput, setNotesInput] = useState('');
 
+  // Conflict resolution modal state for OCC 409 errors
+  const [conflictModalState, setConflictModalState] = useState<{
+    isOpen: boolean;
+    error?: unknown;
+    attemptedStatus?: string | null;
+  }>({ isOpen: false });
+
   useEffect(() => {
     if (invoice) {
       setAddressInput(invoice.address || invoice.clients?.address || '');
@@ -110,7 +125,15 @@ export function InvoiceDetailModal({
       );
       setIsEditingAddress(false);
       refetch();
-    } catch {
+    } catch (err: unknown) {
+      if (isConcurrencyConflictError(err)) {
+        useBlockingModalStore.getState().close();
+        setConflictModalState({
+          isOpen: true,
+          error: err,
+        });
+        return;
+      }
       // Error handled by BlockingActionModal
     }
   };
@@ -121,11 +144,20 @@ export function InvoiceDetailModal({
       await updateInvoiceAction(
         invoice.id,
         { notes: notesInput, expectedVersion: invoice.version },
+        invoice.version,
         invoice.entity_id
       );
       setIsEditingNotes(false);
       refetch();
-    } catch {
+    } catch (err: unknown) {
+      if (isConcurrencyConflictError(err)) {
+        useBlockingModalStore.getState().close();
+        setConflictModalState({
+          isOpen: true,
+          error: err,
+        });
+        return;
+      }
       // Error handled by BlockingActionModal
     }
   };
@@ -136,10 +168,20 @@ export function InvoiceDetailModal({
       await updateInvoiceAction(
         invoice.id,
         { status: targetStatus, expectedVersion: invoice.version },
+        invoice.version,
         invoice.entity_id
       );
       refetch();
-    } catch {
+    } catch (err: unknown) {
+      if (isConcurrencyConflictError(err)) {
+        useBlockingModalStore.getState().close();
+        setConflictModalState({
+          isOpen: true,
+          error: err,
+          attemptedStatus: targetStatus,
+        });
+        return;
+      }
       // Error handled by BlockingActionModal
     }
   };
@@ -149,7 +191,16 @@ export function InvoiceDetailModal({
     try {
       await archiveInvoiceAction(invoice.id, invoice.invoice_number, invoice.entity_id);
       onClose();
-    } catch {
+    } catch (err: unknown) {
+      if (isConcurrencyConflictError(err)) {
+        useBlockingModalStore.getState().close();
+        setConflictModalState({
+          isOpen: true,
+          error: err,
+          attemptedStatus: 'Archived',
+        });
+        return;
+      }
       // Error handled by BlockingActionModal
     }
   };
@@ -159,13 +210,23 @@ export function InvoiceDetailModal({
     try {
       await deleteInvoiceAction(invoice.id, invoice.invoice_number, invoice.entity_id);
       onClose();
-    } catch {
+    } catch (err: unknown) {
+      if (isConcurrencyConflictError(err)) {
+        useBlockingModalStore.getState().close();
+        setConflictModalState({
+          isOpen: true,
+          error: err,
+          attemptedStatus: 'Deleted',
+        });
+        return;
+      }
       // Error handled by BlockingActionModal
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <>
+      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         className="max-w-3xl max-h-[92vh] overflow-y-auto p-6 rounded-xl bg-white"
         data-testid="invoice-detail-modal"
@@ -190,6 +251,9 @@ export function InvoiceDetailModal({
                 >
                   {invoice.status}
                 </span>
+                {effectiveId && (
+                  <PresenceAvatars domain="invoice" roomId={effectiveId} maxAvatars={4} />
+                )}
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
                 Created {invoice.created_at?.slice(0, 10)} • Due {invoice.due_date?.slice(0, 10)}
@@ -573,5 +637,28 @@ export function InvoiceDetailModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
+
+    <ConflictResolutionModal
+      isOpen={conflictModalState.isOpen}
+      onClose={() => setConflictModalState({ isOpen: false })}
+      error={conflictModalState.error as ApiError | Error | null}
+      entityTitle={invoice.invoice_number}
+      entityType="Invoice"
+      expectedVersion={invoice.version}
+      attemptedStatus={conflictModalState.attemptedStatus ?? undefined}
+      currentStatus={invoice.status}
+      onRefreshAndKeepLatest={async () => {
+        if (effectiveId) {
+          await queryClient.invalidateQueries({
+            queryKey: billingKeys.invoiceDetail(effectiveId),
+          });
+        }
+        await queryClient.invalidateQueries({ queryKey: billingKeys.invoices() });
+        refetch();
+        setConflictModalState({ isOpen: false });
+      }}
+      onCancel={() => setConflictModalState({ isOpen: false })}
+    />
+  </>
+);
 }

@@ -702,4 +702,93 @@ describe('PresenceAvatars Component (Parcel F - Ephemeral Collaboration)', () =>
       expect(overflowBadge).toHaveTextContent('+1');
     });
   });
+
+  // =========================================================================
+  // 7. Universal Domain Routing & Cross-Domain Ephemeral Collaboration (Parcel 2A)
+  // =========================================================================
+  describe('Universal Domain Routing & Cross-Domain Ephemeral Collaboration (Parcel 2A)', () => {
+    it('defaults to work_request domain when domain is omitted', () => {
+      const channelSpy = vi.spyOn(supabase, 'channel');
+      render(<PresenceAvatars roomId="wr-101" />);
+      expect(channelSpy).toHaveBeenCalledWith('presence:work_request:wr-101');
+    });
+
+    it('derives presence:invoice:${roomId} when domain="invoice"', () => {
+      const channelSpy = vi.spyOn(supabase, 'channel');
+      render(<PresenceAvatars domain="invoice" roomId="inv-202" />);
+      expect(channelSpy).toHaveBeenCalledWith('presence:invoice:inv-202');
+    });
+
+    it('derives presence:disbursement:${roomId} when domain="disbursement"', () => {
+      const channelSpy = vi.spyOn(supabase, 'channel');
+      render(<PresenceAvatars domain="disbursement" roomId="disb-303" />);
+      expect(channelSpy).toHaveBeenCalledWith('presence:disbursement:disb-303');
+    });
+
+    it('derives presence:document:${roomId} when domain="document"', () => {
+      const channelSpy = vi.spyOn(supabase, 'channel');
+      render(<PresenceAvatars domain="document" roomId="doc-404" />);
+      expect(channelSpy).toHaveBeenCalledWith('presence:document:doc-404');
+    });
+
+    it('preserves cleanRoomId directly without double-prefixing when roomId already starts with presence:', () => {
+      const channelSpy = vi.spyOn(supabase, 'channel');
+      render(<PresenceAvatars domain="invoice" roomId="presence:custom:room-505" />);
+      expect(channelSpy).toHaveBeenCalledWith('presence:custom:room-505');
+    });
+
+    it('trims whitespace on roomId and domain safely', () => {
+      const channelSpy = vi.spyOn(supabase, 'channel');
+      render(<PresenceAvatars domain="  document  " roomId="   doc-606   " />);
+      expect(channelSpy).toHaveBeenCalledWith('presence:document:doc-606');
+    });
+
+    it('switches channels cleanly and untracks prior channel when domain prop changes', async () => {
+      const { rerender } = render(<PresenceAvatars domain="invoice" roomId="item-707" />);
+      const channelInv = supabase.channel('presence:invoice:item-707') as unknown as MockRealtimeChannel;
+      const removeSpy = vi.spyOn(supabase, 'removeChannel');
+
+      await act(async () => {
+        rerender(<PresenceAvatars domain="disbursement" roomId="item-707" />);
+      });
+
+      expect(removeSpy).toHaveBeenCalledWith(channelInv);
+      const channelDisb = supabase.channel('presence:disbursement:item-707') as unknown as MockRealtimeChannel;
+      expect(channelDisb).toBeDefined();
+    });
+
+    it('resets otherViewers eagerly when domain or roomId changes before new sync arrives', async () => {
+      const { rerender } = render(<PresenceAvatars domain="invoice" roomId="inv-808" />);
+      const channel1 = supabase.channel('presence:invoice:inv-808') as unknown as MockRealtimeChannel;
+
+      act(() => {
+        channel1.setPresenceState({
+          [otherUserA.userId]: [otherUserA],
+        });
+        channel1.emit('presence', { event: 'sync' });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId(`presence-avatar-${otherUserA.userId}`)).toBeInTheDocument();
+      });
+
+      // Switch to new invoice room
+      await act(async () => {
+        rerender(<PresenceAvatars domain="invoice" roomId="inv-909" />);
+      });
+
+      // Old viewer must be cleared immediately (renders null since 0 viewers in new room)
+      expect(screen.queryByTestId(`presence-avatar-${otherUserA.userId}`)).toBeNull();
+    });
+
+    it('strictly returns null and opens 0 channels across any domain when realtime_sync is false', () => {
+      localStorage.setItem('erp_feature_override_realtime_sync', 'false');
+      const channelSpy = vi.spyOn(supabase, 'channel');
+
+      const { container } = render(<PresenceAvatars domain="document" roomId="doc-999" />);
+
+      expect(container.firstChild).toBeNull();
+      expect(channelSpy).not.toHaveBeenCalled();
+    });
+  });
 });
