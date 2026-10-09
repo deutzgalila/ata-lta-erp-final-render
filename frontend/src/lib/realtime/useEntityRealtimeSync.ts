@@ -583,8 +583,8 @@ export function useEntityRealtimeSync<T = Record<string, unknown>>(
         }
       );
 
-      channel.subscribe((_status, err) => {
-        if (err) {
+      channel.subscribe((status, err) => {
+        if (status === 'CHANNEL_ERROR') {
           console.warn(`[Realtime] Subscription error on ${options.table}:`, err);
         }
       });

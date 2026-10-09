@@ -378,6 +378,8 @@ export function getSupabaseClient(): SupabaseClient {
     STAGING_FALLBACK_KEY;
 
   if (url && key && typeof url === 'string' && typeof key === 'string' && !url.includes('placeholder')) {
+    configuredUrl = url;
+    configuredKey = key;
     return createClient(url, key, {
       realtime: {
         params: {
@@ -392,10 +394,25 @@ export function getSupabaseClient(): SupabaseClient {
 
 export const createSupabaseInstance = getSupabaseClient;
 
+let configuredUrl: string | null = null;
+let configuredKey: string | null = null;
 let activeSupabaseClient: SupabaseClient | MockSupabaseClient = createSupabaseInstance();
 
 export function configureSupabase(url: string, key: string): SupabaseClient {
   if (url && key && typeof url === 'string' && typeof key === 'string' && !url.includes('placeholder')) {
+    // If client is already initialized with identical credentials, reuse it to prevent
+    // duplicate GoTrue clients and abrupt WebSocket socket closed: 1001 resets.
+    if (
+      configuredUrl === url &&
+      configuredKey === key &&
+      activeSupabaseClient &&
+      !(activeSupabaseClient instanceof MockSupabaseClient)
+    ) {
+      return activeSupabaseClient as SupabaseClient;
+    }
+
+    configuredUrl = url;
+    configuredKey = key;
     activeSupabaseClient = createClient(url, key, {
       realtime: {
         params: {

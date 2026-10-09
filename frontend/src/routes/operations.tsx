@@ -74,7 +74,7 @@ export default function OperationsPage() {
   // Badge Counts Queries
   const { data: requestCounts } = useOperationsRequestCounts();
   const { data: wrCounts } = useWorkRequestCounts();
-  const { data: templates = [] } = useRetainerTemplates();
+  const { data: templates = [] } = useRetainerTemplates({ enabled: canUseRetainers });
 
   const toAdminTemplate = (
     tpl: RetainerTemplate | null
