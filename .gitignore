@@ -27,3 +27,5 @@ erp_prototype/.build-tmp/
 .playwright-mcp/
 __pycache__/
 *.pyc
+.agents/
+

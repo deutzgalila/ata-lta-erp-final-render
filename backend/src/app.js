@@ -36,6 +36,7 @@ const adminRouter = require('./modules/admin/routes');
 const operationsRequestsRouter = require('./modules/operationsRequests/routes');
 const notificationsRouter = require('./modules/notifications/routes');
 const timeEntriesRouter = require('./modules/timeEntries/routes');
+const configRouter = require('./modules/config/routes');
 
 const app = express();
 app.set('trust proxy', 1); // Trust Render/reverse proxy headers (X-Forwarded-For)
@@ -135,20 +136,16 @@ app.use(
 // Compression for response bodies
 app.use(compression());
 
-// Cache-Control headers for API responses.
-// Safe read-only GET/HEAD endpoints are given a private short cache with must-revalidate
-// to prevent redundant roundtrips on repeated SPA navigation, while mutations receive
-// strict no-store/no-cache headers so state updates reflect immediately.
+// Strict no-store/no-cache headers for all /v1 operational routes so client-side
+// caching remains under TanStack Query's authoritative control and hard reloads
+// never serve stale browser disk cache responses (Stage 5 / RC-1).
 app.use((req, res, next) => {
-  if (!req.path.startsWith('/v1/')) return next();
-  if ((req.method === 'GET' || req.method === 'HEAD') && !req.path.startsWith('/v1/auth/')) {
-    res.setHeader('Cache-Control', 'private, max-age=30, must-revalidate');
-  } else {
+  if (req.path.startsWith('/v1/')) {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
+    res.setHeader('Vary', 'X-Active-Entity, Authorization');
   }
-  res.setHeader('Vary', 'X-Active-Entity');
   next();
 });
 
@@ -264,6 +261,7 @@ const authLimiter = rateLimit({
 });
 app.use('/v1/auth/signin', authLimiter);
 app.use('/v1/auth', require('./modules/auth/routes'));
+app.use('/v1/config', configRouter);
 
 // Authenticated / scoped routes
 app.use(auth);
