@@ -622,28 +622,42 @@ const updateRequest = async ({ entityId, id, userId, data }) => {
             clientId = wr?.client_id || null;
           }
 
-          const invoiceNum = `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-          const nowIso = new Date().toISOString();
-          const today = nowIso.split('T')[0];
-          await supabaseAdmin.from('invoices').insert({
-            id: randomUUID(),
-            invoice_number: invoiceNum,
-            client_id: clientId,
-            work_request_id: existing.work_request_id,
-            entity_id: targetEntityId,
-            issue_date: today,
-            due_date: today,
-            status: 'Draft',
-            subtotal: 0,
-            tax_amount: 0,
-            total: 0,
-            amount_paid: 0,
-            balance: 0,
-            notes: `Auto-generated draft upon approval of billing request ${id}`,
-            created_by: userId,
-            created_at: nowIso,
-            updated_at: nowIso,
-          });
+          let inserted = false;
+          let attempts = 0;
+          while (!inserted && attempts < 5) {
+            attempts++;
+            const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+            const timeSuffix = Date.now().toString().slice(-4);
+            const invoiceNum = `INV-${new Date().getFullYear()}-${randomSuffix}-${timeSuffix}`;
+            const nowIso = new Date().toISOString();
+            const today = nowIso.split('T')[0];
+
+            const { error: invErr } = await supabaseAdmin.from('invoices').insert({
+              id: randomUUID(),
+              invoice_number: invoiceNum,
+              client_id: clientId,
+              work_request_id: existing.work_request_id,
+              entity_id: targetEntityId,
+              issue_date: today,
+              due_date: today,
+              status: 'Draft',
+              subtotal: 0,
+              tax_amount: 0,
+              total: 0,
+              amount_paid: 0,
+              balance: 0,
+              notes: `Auto-generated draft upon approval of billing request ${id}`,
+              created_by: userId,
+              created_at: nowIso,
+              updated_at: nowIso,
+            });
+
+            if (!invErr) {
+              inserted = true;
+            } else if (!invErr.message?.includes('unique') && invErr.code !== '23505') {
+              throw invErr;
+            }
+          }
         }
       } catch (_invErr) {
         // Do not block fulfillment if invoice auto-drafting encounters non-fatal schema mismatch

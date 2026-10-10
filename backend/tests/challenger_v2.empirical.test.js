@@ -80,7 +80,11 @@ describe('Challenger V2: Empirical Stress Test Suite (Parcel B1)', () => {
         return builder;
       }),
       or: jest.fn(() => builder),
-      neq: jest.fn(() => builder),
+      neq: jest.fn((col, val) => {
+        queryState.neqFilters = queryState.neqFilters || {};
+        queryState.neqFilters[col] = val;
+        return builder;
+      }),
       gt: jest.fn(() => builder),
       gte: jest.fn(() => builder),
       lt: jest.fn(() => builder),
@@ -620,4 +624,953 @@ describe('Challenger V2: Empirical Stress Test Suite (Parcel B1)', () => {
       expect(invoicePayload.client_id).toBe(directClientId);
     });
   });
+
+  describe('Adversarial Challenge 4: Parcel B2 Completed WR Lock & Mutation Resistance (B2.1)', () => {
+    const wrId = '018f45a2-8921-789a-bcde-0123456789c0';
+    const entityId = 'ent-ata';
+
+    const testUser = {
+      id: '018f45a2-8921-789a-bcde-012345678901',
+      name: 'Admin Tester',
+      role: 'Admin',
+    };
+
+    const mockCompletedWr = {
+      id: wrId,
+      entity_id: entityId,
+      title: 'Original Completed WR',
+      description: 'Original Description',
+      status: 'Completed',
+      priority: 'Normal',
+      version: 2,
+      archived: false,
+    };
+
+    it('rejects modifying each mutable business field individually when reopening completed WR', async () => {
+      const fieldMatrix = [
+        { field: 'title', value: 'Adversarial Title' },
+        { field: 'description', value: 'Adversarial Description' },
+        { field: 'clientId', value: '018f45a2-8921-789a-bcde-012345678999' },
+        { field: 'priority', value: 'Urgent' },
+        { field: 'dueDate', value: '2026-12-31' },
+        { field: 'assignedTo', value: '018f45a2-8921-789a-bcde-012345678901' },
+        { field: 'coAssignees', value: ['018f45a2-8921-789a-bcde-012345678901'] },
+        { field: 'archived', value: true },
+      ];
+
+      tableMockHandlers = {
+        work_requests: () => ({ data: mockCompletedWr, error: null }),
+        users: () => ({ data: [], error: null }),
+      };
+
+      for (const item of fieldMatrix) {
+        await expect(
+          operationsService.updateWorkRequest({
+            id: wrId,
+            entityId,
+            data: { status: 'Draft', [item.field]: item.value },
+            user: testUser,
+          })
+        ).rejects.toMatchObject({
+          statusCode: 400,
+          code: 'COMPLETED_WR_MODIFICATION_DISALLOWED',
+          detail: expect.stringContaining(item.field),
+        });
+      }
+    });
+
+    it('rejects multiple business fields submitted simultaneously while reopening to Processing', async () => {
+      tableMockHandlers = {
+        work_requests: () => ({ data: mockCompletedWr, error: null }),
+        users: () => ({ data: [], error: null }),
+      };
+
+      await expect(
+        operationsService.updateWorkRequest({
+          id: wrId,
+          entityId,
+          data: {
+            status: 'Processing',
+            title: 'Hacked Title',
+            priority: 'High',
+            archived: true,
+          },
+          user: testUser,
+        })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        code: 'COMPLETED_WR_MODIFICATION_DISALLOWED',
+        detail: expect.stringMatching(/title.*priority.*archived/),
+      });
+    });
+
+    it('rejects modifying completed WR when status is omitted entirely', async () => {
+      tableMockHandlers = {
+        work_requests: () => ({ data: mockCompletedWr, error: null }),
+        users: () => ({ data: [], error: null }),
+      };
+
+      await expect(
+        operationsService.updateWorkRequest({
+          id: wrId,
+          entityId,
+          data: { title: 'Unauthorized Modification' },
+          user: testUser,
+        })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        detail: 'Completed Work Requests are locked and cannot be modified',
+      });
+    });
+
+    it('rejects invalid non-reopen status transitions from Completed (In Progress or Cancelled)', async () => {
+      tableMockHandlers = {
+        work_requests: () => ({ data: mockCompletedWr, error: null }),
+        users: () => ({ data: [], error: null }),
+      };
+
+      await expect(
+        operationsService.updateWorkRequest({
+          id: wrId,
+          entityId,
+          data: { status: 'In Progress' },
+          user: testUser,
+        })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        detail: 'Completed Work Requests are locked and cannot be modified',
+      });
+
+      await expect(
+        operationsService.updateWorkRequest({
+          id: wrId,
+          entityId,
+          data: { status: 'Cancelled' },
+          user: testUser,
+        })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        detail: 'Completed Work Requests are locked and cannot be modified',
+      });
+    });
+
+    it('allows reopening completed WR when only status is passed (Draft or Processing)', async () => {
+      let updateExecuted = false;
+      tableMockHandlers = {
+        work_requests: (qs, method) => {
+          if (qs.action === 'select' && method === 'maybeSingle') {
+            return {
+              data: {
+                ...mockCompletedWr,
+                status: updateExecuted ? 'Draft' : 'Completed',
+              },
+              error: null,
+            };
+          }
+          if (qs.action === 'update') {
+            updateExecuted = true;
+            return {
+              data: [{ ...mockCompletedWr, status: qs.updatePayload.status }],
+              error: null,
+            };
+          }
+          return { data: [], error: null };
+        },
+        users: () => ({ data: [], error: null }),
+      };
+
+      const result = await operationsService.updateWorkRequest({
+        id: wrId,
+        entityId,
+        data: { status: 'Draft' },
+        user: testUser,
+      });
+
+      expect(updateExecuted).toBe(true);
+      expect(result.status).toBe('Draft');
+    });
+  });
+
+  describe('Adversarial Challenge 5: Parcel B2 Atomic Status Guards & OCC Conflict Handling (B2.2)', () => {
+    const wrId = '018f45a2-8921-789a-bcde-0123456789c1';
+    const entityId = 'ent-ata';
+    const testUser = { id: 'admin-id', role: 'Admin' };
+
+    it('conditions on .neq("status", "Completed") and throws 409 CONCURRENT_MODIFICATION if WR was completed in race condition', async () => {
+      let capturedQuery = null;
+      tableMockHandlers = {
+        work_requests: (qs, method) => {
+          if (qs.action === 'select' && method === 'maybeSingle') {
+            return {
+              data: { id: wrId, entity_id: entityId, status: 'In Progress', version: 1 },
+              error: null,
+            };
+          }
+          if (qs.action === 'update') {
+            capturedQuery = qs;
+            return { data: [], error: null }; // 0 rows updated due to concurrent completion
+          }
+          return { data: [], error: null };
+        },
+      };
+
+      await expect(
+        operationsService.updateWorkRequest({
+          id: wrId,
+          entityId,
+          data: { title: 'Concurrent Race Edit' },
+          user: testUser,
+        })
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        code: 'CONCURRENT_MODIFICATION',
+        detail: 'Work request was modified or completed concurrently. Please reload.',
+      });
+
+      expect(capturedQuery.neqFilters).toBeDefined();
+      expect(capturedQuery.neqFilters.status).toBe('Completed');
+    });
+
+    it('conditions on .eq("status", "Completed") when reopening and throws 409 CONCURRENT_MODIFICATION if WR was already altered', async () => {
+      let capturedQuery = null;
+      tableMockHandlers = {
+        work_requests: (qs, method) => {
+          if (qs.action === 'select' && method === 'maybeSingle') {
+            return {
+              data: { id: wrId, entity_id: entityId, status: 'Completed', version: 1 },
+              error: null,
+            };
+          }
+          if (qs.action === 'update') {
+            capturedQuery = qs;
+            return { data: [], error: null }; // 0 rows updated
+          }
+          return { data: [], error: null };
+        },
+      };
+
+      await expect(
+        operationsService.updateWorkRequest({
+          id: wrId,
+          entityId,
+          data: { status: 'Draft' },
+          user: testUser,
+        })
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        code: 'CONCURRENT_MODIFICATION',
+      });
+
+      expect(capturedQuery.filters.status).toBe('Completed');
+    });
+
+    it('throws 500 Database Error when work request update query fails', async () => {
+      tableMockHandlers = {
+        work_requests: (qs, method) => {
+          if (qs.action === 'select' && method === 'maybeSingle') {
+            return {
+              data: { id: wrId, entity_id: entityId, status: 'In Progress', version: 1 },
+              error: null,
+            };
+          }
+          if (qs.action === 'update') {
+            return { data: null, error: { message: 'relation deadlock' } };
+          }
+          return { data: [], error: null };
+        },
+      };
+
+      await expect(
+        operationsService.updateWorkRequest({
+          id: wrId,
+          entityId,
+          data: { title: 'DB Fail' },
+          user: testUser,
+        })
+      ).rejects.toMatchObject({
+        statusCode: 500,
+        title: 'Database Error',
+        detail: 'Unable to update work request',
+      });
+    });
+  });
+
+  describe('Adversarial Challenge 6: Parcel B2 Task Predecessor Verification, Query Failure, & Scoping (B2.3, B2.4)', () => {
+    const taskId = '05c93540-c3d3-460f-90e9-74d47c2bc386';
+    const wrId = '018f45a2-8921-789a-bcde-0123456789c2';
+    const predId1 = '018f45a2-8921-789a-bcde-0123456789e1';
+    const predId2 = '018f45a2-8921-789a-bcde-0123456789e2';
+
+    it('throws 500 Database Error if predecessor verification query fails', async () => {
+      tableMockHandlers = {
+        tasks: (qs, method) => {
+          if (qs.action === 'select' && method === 'maybeSingle') {
+            return {
+              data: {
+                id: taskId,
+                work_request_id: wrId,
+                title: 'Task with Preds',
+                status: 'In Progress',
+                phase: 'processing',
+                predecessors: [predId1],
+                version: 1,
+              },
+              error: null,
+            };
+          }
+          if (qs.action === 'select' && qs.inFilters.id) {
+            return { data: null, error: { message: 'connection pool exhausted' } };
+          }
+          return { data: [], error: null };
+        },
+        task_checklists: () => ({ data: [], error: null }),
+        task_time_logs: () => ({ data: [], error: null }),
+        documents: () => ({ data: [], error: null }),
+      };
+
+      await expect(
+        operationsService.updateTask({
+          workRequestId: wrId,
+          taskId,
+          data: { status: 'Completed' },
+          user: { id: 'admin' },
+        })
+      ).rejects.toMatchObject({
+        statusCode: 500,
+        title: 'Database Error',
+        detail: expect.stringContaining('Failed to verify prerequisite tasks: connection pool exhausted'),
+      });
+    });
+
+    it('throws 400 TASK_PREDECESSORS_NOT_FOUND when one or more predecessors do not exist in DB', async () => {
+      tableMockHandlers = {
+        tasks: (qs, method) => {
+          if (qs.action === 'select' && method === 'maybeSingle') {
+            return {
+              data: {
+                id: taskId,
+                work_request_id: wrId,
+                title: 'Task with Multiple Preds',
+                status: 'In Progress',
+                phase: 'processing',
+                predecessors: [predId1, predId2],
+                version: 1,
+              },
+              error: null,
+            };
+          }
+          if (qs.action === 'select' && qs.inFilters.id) {
+            // DB only has predId1, predId2 is missing!
+            return {
+              data: [{ id: predId1, title: 'Existing Prereq', status: 'Completed' }],
+              error: null,
+            };
+          }
+          return { data: [], error: null };
+        },
+        task_checklists: () => ({ data: [], error: null }),
+        task_time_logs: () => ({ data: [], error: null }),
+        documents: () => ({ data: [], error: null }),
+      };
+
+      await expect(
+        operationsService.updateTask({
+          workRequestId: wrId,
+          taskId,
+          data: { status: 'Completed' },
+          user: { id: 'admin' },
+        })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        code: 'TASK_PREDECESSORS_NOT_FOUND',
+        detail: expect.stringContaining(predId2),
+      });
+    });
+
+    it('strictly scopes predecessor lookup by work_request_id and rejects cross-WR predecessors', async () => {
+      const foreignWrPredId = '018f45a2-8921-789a-bcde-0123456789f9';
+      let capturedPredQuery = null;
+
+      tableMockHandlers = {
+        tasks: (qs, method) => {
+          if (qs.action === 'select' && method === 'maybeSingle') {
+            return {
+              data: {
+                id: taskId,
+                work_request_id: wrId,
+                title: 'Task with Foreign Pred',
+                status: 'In Progress',
+                phase: 'processing',
+                predecessors: [foreignWrPredId],
+                version: 1,
+              },
+              error: null,
+            };
+          }
+          if (qs.action === 'select' && qs.inFilters.id) {
+            capturedPredQuery = qs;
+            // Cross-WR filter matches 0 rows because task belongs to another WR
+            return { data: [], error: null };
+          }
+          return { data: [], error: null };
+        },
+        task_checklists: () => ({ data: [], error: null }),
+        task_time_logs: () => ({ data: [], error: null }),
+        documents: () => ({ data: [], error: null }),
+      };
+
+      await expect(
+        operationsService.updateTask({
+          workRequestId: wrId,
+          taskId,
+          data: { status: 'Completed' },
+          user: { id: 'admin' },
+        })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        code: 'TASK_PREDECESSORS_NOT_FOUND',
+        detail: expect.stringContaining(foreignWrPredId),
+      });
+
+      expect(capturedPredQuery.filters.work_request_id).toBe(wrId);
+    });
+
+    it('rejects completing task when predecessor is in non-Completed status', async () => {
+      tableMockHandlers = {
+        tasks: (qs, method) => {
+          if (qs.action === 'select' && method === 'maybeSingle') {
+            return {
+              data: {
+                id: taskId,
+                work_request_id: wrId,
+                title: 'Task with Incomplete Pred',
+                status: 'In Progress',
+                phase: 'processing',
+                predecessors: [predId1],
+                version: 1,
+              },
+              error: null,
+            };
+          }
+          if (qs.action === 'select' && qs.inFilters.id) {
+            return {
+              data: [{ id: predId1, title: 'Unfinished Pred', status: 'In Progress' }],
+              error: null,
+            };
+          }
+          return { data: [], error: null };
+        },
+        task_checklists: () => ({ data: [], error: null }),
+        task_time_logs: () => ({ data: [], error: null }),
+        documents: () => ({ data: [], error: null }),
+      };
+
+      await expect(
+        operationsService.updateTask({
+          workRequestId: wrId,
+          taskId,
+          data: { status: 'Completed' },
+          user: { id: 'admin' },
+        })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        code: 'TASK_PREDECESSORS_INCOMPLETE',
+        detail: expect.stringContaining('"Unfinished Pred" (In Progress)'),
+      });
+    });
+  });
+
+  describe('Adversarial Challenge 7: Parcel B2 Atomic Completion Guard & Predecessor Race (B2.5)', () => {
+    const taskId = '05c93540-c3d3-460f-90e9-74d47c2bc386';
+    const wrId = '018f45a2-8921-789a-bcde-0123456789c3';
+    const predId = '018f45a2-8921-789a-bcde-0123456789e3';
+
+    it('detects prerequisite reopened between initial check and write, blocking completion', async () => {
+      let selectCount = 0;
+      tableMockHandlers = {
+        tasks: (qs, method) => {
+          if (qs.action === 'select' && method === 'maybeSingle') {
+            return {
+              data: {
+                id: taskId,
+                work_request_id: wrId,
+                title: 'Race Condition Task',
+                status: 'In Progress',
+                phase: 'processing',
+                predecessors: [predId],
+                version: 1,
+              },
+              error: null,
+            };
+          }
+          if (qs.action === 'select' && qs.inFilters.id) {
+            selectCount++;
+            if (selectCount === 1) {
+              return { data: [{ id: predId, title: 'Prereq', status: 'Completed' }], error: null };
+            }
+            // Reopened right before write!
+            return { data: [{ id: predId, status: 'Draft' }], error: null };
+          }
+          return { data: [], error: null };
+        },
+        task_checklists: () => ({ data: [], error: null }),
+        task_time_logs: () => ({ data: [], error: null }),
+        documents: () => ({ data: [], error: null }),
+      };
+
+      await expect(
+        operationsService.updateTask({
+          workRequestId: wrId,
+          taskId,
+          data: { status: 'Completed' },
+          user: { id: 'admin' },
+        })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        code: 'TASK_PREDECESSORS_INCOMPLETE',
+      });
+
+      expect(selectCount).toBe(2);
+    });
+
+    it('detects prerequisite deleted between initial check and write, blocking completion', async () => {
+      let selectCount = 0;
+      tableMockHandlers = {
+        tasks: (qs, method) => {
+          if (qs.action === 'select' && method === 'maybeSingle') {
+            return {
+              data: {
+                id: taskId,
+                work_request_id: wrId,
+                title: 'Race Delete Task',
+                status: 'In Progress',
+                phase: 'processing',
+                predecessors: [predId],
+                version: 1,
+              },
+              error: null,
+            };
+          }
+          if (qs.action === 'select' && qs.inFilters.id) {
+            selectCount++;
+            if (selectCount === 1) {
+              return { data: [{ id: predId, title: 'Prereq', status: 'Completed' }], error: null };
+            }
+            // Prerequisite deleted before write!
+            return { data: [], error: null };
+          }
+          return { data: [], error: null };
+        },
+        task_checklists: () => ({ data: [], error: null }),
+        task_time_logs: () => ({ data: [], error: null }),
+        documents: () => ({ data: [], error: null }),
+      };
+
+      await expect(
+        operationsService.updateTask({
+          workRequestId: wrId,
+          taskId,
+          data: { status: 'Completed' },
+          user: { id: 'admin' },
+        })
+      ).rejects.toMatchObject({
+        statusCode: 400,
+        code: 'TASK_PREDECESSORS_INCOMPLETE',
+      });
+
+      expect(selectCount).toBe(2);
+    });
+
+    it('handles DB error on completion recheck gracefully with 500 Database Error', async () => {
+      let selectCount = 0;
+      tableMockHandlers = {
+        tasks: (qs, method) => {
+          if (qs.action === 'select' && method === 'maybeSingle') {
+            return {
+              data: {
+                id: taskId,
+                work_request_id: wrId,
+                title: 'Recheck Error Task',
+                status: 'In Progress',
+                phase: 'processing',
+                predecessors: [predId],
+                version: 1,
+              },
+              error: null,
+            };
+          }
+          if (qs.action === 'select' && qs.inFilters.id) {
+            selectCount++;
+            if (selectCount === 1) {
+              return { data: [{ id: predId, title: 'Prereq', status: 'Completed' }], error: null };
+            }
+            return { data: null, error: { message: 'socket closed abruptly' } };
+          }
+          return { data: [], error: null };
+        },
+        task_checklists: () => ({ data: [], error: null }),
+        task_time_logs: () => ({ data: [], error: null }),
+        documents: () => ({ data: [], error: null }),
+      };
+
+      await expect(
+        operationsService.updateTask({
+          workRequestId: wrId,
+          taskId,
+          data: { status: 'Completed' },
+          user: { id: 'admin' },
+        })
+      ).rejects.toMatchObject({
+        statusCode: 500,
+        title: 'Database Error',
+        detail: expect.stringContaining('Failed to verify prerequisite tasks: socket closed abruptly'),
+      });
+    });
+
+    it('applies .neq("status", "Completed") on task completion write and throws 409 CONCURRENT_MODIFICATION on 0 rows', async () => {
+      let capturedTaskQuery = null;
+      tableMockHandlers = {
+        tasks: (qs, method) => {
+          if (qs.action === 'select' && method === 'maybeSingle') {
+            return {
+              data: {
+                id: taskId,
+                work_request_id: wrId,
+                title: 'No Pred Task',
+                status: 'In Progress',
+                phase: 'processing',
+                predecessors: [],
+                version: 1,
+              },
+              error: null,
+            };
+          }
+          if (qs.action === 'update') {
+            capturedTaskQuery = qs;
+            return { data: [], error: null }; // 0 rows updated
+          }
+          return { data: [], error: null };
+        },
+        task_checklists: () => ({ data: [], error: null }),
+        task_time_logs: () => ({ data: [], error: null }),
+        documents: () => ({ data: [], error: null }),
+      };
+
+      await expect(
+        operationsService.updateTask({
+          workRequestId: wrId,
+          taskId,
+          data: { status: 'Completed' },
+          user: { id: 'admin' },
+        })
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        code: 'CONCURRENT_MODIFICATION',
+        detail: 'Task was modified or completed concurrently. Please reload.',
+      });
+
+      expect(capturedTaskQuery.neqFilters.status).toBe('Completed');
+    });
+  });
+
+  describe('Adversarial Challenge 8: Parcel B2 Assignee Clearance Error Handling (B2.6)', () => {
+    const taskId = '05c93540-c3d3-460f-90e9-74d47c2bc386';
+    const wrId = '018f45a2-8921-789a-bcde-0123456789c4';
+    const leadUserId = '018f45a2-8921-789a-bcde-0123456789a1';
+
+    it('throws 500 Database Error when task_assignees delete returns delError', async () => {
+      tableMockHandlers = {
+        tasks: (qs, method) => {
+          if (qs.action === 'select' && method === 'maybeSingle') {
+            return {
+              data: {
+                id: taskId,
+                work_request_id: wrId,
+                title: 'Task With Lead',
+                assignee_id: leadUserId,
+                assignee_name: 'Lead User',
+                status: 'In Progress',
+                phase: 'processing',
+                predecessors: [],
+                version: 1,
+              },
+              error: null,
+            };
+          }
+          if (qs.action === 'update') {
+            return { data: [{ id: taskId, ...qs.updatePayload }], error: null };
+          }
+          return { data: [], error: null };
+        },
+        task_assignees: (qs) => {
+          if (qs.action === 'delete') {
+            return { data: null, error: { message: 'permission denied for table task_assignees' } };
+          }
+          return { data: [], error: null };
+        },
+        task_checklists: () => ({ data: [], error: null }),
+        task_time_logs: () => ({ data: [], error: null }),
+        documents: () => ({ data: [], error: null }),
+      };
+
+      await expect(
+        operationsService.updateTask({
+          workRequestId: wrId,
+          taskId,
+          data: { assigneeId: null },
+          user: { id: 'admin' },
+        })
+      ).rejects.toMatchObject({
+        statusCode: 500,
+        title: 'Database Error',
+        detail: expect.stringContaining('Failed to clear assignee from task_assignees: permission denied for table task_assignees'),
+      });
+    });
+
+    it('safely skips task_assignees delete when task already had no assignee', async () => {
+      let deleteCalled = false;
+      tableMockHandlers = {
+        tasks: (qs, method) => {
+          if (qs.action === 'select' && method === 'maybeSingle') {
+            return {
+              data: {
+                id: taskId,
+                work_request_id: wrId,
+                title: 'Unassigned Task',
+                assignee_id: null,
+                assigneeId: null,
+                status: 'Draft',
+                phase: 'pre_processing',
+                predecessors: [],
+                version: 1,
+              },
+              error: null,
+            };
+          }
+          if (qs.action === 'update') {
+            return { data: [{ id: taskId, ...qs.updatePayload }], error: null };
+          }
+          return { data: [], error: null };
+        },
+        task_assignees: (qs) => {
+          if (qs.action === 'delete') {
+            deleteCalled = true;
+            return { data: [], error: null };
+          }
+          return { data: [], error: null };
+        },
+        task_checklists: () => ({ data: [], error: null }),
+        task_time_logs: () => ({ data: [], error: null }),
+        documents: () => ({ data: [], error: null }),
+      };
+
+      await operationsService.updateTask({
+        workRequestId: wrId,
+        taskId,
+        data: { assigneeId: null },
+        user: { id: 'admin' },
+      });
+
+      expect(deleteCalled).toBe(false);
+    });
+  });
+
+  describe('Adversarial Challenge 9: Parcel B2 Collision-Safe Invoice Generation Exhaustion & Retries (B2.7)', () => {
+    const reqId = '018f45a2-8921-789a-bcde-0123456789d1';
+    const wrId = '018f45a2-8921-789a-bcde-0123456789d2';
+    const clientId = '018f45a2-8921-789a-bcde-0123456789d3';
+    const entityId = 'ent-ata';
+
+    it('retries up to 5 attempts when unique constraint violation 23505 occurs, then successfully persists', async () => {
+      let attempts = 0;
+      let insertedRow = null;
+
+      tableMockHandlers = {
+        operations_requests: () => ({
+          data: {
+            id: reqId,
+            entity_id: entityId,
+            type: 'billing',
+            status: 'pending',
+            work_request_id: wrId,
+            client_id: clientId,
+            requested_by: 'requester-id',
+          },
+          error: null,
+        }),
+        work_requests: () => ({ data: [], error: null }),
+        invoices: (qs) => {
+          if (qs.action === 'insert') {
+            attempts++;
+            if (attempts <= 2) {
+              return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint' } };
+            }
+            insertedRow = qs.insertPayload;
+            return { data: [qs.insertPayload], error: null };
+          }
+          return { data: [], error: null };
+        },
+        users: () => ({ data: [], error: null }),
+        clients: () => ({ data: [], error: null }),
+        tasks: () => ({ data: [], error: null }),
+      };
+
+      supabaseAdmin.rpc = jest.fn().mockResolvedValue({
+        data: [{ id: reqId, status: 'fulfilled' }],
+        error: null,
+      });
+
+      await operationsRequestsService.updateRequest({
+        entityId,
+        id: reqId,
+        userId: 'admin-id',
+        data: { status: 'fulfilled' },
+      });
+
+      expect(attempts).toBe(3);
+      expect(insertedRow).toBeDefined();
+      expect(insertedRow.invoice_number).toMatch(/^INV-\d{4}-\d{4}-\d{4}$/);
+    });
+
+    it('retries when error message contains "unique" without explicit code 23505', async () => {
+      let attempts = 0;
+      let insertedRow = null;
+
+      tableMockHandlers = {
+        operations_requests: () => ({
+          data: {
+            id: reqId,
+            entity_id: entityId,
+            type: 'billing',
+            status: 'pending',
+            work_request_id: wrId,
+            client_id: clientId,
+            requested_by: 'requester-id',
+          },
+          error: null,
+        }),
+        work_requests: () => ({ data: [], error: null }),
+        invoices: (qs) => {
+          if (qs.action === 'insert') {
+            attempts++;
+            if (attempts === 1) {
+              return { data: null, error: { message: 'unique constraint invoices_invoice_number_key violated' } };
+            }
+            insertedRow = qs.insertPayload;
+            return { data: [qs.insertPayload], error: null };
+          }
+          return { data: [], error: null };
+        },
+        users: () => ({ data: [], error: null }),
+        clients: () => ({ data: [], error: null }),
+        tasks: () => ({ data: [], error: null }),
+      };
+
+      supabaseAdmin.rpc = jest.fn().mockResolvedValue({
+        data: [{ id: reqId, status: 'fulfilled' }],
+        error: null,
+      });
+
+      await operationsRequestsService.updateRequest({
+        entityId,
+        id: reqId,
+        userId: 'admin-id',
+        data: { status: 'fulfilled' },
+      });
+
+      expect(attempts).toBe(2);
+      expect(insertedRow).toBeDefined();
+    });
+
+    it('exhausts 5 attempts on persistent collision without crashing or infinite loop', async () => {
+      let attempts = 0;
+
+      tableMockHandlers = {
+        operations_requests: () => ({
+          data: {
+            id: reqId,
+            entity_id: entityId,
+            type: 'billing',
+            status: 'pending',
+            work_request_id: wrId,
+            client_id: clientId,
+            requested_by: 'requester-id',
+          },
+          error: null,
+        }),
+        work_requests: () => ({ data: [], error: null }),
+        invoices: (qs) => {
+          if (qs.action === 'insert') {
+            attempts++;
+            return { data: null, error: { code: '23505', message: 'collision' } };
+          }
+          return { data: [], error: null };
+        },
+        users: () => ({ data: [], error: null }),
+        clients: () => ({ data: [], error: null }),
+        tasks: () => ({ data: [], error: null }),
+      };
+
+      supabaseAdmin.rpc = jest.fn().mockResolvedValue({
+        data: [{ id: reqId, status: 'fulfilled' }],
+        error: null,
+      });
+
+      // Should complete without unhandled crash even if all 5 invoice inserts collide
+      await operationsRequestsService.updateRequest({
+        entityId,
+        id: reqId,
+        userId: 'admin-id',
+        data: { status: 'fulfilled' },
+      });
+
+      expect(attempts).toBe(5);
+    });
+
+    it('immediately aborts loop on non-unique DB error without retrying 5 times', async () => {
+      let attempts = 0;
+
+      tableMockHandlers = {
+        operations_requests: () => ({
+          data: {
+            id: reqId,
+            entity_id: entityId,
+            type: 'billing',
+            status: 'pending',
+            work_request_id: wrId,
+            client_id: clientId,
+            requested_by: 'requester-id',
+          },
+          error: null,
+        }),
+        work_requests: () => ({ data: [], error: null }),
+        invoices: (qs) => {
+          if (qs.action === 'insert') {
+            attempts++;
+            return { data: null, error: { code: '42P01', message: 'relation invoices does not exist' } };
+          }
+          return { data: [], error: null };
+        },
+        users: () => ({ data: [], error: null }),
+        clients: () => ({ data: [], error: null }),
+        tasks: () => ({ data: [], error: null }),
+      };
+
+      supabaseAdmin.rpc = jest.fn().mockResolvedValue({
+        data: [{ id: reqId, status: 'fulfilled' }],
+        error: null,
+      });
+
+      await operationsRequestsService.updateRequest({
+        entityId,
+        id: reqId,
+        userId: 'admin-id',
+        data: { status: 'fulfilled' },
+      });
+
+      // Non-unique error throws out of while loop immediately on attempt 1
+      expect(attempts).toBe(1);
+    });
+  });
 });
+

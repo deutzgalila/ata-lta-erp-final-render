@@ -590,7 +590,7 @@ describe('Parcel B1 Adversarial Challenger Suite', () => {
       expect(invoice.client_id).toBe(CLIENT_ID);
       expect(invoice.work_request_id).toBe(wrId);
       expect(invoice.entity_id).toBe(ENTITY_ID);
-      expect(invoice.invoice_number).toMatch(/^INV-\d{4}-\d{4}$/);
+      expect(invoice.invoice_number).toMatch(/^INV-\d{4}-\d{4}(-\d{4})?$/);
       expect(invoice.subtotal).toBe(0);
       expect(invoice.tax_amount).toBe(0);
       expect(invoice.total).toBe(0);

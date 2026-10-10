@@ -81,7 +81,11 @@ describe('Operations Module Remediation Suite (Parcel B1)', () => {
         return builder;
       }),
       or: jest.fn(() => builder),
-      neq: jest.fn(() => builder),
+      neq: jest.fn((col, val) => {
+        queryState.neqFilters = queryState.neqFilters || {};
+        queryState.neqFilters[col] = val;
+        return builder;
+      }),
       gt: jest.fn(() => builder),
       gte: jest.fn(() => builder),
       lt: jest.fn(() => builder),
@@ -470,4 +474,545 @@ describe('Operations Module Remediation Suite (Parcel B1)', () => {
       expect(invoiceInsertPayload.status).toBe('Draft');
     });
   });
+
+  describe('Parcel B2: Backend Concurrency & State Hardening', () => {
+    describe('B2.1: Completed Work Request Field Lock on Reopen', () => {
+      it('blocks mutating business fields when reopening completed WR with 400 COMPLETED_WR_MODIFICATION_DISALLOWED', async () => {
+        const wrId = '018f45a2-8921-789a-bcde-0123456789a1';
+        tableMockHandlers = {
+          work_requests: () => ({
+            data: {
+              id: wrId,
+              entity_id: '018f45a2-8921-789a-bcde-0123456789f1',
+              status: 'Completed',
+              title: 'Finished WR',
+              submitted_by: 'admin-user',
+            },
+            error: null,
+          }),
+          tasks: () => ({ data: [], error: null }),
+          entities: () => ({ data: { code: 'ATA' }, error: null }),
+        };
+
+        await expect(
+          operationsService.updateWorkRequest({
+            id: wrId,
+            entityId: '018f45a2-8921-789a-bcde-0123456789f1',
+            data: {
+              status: 'Draft',
+              title: 'Tampered Title',
+              priority: 'Urgent',
+            },
+            user: { id: 'admin-user', role: 'Admin' },
+          })
+        ).rejects.toMatchObject({
+          statusCode: 400,
+          code: 'COMPLETED_WR_MODIFICATION_DISALLOWED',
+        });
+      });
+
+      it('permits reopening completed WR when only status is supplied (without business fields)', async () => {
+        const wrId = '018f45a2-8921-789a-bcde-0123456789a2';
+        let updatePayload = null;
+        tableMockHandlers = {
+          work_requests: (qs, method) => {
+            if (method === 'maybeSingle' || qs.action === 'select') {
+              return {
+                data: {
+                  id: wrId,
+                  entity_id: '018f45a2-8921-789a-bcde-0123456789f1',
+                  status: 'Completed',
+                  title: 'Finished WR',
+                  submitted_by: 'admin-user',
+                },
+                error: null,
+              };
+            }
+            if (qs.action === 'update') {
+              updatePayload = qs.updatePayload;
+              return {
+                data: [{ id: wrId, ...qs.updatePayload, entity_id: '018f45a2-8921-789a-bcde-0123456789f1' }],
+                error: null,
+              };
+            }
+            return { data: [], error: null };
+          },
+          tasks: () => ({ data: [], error: null }),
+          entities: () => ({ data: { code: 'ATA' }, error: null }),
+        };
+
+        const result = await operationsService.updateWorkRequest({
+          id: wrId,
+          entityId: '018f45a2-8921-789a-bcde-0123456789f1',
+          data: { status: 'Draft', title: undefined },
+          user: { id: 'admin-user', role: 'Admin' },
+        });
+
+        expect(updatePayload).toBeDefined();
+        expect(updatePayload.status).toBe('Draft');
+        expect(result).toBeDefined();
+      });
+    });
+
+    describe('B2.2: Atomic Status Guard for Concurrent Work Request Updates', () => {
+      it('conditions on .neq("status", "Completed") and throws 409 CONCURRENT_MODIFICATION when 0 rows match on edit', async () => {
+        const wrId = '018f45a2-8921-789a-bcde-0123456789b1';
+        let capturedQuery = null;
+        tableMockHandlers = {
+          work_requests: (qs, method) => {
+            if (method === 'maybeSingle') {
+              return {
+                data: {
+                  id: wrId,
+                  entity_id: '018f45a2-8921-789a-bcde-0123456789f1',
+                  status: 'Processing',
+                  title: 'Active WR',
+                  submitted_by: 'admin-user',
+                },
+                error: null,
+              };
+            }
+            if (qs.action === 'update') {
+              capturedQuery = qs;
+              return { data: [], error: null }; // 0 rows updated
+            }
+            return { data: [], error: null };
+          },
+          tasks: () => ({ data: [], error: null }),
+          entities: () => ({ data: { code: 'ATA' }, error: null }),
+        };
+
+        await expect(
+          operationsService.updateWorkRequest({
+            id: wrId,
+            entityId: '018f45a2-8921-789a-bcde-0123456789f1',
+            data: { title: 'Concurrent Edit' },
+            user: { id: 'admin-user', role: 'Admin' },
+          })
+        ).rejects.toMatchObject({
+          statusCode: 409,
+          code: 'CONCURRENT_MODIFICATION',
+        });
+
+        expect(capturedQuery.neqFilters).toBeDefined();
+        expect(capturedQuery.neqFilters.status).toBe('Completed');
+      });
+
+      it('conditions on .eq("status", "Completed") when reopening and throws 409 on concurrent reopen', async () => {
+        const wrId = '018f45a2-8921-789a-bcde-0123456789b2';
+        let capturedQuery = null;
+        tableMockHandlers = {
+          work_requests: (qs, method) => {
+            if (method === 'maybeSingle') {
+              return {
+                data: {
+                  id: wrId,
+                  entity_id: '018f45a2-8921-789a-bcde-0123456789f1',
+                  status: 'Completed',
+                  title: 'Finished WR',
+                  submitted_by: 'admin-user',
+                },
+                error: null,
+              };
+            }
+            if (qs.action === 'update') {
+              capturedQuery = qs;
+              return { data: [], error: null }; // 0 rows updated (already reopened concurrently)
+            }
+            return { data: [], error: null };
+          },
+          tasks: () => ({ data: [], error: null }),
+          entities: () => ({ data: { code: 'ATA' }, error: null }),
+        };
+
+        await expect(
+          operationsService.updateWorkRequest({
+            id: wrId,
+            entityId: '018f45a2-8921-789a-bcde-0123456789f1',
+            data: { status: 'Draft' },
+            user: { id: 'admin-user', role: 'Admin' },
+          })
+        ).rejects.toMatchObject({
+          statusCode: 409,
+          code: 'CONCURRENT_MODIFICATION',
+        });
+
+        expect(capturedQuery.filters.status).toBe('Completed');
+      });
+    });
+
+    describe('B2.3 & B2.4: Predecessor Error Checking, Scoping, and Row Verification', () => {
+      it('throws 500 Database Error if predecessor verification query fails', async () => {
+        const taskId = '05c93540-c3d3-460f-90e9-74d47c2bc386';
+        const predTaskId = '018f45a2-8921-789a-bcde-0123456789c1';
+        const wrId = '018f45a2-8921-789a-bcde-0123456789c2';
+
+        tableMockHandlers = {
+          tasks: (qs, method) => {
+            if (qs.action === 'select' && method === 'maybeSingle') {
+              return {
+                data: {
+                  id: taskId,
+                  work_request_id: wrId,
+                  title: 'Task with dependency',
+                  status: 'In Progress',
+                  phase: 'processing',
+                  predecessors: [predTaskId],
+                  version: 1,
+                },
+                error: null,
+              };
+            }
+            if (qs.action === 'select' && qs.inFilters.id) {
+              return { data: null, error: { message: 'Connection timeout' } };
+            }
+            return { data: [], error: null };
+          },
+          task_checklists: () => ({ data: [], error: null }),
+          task_time_logs: () => ({ data: [], error: null }),
+          documents: () => ({ data: [], error: null }),
+          task_assignees: () => ({ data: [], error: null }),
+        };
+
+        await expect(
+          operationsService.updateTask({
+            workRequestId: wrId,
+            taskId,
+            data: { status: 'Completed' },
+            user: { id: 'admin-user' },
+          })
+        ).rejects.toMatchObject({
+          statusCode: 500,
+          title: 'Database Error',
+        });
+      });
+
+      it('throws 400 TASK_PREDECESSORS_NOT_FOUND when predecessor task does not exist in DB', async () => {
+        const taskId = '05c93540-c3d3-460f-90e9-74d47c2bc386';
+        const nonExistentPredId = '018f45a2-8921-789a-bcde-0123456789c3';
+        const wrId = '018f45a2-8921-789a-bcde-0123456789c4';
+
+        tableMockHandlers = {
+          tasks: (qs, method) => {
+            if (qs.action === 'select' && method === 'maybeSingle') {
+              return {
+                data: {
+                  id: taskId,
+                  work_request_id: wrId,
+                  title: 'Task with ghost dependency',
+                  status: 'In Progress',
+                  phase: 'processing',
+                  predecessors: [nonExistentPredId],
+                  version: 1,
+                },
+                error: null,
+              };
+            }
+            if (qs.action === 'select' && qs.inFilters.id) {
+              return { data: [], error: null }; // Predecessor not found in DB!
+            }
+            return { data: [], error: null };
+          },
+          task_checklists: () => ({ data: [], error: null }),
+          task_time_logs: () => ({ data: [], error: null }),
+          documents: () => ({ data: [], error: null }),
+          task_assignees: () => ({ data: [], error: null }),
+        };
+
+        await expect(
+          operationsService.updateTask({
+            workRequestId: wrId,
+            taskId,
+            data: { status: 'Completed' },
+            user: { id: 'admin-user' },
+          })
+        ).rejects.toMatchObject({
+          statusCode: 400,
+          code: 'TASK_PREDECESSORS_NOT_FOUND',
+        });
+      });
+
+      it('scopes predecessor query with work_request_id and rejects cross-WR predecessors with TASK_PREDECESSORS_NOT_FOUND', async () => {
+        const taskId = '05c93540-c3d3-460f-90e9-74d47c2bc386';
+        const crossWrPredId = '018f45a2-8921-789a-bcde-0123456789c5';
+        const wrId = '018f45a2-8921-789a-bcde-0123456789c6';
+        let scopedWrFilter = null;
+
+        tableMockHandlers = {
+          tasks: (qs, method) => {
+            if (qs.action === 'select' && method === 'maybeSingle') {
+              return {
+                data: {
+                  id: taskId,
+                  work_request_id: wrId,
+                  title: 'Task with cross-WR dependency',
+                  status: 'In Progress',
+                  phase: 'processing',
+                  predecessors: [crossWrPredId],
+                  version: 1,
+                },
+                error: null,
+              };
+            }
+            if (qs.action === 'select' && qs.inFilters.id) {
+              scopedWrFilter = qs.filters.work_request_id;
+              // Because it's scoped to wrId, cross-WR task returns empty
+              return { data: [], error: null };
+            }
+            return { data: [], error: null };
+          },
+          task_checklists: () => ({ data: [], error: null }),
+          task_time_logs: () => ({ data: [], error: null }),
+          documents: () => ({ data: [], error: null }),
+          task_assignees: () => ({ data: [], error: null }),
+        };
+
+        await expect(
+          operationsService.updateTask({
+            workRequestId: wrId,
+            taskId,
+            data: { status: 'Completed' },
+            user: { id: 'admin-user' },
+          })
+        ).rejects.toMatchObject({
+          statusCode: 400,
+          code: 'TASK_PREDECESSORS_NOT_FOUND',
+        });
+
+        expect(scopedWrFilter).toBe(wrId);
+      });
+    });
+
+    describe('B2.5: Atomic Predecessor State Guard on Completion Write', () => {
+      it('re-verifies predecessors immediately prior to write and blocks if predecessor reopened', async () => {
+        const taskId = '05c93540-c3d3-460f-90e9-74d47c2bc386';
+        const predTaskId = '018f45a2-8921-789a-bcde-0123456789d1';
+        const wrId = '018f45a2-8921-789a-bcde-0123456789d2';
+
+        let selectCount = 0;
+        tableMockHandlers = {
+          tasks: (qs, method) => {
+            if (qs.action === 'select' && method === 'maybeSingle') {
+              return {
+                data: {
+                  id: taskId,
+                  work_request_id: wrId,
+                  title: 'Downstream Task',
+                  status: 'In Progress',
+                  phase: 'processing',
+                  predecessors: [predTaskId],
+                  version: 1,
+                },
+                error: null,
+              };
+            }
+            if (qs.action === 'select' && qs.inFilters.id) {
+              selectCount++;
+              if (selectCount === 1) {
+                // First check: was completed
+                return {
+                  data: [{ id: predTaskId, title: 'Prereq', status: 'Completed' }],
+                  error: null,
+                };
+              }
+              // Second recheck immediately prior to write: reopened to In Progress!
+              return {
+                data: [{ id: predTaskId, status: 'In Progress' }],
+                error: null,
+              };
+            }
+            return { data: [], error: null };
+          },
+          task_checklists: () => ({ data: [], error: null }),
+          task_time_logs: () => ({ data: [], error: null }),
+          documents: () => ({ data: [], error: null }),
+          task_assignees: () => ({ data: [], error: null }),
+        };
+
+        await expect(
+          operationsService.updateTask({
+            workRequestId: wrId,
+            taskId,
+            data: { status: 'Completed' },
+            user: { id: 'admin-user' },
+          })
+        ).rejects.toMatchObject({
+          statusCode: 400,
+          code: 'TASK_PREDECESSORS_INCOMPLETE',
+        });
+
+        expect(selectCount).toBe(2);
+      });
+
+      it('enforces .neq("status", "Completed") on task completion write and throws 409 CONCURRENT_MODIFICATION on 0 rows', async () => {
+        const taskId = '05c93540-c3d3-460f-90e9-74d47c2bc386';
+        const wrId = '018f45a2-8921-789a-bcde-0123456789d3';
+        let updateQuery = null;
+
+        tableMockHandlers = {
+          tasks: (qs, method) => {
+            if (qs.action === 'select' && method === 'maybeSingle') {
+              return {
+                data: {
+                  id: taskId,
+                  work_request_id: wrId,
+                  title: 'Task without pred',
+                  status: 'In Progress',
+                  phase: 'processing',
+                  predecessors: [],
+                  version: 1,
+                },
+                error: null,
+              };
+            }
+            if (qs.action === 'update') {
+              updateQuery = qs;
+              return { data: [], error: null }; // 0 rows updated
+            }
+            return { data: [], error: null };
+          },
+          task_checklists: () => ({ data: [], error: null }),
+          task_time_logs: () => ({ data: [], error: null }),
+          documents: () => ({ data: [], error: null }),
+          task_assignees: () => ({ data: [], error: null }),
+        };
+
+        await expect(
+          operationsService.updateTask({
+            workRequestId: wrId,
+            taskId,
+            data: { status: 'Completed' },
+            user: { id: 'admin-user' },
+          })
+        ).rejects.toMatchObject({
+          statusCode: 409,
+          code: 'CONCURRENT_MODIFICATION',
+        });
+
+        expect(updateQuery.neqFilters).toBeDefined();
+        expect(updateQuery.neqFilters.status).toBe('Completed');
+      });
+    });
+
+    describe('B2.6: Enforce task_assignees Deletion on Lead Clearance', () => {
+      it('throws 500 Database Error if task_assignees deletion returns delError when clearing lead', async () => {
+        const taskId = '05c93540-c3d3-460f-90e9-74d47c2bc386';
+        const leadUserId = '018f45a2-8921-789a-bcde-0123456789e1';
+        const wrId = '018f45a2-8921-789a-bcde-0123456789e2';
+
+        tableMockHandlers = {
+          tasks: (qs, method) => {
+            if (qs.action === 'select' && method === 'maybeSingle') {
+              return {
+                data: {
+                  id: taskId,
+                  work_request_id: wrId,
+                  title: 'Task with lead',
+                  assignee_id: leadUserId,
+                  assignee_name: 'Lead Person',
+                  status: 'In Progress',
+                  phase: 'processing',
+                  predecessors: [],
+                  version: 1,
+                },
+                error: null,
+              };
+            }
+            if (qs.action === 'update') {
+              return { data: [{ id: taskId, ...qs.updatePayload }], error: null };
+            }
+            return { data: [], error: null };
+          },
+          task_assignees: (qs) => {
+            if (qs.action === 'delete') {
+              return { data: null, error: { message: 'Foreign key constraint failure' } };
+            }
+            return { data: [], error: null };
+          },
+          task_checklists: () => ({ data: [], error: null }),
+          task_time_logs: () => ({ data: [], error: null }),
+          documents: () => ({ data: [], error: null }),
+        };
+
+        await expect(
+          operationsService.updateTask({
+            workRequestId: wrId,
+            taskId,
+            data: { assigneeId: null },
+            user: { id: 'admin-user' },
+          })
+        ).rejects.toMatchObject({
+          statusCode: 500,
+          title: 'Database Error',
+          detail: expect.stringContaining('Failed to clear assignee from task_assignees'),
+        });
+      });
+    });
+
+    describe('B2.7: Collision-Safe Invoice Generation with Retry', () => {
+      it('generates INV-YYYY-XXXX-TTTT invoice number format and retries on unique violation 23505', async () => {
+        const reqId = '018f45a2-8921-789a-bcde-0123456789f1';
+        const wrId = '018f45a2-8921-789a-bcde-0123456789f2';
+        const clientId = '018f45a2-8921-789a-bcde-0123456789f3';
+        const entityId = '018f45a2-8921-789a-bcde-0123456789f4';
+
+        let insertAttempts = 0;
+        let successfulPayload = null;
+
+        tableMockHandlers = {
+          operations_requests: () => ({
+            data: {
+              id: reqId,
+              entity_id: entityId,
+              type: 'billing',
+              status: 'pending',
+              work_request_id: wrId,
+              client_id: clientId,
+              requested_by: 'requester-id',
+            },
+            error: null,
+          }),
+          work_requests: () => ({ data: [], error: null }),
+          invoices: (qs) => {
+            if (qs.action === 'select') return { data: [], error: null };
+            if (qs.action === 'insert') {
+              insertAttempts++;
+              if (insertAttempts === 1) {
+                // First insert hits unique constraint collision (23505)
+                return {
+                  data: null,
+                  error: { code: '23505', message: 'duplicate key value violates unique constraint' },
+                };
+              }
+              // Second insert succeeds
+              successfulPayload = qs.insertPayload;
+              return { data: [qs.insertPayload], error: null };
+            }
+            return { data: [], error: null };
+          },
+          users: () => ({ data: [], error: null }),
+          clients: () => ({ data: [], error: null }),
+          tasks: () => ({ data: [], error: null }),
+        };
+
+        supabaseAdmin.rpc = jest.fn().mockResolvedValue({
+          data: [{ id: reqId, status: 'fulfilled' }],
+          error: null,
+        });
+
+        await operationsRequestsService.updateRequest({
+          entityId,
+          id: reqId,
+          userId: 'admin-user-id',
+          data: { status: 'fulfilled' },
+        });
+
+        expect(insertAttempts).toBe(2);
+        expect(successfulPayload).toBeDefined();
+        // Suffix format: INV-YYYY-XXXX-TTTT
+        expect(successfulPayload.invoice_number).toMatch(/^INV-\d{4}-\d{4}-\d{4}$/);
+      });
+    });
+  });
 });
+
