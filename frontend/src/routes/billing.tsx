@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Receipt,
@@ -19,7 +19,7 @@ import { RecordPaymentModal } from '@/features/billing/components/RecordPaymentM
 import { PrintPreviewModal } from '@/features/billing/components/PrintPreviewModal';
 import { AgingReportTab } from '@/features/billing/components/AgingReportTab';
 import { InvoiceArchiveTab } from '@/features/billing/components/InvoiceArchiveTab';
-import { useInvoiceCounts } from '@/features/billing/api/useInvoices';
+import { useInvoiceCounts, useInvoiceDetail } from '@/features/billing/api/useInvoices';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
 import type { Invoice } from '@/features/billing/api/types';
@@ -36,6 +36,19 @@ export default function BillingPage() {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+
+  // Deep Link Handling (?invoiceId=...)
+  const invoiceIdParam = searchParams.get('invoiceId');
+  const { data: deepLinkedInvoice } = useInvoiceDetail(invoiceIdParam || '', {
+    enabled: Boolean(invoiceIdParam),
+  });
+
+  useEffect(() => {
+    if (deepLinkedInvoice && !isDetailModalOpen) {
+      setSelectedInvoice(deepLinkedInvoice);
+      setIsDetailModalOpen(true);
+    }
+  }, [deepLinkedInvoice, isDetailModalOpen]);
 
   // Session & RBAC
   const permissions = useSessionStore((state) => state.permissions);

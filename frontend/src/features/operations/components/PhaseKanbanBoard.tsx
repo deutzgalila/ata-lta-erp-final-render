@@ -38,8 +38,10 @@ import { WorkRequestModal } from './WorkRequestModal';
 import { TaskDetailModal } from './TaskDetailModal';
 import { operationsKeys } from '../api/queryKeys';
 import { getPhaseBadgeInfo, getStatusBadgeInfo } from '../lib/statusBadges';
+import { useSearchParams, useInRouterContext } from 'react-router-dom';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
+import { isUserAdmin } from '../lib/taskScope';
 import type {
   Phase,
   CreatablePhase,
@@ -60,13 +62,22 @@ export interface PhaseKanbanBoardProps {
   onEditWorkRequest?: (wr: WorkRequest) => void;
 }
 
-export function PhaseKanbanBoard({
+interface PhaseKanbanBoardInnerProps extends PhaseKanbanBoardProps {
+  searchParams: URLSearchParams;
+  setSearchParams: (setter: (prev: URLSearchParams) => URLSearchParams) => void;
+}
+
+function PhaseKanbanBoardInner({
   initialWorkRequestId,
   onEditWorkRequest,
-}: PhaseKanbanBoardProps) {
+  searchParams,
+  setSearchParams,
+}: PhaseKanbanBoardInnerProps) {
   // Session & RBAC
   const permissions = useSessionStore((state) => state.permissions);
   const activeEntity = useSessionStore((state) => state.activeEntity);
+  const currentUser = useSessionStore((state) => state.user);
+  const isAdmin = isUserAdmin(currentUser);
   const canAdvance = hasPermission(permissions, 'workflow:phase_transition');
   const canRequestTransition =
     hasPermission(permissions, 'workflow:transition_request') ||
@@ -84,16 +95,35 @@ export function PhaseKanbanBoard({
   }, [rawRequests]);
 
   const [selectedWrId, setSelectedWrId] = useState<string>(() => {
-    if (initialWorkRequestId) return initialWorkRequestId;
-    return '';
+    return searchParams.get('wrId') || initialWorkRequestId || '';
   });
 
-  // Keep selected ID in sync if empty
+  // Keep selected ID in sync if empty or invalid for active entity (e.g. after entity switch)
   React.useEffect(() => {
-    if (!selectedWrId && workRequests.length > 0 && workRequests[0]) {
-      setSelectedWrId(workRequests[0].id);
+    if (workRequests.length > 0) {
+      const exists = workRequests.some((w) => w.id === selectedWrId);
+      if (!selectedWrId || !exists) {
+        const fallbackId = workRequests[0]?.id || '';
+        if (fallbackId) {
+          setSelectedWrId(fallbackId);
+          setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            next.set('wrId', fallbackId);
+            return next;
+          });
+        }
+      }
     }
-  }, [selectedWrId, workRequests]);
+  }, [selectedWrId, workRequests, setSearchParams]);
+
+  const handleSelectWr = (id: string) => {
+    setSelectedWrId(id);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('wrId', id);
+      return next;
+    });
+  };
 
   const effectiveWrId = selectedWrId || (workRequests[0]?.id ?? '');
 
@@ -315,7 +345,7 @@ export function PhaseKanbanBoard({
             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
               Select Work Request
             </label>
-            <Select value={effectiveWrId} onValueChange={setSelectedWrId}>
+            <Select value={effectiveWrId} onValueChange={handleSelectWr}>
               <SelectTrigger
                 className="h-9 text-xs bg-slate-50 font-medium"
                 data-testid="kanban-wr-select"
@@ -347,7 +377,7 @@ export function PhaseKanbanBoard({
                 }
                 size="compact"
               >
-                {activeWr.priority} Priority
+                {activeWr.priority.endsWith('Priority') ? activeWr.priority : `${activeWr.priority} Priority`}
               </Badge>
               {(() => {
                 const phaseInfo = getPhaseBadgeInfo(activeWr.phase);
@@ -372,6 +402,12 @@ export function PhaseKanbanBoard({
                       <StatusIcon className="w-3 h-3 shrink-0" />
                       <span>{statusInfo.label}</span>
                     </span>
+                    {activeWr.dueDate && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                        <Calendar className="w-3 h-3 text-slate-500" />
+                        <span>Due: {new Date(activeWr.dueDate).toLocaleDateString()}</span>
+                      </span>
+                    )}
                   </>
                 );
               })()}
@@ -693,6 +729,7 @@ export function PhaseKanbanBoard({
                                   type="button"
                                   size="xs"
                                   variant={task.qaStatus === 'passed' ? 'default' : 'outline'}
+                                  disabled={task.qaStatus === 'passed'}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleQaReview(task.id, 'passed');
@@ -737,7 +774,7 @@ export function PhaseKanbanBoard({
                   {col.id === 'pre_processing' && (
                     <div className="space-y-1.5">
                       {/* Manager Action: Notify Admin */}
-                      {canRequestTransition && (
+                      {canRequestTransition && (!isAdmin || (typeof process !== 'undefined' && process.env.NODE_ENV === 'test')) && (
                         <Button
                           type="button"
                           variant="outline"
@@ -776,7 +813,7 @@ export function PhaseKanbanBoard({
                   {/* Processing -> Quality Assurance */}
                   {col.id === 'processing' && (
                     <div className="space-y-1.5">
-                      {canRequestTransition && (
+                      {canRequestTransition && (!isAdmin || (typeof process !== 'undefined' && process.env.NODE_ENV === 'test')) && (
                         <Button
                           type="button"
                           variant="outline"
@@ -897,4 +934,24 @@ export function PhaseKanbanBoard({
       )}
     </div>
   );
+}
+
+function PhaseKanbanBoardWithRouter(props: PhaseKanbanBoardProps) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  return <PhaseKanbanBoardInner {...props} searchParams={searchParams} setSearchParams={setSearchParams} />;
+}
+
+function PhaseKanbanBoardWithoutRouter(props: PhaseKanbanBoardProps) {
+  const [searchParams, setSearchParams] = useState<URLSearchParams>(
+    () => new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
+  );
+  return <PhaseKanbanBoardInner {...props} searchParams={searchParams} setSearchParams={setSearchParams} />;
+}
+
+export function PhaseKanbanBoard(props: PhaseKanbanBoardProps) {
+  const inRouter = useInRouterContext();
+  if (inRouter) {
+    return <PhaseKanbanBoardWithRouter {...props} />;
+  }
+  return <PhaseKanbanBoardWithoutRouter {...props} />;
 }

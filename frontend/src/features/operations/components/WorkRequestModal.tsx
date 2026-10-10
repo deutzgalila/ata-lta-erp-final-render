@@ -381,6 +381,9 @@ export function WorkRequestModal({
                   description: t.description?.trim() || null,
                   assigneeId: t.assigneeId || null,
                   assignees,
+                  predecessors: t.dependsOn
+                    ? (Array.isArray(t.dependsOn) ? t.dependsOn : [t.dependsOn])
+                    : [],
                   checklist: t.checklist?.map((c) => ({
                     id: c.id,
                     text: c.text,
@@ -400,6 +403,9 @@ export function WorkRequestModal({
                   phase: t.phase,
                   assigneeId: t.assigneeId || null,
                   assignees,
+                  predecessors: t.dependsOn
+                    ? (Array.isArray(t.dependsOn) ? t.dependsOn : [t.dependsOn])
+                    : [],
                   checklist: t.checklist
                     ?.filter((c) => c.text.trim())
                     .map((c) => ({
@@ -690,7 +696,6 @@ export function WorkRequestModal({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Low">Low</SelectItem>
-                  <SelectItem value="Normal">Normal</SelectItem>
                   <SelectItem value="Medium">Medium</SelectItem>
                   <SelectItem value="High">High</SelectItem>
                   <SelectItem value="Urgent">Urgent</SelectItem>
