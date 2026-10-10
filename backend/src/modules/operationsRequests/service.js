@@ -612,13 +612,23 @@ const updateRequest = async ({ entityId, id, userId, data }) => {
           .is('deleted_at', null);
 
         if (!existingInvoices || existingInvoices.length === 0) {
+          let clientId = existing.client_id;
+          if (!clientId && existing.work_request_id) {
+            const { data: wr } = await supabaseAdmin
+              .from('work_requests')
+              .select('client_id')
+              .eq('id', existing.work_request_id)
+              .maybeSingle();
+            clientId = wr?.client_id || null;
+          }
+
           const invoiceNum = `INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
           const nowIso = new Date().toISOString();
           const today = nowIso.split('T')[0];
           await supabaseAdmin.from('invoices').insert({
             id: randomUUID(),
             invoice_number: invoiceNum,
-            client_id: existing.client_id,
+            client_id: clientId,
             work_request_id: existing.work_request_id,
             entity_id: targetEntityId,
             issue_date: today,

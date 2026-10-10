@@ -25,6 +25,9 @@ const isValidUUID = (v) =>
   typeof v === 'string' &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 
+const isManager = (user) =>
+  user?.role === 'Manager' && user?.role !== 'Admin';
+
 const VALID_TRANSITIONS = {
   Draft: ['Pre-processing', 'In Progress', 'Processing', 'Cancelled'],
   'Pre-processing': ['Processing', 'In Progress', 'For Review', 'Cancelled'],
@@ -557,20 +560,27 @@ const validateProjectTeamRoles = async ({ assignedTo, coAssignees }) => {
     if (ids.length > 0) {
       const { data: usersById } = await supabaseAdmin
         .from('users')
-        .select('id, name, role, departments')
+        .select('id, name, role, user_departments(departments(name))')
         .in('id', ids);
       if (usersById) matchedUsers = matchedUsers.concat(usersById);
     }
     if (names.length > 0) {
       const { data: usersByName } = await supabaseAdmin
         .from('users')
-        .select('id, name, role, departments')
+        .select('id, name, role, user_departments(departments(name))')
         .in('name', names);
       if (usersByName) matchedUsers = matchedUsers.concat(usersByName);
     }
     const invalidMember = (matchedUsers || []).find((u) => {
       const r = (u.role || '').toLowerCase();
-      const depts = Array.isArray(u.departments) ? u.departments.map((d) => String(d).toLowerCase()) : [];
+      let depts = [];
+      if (Array.isArray(u.user_departments)) {
+        depts = u.user_departments
+          .map((ud) => String(ud.departments?.name || '').toLowerCase())
+          .filter(Boolean);
+      } else if (Array.isArray(u.departments)) {
+        depts = u.departments.map((d) => String(d).toLowerCase());
+      }
       const isOps = depts.includes('operations');
       if (isOps) return false;
       return r === 'admin' || r === 'manager';
@@ -1091,9 +1101,8 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
       tasks: apiTasks,
     };
 
-    const isManager =
-      user?.role === 'Manager' && user?.role !== 'Admin';
-    const needsApproval = isManager || Boolean(data.requiresApproval);
+    const userIsManager = isManager(user);
+    const needsApproval = userIsManager || Boolean(data.requiresApproval);
 
     if (needsApproval) {
       try {
@@ -1238,9 +1247,8 @@ const createWorkRequest = async ({ entityId, data, user }) => {
         });
       }
 
-      const isManager =
-        user?.role === 'Manager' && user?.role !== 'Admin';
-      const needsApproval = isManager || Boolean(data.requiresApproval);
+      const userIsManager = isManager(user);
+      const needsApproval = userIsManager || Boolean(data.requiresApproval);
 
       if (needsApproval) {
         try {
@@ -2128,6 +2136,12 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user }
       }));
       await supabaseAdmin.from('task_assignees').insert(taInserts);
     }
+  } else if (assigneeId === null && (existing.assigneeId || existing.assignee_id)) {
+    await supabaseAdmin
+      .from('task_assignees')
+      .delete()
+      .eq('task_id', taskId)
+      .eq('user_id', existing.assigneeId || existing.assignee_id);
   }
 
   if (data.checklist !== undefined) {
@@ -3458,6 +3472,9 @@ module.exports = {
   qaReviewWorkRequest,
   rerouteWorkRequest,
   isUserAssignedToTask,
+  isManager,
+  validateProjectTeamRoles,
+  VALID_TRANSITIONS,
   PHASE_SEQUENCE,
   PHASE_STATUS_MAP,
 };
