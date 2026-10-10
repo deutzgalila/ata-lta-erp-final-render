@@ -13,6 +13,8 @@ import {
   Edit3,
   Plus,
   X,
+  MoreVertical,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +26,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 import { PresenceAvatars } from '@/components/common/PresenceAvatars';
 import {
   useWorkRequests,
@@ -136,10 +144,30 @@ function PhaseKanbanBoardInner({
   // Mutations
   const { advancePhase, requestTransition } = usePhaseTransitions(effectiveWrId);
   const { submitQaReview } = useQaReview(effectiveWrId);
-  const { createTask } = useTaskMutations(effectiveWrId);
+  const { createTask, deleteTask } = useTaskMutations(effectiveWrId);
   const canAddTask =
     hasPermission(permissions, 'workflow:task_add') ||
     hasPermission(permissions, 'workflow:edit');
+
+  const handleDeleteTask = async (taskId: string, taskTitle?: string) => {
+    const isConfirmed =
+      typeof window !== 'undefined' && typeof window.confirm === 'function'
+        ? window.confirm(
+            `Are you sure you want to delete "${taskTitle || 'this task'}"? This action cannot be undone.`
+          )
+        : true;
+
+    if (!isConfirmed) return;
+
+    try {
+      await deleteTask(taskId);
+      if (selectedTask?.id === taskId) {
+        setSelectedTask(null);
+      }
+    } catch (err) {
+      console.error('Failed to delete task:', err);
+    }
+  };
 
   // Quick-Add Task State (UAT2-10)
   const [quickAddPhase, setQuickAddPhase] = useState<Phase | null>(null);
@@ -669,13 +697,64 @@ function PhaseKanbanBoardInner({
                             {task.title}
                           </span>
 
-                          <Badge
-                            variant={task.status === 'Completed' ? 'success' : 'secondary'}
-                            size="compact"
-                            className="text-[10px]"
-                          >
-                            {task.status}
-                          </Badge>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Badge
+                              variant={task.status === 'Completed' ? 'success' : 'secondary'}
+                              size="compact"
+                              className="text-[10px]"
+                            >
+                              {task.status}
+                            </Badge>
+
+                            {(canEdit || isAdmin) && (
+                              <div className="flex items-center gap-0.5">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="xs"
+                                  className="h-5 w-5 p-0 text-slate-400 hover:text-red-600 focus:outline-none"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteTask(task.id, task.title);
+                                  }}
+                                  data-testid={`delete-task-btn-${task.id}`}
+                                  title="Delete Task"
+                                  aria-label="Delete Task"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="xs"
+                                      className="h-5 w-5 p-0 text-slate-400 hover:text-slate-600 focus:outline-none"
+                                      onClick={(e) => e.stopPropagation()}
+                                      data-testid={`task-menu-btn-${task.id}`}
+                                      aria-label="Task options"
+                                    >
+                                      <MoreVertical className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                                    <DropdownMenuItem
+                                      className="text-xs text-red-600 focus:text-red-700 focus:bg-red-50 cursor-pointer gap-1.5"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteTask(task.id, task.title);
+                                      }}
+                                      data-testid={`menu-delete-task-btn-${task.id}`}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                      Delete Task
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            )}
+                          </div>
                         </div>
 
                         {task.description && (
@@ -774,7 +853,7 @@ function PhaseKanbanBoardInner({
                   {col.id === 'pre_processing' && (
                     <div className="space-y-1.5">
                       {/* Manager Action: Notify Admin */}
-                      {canRequestTransition && (!isAdmin || (typeof process !== 'undefined' && process.env.NODE_ENV === 'test')) && (
+                      {canRequestTransition && !isAdmin && (
                         <Button
                           type="button"
                           variant="outline"
@@ -813,7 +892,7 @@ function PhaseKanbanBoardInner({
                   {/* Processing -> Quality Assurance */}
                   {col.id === 'processing' && (
                     <div className="space-y-1.5">
-                      {canRequestTransition && (!isAdmin || (typeof process !== 'undefined' && process.env.NODE_ENV === 'test')) && (
+                      {canRequestTransition && !isAdmin && (
                         <Button
                           type="button"
                           variant="outline"

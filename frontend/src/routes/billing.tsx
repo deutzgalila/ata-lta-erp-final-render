@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Receipt,
@@ -39,16 +39,24 @@ export default function BillingPage() {
 
   // Deep Link Handling (?invoiceId=...)
   const invoiceIdParam = searchParams.get('invoiceId');
+  const handledInvoiceIdRef = useRef<string | null>(null);
   const { data: deepLinkedInvoice } = useInvoiceDetail(invoiceIdParam || '', {
     enabled: Boolean(invoiceIdParam),
   });
 
   useEffect(() => {
-    if (deepLinkedInvoice && !isDetailModalOpen) {
+    if (deepLinkedInvoice && handledInvoiceIdRef.current !== deepLinkedInvoice.id) {
+      handledInvoiceIdRef.current = deepLinkedInvoice.id;
       setSelectedInvoice(deepLinkedInvoice);
       setIsDetailModalOpen(true);
     }
-  }, [deepLinkedInvoice, isDetailModalOpen]);
+  }, [deepLinkedInvoice]);
+
+  useEffect(() => {
+    if (!invoiceIdParam) {
+      handledInvoiceIdRef.current = null;
+    }
+  }, [invoiceIdParam]);
 
   // Session & RBAC
   const permissions = useSessionStore((state) => state.permissions);
@@ -223,6 +231,13 @@ export default function BillingPage() {
         onClose={() => {
           setIsDetailModalOpen(false);
           setSelectedInvoice(null);
+          if (searchParams.get('invoiceId')) {
+            setSearchParams((prev) => {
+              const next = new URLSearchParams(prev);
+              next.delete('invoiceId');
+              return next;
+            });
+          }
         }}
         invoiceId={selectedInvoice?.id}
         initialInvoice={selectedInvoice}
