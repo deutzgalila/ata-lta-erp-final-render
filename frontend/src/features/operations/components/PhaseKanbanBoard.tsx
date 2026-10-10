@@ -106,6 +106,13 @@ function PhaseKanbanBoardInner({
     return searchParams.get('wrId') || initialWorkRequestId || '';
   });
 
+  const urlWrId = searchParams.get('wrId');
+  React.useEffect(() => {
+    if (urlWrId && urlWrId !== selectedWrId && workRequests.some((w) => w.id === urlWrId)) {
+      setSelectedWrId(urlWrId);
+    }
+  }, [urlWrId, selectedWrId, workRequests]);
+
   // Keep selected ID in sync if empty or invalid for active entity (e.g. after entity switch)
   React.useEffect(() => {
     if (workRequests.length > 0) {
