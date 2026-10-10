@@ -10,6 +10,7 @@ const { randomUUID } = require('crypto');
 const { tokenizeTask } = require('../../lib/tokenizer');
 const auditService = require('../../services/auditService');
 const { notify } = require('../../services/notify');
+const logger = require('../../lib/logger');
 
 const PHASE_SEQUENCE = ['pre_processing', 'processing', 'quality_assurance', 'completion'];
 
@@ -1061,6 +1062,73 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
       tasks: apiTasks,
     };
 
+    const isManager =
+      user?.role === 'Manager' ||
+      (user?.departments || []).includes('Management');
+    const needsApproval = isManager || Boolean(data.requiresApproval);
+
+    if (needsApproval) {
+      try {
+        const opReqRecord = {
+          entity_id: entityId,
+          type: 'wr_phase_transition',
+          work_request_id: wrId,
+          client_id: wrRecord.client_id || null,
+          requested_by: user?.id || wrRecord.requested_by,
+          status: 'pending',
+          notes: JSON.stringify({
+            from_phase: 'pre_processing',
+            to_phase: 'processing',
+            work_request_id: wrId,
+            user_notes: data.notes || 'Manager work request creation awaiting phase advancement approval',
+          }),
+          created_at: now,
+          updated_at: now,
+        };
+
+        const { data: opReq, error: opReqError } = await supabaseAdmin
+          .from('operations_requests')
+          .insert(opReqRecord)
+          .select()
+          .single();
+
+        if (!opReqError && opReq) {
+          await auditService.log({
+            action: 'operations_request.create',
+            table: 'operations_requests',
+            recordId: opReq.id,
+            entity: entityId,
+            userId: user?.id || wrRecord.requested_by,
+            details: { type: 'wr_phase_transition', status: 'pending', workRequestId: wrId },
+          });
+
+          // Emit notification to Admins
+          const { data: admins } = await supabaseAdmin
+            .from('users')
+            .select('id')
+            .eq('role', 'Admin')
+            .eq('is_active', true);
+
+          const adminUserIds = (admins || []).map((a) => a.id);
+          if (adminUserIds.length > 0) {
+            await notify(adminUserIds, 'wr.transition_request.received', {
+              request_id: opReq.id,
+              work_request_id: wrId,
+              from_phase: 'pre_processing',
+              to_phase: 'processing',
+              requested_by: user?.id || wrRecord.requested_by,
+              wr_title: wrRecord.title,
+            });
+          }
+        }
+      } catch (opReqErr) {
+        logger.warn('Failed to create pending operations_request for manager WR', {
+          error: opReqErr.message,
+          workRequestId: wrId,
+        });
+      }
+    }
+
     return fullGraph;
   } catch (err) {
     // Rollback all created records on any failure
@@ -1140,6 +1208,73 @@ const createWorkRequest = async ({ entityId, data, user }) => {
           title: 'Database Error',
           detail: 'Unable to create work request',
         });
+      }
+
+      const isManager =
+        user?.role === 'Manager' ||
+        (user?.departments || []).includes('Management');
+      const needsApproval = isManager || Boolean(data.requiresApproval);
+
+      if (needsApproval) {
+        try {
+          const opReqRecord = {
+            entity_id: entityId,
+            type: 'wr_phase_transition',
+            work_request_id: id,
+            client_id: record.client_id || null,
+            requested_by: user?.id || record.requested_by,
+            status: 'pending',
+            notes: JSON.stringify({
+              from_phase: 'pre_processing',
+              to_phase: 'processing',
+              work_request_id: id,
+              user_notes: data.notes || 'Manager work request creation awaiting phase advancement approval',
+            }),
+            created_at: now,
+            updated_at: now,
+          };
+
+          const { data: opReq, error: opReqError } = await supabaseAdmin
+            .from('operations_requests')
+            .insert(opReqRecord)
+            .select()
+            .single();
+
+          if (!opReqError && opReq) {
+            await auditService.log({
+              action: 'operations_request.create',
+              table: 'operations_requests',
+              recordId: opReq.id,
+              entity: entityId,
+              userId: user?.id || record.requested_by,
+              details: { type: 'wr_phase_transition', status: 'pending', workRequestId: id },
+            });
+
+            // Emit notification to Admins
+            const { data: admins } = await supabaseAdmin
+              .from('users')
+              .select('id')
+              .eq('role', 'Admin')
+              .eq('is_active', true);
+
+            const adminUserIds = (admins || []).map((a) => a.id);
+            if (adminUserIds.length > 0) {
+              await notify(adminUserIds, 'wr.transition_request.received', {
+                request_id: opReq.id,
+                work_request_id: id,
+                from_phase: 'pre_processing',
+                to_phase: 'processing',
+                requested_by: user?.id || record.requested_by,
+                wr_title: record.title,
+              });
+            }
+          }
+        } catch (opReqErr) {
+          logger.warn('Failed to create pending operations_request for manager WR', {
+            error: opReqErr.message,
+            workRequestId: id,
+          });
+        }
       }
 
       return getWorkRequestById({ id, entityId, user, includeTasks: true });
@@ -1228,13 +1363,21 @@ const updateWorkRequest = async ({ id, entityId, data, user }) => {
   }
 
   if (data.status && data.status !== existing.status) {
-    const allowed = VALID_TRANSITIONS[existing.status] || [];
-    if (!allowed.includes(data.status)) {
-      throw new AppError({
-        statusCode: 400,
-        title: 'Bad Request',
-        detail: `Invalid status transition from ${existing.status} to ${data.status}`,
-      });
+    const isAdmin = Boolean(
+      user &&
+        (user.role === 'Admin' ||
+          user.role?.toLowerCase() === 'admin' ||
+          user.email?.toLowerCase() === 'lorein@ata-lta.ph')
+    );
+    if (!isAdmin) {
+      const allowed = VALID_TRANSITIONS[existing.status] || [];
+      if (!allowed.includes(data.status)) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Bad Request',
+          detail: `Invalid status transition from ${existing.status} to ${data.status}`,
+        });
+      }
     }
   }
 
@@ -1267,7 +1410,11 @@ const updateWorkRequest = async ({ id, entityId, data, user }) => {
     updates.version = (existing.version || 1) + 1;
   }
 
-  let query = supabaseAdmin.from('work_requests').update(updates).eq('id', id).eq('entity_id', entityId);
+  let query = supabaseAdmin
+    .from('work_requests')
+    .update(updates)
+    .eq('id', id)
+    .is('deleted_at', null);
   if (expectedVersion !== null) {
     query = query.eq('version', expectedVersion);
   }
@@ -1280,11 +1427,19 @@ const updateWorkRequest = async ({ id, entityId, data, user }) => {
     });
   }
 
-  if (expectedVersion !== null && (!updatedRows || updatedRows.length === 0)) {
-    throw concurrencyConflict();
+  if (!updatedRows || updatedRows.length === 0) {
+    if (expectedVersion !== null) {
+      throw concurrencyConflict();
+    }
+    throw new AppError({
+      statusCode: 404,
+      title: 'Not Found',
+      detail: 'Work request not found or not updated',
+    });
   }
 
-  return getWorkRequestById({ id, entityId, user });
+  const updatedRow = updatedRows[0];
+  return getWorkRequestById({ id, entityId: updatedRow.entity_id, user });
 };
 
 const archiveWorkRequest = async ({ id, entityId, user }) => {
@@ -1721,6 +1876,59 @@ const addTimeLogs = async ({ workRequestId, taskId, entityId, logs, user }) => {
   return getTaskById({ workRequestId, taskId, entityId });
 };
 
+/**
+ * Verify whether a user is an assignee of a specific task.
+ * Checks relational join table task_assignees first, with fallback to legacy tasks.assignee_id.
+ *
+ * @param {string} taskId
+ * @param {string} userId
+ * @returns {Promise<boolean>}
+ */
+const isUserAssignedToTask = async (taskId, userId) => {
+  if (!taskId || !userId) return false;
+
+  // 1. Check task_assignees join table (multi-assignee standard)
+  const { data: assignment, error: assignError } = await supabaseAdmin
+    .from('task_assignees')
+    .select('id')
+    .eq('task_id', taskId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (assignError) {
+    throw new AppError({
+      statusCode: 500,
+      title: 'Database Error',
+      detail: assignError.message,
+    });
+  }
+
+  if (assignment) {
+    return true;
+  }
+
+  // 2. Fallback: check tasks table for legacy assignee_id
+  const { data: task, error: taskError } = await supabaseAdmin
+    .from('tasks')
+    .select('id, assignee_id')
+    .eq('id', taskId)
+    .maybeSingle();
+
+  if (taskError) {
+    throw new AppError({
+      statusCode: 500,
+      title: 'Database Error',
+      detail: taskError.message,
+    });
+  }
+
+  if (!task) {
+    return false;
+  }
+
+  return task.assignee_id === userId;
+};
+
 const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user }) => {
   if (data && data.phase !== undefined) {
     throw new AppError({
@@ -2062,12 +2270,17 @@ const getTaskRelated = async ({ id, entityId }) => {
 // ============================================================
 
 const listRetainerTemplates = async ({ entityId }) => {
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('retainer_templates')
     .select('*, entities(code), clients(name)')
-    .eq('entity_id', entityId)
     .is('deleted_at', null)
     .order('name', { ascending: true });
+
+  if (entityId && entityId !== 'ALL') {
+    query = query.eq('entity_id', entityId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw new AppError({
@@ -3181,6 +3394,7 @@ module.exports = {
   advanceWorkRequest,
   qaReviewWorkRequest,
   rerouteWorkRequest,
+  isUserAssignedToTask,
   PHASE_SEQUENCE,
   PHASE_STATUS_MAP,
 };

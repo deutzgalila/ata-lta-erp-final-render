@@ -89,11 +89,22 @@ const WR_STATUSES = [
   'In Progress',
   'Processing',
   'For Review',
+  'Quality Assurance',
   'Billing',
   'Disbursement',
   'On Hold',
   'Completed',
   'Cancelled',
+  'Received',
+  'For Client Approval',
+  'For Requirements',
+  'Pending Requirements',
+  'For Assignment',
+  'For Supervisor Review',
+  'For Billing',
+  'For Payment',
+  'For Submission',
+  'For Quality Check',
 ];
 
 const updateWorkRequestSchema = createWorkRequestSchema.partial().extend({

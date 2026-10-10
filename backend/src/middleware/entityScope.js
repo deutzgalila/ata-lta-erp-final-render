@@ -12,18 +12,30 @@ const entityScope = async (req, res, next) => {
     const userEntities = (req.user?.entities || []).map((e) => e.toUpperCase());
     let requested = (req.headers['x-active-entity'] || '').toUpperCase();
 
-    // During login/restore the SPA may not know the active entity yet.
-    // Default to the user's first available entity when no valid header is sent.
+    const canSeeAll =
+      req.user?.role === 'Admin' ||
+      req.user?.role === 'Manager' ||
+      (req.user?.departments || []).includes('Management');
+    const hasBoth = VALID_ENTITIES.filter((e) => e !== 'ALL').every((e) =>
+      userEntities.includes(e)
+    );
+
+    // During login/restore the SPA may not know the active entity yet, or omits header for 'ALL'.
+    // When omitted, default to 'ALL' if user is authorized; otherwise default to first available entity.
     if (!requested || !VALID_ENTITIES.includes(requested)) {
-      const defaultEntity = userEntities.find((e) => VALID_ENTITIES.includes(e) && e !== 'ALL');
-      if (defaultEntity) {
-        requested = defaultEntity;
+      if (!requested && canSeeAll && hasBoth) {
+        requested = 'ALL';
       } else {
-        throw new AppError({
-          statusCode: 400,
-          title: 'Bad Request',
-          detail: 'X-Active-Entity header must be ATA, LTA, or ALL',
-        });
+        const defaultEntity = userEntities.find((e) => VALID_ENTITIES.includes(e) && e !== 'ALL');
+        if (defaultEntity) {
+          requested = defaultEntity;
+        } else {
+          throw new AppError({
+            statusCode: 400,
+            title: 'Bad Request',
+            detail: 'X-Active-Entity header must be ATA, LTA, or ALL',
+          });
+        }
       }
     }
 

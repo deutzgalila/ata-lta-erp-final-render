@@ -81,9 +81,15 @@ router.get(
   '/audit/count',
   auth,
   entityScope,
-  requirePermission('users:view'),
+  requirePermission(['users:view', 'audit:view_all']),
   adminController.getAuditLogCount
 );
-router.get('/audit', auth, entityScope, requirePermission('users:view'), adminController.listAudit);
+router.get(
+  '/audit',
+  auth,
+  entityScope,
+  requirePermission(['users:view', 'audit:view_all']),
+  adminController.listAudit
+);
 
 module.exports = router;

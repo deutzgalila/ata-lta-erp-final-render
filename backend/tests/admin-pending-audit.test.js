@@ -308,4 +308,141 @@ describe('/v1/admin pending approvals and audit', () => {
 
     expect(res.body.title).toMatch(/validation error/i);
   });
+
+  it('filters audit logs by module, actor, date, page, and enriches actor metadata', async () => {
+    const adminUser = {
+      id: '11111111-2222-3333-4444-555555555555',
+      email: 'UAT-audit-admin@ata-lta.ph',
+      name: 'UAT Audit Admin',
+      role: 'Admin',
+      entities: ['ATA'],
+    };
+    const token = registerUser(adminUser);
+
+    const staffUser = {
+      id: '22222222-3333-4444-5555-666666666666',
+      email: 'UAT-staff-audit@ata-lta.ph',
+      name: 'Jane Audit Specialist',
+      role: 'Operations',
+      entities: ['ATA'],
+    };
+    registerUser(staffUser);
+
+    // Seed audit logs across tables and users
+    mockTables.audit_logs.set('audit-mod-1', {
+      id: 'audit-mod-1',
+      action: 'work_request.created',
+      table_name: 'work_requests',
+      record_id: 'wr-1',
+      entity: 'ATA',
+      user_id: staffUser.id,
+      details: {},
+      created_at: '2026-10-05T09:00:00.000Z',
+    });
+    mockTables.audit_logs.set('audit-mod-2', {
+      id: 'audit-mod-2',
+      action: 'invoice.created',
+      table_name: 'invoices',
+      record_id: 'inv-1',
+      entity: 'ATA',
+      user_id: adminUser.id,
+      details: {},
+      created_at: '2026-10-05T10:00:00.000Z',
+    });
+    mockTables.audit_logs.set('audit-mod-3', {
+      id: 'audit-mod-3',
+      action: 'task.updated',
+      table_name: 'tasks',
+      record_id: 'task-1',
+      entity: 'ATA',
+      user_id: staffUser.id,
+      details: {},
+      created_at: '2026-10-06T11:00:00.000Z',
+    });
+
+    // 1. Filter by module=operations
+    const opsRes = await request(app)
+      .get('/v1/admin/audit?module=operations')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+    expect(opsRes.body.data).toHaveLength(2);
+    expect(opsRes.body.data.every((r) => ['work_requests', 'tasks'].includes(r.tableName))).toBe(true);
+
+    // 2. Filter by actor (search by substring "Jane" or email) and verify enrichment
+    const actorRes = await request(app)
+      .get('/v1/admin/audit?actor=Jane')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+    expect(actorRes.body.data.length).toBeGreaterThan(0);
+    expect(actorRes.body.data[0].userName).toBe('Jane Audit Specialist');
+    expect(actorRes.body.data[0].userEmail).toBe('UAT-staff-audit@ata-lta.ph');
+    expect(actorRes.body.data[0].actor).toMatchObject({
+      id: staffUser.id,
+      name: 'Jane Audit Specialist',
+      email: 'UAT-staff-audit@ata-lta.ph',
+      role: 'Operations',
+    });
+
+    // 3. Filter by date (UTC window 2026-10-05)
+    const dateRes = await request(app)
+      .get('/v1/admin/audit?date=2026-10-05')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+    expect(dateRes.body.data).toHaveLength(2);
+
+    // 4. Page pagination
+    const pageRes = await request(app)
+      .get('/v1/admin/audit?page=1&limit=2')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+    expect(pageRes.body.meta.page).toBe(1);
+    expect(pageRes.body.meta.limit).toBe(2);
+    expect(pageRes.body.data).toHaveLength(2);
+
+    // 5. Relaxed date string from/to
+    const relaxedRes = await request(app)
+      .get('/v1/admin/audit?from=2026-10-05&to=2026-10-06')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+    expect(relaxedRes.body.data.length).toBeGreaterThan(0);
+  });
+
+  it('allows access with audit:view_all permission and rejects unauthorized users with 403', async () => {
+    // User with audit:view_all (e.g. Management dept)
+    const managerToken = registerUser({
+      id: '33333333-4444-5555-6666-777777777777',
+      email: 'UAT-manager@ata-lta.ph',
+      name: 'Manager User',
+      role: 'Manager',
+      departments: ['Management'],
+      entities: ['ATA'],
+    });
+
+    const managerRes = await request(app)
+      .get('/v1/admin/audit')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .set('X-Active-Entity', 'ATA');
+    expect(managerRes.status).toBe(200);
+
+    // User without users:view or audit:view_all (Operations staff)
+    const opsStaffToken = registerUser({
+      id: '44444444-5555-6666-7777-888888888888',
+      email: 'UAT-ops@ata-lta.ph',
+      name: 'Ops User',
+      role: 'Operations',
+      departments: ['Operations'],
+      entities: ['ATA'],
+    });
+
+    const opsRes = await request(app)
+      .get('/v1/admin/audit')
+      .set('Authorization', `Bearer ${opsStaffToken}`)
+      .set('X-Active-Entity', 'ATA');
+    expect(opsRes.status).toBe(403);
+  });
 });

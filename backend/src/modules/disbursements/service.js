@@ -222,6 +222,8 @@ const listDisbursements = async ({ entityId, filters = {}, user }) => {
     category,
     fundSource,
     linkedTaskId,
+    taskId,
+    task_id,
     linkedTransmittalId,
     search,
     archived,
@@ -265,7 +267,10 @@ const listDisbursements = async ({ entityId, filters = {}, user }) => {
 
   if (category) query = query.eq('category', category);
   if (fundSource) query = query.eq('fund_source', fundSource);
-  if (linkedTaskId) query = query.eq('linked_task_id', linkedTaskId);
+  const effectiveFilterTaskId = taskId || task_id || linkedTaskId;
+  if (effectiveFilterTaskId) {
+    query = query.or(`task_id.eq.${effectiveFilterTaskId},linked_task_id.eq.${effectiveFilterTaskId}`);
+  }
   if (linkedTransmittalId) query = query.eq('linked_transmittal_id', linkedTransmittalId);
   if (search) {
     query = query.or(`description.ilike.%${search}%,disbursement_number.ilike.%${search}%`);
@@ -349,6 +354,37 @@ const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
   const initialStatus = isStaff ? 'Pending' : 'Draft';
   const MAX_RETRIES = 5;
 
+  const effectiveTaskId = data.taskId || data.task_id || data.linkedTaskId || null;
+  const effectiveWrId =
+    data.linkedWorkRequestId || data.workRequestId || data.work_request_id || null;
+
+  // Validation: Task existence & WR association (UAT2-6/12)
+  if (effectiveTaskId) {
+    const { data: task, error: taskErr } = await supabaseAdmin
+      .from('tasks')
+      .select('id, work_request_id')
+      .eq('id', effectiveTaskId)
+      .maybeSingle();
+
+    if (taskErr || !task) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: `Linked task "${effectiveTaskId}" was not found`,
+        code: 'TASK_NOT_FOUND',
+      });
+    }
+
+    if (effectiveWrId && task.work_request_id !== effectiveWrId) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: 'Task does not belong to work request',
+        code: 'TASK_WR_MISMATCH',
+      });
+    }
+  }
+
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     const disbursementNumber = await generateDisbursementNumber(
       entityId,
@@ -367,8 +403,9 @@ const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
       client_id: data.clientId || null,
       employee_id: data.employeeId || null,
       linked_invoice_id: data.linkedInvoiceId || null,
-      linked_work_request_id: data.linkedWorkRequestId || null,
-      linked_task_id: data.linkedTaskId || null,
+      linked_work_request_id: effectiveWrId,
+      linked_task_id: effectiveTaskId,
+      task_id: effectiveTaskId,
       linked_transmittal_id: data.linkedTransmittalId || null,
       requested_by: userId,
       due_date: data.dueDate || null,
@@ -424,13 +461,17 @@ const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
  * @returns {Promise<object>}
  */
 const getDisbursementById = async ({ entityId, id, user }) => {
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('disbursements')
     .select('*, clients(name)')
     .eq('id', id)
-    .eq('entity_id', entityId)
-    .is('deleted_at', null)
-    .single();
+    .is('deleted_at', null);
+
+  if (entityId && entityId !== 'ALL') {
+    query = query.eq('entity_id', entityId);
+  }
+
+  const { data, error } = await query.single();
 
   if (error || !data) {
     throw new AppError({
@@ -501,7 +542,11 @@ const updateDisbursement = async ({ entityId, id, userId, data }) => {
     'employeeId',
     'linkedInvoiceId',
     'linkedWorkRequestId',
+    'workRequestId',
+    'work_request_id',
     'linkedTaskId',
+    'taskId',
+    'task_id',
     'linkedTransmittalId',
     'dueDate',
     'notes',
@@ -516,6 +561,74 @@ const updateDisbursement = async ({ entityId, id, userId, data }) => {
     });
   }
 
+  const effectiveTaskId =
+    data.taskId !== undefined
+      ? data.taskId
+      : data.task_id !== undefined
+      ? data.task_id
+      : data.linkedTaskId !== undefined
+      ? data.linkedTaskId
+      : undefined;
+
+  const effectiveWrId =
+    data.linkedWorkRequestId !== undefined
+      ? data.linkedWorkRequestId
+      : data.workRequestId !== undefined
+      ? data.workRequestId
+      : data.work_request_id !== undefined
+      ? data.work_request_id
+      : existing.linked_work_request_id;
+
+  // Validation: Task existence & WR association (UAT2-6/12)
+  if (effectiveTaskId) {
+    const { data: task, error: taskErr } = await supabaseAdmin
+      .from('tasks')
+      .select('id, work_request_id')
+      .eq('id', effectiveTaskId)
+      .maybeSingle();
+
+    if (taskErr || !task) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: `Linked task "${effectiveTaskId}" was not found`,
+        code: 'TASK_NOT_FOUND',
+      });
+    }
+
+    if (effectiveWrId && task.work_request_id !== effectiveWrId) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: 'Task does not belong to work request',
+        code: 'TASK_WR_MISMATCH',
+      });
+    }
+  } else if (
+    effectiveTaskId === undefined &&
+    (data.linkedWorkRequestId !== undefined ||
+      data.workRequestId !== undefined ||
+      data.work_request_id !== undefined)
+  ) {
+    // If only WR is updated, check existing linked task against new WR
+    const existingTaskId = existing.task_id || existing.linked_task_id;
+    if (existingTaskId && effectiveWrId) {
+      const { data: task } = await supabaseAdmin
+        .from('tasks')
+        .select('id, work_request_id')
+        .eq('id', existingTaskId)
+        .maybeSingle();
+      if (task && task.work_request_id !== effectiveWrId) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Bad Request',
+          detail: 'Task does not belong to work request',
+          code: 'TASK_WR_MISMATCH',
+        });
+      }
+    }
+  }
+
   const updates = {
     updated_by: userId,
     updated_at: new Date().toISOString(),
@@ -528,9 +641,17 @@ const updateDisbursement = async ({ entityId, id, userId, data }) => {
   if (data.clientId !== undefined) updates.client_id = data.clientId;
   if (data.employeeId !== undefined) updates.employee_id = data.employeeId;
   if (data.linkedInvoiceId !== undefined) updates.linked_invoice_id = data.linkedInvoiceId;
-  if (data.linkedWorkRequestId !== undefined)
-    updates.linked_work_request_id = data.linkedWorkRequestId;
-  if (data.linkedTaskId !== undefined) updates.linked_task_id = data.linkedTaskId;
+  if (
+    data.linkedWorkRequestId !== undefined ||
+    data.workRequestId !== undefined ||
+    data.work_request_id !== undefined
+  ) {
+    updates.linked_work_request_id = effectiveWrId;
+  }
+  if (effectiveTaskId !== undefined) {
+    updates.linked_task_id = effectiveTaskId;
+    updates.task_id = effectiveTaskId;
+  }
   if (data.linkedTransmittalId !== undefined)
     updates.linked_transmittal_id = data.linkedTransmittalId;
   if (data.dueDate !== undefined) updates.due_date = data.dueDate;
@@ -844,12 +965,17 @@ const rejectDisbursement = async ({ entityId, id, userId, reason }) => {
  * @returns {Promise<object[]>}
  */
 const listDisbursementTemplates = async ({ entityId }) => {
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('disbursement_templates')
     .select('*, entities(code)')
-    .eq('entity_id', entityId)
     .is('deleted_at', null)
     .order('name', { ascending: true });
+
+  if (entityId && entityId !== 'ALL') {
+    query = query.eq('entity_id', entityId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw new AppError({

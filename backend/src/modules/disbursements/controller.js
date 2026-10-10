@@ -37,6 +37,7 @@ const listDisbursements = async (req, res, next) => {
       status: req.query.status,
       category: req.query.category,
       fundSource: req.query.fundSource,
+      taskId: req.query.taskId || req.query.task_id,
       linkedTaskId: req.query.linkedTaskId,
       linkedTransmittalId: req.query.linkedTransmittalId,
       search: req.query.search,

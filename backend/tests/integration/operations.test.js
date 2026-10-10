@@ -86,9 +86,20 @@ describe('/v1/work-requests', () => {
   });
 
   it('rejects invalid status transitions', async () => {
+    // Admins intentionally bypass the transition matrix (a0b229c0 permits
+    // unconstrained admin updates); the constraint is asserted on a Manager,
+    // whose legacy role maps to the Management department (workflow:edit)
+    // and therefore reaches the VALID_TRANSITIONS check. The client fixture
+    // needs clients:edit, which Management lacks, so an admin creates it.
+    const manager = registerUser({
+      email: 'manager-wr-transitions@ata-lta.ph',
+      name: 'Manager WR Transitions',
+      role: 'Manager',
+      entities: ['ATA'],
+    });
     const admin = registerUser({
-      email: 'admin@ata-lta.ph',
-      name: 'Admin',
+      email: 'admin-wr-transitions@ata-lta.ph',
+      name: 'Admin WR Transitions',
       role: 'Admin',
       entities: ['ATA'],
     });
@@ -96,14 +107,14 @@ describe('/v1/work-requests', () => {
 
     const wr = await request(app)
       .post('/v1/work-requests')
-      .set('Authorization', `Bearer ${admin}`)
+      .set('Authorization', `Bearer ${manager}`)
       .set('X-Active-Entity', 'ATA')
       .send({ title: 'Tax Filing', clientId: client.id, entity: 'ATA' })
       .expect(201);
 
     await request(app)
       .put(`/v1/work-requests/${wr.body.data.id}`)
-      .set('Authorization', `Bearer ${admin}`)
+      .set('Authorization', `Bearer ${manager}`)
       .set('X-Active-Entity', 'ATA')
       .send({ status: 'Completed' })
       .expect(400);

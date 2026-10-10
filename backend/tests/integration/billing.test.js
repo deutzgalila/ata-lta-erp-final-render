@@ -440,6 +440,11 @@ describe('/v1/invoices', () => {
     });
 
     const taskId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+    mockTables.tasks.set(taskId, {
+      id: taskId,
+      work_request_id: WORK_REQUEST_ID,
+      title: 'Audit Task',
+    });
 
     const created = await request(app)
       .post('/v1/invoices')
