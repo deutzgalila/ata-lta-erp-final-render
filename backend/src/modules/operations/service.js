@@ -29,7 +29,7 @@ const VALID_TRANSITIONS = {
   Draft: ['Pre-processing', 'In Progress', 'Processing', 'Cancelled'],
   'Pre-processing': ['Processing', 'In Progress', 'For Review', 'Cancelled'],
   'In Progress': ['For Review', 'Completed', 'Processing', 'Cancelled'],
-  Processing: ['Completed', 'Billing', 'Disbursement', 'For Review', 'Cancelled'],
+  Processing: ['Completed', 'Billing', 'For Billing', 'Disbursement', 'For Review', 'Cancelled'],
   'For Review': ['Completed', 'In Progress', 'Processing', 'Cancelled'],
   Completed: ['Draft', 'Processing'],
   Cancelled: ['Draft', 'In Progress'],
@@ -76,6 +76,7 @@ const toApiWorkRequest = (row, entityCode) => ({
   title: row.title,
   description: row.description || null,
   clientId: row.client_id,
+  clientName: row.client_name || row.clients?.name || null,
   status: row.status,
   phase: row.phase || null,
   onHold: row.on_hold ?? false,
@@ -405,7 +406,7 @@ const listWorkRequests = async ({
 
   let query = supabaseAdmin
     .from('work_requests')
-    .select('*')
+    .select('*, clients(name)')
     .is('deleted_at', null)
     .order(sortField, { ascending: sortAsc });
 
@@ -550,12 +551,28 @@ const validateProjectTeamRoles = async ({ assignedTo, coAssignees }) => {
   }
 
   if (coAssignees && Array.isArray(coAssignees) && coAssignees.length > 0) {
-    const { data: matchedUsers } = await supabaseAdmin
-      .from('users')
-      .select('id, name, role')
-      .in('name', coAssignees);
+    const ids = coAssignees.filter(isValidUUID);
+    const names = coAssignees.filter((v) => typeof v === 'string' && !isValidUUID(v));
+    let matchedUsers = [];
+    if (ids.length > 0) {
+      const { data: usersById } = await supabaseAdmin
+        .from('users')
+        .select('id, name, role, departments')
+        .in('id', ids);
+      if (usersById) matchedUsers = matchedUsers.concat(usersById);
+    }
+    if (names.length > 0) {
+      const { data: usersByName } = await supabaseAdmin
+        .from('users')
+        .select('id, name, role, departments')
+        .in('name', names);
+      if (usersByName) matchedUsers = matchedUsers.concat(usersByName);
+    }
     const invalidMember = (matchedUsers || []).find((u) => {
       const r = (u.role || '').toLowerCase();
+      const depts = Array.isArray(u.departments) ? u.departments.map((d) => String(d).toLowerCase()) : [];
+      const isOps = depts.includes('operations');
+      if (isOps) return false;
       return r === 'admin' || r === 'manager';
     });
     if (invalidMember) {
@@ -822,12 +839,24 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
     }
   }
 
-  // Co-assignees to mirror into work_requests.co_assignees
-  const coAssigneeNamesSet = new Set(data.coAssignees || []);
+  // Co-assignees to mirror into work_requests.co_assignees (UUIDs only)
+  const coAssigneeIdsSet = new Set();
+  (data.coAssignees || []).forEach((val) => {
+    if (isValidUUID(val)) {
+      coAssigneeIdsSet.add(val);
+    } else {
+      const u = usersMap.get(val);
+      if (u?.id) coAssigneeIdsSet.add(u.id);
+    }
+  });
   expandedTasks.forEach((t) => {
     t.assignees.forEach((a) => {
-      const u = usersMap.get(a);
-      coAssigneeNamesSet.add(u?.name || a);
+      if (isValidUUID(a)) {
+        coAssigneeIdsSet.add(a);
+      } else {
+        const u = usersMap.get(a);
+        if (u?.id) coAssigneeIdsSet.add(u.id);
+      }
     });
   });
 
@@ -849,7 +878,7 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
     priority: data.priority || 'Normal',
     requested_by: data.requestedBy || user?.id || null,
     assigned_to: data.assignedTo || null,
-    co_assignees: Array.from(coAssigneeNamesSet),
+    co_assignees: Array.from(coAssigneeIdsSet),
     due_date: data.dueDate || null,
     created_at: now,
     updated_at: now,
@@ -1063,8 +1092,7 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
     };
 
     const isManager =
-      user?.role === 'Manager' ||
-      (user?.departments || []).includes('Management');
+      user?.role === 'Manager' && user?.role !== 'Admin';
     const needsApproval = isManager || Boolean(data.requiresApproval);
 
     if (needsApproval) {
@@ -1211,8 +1239,7 @@ const createWorkRequest = async ({ entityId, data, user }) => {
       }
 
       const isManager =
-        user?.role === 'Manager' ||
-        (user?.departments || []).includes('Management');
+        user?.role === 'Manager' && user?.role !== 'Admin';
       const needsApproval = isManager || Boolean(data.requiresApproval);
 
       if (needsApproval) {
@@ -1290,7 +1317,7 @@ const createWorkRequest = async ({ entityId, data, user }) => {
 const getWorkRequestById = async ({ id, entityId, user, includeTasks = false }) => {
   let query = supabaseAdmin
     .from('work_requests')
-    .select('*')
+    .select('*, clients(name)')
     .eq('id', id)
     .is('deleted_at', null);
 
@@ -1307,7 +1334,7 @@ const getWorkRequestById = async ({ id, entityId, user, includeTasks = false }) 
   if (!data && entityId && entityId !== 'ALL') {
     const fallbackRes = await supabaseAdmin
       .from('work_requests')
-      .select('*')
+      .select('*, clients(name)')
       .eq('id', id)
       .is('deleted_at', null)
       .maybeSingle();
@@ -1362,6 +1389,14 @@ const updateWorkRequest = async ({ id, entityId, data, user }) => {
     throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Work request not found' });
   }
 
+  if (existing.status === 'Completed' && data.status !== 'Draft' && data.status !== 'Processing') {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'Completed Work Requests are locked and cannot be modified',
+    });
+  }
+
   if (data.status && data.status !== existing.status) {
     const isAdmin = Boolean(
       user &&
@@ -1393,7 +1428,10 @@ const updateWorkRequest = async ({ id, entityId, data, user }) => {
 
   if (data.archived !== undefined) updates.archived = data.archived;
   if (data.assignedTo !== undefined) updates.assigned_to = data.assignedTo;
-  if (data.coAssignees !== undefined) updates.co_assignees = data.coAssignees;
+  if (data.coAssignees !== undefined) {
+    const rawCo = Array.isArray(data.coAssignees) ? data.coAssignees : [];
+    updates.co_assignees = rawCo.filter(isValidUUID);
+  }
 
   if (data.assignedTo !== undefined || data.coAssignees !== undefined) {
     await validateProjectTeamRoles({
@@ -1992,9 +2030,34 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user }
     }
   }
 
-  let assigneeName = data.assigneeName ?? existing.assigneeName;
-  const assigneeId = data.assigneeId ?? existing.assigneeId;
-  if ((!assigneeName || isValidUUID(assigneeName)) && assigneeId) {
+  // Task-level Predecessor Check (Issue 19b):
+  // Cannot complete a task if any of its declared predecessors are not Completed
+  if (targetStatus === 'Completed' && Array.isArray(existing.predecessors) && existing.predecessors.length > 0) {
+    const validPredIds = existing.predecessors.filter(isValidUUID);
+    if (validPredIds.length > 0) {
+      const { data: predTasks } = await supabaseAdmin
+        .from('tasks')
+        .select('id, title, status')
+        .in('id', validPredIds)
+        .is('deleted_at', null);
+      const incompletePreds = (predTasks || []).filter((p) => p.status !== 'Completed');
+      if (incompletePreds.length > 0) {
+        const predNames = incompletePreds.map((p) => `"${p.title || p.id}" (${p.status})`).join(', ');
+        throw new AppError({
+          statusCode: 400,
+          title: 'Unfulfilled Dependencies',
+          detail: `Cannot complete task: upstream prerequisite task(s) are incomplete: ${predNames}`,
+          code: 'TASK_PREDECESSORS_INCOMPLETE',
+        });
+      }
+    }
+  }
+
+  let assigneeName = data.assigneeName !== undefined ? data.assigneeName : existing.assigneeName;
+  const assigneeId = data.assigneeId !== undefined ? data.assigneeId : existing.assigneeId;
+  if (assigneeId === null) {
+    assigneeName = null;
+  } else if ((!assigneeName || isValidUUID(assigneeName)) && assigneeId) {
     assigneeName = await resolveAssigneeName(assigneeId, assigneeName);
   }
 
