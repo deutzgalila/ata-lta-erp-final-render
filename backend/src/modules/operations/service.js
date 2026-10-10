@@ -849,24 +849,12 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
     }
   }
 
-  // Co-assignees to mirror into work_requests.co_assignees (UUIDs only)
-  const coAssigneeIdsSet = new Set();
-  (data.coAssignees || []).forEach((val) => {
-    if (isValidUUID(val)) {
-      coAssigneeIdsSet.add(val);
-    } else {
-      const u = usersMap.get(val);
-      if (u?.id) coAssigneeIdsSet.add(u.id);
-    }
-  });
+  // Co-assignees to mirror into work_requests.co_assignees
+  const coAssigneeNamesSet = new Set(data.coAssignees || []);
   expandedTasks.forEach((t) => {
     t.assignees.forEach((a) => {
-      if (isValidUUID(a)) {
-        coAssigneeIdsSet.add(a);
-      } else {
-        const u = usersMap.get(a);
-        if (u?.id) coAssigneeIdsSet.add(u.id);
-      }
+      const u = usersMap.get(a);
+      coAssigneeNamesSet.add(u?.name || a);
     });
   });
 
@@ -888,7 +876,7 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
     priority: data.priority || 'Normal',
     requested_by: data.requestedBy || user?.id || null,
     assigned_to: data.assignedTo || null,
-    co_assignees: Array.from(coAssigneeIdsSet),
+    co_assignees: Array.from(coAssigneeNamesSet),
     due_date: data.dueDate || null,
     created_at: now,
     updated_at: now,
