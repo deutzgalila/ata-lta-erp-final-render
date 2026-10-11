@@ -798,6 +798,7 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
           depends_on: dependsOn,
           status: rawTask.status || (assignees.length > 0 ? 'Assigned' : 'Draft'),
           dueDate: rawTask.dueDate || null,
+          checklist: rawTask.checklist || [],
         });
 
         // Siblings
@@ -812,6 +813,7 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
             depends_on: dependsOn,
             status: rawTask.status || (assignees.length > 0 ? 'Assigned' : 'Draft'),
             dueDate: rawTask.dueDate || null,
+            checklist: [],
           });
         }
       } else {
@@ -826,6 +828,7 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
           depends_on: dependsOn,
           status: rawTask.status || (assignees.length > 0 ? 'Assigned' : 'Draft'),
           dueDate: rawTask.dueDate || null,
+          checklist: rawTask.checklist || [],
         });
       }
     }
@@ -1081,6 +1084,51 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
       });
     }
 
+    const checklistRecords = [];
+    expandedTasks.forEach((t) => {
+      const taskId = t.id;
+      const list = Array.isArray(t.checklist) ? t.checklist : [];
+      list.forEach((item) => {
+        if (item && item.text && item.text.trim()) {
+          checklistRecords.push({
+            id: item.id && isValidUUID(item.id) ? item.id : randomUUID(),
+            task_id: taskId,
+            text: item.text.trim(),
+            category: item.category || 'subtask',
+            completed: Boolean(item.completed),
+            assignee_id: item.assigneeId || item.assignee_id || null,
+            assignee_name: item.assigneeName || item.assignee_name || null,
+            period_year: item.periodYear
+              ? parseInt(item.periodYear, 10)
+              : item.period_year
+                ? parseInt(item.period_year, 10)
+                : null,
+            depends_on: item.dependsOn || item.depends_on || null,
+            created_at: now,
+          });
+        }
+      });
+    });
+
+    if (checklistRecords.length > 0) {
+      const { error: clError } = await supabaseAdmin
+        .from('task_checklists')
+        .insert(checklistRecords);
+      if (clError) {
+        throw new AppError({
+          statusCode: 500,
+          title: 'Database Error',
+          detail: `Failed to insert task checklists: ${clError.message || clError}`,
+        });
+      }
+      cleanupStack.push(async () => {
+        await supabaseAdmin
+          .from('task_checklists')
+          .delete()
+          .in('id', checklistRecords.map((c) => c.id));
+      });
+    }
+
     // Build return graph
     const entityCode = await resolveEntityCode(entityId);
     const taskAssigneesMap = new Map();
@@ -1133,6 +1181,26 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
             assigned_by: ta.assigned_by || null,
             assignedAt: ta.assigned_at || null,
             assigned_at: ta.assigned_at || null,
+          })),
+        checklist: checklistRecords
+          .filter((c) => c.task_id === tr.id)
+          .map((c) => ({
+            id: c.id,
+            taskId: c.task_id,
+            task_id: c.task_id,
+            text: c.text,
+            category: c.category || 'subtask',
+            completed: c.completed,
+            assigneeId: c.assignee_id,
+            assignee_id: c.assignee_id,
+            assigneeName: c.assignee_name,
+            assignee_name: c.assignee_name,
+            periodYear: c.period_year,
+            period_year: c.period_year,
+            dependsOn: c.depends_on,
+            depends_on: c.depends_on,
+            createdAt: c.created_at,
+            created_at: c.created_at,
           })),
         dependsOn: matchedExpanded?.depends_on || null,
         depends_on: matchedExpanded?.depends_on || null,
@@ -2829,6 +2897,7 @@ const generateRetainerTemplate = async ({ entityId, templateId, user, data = {} 
       assignees,
       depends_on: dependsOn || null,
       dueDate,
+      checklist: t.checklist || base.checklist || base.default_checklist || [],
     };
 
     if (phase === 'processing') {

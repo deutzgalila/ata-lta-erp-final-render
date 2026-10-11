@@ -26,17 +26,25 @@ const checklistItemSchema = z.object({
   id: z.string().uuid().optional().nullable(),
   text: z.string().min(1),
   category: z.string().optional().nullable(),
-  completed: z.boolean().default(false),
+  completed: z.boolean().default(false).optional(),
   assigneeId: z.string().uuid().optional().nullable(),
+  assignee_id: z.string().uuid().optional().nullable(),
   assigneeName: z.string().optional().nullable(),
+  assignee_name: z.string().optional().nullable(),
   dependsOn: z
     .union([z.string().uuid(), z.array(z.string().uuid())])
     .optional()
     .nullable(),
+  depends_on: z
+    .union([z.string().uuid(), z.array(z.string().uuid())])
+    .optional()
+    .nullable(),
   periodYear: z
-    .string()
-    .regex(/^[a-zA-Z0-9\s/-]*$/)
-    .max(100)
+    .union([z.string().regex(/^[a-zA-Z0-9\s/-]*$/).max(100), z.number()])
+    .optional()
+    .nullable(),
+  period_year: z
+    .union([z.string().regex(/^[a-zA-Z0-9\s/-]*$/).max(100), z.number()])
     .optional()
     .nullable(),
 });
@@ -51,6 +59,7 @@ const phaseTaskSchema = z.object({
   localId: z.string().optional().nullable(),
   status: z.string().optional().nullable(),
   dueDate: z.string().optional().nullable(),
+  checklist: z.array(checklistItemSchema).optional().nullable(),
 });
 
 const phasesSchema = z
@@ -175,6 +184,7 @@ const taskTemplateSchema = z.object({
   dependsOnLocalId: z.string().optional().nullable(),
   requiredLinkType: z.string().max(50).optional().nullable(),
   dueDate: z.string().optional().nullable(),
+  checklist: z.array(checklistItemSchema).optional().nullable(),
 });
 
 const retainerTemplateBaseSchema = z.object({
@@ -226,6 +236,7 @@ const generateTaskOverrideSchema = z.object({
   dependsOn: z.string().optional().nullable(),
   dueDate: z.string().optional().nullable(),
   due_date: z.string().optional().nullable(),
+  checklist: z.array(checklistItemSchema).optional().nullable(),
 });
 
 const generateRetainerTemplateSchema = z.object({
