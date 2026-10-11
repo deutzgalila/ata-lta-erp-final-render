@@ -169,7 +169,7 @@ const changePassword = async ({ userId, authUserId, email, currentPassword, newP
 };
 
 const getAvatarUploadUrl = async ({ userId }) => {
-  const path = `avatars/${userId}/${Date.now()}.png`;
+  const path = `entities/avatars/${userId}/${Date.now()}.png`;
   const signedUrl = await storageService.getSignedUploadUrl({
     path,
     contentType: 'image/png',

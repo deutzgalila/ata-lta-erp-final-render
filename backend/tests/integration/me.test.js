@@ -327,7 +327,7 @@ describe('POST /v1/me/avatar-upload-url', () => {
 
     expect(res.body.data.signedUrl).toMatch(/^https:\/\//);
     expect(res.body.data.publicUrl).toMatch(/^https:\/\//);
-    expect(res.body.data.path).toMatch(/^avatars\//);
+    expect(res.body.data.path).toMatch(/^entities\/avatars\//);
   });
 });
 
