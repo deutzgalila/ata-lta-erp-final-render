@@ -1,79 +1,128 @@
-# Project: Tier 2 UX Parity, Ephemeral Presence & Optimistic Concurrency Control
+# Project: Wave 2 ATA-LTA ERP Migration (P0-B, P0-C, P0-G)
 
 ## Architecture
-The Tier 2 UX Parity and Concurrency architecture delivers real-time collaboration awareness and data-loss prevention across high-traffic ERP domains (Operations, Billing, Disbursements, DMS):
-1. **Ephemeral Presence Subsystem**:
-   - Pure in-memory Supabase WebSockets (`presence:${domain}:${roomId}`) with zero database persistence.
-   - Guarded by `isFeatureEnabled('realtime_sync')`.
-   - Rapid lifecycle transitions (< 200ms untrack cleanup upon unmount or dynamic dropdown switching).
-2. **Optimistic Concurrency Control (OCC) Subsystem**:
-   - RFC 7807 HTTP 409 conflict detection via `isConcurrencyConflictError(err)` for stale entity writes.
-   - Guarded by `isFeatureEnabled('strict_occ')` passing `expectedVersion`.
-   - Non-destructive `ConflictResolutionModal` surfaces side-by-side comparison and "Refresh & Keep Latest" query invalidation.
-3. **Cross-Surface Collaboration Protocol**:
-   - Work Request presence synchronization between List View (`WorkRequestSidePeek.tsx`) and Board View (`PhaseKanbanBoard.tsx`).
-   - Dynamic untrack/re-track on dropdown change in Kanban toolbar.
+Wave 2 executes three core backend parcels in parallel off `staging`, followed by multi-agent adversarial verification:
+1. **Parcel P0-B (Notifications Module):** In-app notification engine with dedicated PostgreSQL table, bulk notification dispatch helper (`notify()`), user-scoped queries, idempotent read tracking, and `/v1/me` unread counter.
+2. **Parcel P0-C (Status Unification & Data Migration):** Schema evolution from 10 legacy statuses to unified 6-phase model via superset CHECK constraints; idempotency-guaranteed backfill CLI script (`backend/scripts/backfill-phases.js`); preservation of terminal `Cancelled` WRs; audit recovery for `On Hold`.
+3. **Parcel P0-G (Disbursement Approvals & Client Field-Level Security):** Dynamic staff disbursement pending routing; Admin-only approval gate (`POST :id/approve`); mandatory-reason rejection with in-app notification; field-level security for invoice client address updates without mutating `clients` master record.
+
+```
+                  ┌───────────────────────┐
+                  │    staging branch     │
+                  └──────────┬────────────┘
+         ┌───────────────────┼───────────────────┐
+         ▼                   ▼                   ▼
+┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+│  Track 1: P0-B  │ │  Track 2: P0-C  │ │  Track 3: P0-G  │
+│ feat/p0-b-notif │ │ feat/p0-c-phase │ │ feat/p0-g-fin   │
+│ Notifications   │ │ Migrations &    │ │ Disbursements   │
+│ Module          │ │ Backfill CLI    │ │ & Billing FLS   │
+└────────┬────────┘ └────────┬────────┘ └────────┬────────┘
+         └───────────────────┼───────────────────┘
+                             ▼
+                  ┌───────────────────────┐
+                  │ Adversarial Gates:    │
+                  │ Critic, Challenger,   │
+                  │ Forensic Auditor,     │
+                  │ Success Auditor       │
+                  └──────────┬────────────┘
+                             ▼
+                  ┌───────────────────────┐
+                  │ PR Packaging &        │
+                  │ Sentinel Report       │
+                  └───────────────────────┘
+```
 
 ## Feature Inventory
-| # | Feature | Description | Milestone | Source | Status |
-|---|---------|-------------|-----------|--------|--------|
-| 1 | Universal Domain Routing in PresenceAvatars | Support optional `domain` prop defaulting to `'work_request'`, format channel name as `presence:${domain}:${roomId}` with prefix protection | M1 | ORIGINAL_REQUEST §R1 | DONE |
-| 2 | Dynamic Untrack and Room Teardown | Cleanly untrack previous channel and reset viewers within ~200ms when `roomId` or `domain` prop changes | M1 | Spec §3 Parcel 2A | DONE |
-| 3 | Realtime Sync Feature Flag Gating | Strictly bypass WebSocket connections and return null when `realtime_sync` flag is false | M1 | ORIGINAL_REQUEST §R1 | DONE |
-| 4 | Kanban Board Toolbar Presence Integration | Mount `<PresenceAvatars roomId={effectiveWrId} />` in PhaseKanbanBoard toolbar beside dropdown | M1 | ORIGINAL_REQUEST §R1 | DONE |
-| 5 | Cross-Surface Work Request Collaboration | Synchronize viewers between WorkRequestSidePeek and PhaseKanbanBoard on identical `work_request` channel | M1 | ORIGINAL_REQUEST §R1 | DONE |
-| 6 | Document Viewer Presence Mount | Mount `<PresenceAvatars domain="document" roomId={doc.id} maxAvatars={4} />` in DocumentViewerModal header | M1 | ORIGINAL_REQUEST §R1 | DONE |
-| 7 | Strict OCC in Billing Mutations | Pass `expectedVersion` in `updateInvoiceAction` and `updateClientAddressAction` when `strict_occ` is enabled | M2 | ORIGINAL_REQUEST §R2 | DONE |
-| 8 | Invoice Presence Avatar Mount | Mount `<PresenceAvatars domain="invoice" roomId={effectiveId} maxAvatars={4} />` in InvoiceDetailModal header | M2 | ORIGINAL_REQUEST §R1 | DONE |
-| 9 | Invoice OCC Conflict Modal | Intercept 409 errors in InvoiceDetailModal and present `<ConflictResolutionModal />` | M2 | ORIGINAL_REQUEST §R2 | DONE |
-| 10 | Invoice Cache Revalidation | Invalidate/refetch `billingKeys.invoiceDetail(effectiveId)` and `billingKeys.invoices()` on conflict refresh | M2 | ORIGINAL_REQUEST §R2 | DONE |
-| 11 | Strict OCC in Disbursement Mutations | Enforce `expectedVersion: item.version` in `useApproveDisbursement`, `useRejectDisbursement`, and `useFundDisbursement` | M3 | ORIGINAL_REQUEST §R3 | DONE |
-| 12 | Disbursement Presence Avatar Mount | Mount `<PresenceAvatars domain="disbursement" roomId={id} maxAvatars={4} />` in DisbursementDetailDrawer header | M3 | ORIGINAL_REQUEST §R1 | DONE |
-| 13 | Disbursement OCC Conflict Modal | Intercept 409 errors on approve/reject/fund in DisbursementDetailDrawer and mount `<ConflictResolutionModal />` | M3 | ORIGINAL_REQUEST §R3 | DONE |
-| 14 | Disbursement Cache Revalidation | Invalidate/refetch `disbursementKeys.detail(id)` and `disbursementKeys.lists()` on conflict refresh | M3 | ORIGINAL_REQUEST §R3 | DONE |
-| 15 | Billing Presence & OCC Test Suite | Unit tests in `frontend/src/features/billing/__tests__/invoicePresenceAndOcc.test.tsx` | M4 | ORIGINAL_REQUEST §R4 | DONE |
-| 16 | Disbursements Presence & OCC Test Suite | Unit tests in `frontend/src/features/disbursements/__tests__/disbursementPresenceAndOcc.test.tsx` | M4 | ORIGINAL_REQUEST §R4 | DONE |
-| 17 | Phase Kanban Dynamic Teardown Test Suite | Enhanced unit tests in `frontend/src/features/operations/__tests__/phaseKanban.test.tsx` verifying dropdown switching | M4 | ORIGINAL_REQUEST §R4 | DONE |
+| # | Feature | Description | Milestone | Source |
+|---|---------|-------------|-----------|--------|
+| 1 | Notifications DDL & Indexes | Create `notifications` table, CHECK constraint on 4 frozen types, partial unread index, composite cursor index | M1 (P0-B) | P0-B Spec §3.1 |
+| 2 | Notify Service Helper | `notify(userIds, type, payload)` validating types, error suppression/logging (AC-3), bulk insert | M1 (P0-B) | P0-B Spec §3.2 |
+| 3 | Notifications REST API | `GET /v1/notifications`, `POST /v1/notifications/:id/read`, `POST /v1/notifications/read-all` guarded by `notifications:view` | M1 (P0-B) | P0-B Spec §3.3 |
+| 4 | `/v1/me` Unread Counter | Add `unread_notifications: <int>` to `/v1/me` response via partial index query | M1 (P0-B) | P0-B Spec §3.3 |
+| 5 | Phase Model Columns Migration | Add `phase`, `phase_entered_at`, `assigned_by`, `assigned_at` to schema; create `task_assignees` table | M2 (P0-C) | P0-C Spec §3.1 |
+| 6 | Superset Constraint Migration | Broaden `work_requests.status` CHECK to superset (10 legacy + Quality Assurance) | M2 (P0-C) | P0-C Spec §3.2 |
+| 7 | Cutover Migration C Design | Migration C (`phase_not_null`) isolated for P3 cutover only | M2 (P0-C) | P0-C Spec §3.3 |
+| 8 | Backfill Phases Script | CLI `backend/scripts/backfill-phases.js` with `--dry-run` and `--apply`, mapping table, transaction safety | M2 (P0-C) | P0-C Spec §4 |
+| 9 | Idempotency & History Recovery | Double-run zero mutations; preserve Cancelled; recover On Hold via `status_history`/`audit_logs`; log ambiguous | M2 (P0-C) | P0-C Spec §4.2 |
+| 10 | Dynamic Disbursement Status | HR/Ops/Docs staff create disbursement -> 201 `Pending`; Mgmt/Acct/Admin create -> 201 `Draft`; reject client status forgery | M3 (P0-G) | P0-G Spec §3.1 |
+| 11 | Admin Approval Gate | `POST /v1/disbursements/:id/approve` requires `disbursement:approve` (Staff 403, Admin 200, Approved->Approved 409) | M3 (P0-G) | P0-G Spec §3.2 |
+| 12 | Disbursement Rejection Flow | `POST /v1/disbursements/:id/reject` requires mandatory reason (400 if empty), transitions only from Pending (409), emits notification | M3 (P0-G) | P0-G Spec §3.2 |
+| 13 | Billing Client-Address FLS | `PATCH /v1/invoices/:id` field-level security: address edit requires `billing:edit_client_address` (Acct 200, Ops 403, Ops w/o address 200) | M3 (P0-G) | P0-G Spec §3.3 |
+| 14 | Client Row Immutability & Audit | Invoice address edit persists to billing record without mutating `clients` master row; audit log records field diff | M3 (P0-G) | P0-G Spec §3.3 |
+| 15 | Adversarial Critic Review | Objective verification of R1–Rn adherence for P0-B, P0-C, P0-G | M4 (Audit) | 00-INDEX §5 |
+| 16 | Adversarial Challenger Testing | Empirical challenge suites: status forgery, cross-user tampering, backfill idempotency | M4 (Audit) | ORIGINAL_REQUEST §4 |
+| 17 | Forensic Integrity Audit | Static analysis and test run verification: authentic implementations, zero skipped/mocked tests | M4 (Audit) | ORIGINAL_REQUEST §4 |
+| 18 | Success Acceptance Verification | End-to-end AC-1 through AC-5 validation for all three tracks | M4 (Audit) | ORIGINAL_REQUEST §4 |
+| 19 | PR Packaging & Contract Sync | API contracts updated in `docs/api-contracts/`, `00-INDEX.md` status cells flipped to done | M5 (Ship) | ORIGINAL_REQUEST §5 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Foundation & Presence Core | `PresenceAvatars.tsx`, `PhaseKanbanBoard.tsx`, `DocumentViewerModal.tsx`, `WorkRequestSidePeek.tsx` | none | DONE |
-| M2 | Billing Presence & OCC Guard | `frontend/src/features/billing/api/useBillingMutations.ts`, `frontend/src/features/billing/components/InvoiceDetailModal.tsx` | M1 | DONE |
-| M3 | Disbursements Presence & OCC Guard | `frontend/src/features/disbursements/api/useDisbursements.ts`, `frontend/src/features/disbursements/components/DisbursementDetailDrawer.tsx` | M1 | DONE |
-| M4 | E2E & Unit Test Suites | `invoicePresenceAndOcc.test.tsx`, `disbursementPresenceAndOcc.test.tsx`, `phaseKanban.test.tsx`, `TEST_INFRA.md`, `TEST_READY.md` | M1, M2, M3 | DONE |
-| M5 | Final Verification & Forensic Audit | Full test suite execution (1,376 tests, 100% pass), typecheck (0 errors), build (clean), Reviewers (APPROVE), Challengers (APPROVE), Forensic Auditor (CLEAN) | M4 | DONE |
+| M1 | Parcel P0-B (Notifications) | Notifications module, notify helper, me unread counter, migration, tests | None | DONE |
+| M2 | Parcel P0-C (Status Migrations) | Migrations A+B+C, backfill CLI script, idempotency, history recovery, tests | None | DONE |
+| M3 | Parcel P0-G (Disbursements & FLS) | Disbursement approval/rejection, staff pending, billing FLS, client immutability, tests | None | DONE |
+| M4 | Adversarial Verification Gates | Critic, Challenger, Forensic Auditor, Success Auditor | M1, M2, M3 | DONE |
+| M5 | Packaging & Sentinel Handoff | PR formulating, contract sync, 00-INDEX.md update, Sentinel report | M4 | DONE |
 
 ## Interface Contracts
-### Presence Channel Contract
-- Room ID format: `presence:${domain}:${cleanRoomId}`
-- If `cleanRoomId.startsWith('presence:')`, use `cleanRoomId` directly.
-- Default domain: `'work_request'`
-- Supported domains: `'work_request' | 'invoice' | 'disbursement' | 'document' | string`
-- User presence payload: `{ id, name, email, role, avatarUrl, onlineAt }`
 
-### Conflict Resolution Contract
-- Error detection: `isConcurrencyConflictError(err)` returns true for `status === 409 || code === 'CONCURRENCY_CONFLICT' || code === 'ERR_CONCURRENCY_CONFLICT'`
-- Modal properties: `<ConflictResolutionModal isOpen={...} onClose={...} error={...} entityTitle={...} entityType={...} expectedVersion={...} onRefreshAndKeepLatest={...} />`
-- Refetch invalidation:
-  - Billing: `billingKeys.invoiceDetail(effectiveId)` and `billingKeys.invoices()`
-  - Disbursements: `disbursementKeys.detail(id)` and `disbursementKeys.lists()`
+### P0-B ↔ P0-G (Notify Service)
+- **Signature:** `notify(userIds: string[], type: string, payload: object): Promise<void>`
+- **Frozen Types:**
+  - `pending_request.resolved`: `{ request_id, table_name, outcome: 'approved'|'rejected', reason?, title }`
+  - `wr.transition_request.received`: `{ request_id, work_request_id, wr_title, from_phase, to_phase, requested_by_name }`
+  - `wr.transition_request.resolved`: `{ request_id, work_request_id, outcome, reason?, to_phase }`
+  - `wr.qa_reroute`: `{ work_request_id, wr_title, to_phase, reason, failed_task_ids: [] }`
+- **Error Behavior:** Any DB error inside `notify()` is caught and logged; it resolves cleanly and NEVER throws to the caller. Unknown type throws HTTP 400 AppError.
+- **P0-G Fallback:** Since P0-B and P0-G are developed concurrently, P0-G uses a safe try/catch import of `backend/src/services/notify.js` with fallback mock/stub so tests remain independent.
 
-## Code Layout
-- Common Components:
-  - `frontend/src/components/common/PresenceAvatars.tsx`: Universal presence avatar stack
-  - `frontend/src/components/common/ConflictResolutionModal.tsx`: Shared OCC conflict modal
-- Operations Domain:
-  - `frontend/src/features/operations/components/PhaseKanbanBoard.tsx`: Board toolbar presence & dropdown switcher
-  - `frontend/src/features/operations/components/WorkRequestSidePeek.tsx`: Side peek drawer presence
-  - `frontend/src/features/operations/__tests__/phaseKanban.test.tsx`: Kanban presence tests
-- Billing Domain:
-  - `frontend/src/features/billing/api/useBillingMutations.ts`: OCC version parameter handling
-  - `frontend/src/features/billing/components/InvoiceDetailModal.tsx`: Presence mounting & OCC conflict handling
-  - `frontend/src/features/billing/__tests__/invoicePresenceAndOcc.test.tsx`: Billing presence & OCC tests
-- Disbursements Domain:
-  - `frontend/src/features/disbursements/api/useDisbursements.ts`: Disbursement mutation hooks OCC version handling
-  - `frontend/src/features/disbursements/components/DisbursementDetailDrawer.tsx`: Presence mounting & OCC conflict handling
-  - `frontend/src/features/disbursements/__tests__/disbursementPresenceAndOcc.test.tsx`: Disbursement presence & OCC tests
-- Documents Domain:
-  - `frontend/src/features/documents/components/DocumentViewerModal.tsx`: DMS presence mounting
+### P0-C ↔ P0-D / Downstream (Database Schema)
+- `work_requests.phase` is nullable text, constrained to `('intake', 'pre_processing', 'processing', 'review', 'quality_assurance', 'completed')`.
+- `work_requests.status` CHECK constraint is a superset containing all 10 legacy values plus `'Quality Assurance'`.
+- `tasks.assigned_by` (uuid) and `tasks.assigned_at` (timestamptz) added.
+- `task_assignees` join table created: `(task_id uuid, user_id uuid, assigned_by uuid, assigned_at timestamptz)`.
+
+### P0-G ↔ Downstream (Disbursements & Billing)
+- `POST /v1/disbursements/:id/approve` (guard: `disbursement:approve`, Admin only).
+- `POST /v1/disbursements/:id/reject` (guard: `disbursement:approve`, body: `{ reason: string }`).
+- `PATCH /v1/invoices/:id` (field-level security: body with `address` requires `billing:edit_client_address`).
+
+## Code Layout & Exclusive File Ownership
+
+### Track 1: Worker-NOTIF (Parcel P0-B)
+- **Branch:** `feat/p0-b-notifications` (off `staging`)
+- **Exclusive Files:**
+  - `backend/src/modules/notifications/` (`controller.js`, `routes.js`, `service.js`, `schema.js`, `README.md`)
+  - `backend/src/services/notify.js`
+  - `backend/src/modules/me/controller.js` (additive `unread_notifications`)
+  - `backend/src/app.js` (route mounting `/v1/notifications`)
+  - `backend/migrations/000051_create_notifications.js`
+  - `backend/tests/notifications.spec.js`
+  - `backend/tests/notify.service.spec.js`
+  - `docs/api-contracts/notifications.md`
+
+### Track 2: Worker-MIGRATE (Parcel P0-C)
+- **Branch:** `feat/p0-c-phase-migrations` (off `staging`)
+- **Exclusive Files:**
+  - `backend/migrations/000052_phase_model_columns.js`
+  - `backend/migrations/000053_status_constraint_superset.js`
+  - `backend/migrations/000054_phase_not_null.js`
+  - `backend/scripts/backfill-phases.js`
+  - `backend/tests/migrations.phase-model.spec.js`
+  - `backend/tests/backfill-phases.spec.js`
+  - `docs/api-contracts/work-requests-phases.md`
+
+### Track 3: Worker-FINPERM (Parcel P0-G)
+- **Branch:** `feat/p0-g-financial-permissions` (off `staging`)
+- **Exclusive Files:**
+  - `backend/src/modules/disbursements/routes.js`
+  - `backend/src/modules/disbursements/service.js`
+  - `backend/src/modules/disbursements/schema.js`
+  - `backend/src/modules/billing/routes.js`
+  - `backend/src/modules/billing/service.js`
+  - `backend/src/modules/billing/schema.js`
+  - `backend/tests/disbursements.approval.spec.js`
+  - `backend/tests/billing.address.spec.js`
+  - `docs/api-contracts/disbursements.md`
+  - `docs/api-contracts/billing.md`

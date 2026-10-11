@@ -29,3 +29,5 @@ erp_prototype/.build-tmp/
 __pycache__/
 *.pyc
 .agents/
+backfill-report.json
+p2-operations-board.png
