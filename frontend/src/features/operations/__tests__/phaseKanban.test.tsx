@@ -275,8 +275,6 @@ describe('Phase Kanban Board & Routing Features (Milestone 3)', () => {
       return new Response(JSON.stringify({ data: [] }), { status: 200 });
     });
 
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-
     render(<PhaseKanbanBoard initialWorkRequestId="wr-101" />, { wrapper });
 
     await screen.findByTestId('kanban-task-card-task-1');
