@@ -262,6 +262,12 @@ router.get(
   operationsController.listTasks
 );
 router.get(
+  ['/tasks/:id/related', '/work-requests/:wrId/tasks/:id/related'],
+  resolveEntity({ allowAll: true }),
+  requirePermission('workflow:view'),
+  operationsController.getTaskRelated
+);
+router.get(
   ['/work-requests/:wrId/tasks/:taskId', '/:wrId/tasks/:taskId', '/tasks/:taskId'],
   resolveEntity(),
   requirePermission('workflow:view'),
@@ -277,7 +283,7 @@ router.post(
 router.put(
   ['/work-requests/:wrId/tasks/:taskId', '/:wrId/tasks/:taskId', '/tasks/:taskId'],
   resolveEntity(),
-  requirePermission('workflow:edit'),
+  requireWorkflowEditOrTaskAssignee,
   audit('task.updated', { table: 'tasks' }),
   operationsController.updateTask
 );
@@ -317,7 +323,7 @@ tasksRouter.get(
 );
 tasksRouter.put(
   '/:taskId',
-  requirePermission('workflow:edit'),
+  requireWorkflowEditOrTaskAssignee,
   audit('task.updated', { table: 'tasks' }),
   operationsController.updateTask
 );

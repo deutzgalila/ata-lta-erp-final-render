@@ -270,4 +270,50 @@ describe('/v1/documents', () => {
     expect(docRes.body.data.comments[1].text).toBe('Second comment');
     expect(docRes.body.data.comments[0].id).toBe('comment-1');
   });
+
+  it('Task A.8: enforces server-side task assignee authorization on POST /v1/documents (FORBIDDEN_TASK_ATTACHMENT)', async () => {
+    const assigneeStaff = registerUser({
+      id: '11111111-2222-3333-4444-555555555555',
+      email: 'assignee@ata-lta.ph',
+      name: 'Assignee Staff',
+      role: 'Operations',
+      entities: ['ATA'],
+    });
+
+    const nonAssigneeStaff = registerUser({
+      id: '66666666-7777-8888-9999-000000000000',
+      email: 'non-assignee@ata-lta.ph',
+      name: 'Non Assignee Staff',
+      role: 'Operations',
+      entities: ['ATA'],
+    });
+
+    const taskId = 'aaaaaaaa-1111-2222-3333-444444444444';
+    mockTables.tasks.set(taskId, {
+      id: taskId,
+      work_request_id: null,
+      assignee_id: '11111111-2222-3333-4444-555555555555',
+    });
+
+    // 1. Non-assignee staff receives 403 FORBIDDEN_TASK_ATTACHMENT
+    const forbiddenRes = await request(app)
+      .post('/v1/documents')
+      .set('Authorization', `Bearer ${nonAssigneeStaff}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({ ...validDocument, linkedTaskId: taskId });
+
+    expect(forbiddenRes.status).toBe(403);
+    expect(forbiddenRes.body.code).toBe('FORBIDDEN_TASK_ATTACHMENT');
+    expect(forbiddenRes.body.detail).toMatch(/not assigned to this task/i);
+
+    // 2. Assignee staff succeeds with 201 Created
+    const allowedRes = await request(app)
+      .post('/v1/documents')
+      .set('Authorization', `Bearer ${assigneeStaff}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({ ...validDocument, linkedTaskId: taskId });
+
+    expect(allowedRes.status).toBe(201);
+    expect(allowedRes.body.data.document.linked_task_id).toBe(taskId);
+  });
 });

@@ -229,6 +229,7 @@ const parseRequestPayload = (row) => {
         payload: parsed,
         from_phase: parsed.from_phase,
         to_phase: parsed.to_phase,
+        notes: parsed.user_notes || '',
       };
     } catch (_err) {
       // Ignore JSON parse error on non-JSON notes

@@ -57,19 +57,39 @@ const listInvoices = async ({ entityId, filters = {}, user }) => {
     query = query.eq('archived', false).neq('status', 'Cancelled');
   }
 
-  // Role restriction: non-admin and non-accounting cannot see Draft or Pending invoices.
+  // Role restriction: non-admin and non-accounting scoping.
   const isAdmin = user?.role === 'Admin';
   const isAccounting =
     (user?.departments || []).includes('Accounting') || user?.role === 'Accounting';
+
   if (!isAdmin && !isAccounting) {
+    // Determine Work Requests where the user is manager (assigned_to) or co-assignee
+    const { data: userWrs } = await supabaseAdmin
+      .from('work_requests')
+      .select('id')
+      .or(`assigned_to.eq.${user.id},co_assignees.cs.{${user.id}}`)
+      .is('deleted_at', null);
+    const userWrIds = (userWrs || []).map((w) => w.id);
+
     if (status) {
       if (['Draft', 'Pending'].includes(status)) {
-        query = query.eq('status', '___NONE___');
+        if (userWrIds.length > 0) {
+          query = query.eq('status', status).in('work_request_id', userWrIds);
+        } else {
+          query = query.eq('status', '___NONE___');
+        }
       } else {
         query = query.eq('status', status);
       }
     } else {
-      query = query.in('status', ['Sent', 'Approved', 'Partially Paid', 'Paid', 'Overdue']);
+      if (userWrIds.length > 0) {
+        // Allow viewing released invoices OR draft/pending invoices linked to their work requests
+        query = query.or(
+          `status.in.(Sent,Approved,Partially Paid,Paid,Overdue),work_request_id.in.(${userWrIds.join(',')})`
+        );
+      } else {
+        query = query.in('status', ['Sent', 'Approved', 'Partially Paid', 'Paid', 'Overdue']);
+      }
     }
   } else {
     if (status) query = query.eq('status', status);
@@ -278,11 +298,29 @@ const getInvoiceById = async ({ entityId, id, user }) => {
     const isAccounting =
       (user.departments || []).includes('Accounting') || user.role === 'Accounting';
     if (!isAdmin && !isAccounting && ['Draft', 'Pending'].includes(invoice.status)) {
-      throw new AppError({
-        statusCode: 403,
-        title: 'Forbidden',
-        detail: 'You do not have permission to view this invoice in its current status.',
-      });
+      let isWrManagerOrCoAssignee = false;
+      if (invoice.work_request_id) {
+        const { data: wr } = await supabaseAdmin
+          .from('work_requests')
+          .select('id, assigned_to, co_assignees')
+          .eq('id', invoice.work_request_id)
+          .is('deleted_at', null)
+          .maybeSingle();
+        if (
+          wr &&
+          (wr.assigned_to === user.id ||
+            (Array.isArray(wr.co_assignees) && wr.co_assignees.includes(user.id)))
+        ) {
+          isWrManagerOrCoAssignee = true;
+        }
+      }
+      if (!isWrManagerOrCoAssignee) {
+        throw new AppError({
+          statusCode: 403,
+          title: 'Forbidden',
+          detail: 'You do not have permission to view this invoice in its current status.',
+        });
+      }
     }
 
     if (!isAdmin && !isAccounting) {

@@ -131,7 +131,13 @@ const tableQuery = (table) => {
       return value === null ? rowValue === null || rowValue === undefined : rowValue === value;
     }
     if (fop === 'in') {
-      return Array.isArray(value) && value.includes(rowValue);
+      const arr = Array.isArray(value) ? value : [value];
+      return arr.includes(rowValue);
+    }
+    if (fop === 'cs') {
+      const rowArr = Array.isArray(rowValue) ? rowValue : [];
+      const checkVals = Array.isArray(value) ? value : [value];
+      return checkVals.some((v) => rowArr.includes(v));
     }
     if (fop === 'neq') {
       return rowValue !== value;
@@ -186,7 +192,15 @@ const tableQuery = (table) => {
     }
     const m = part.match(/^([^.]+)\.([^.]+)\.%?(.+)%?$/);
     if (!m) return null;
-    return { column: m[1], value: m[3], op: m[2] };
+    const col = m[1];
+    const fop = m[2];
+    let val = m[3];
+    if (fop === 'in' && val.startsWith('(') && val.endsWith(')')) {
+      val = val.slice(1, -1).split(',').map((s) => s.trim());
+    } else if (fop === 'cs' && val.startsWith('{') && val.endsWith('}')) {
+      val = val.slice(1, -1).split(',').map((s) => s.trim());
+    }
+    return { column: col, value: val, op: fop };
   };
 
   const applyFilters = () => {
@@ -317,7 +331,21 @@ const tableQuery = (table) => {
       return builder;
     },
     or: (expression) => {
-      const parts = expression.split(',');
+      const parts = [];
+      let current = '';
+      let depth = 0;
+      for (let i = 0; i < expression.length; i++) {
+        const char = expression[i];
+        if (char === '(' || char === '{') depth++;
+        else if (char === ')' || char === '}') depth--;
+        if (char === ',' && depth === 0) {
+          parts.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      if (current.trim()) parts.push(current.trim());
       filters.push({ op: 'or', parts });
       return builder;
     },

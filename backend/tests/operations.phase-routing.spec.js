@@ -520,7 +520,23 @@ describe('P0-D: Phase-Lock Guards, Prerequisite Gates & Phase Routing Operations
         .set('X-Active-Entity', 'ATA')
         .send({ status: 'Completed' });
 
-      // Now all pre_processing tasks are Completed -> advancing processing task succeeds!
+      // Before advancing WR: advance processing task returns 409 WORK_REQUEST_PHASE_NOT_ACTIVE
+      const phaseBlockedRes = await request(app)
+        .patch(`/v1/work-requests/${wr.id}/tasks/${procTask.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ status: 'In Progress' });
+      expect(phaseBlockedRes.status).toBe(409);
+      expect(phaseBlockedRes.body.code).toBe('WORK_REQUEST_PHASE_NOT_ACTIVE');
+
+      // Advance WR to processing
+      await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'processing' });
+
+      // Now all pre_processing tasks are Completed and WR is in processing -> advancing processing task succeeds!
       const successRes = await request(app)
         .patch(`/v1/work-requests/${wr.id}/tasks/${procTask.id}`)
         .set('Authorization', `Bearer ${adminToken}`)
@@ -586,6 +602,13 @@ describe('P0-D: Phase-Lock Guards, Prerequisite Gates & Phase Routing Operations
 
       const procTask = wr.phases.processing.tasks[0];
 
+      // Advance WR to processing
+      await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'processing' });
+
       // Cancelled task is strictly excluded from prerequisite check
       const res = await request(app)
         .patch(`/v1/work-requests/${wr.id}/tasks/${procTask.id}`)
@@ -612,6 +635,13 @@ describe('P0-D: Phase-Lock Guards, Prerequisite Gates & Phase Routing Operations
       });
 
       const procTask = wr.phases.processing.tasks[0];
+
+      // Advance WR to processing
+      await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ to_phase: 'processing' });
 
       const res = await request(app)
         .patch(`/v1/work-requests/${wr.id}/tasks/${procTask.id}`)

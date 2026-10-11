@@ -471,4 +471,132 @@ describe('/v1/disbursements', () => {
 
     expect(updateRes.body.data.linked_transmittal_id).toBe(TRANSMITTAL_ID_2);
   });
+
+  it('allows non-admin creator and employee to view their own Draft/Pending disbursements (Task A.9)', async () => {
+    const creatorId = 'creator-user-1111';
+    const employeeId = 'employee-user-2222';
+    const otherId = 'other-user-3333';
+
+    const creatorToken = registerUser({
+      id: creatorId,
+      email: 'creator@ata-lta.ph',
+      name: 'Creator User',
+      role: 'Operations',
+      entities: ['ATA'],
+    });
+
+    const employeeToken = registerUser({
+      id: employeeId,
+      email: 'employee@ata-lta.ph',
+      name: 'Employee User',
+      role: 'Documentation',
+      entities: ['ATA'],
+    });
+
+    const otherToken = registerUser({
+      id: otherId,
+      email: 'other@ata-lta.ph',
+      name: 'Other User',
+      role: 'Operations',
+      entities: ['ATA'],
+    });
+
+    // Make sure all users are concerned with WORK_REQUEST_ID
+    mockTables.tasks.set('task-creator', {
+      id: 'task-creator',
+      work_request_id: WORK_REQUEST_ID,
+      assignee_id: creatorId,
+      deleted_at: null,
+    });
+    mockTables.tasks.set('task-employee', {
+      id: 'task-employee',
+      work_request_id: WORK_REQUEST_ID,
+      assignee_id: employeeId,
+      deleted_at: null,
+    });
+    mockTables.tasks.set('task-other', {
+      id: 'task-other',
+      work_request_id: WORK_REQUEST_ID,
+      assignee_id: otherId,
+      deleted_at: null,
+    });
+
+    // Seed 1: Draft created by creatorId
+    mockTables.disbursements.set('disb-draft-creator', {
+      id: 'disb-draft-creator',
+      entity_id: 'ent-ata',
+      category: 'Supplies',
+      description: 'Creator draft supplies',
+      amount: 100,
+      fund_source: 'Firm Fund',
+      status: 'Draft',
+      created_by: creatorId,
+      employee_id: null,
+      linked_work_request_id: WORK_REQUEST_ID,
+      archived: false,
+    });
+
+    // Seed 2: Pending where employee is employeeId
+    mockTables.disbursements.set('disb-pending-employee', {
+      id: 'disb-pending-employee',
+      entity_id: 'ent-ata',
+      category: 'Travel',
+      description: 'Employee pending travel',
+      amount: 250,
+      fund_source: 'Firm Fund',
+      status: 'Pending',
+      created_by: 'some-other-person',
+      employee_id: employeeId,
+      linked_work_request_id: WORK_REQUEST_ID,
+      archived: false,
+    });
+
+    // 1. Creator listing Draft status sees their draft disbursement
+    const creatorListDraft = await request(app)
+      .get('/v1/disbursements?status=Draft')
+      .set('Authorization', `Bearer ${creatorToken}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+    expect(creatorListDraft.body.data.some((d) => d.id === 'disb-draft-creator')).toBe(true);
+
+    // 2. Creator listing without status filter sees their draft disbursement
+    const creatorListAll = await request(app)
+      .get('/v1/disbursements')
+      .set('Authorization', `Bearer ${creatorToken}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+    expect(creatorListAll.body.data.some((d) => d.id === 'disb-draft-creator')).toBe(true);
+    expect(creatorListAll.body.data.some((d) => d.id === 'disb-pending-employee')).toBe(false);
+
+    // 3. Employee listing Pending status sees disbursement where they are employee_id
+    const empListPending = await request(app)
+      .get('/v1/disbursements?status=Pending')
+      .set('Authorization', `Bearer ${employeeToken}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+    expect(empListPending.body.data.some((d) => d.id === 'disb-pending-employee')).toBe(true);
+
+    // 4. Employee can fetch their disbursement directly by ID (isSelf via employee_id)
+    const empGetRes = await request(app)
+      .get('/v1/disbursements/disb-pending-employee')
+      .set('Authorization', `Bearer ${employeeToken}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+    expect(empGetRes.body.data.id).toBe('disb-pending-employee');
+
+    // 5. Other user listing Draft or Pending cannot see creator's or employee's disbursement
+    const otherListDraft = await request(app)
+      .get('/v1/disbursements?status=Draft')
+      .set('Authorization', `Bearer ${otherToken}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+    expect(otherListDraft.body.data.some((d) => d.id === 'disb-draft-creator')).toBe(false);
+
+    // 6. Other user cannot fetch employee's pending disbursement directly
+    await request(app)
+      .get('/v1/disbursements/disb-pending-employee')
+      .set('Authorization', `Bearer ${otherToken}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(403);
+  });
 });
