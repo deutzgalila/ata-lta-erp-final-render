@@ -20,6 +20,7 @@ const DocumentsPage = lazy(() => import('@/routes/documents'));
 const ReportsPage = lazy(() => import('@/routes/reports'));
 const ClientsPage = lazy(() => import('@/routes/clients'));
 const AdminPage = lazy(() => import('@/routes/admin'));
+const ProfilePage = lazy(() => import('@/routes/profile'));
 const KitchenSinkPage = lazy(() => import('@/routes/_kitchen-sink'));
 
 function RouteLoadingFallback() {
@@ -179,6 +180,14 @@ export function AppContent() {
                   <AdminPage />
                 </Suspense>
               </RouteGuard>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <ProfilePage />
+              </Suspense>
             }
           />
 

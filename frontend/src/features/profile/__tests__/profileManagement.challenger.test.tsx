@@ -1,0 +1,421 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter } from 'react-router-dom';
+import React from 'react';
+import ProfilePage from '@/routes/profile';
+import { Topbar } from '@/components/layout/Topbar';
+import { useSessionStore } from '@/lib/session';
+import * as api from '@/lib/api';
+import { evaluatePassword, generateSecurePassword } from '../lib/passwordUtils';
+
+// Mock clipboard
+Object.assign(navigator, {
+  clipboard: {
+    writeText: vi.fn().mockResolvedValue(undefined),
+  },
+});
+
+describe('Profile Management Challenger Suite (SPEC-PROFILE-MIGRATION-001)', () => {
+  let queryClient: QueryClient;
+
+  const mockUserProfile = {
+    id: 'usr-123',
+    email: 'test-user@ata-lta.ph',
+    name: 'Juan dela Cruz',
+    role: 'Staff',
+    departments: ['Operations'],
+    entities: ['ATA', 'LTA'],
+    isActive: true,
+    avatarUrl: null,
+    preferences: {
+      theme: 'system',
+      defaultView: 'table',
+      defaultFormView: 'side-peek',
+    },
+  };
+
+  const createWrapper = () => {
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: 0 },
+        mutations: { retry: false },
+      },
+    });
+
+    return ({ children }: { children: React.ReactNode }) =>
+      React.createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        React.createElement(BrowserRouter, null, children)
+      );
+  };
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+    window.HTMLElement.prototype.hasPointerCapture = vi.fn();
+    window.HTMLElement.prototype.releasePointerCapture = vi.fn();
+    localStorage.clear();
+    useSessionStore.getState().setSession({
+      user: { ...mockUserProfile },
+      permissions: ['workflow:view'],
+      activeEntity: 'ATA',
+      unreadCount: 0,
+    });
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('Vector 1: Initial Profile Data Rendering', () => {
+    it('renders profile page with user details, initials avatar, and read-only email', async () => {
+      vi.spyOn(api, 'apiRequest').mockImplementation(async (path: string) => {
+        if (path === '/v1/me') {
+          return { data: mockUserProfile };
+        }
+        return { data: {} };
+      });
+
+      render(React.createElement(ProfilePage), { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('profile-details-card')).toBeInTheDocument();
+      });
+
+      expect(screen.getByTestId('profile-display-name')).toHaveTextContent('Juan dela Cruz');
+      expect(screen.getByTestId('profile-avatar-circle')).toHaveTextContent('JD');
+      expect(screen.getByTestId('profile-name-input')).toHaveValue('Juan dela Cruz');
+      expect(screen.getByTestId('profile-email-input')).toHaveValue('test-user@ata-lta.ph');
+      expect(screen.getByTestId('profile-email-input')).toBeDisabled();
+    });
+  });
+
+  describe('Vector 2: Full 3-Step Avatar Upload Pipeline', () => {
+    it('executes pre-signed URL request, binary PUT, PATCH /v1/me, and updates session store', async () => {
+      const signedUrl = 'https://s3.storage.supabase.com/avatars/user-123.png?signed=xyz';
+      const publicUrl = 'https://s3.storage.supabase.com/avatars/user-123.png';
+
+      const apiRequestSpy = vi.spyOn(api, 'apiRequest').mockImplementation(async (path: string, options?: any) => {
+        if (path === '/v1/me' && (!options || options.method === 'GET')) {
+          return { data: mockUserProfile };
+        }
+        if (path === '/v1/me/avatar-upload-url' && options?.method === 'POST') {
+          return {
+            data: {
+              signedUrl,
+              publicUrl,
+              path: 'avatars/user-123.png',
+              maxSizeMb: 5,
+            },
+          };
+        }
+        if (path === '/v1/me' && options?.method === 'PATCH') {
+          const body = JSON.parse(options.body);
+          return {
+            data: {
+              ...mockUserProfile,
+              avatarUrl: body.avatarUrl,
+            },
+          };
+        }
+        return { data: {} };
+      });
+
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url: any, init?: any) => {
+        if (url === signedUrl) {
+          expect(init?.method).toBe('PUT');
+          expect(init?.headers?.['Content-Type']).toBe('image/png');
+          return new Response(null, { status: 200 });
+        }
+        return new Response(JSON.stringify({}), { status: 200 });
+      });
+
+      render(React.createElement(ProfilePage), { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('profile-upload-trigger')).toBeInTheDocument();
+      });
+
+      const fileInput = screen.getByTestId('profile-avatar-input') as HTMLInputElement;
+      const testFile = new File(['dummy png content'], 'avatar.png', { type: 'image/png' });
+
+      fireEvent.change(fileInput, { target: { files: [testFile] } });
+
+      expect(screen.getByTestId('profile-avatar-status')).toHaveTextContent('avatar.png');
+
+      const saveDetailsBtn = screen.getByTestId('profile-save-details-btn');
+      fireEvent.click(saveDetailsBtn);
+
+      await waitFor(() => {
+        expect(apiRequestSpy).toHaveBeenCalledWith(
+          '/v1/me/avatar-upload-url',
+          expect.objectContaining({ method: 'POST' })
+        );
+      });
+
+      expect(fetchSpy).toHaveBeenCalledWith(
+        signedUrl,
+        expect.objectContaining({
+          method: 'PUT',
+          body: testFile,
+          headers: { 'Content-Type': 'image/png' },
+        })
+      );
+
+      await waitFor(() => {
+        expect(apiRequestSpy).toHaveBeenCalledWith(
+          '/v1/me',
+          expect.objectContaining({
+            method: 'PATCH',
+            body: JSON.stringify({ avatarUrl: publicUrl }),
+          })
+        );
+      });
+
+      // Verify useSessionStore synchronized user.avatarUrl
+      await waitFor(() => {
+        const currentUser = useSessionStore.getState().user;
+        expect(currentUser?.avatarUrl).toBe(publicUrl);
+      });
+    });
+  });
+
+  describe('Vector 3: Password Complexity Guardrails, Eye Toggles & Cryptographic Generator', () => {
+    it('evaluates real-time 5-criteria guardrails accurately', () => {
+      // 1. empty
+      const emptyEval = evaluatePassword('');
+      expect(emptyEval.isValid).toBe(false);
+      expect(emptyEval.strength).toBe('none');
+      expect(emptyEval.validCount).toBe(0);
+
+      // 2. weak (only length and lowercase)
+      const weakEval = evaluatePassword('password');
+      expect(weakEval.checks.length).toBe(true);
+      expect(weakEval.checks.lower).toBe(true);
+      expect(weakEval.checks.upper).toBe(false);
+      expect(weakEval.checks.number).toBe(false);
+      expect(weakEval.checks.special).toBe(false);
+      expect(weakEval.isValid).toBe(false);
+      expect(weakEval.strength).toBe('weak');
+
+      // 3. fair (length, lower, upper)
+      const fairEval = evaluatePassword('Password');
+      expect(fairEval.validCount).toBe(3);
+      expect(fairEval.strength).toBe('fair');
+
+      // 4. good (length, lower, upper, number)
+      const goodEval = evaluatePassword('Password123');
+      expect(goodEval.validCount).toBe(4);
+      expect(goodEval.strength).toBe('good');
+
+      // 5. strong (all 5)
+      const strongEval = evaluatePassword('Password123!');
+      expect(strongEval.validCount).toBe(5);
+      expect(strongEval.isValid).toBe(true);
+      expect(strongEval.strength).toBe('strong');
+    });
+
+    it('generates a 16-character password satisfying all 5 criteria and copies to clipboard', () => {
+      const generated = generateSecurePassword();
+      expect(generated).toHaveLength(16);
+      const evalRes = evaluatePassword(generated);
+      expect(evalRes.isValid).toBe(true);
+      expect(evalRes.validCount).toBe(5);
+    });
+
+    it('toggles password field visibility when eye icon is clicked', async () => {
+      vi.spyOn(api, 'apiRequest').mockImplementation(async (path: string) => {
+        if (path === '/v1/me') return { data: mockUserProfile };
+        return { data: {} };
+      });
+
+      render(React.createElement(ProfilePage), { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('profile-current-password-input')).toBeInTheDocument();
+      });
+
+      const currentInput = screen.getByTestId('profile-current-password-input');
+      const toggleCurrentBtn = screen.getByTestId('toggle-current-password-visibility');
+
+      expect(currentInput).toHaveAttribute('type', 'password');
+      fireEvent.click(toggleCurrentBtn);
+      expect(currentInput).toHaveAttribute('type', 'text');
+      fireEvent.click(toggleCurrentBtn);
+      expect(currentInput).toHaveAttribute('type', 'password');
+
+      const newInput = screen.getByTestId('profile-new-password-input');
+      const toggleNewBtn = screen.getByTestId('toggle-new-password-visibility');
+      expect(newInput).toHaveAttribute('type', 'password');
+      fireEvent.click(toggleNewBtn);
+      expect(newInput).toHaveAttribute('type', 'text');
+
+      const confirmInput = screen.getByTestId('profile-confirm-password-input');
+      const toggleConfirmBtn = screen.getByTestId('toggle-confirm-password-visibility');
+      expect(confirmInput).toHaveAttribute('type', 'password');
+      fireEvent.click(toggleConfirmBtn);
+      expect(confirmInput).toHaveAttribute('type', 'text');
+    });
+
+    it('validates password mismatch and same as current password before submitting', async () => {
+      vi.spyOn(api, 'apiRequest').mockImplementation(async (path: string) => {
+        if (path === '/v1/me') return { data: mockUserProfile };
+        return { data: {} };
+      });
+
+      render(React.createElement(ProfilePage), { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('profile-password-card')).toBeInTheDocument();
+      });
+
+      const currentInput = screen.getByTestId('profile-current-password-input');
+      const newInput = screen.getByTestId('profile-new-password-input');
+      const confirmInput = screen.getByTestId('profile-confirm-password-input');
+      const submitBtn = screen.getByTestId('profile-update-password-btn');
+
+      // Mismatch
+      fireEvent.change(currentInput, { target: { value: 'CurrentPass123!' } });
+      fireEvent.change(newInput, { target: { value: 'ValidPass123!' } });
+      fireEvent.change(confirmInput, { target: { value: 'DifferentPass123!' } });
+
+      expect(screen.getByTestId('password-match-badge')).toHaveTextContent('✕ No match');
+
+      fireEvent.click(submitBtn);
+
+      expect(screen.getByTestId('password-error-message')).toHaveTextContent('New passwords do not match.');
+
+      // Same as current
+      fireEvent.change(newInput, { target: { value: 'CurrentPass123!' } });
+      fireEvent.change(confirmInput, { target: { value: 'CurrentPass123!' } });
+
+      fireEvent.click(submitBtn);
+
+      expect(screen.getByTestId('password-error-message')).toHaveTextContent(
+        'New password must be different from your current password.'
+      );
+    });
+
+    it('submits valid password change via PATCH /v1/me/password', async () => {
+      const apiRequestSpy = vi.spyOn(api, 'apiRequest').mockImplementation(async (path: string, options?: any) => {
+        if (path === '/v1/me') return { data: mockUserProfile };
+        if (path === '/v1/me/password' && options?.method === 'PATCH') {
+          return null;
+        }
+        return { data: {} };
+      });
+
+      render(React.createElement(ProfilePage), { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('profile-password-card')).toBeInTheDocument();
+      });
+
+      const currentInput = screen.getByTestId('profile-current-password-input');
+      const newInput = screen.getByTestId('profile-new-password-input');
+      const confirmInput = screen.getByTestId('profile-confirm-password-input');
+      const submitBtn = screen.getByTestId('profile-update-password-btn');
+
+      fireEvent.change(currentInput, { target: { value: 'OldSecret123!' } });
+      fireEvent.change(newInput, { target: { value: 'NewSuperSecret123!' } });
+      fireEvent.change(confirmInput, { target: { value: 'NewSuperSecret123!' } });
+
+      expect(screen.getByTestId('password-match-badge')).toHaveTextContent('✓ Match');
+
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(apiRequestSpy).toHaveBeenCalledWith(
+          '/v1/me/password',
+          expect.objectContaining({
+            method: 'PATCH',
+            body: JSON.stringify({
+              currentPassword: 'OldSecret123!',
+              newPassword: 'NewSuperSecret123!',
+            }),
+          })
+        );
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('password-success-message')).toHaveTextContent(
+          'Password updated successfully.'
+        );
+      });
+    });
+  });
+
+  describe('Vector 4: Preferences Saving & Theme Persistence', () => {
+    it('persists preferences and theme changes to localStorage and DOM', async () => {
+      const apiRequestSpy = vi.spyOn(api, 'apiRequest').mockImplementation(async (path: string, options?: any) => {
+        if (path === '/v1/me' && (!options || options.method === 'GET')) {
+          return { data: mockUserProfile };
+        }
+        if (path === '/v1/me' && options?.method === 'PATCH') {
+          const body = JSON.parse(options.body);
+          return {
+            data: {
+              ...mockUserProfile,
+              preferences: body.preferences,
+            },
+          };
+        }
+        return { data: {} };
+      });
+
+      render(React.createElement(ProfilePage), { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('profile-preferences-card')).toBeInTheDocument();
+      });
+
+      const submitBtn = screen.getByTestId('profile-save-preferences-btn');
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(apiRequestSpy).toHaveBeenCalledWith(
+          '/v1/me',
+          expect.objectContaining({
+            method: 'PATCH',
+          })
+        );
+      });
+
+      expect(localStorage.getItem('erp_default_view')).toBe('table');
+    });
+  });
+
+  describe('Vector 5: Topbar User Menu Navigation & Avatar Rendering', () => {
+    it('displays user initials when avatarUrl is absent, and links to /profile from dropdown', async () => {
+      render(React.createElement(Topbar), { wrapper: createWrapper() });
+
+      const avatarEl = screen.getByTestId('topbar-user-avatar');
+      expect(avatarEl).toHaveTextContent('JD');
+
+      const userBtn = screen.getByTestId('user-menu-button');
+      fireEvent.pointerDown(userBtn, { button: 0, ctrlKey: false });
+      fireEvent.keyDown(userBtn, { key: 'ArrowDown', code: 'ArrowDown' });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('my-profile-menu-item')).toBeInTheDocument();
+      });
+    });
+
+    it('renders background avatar image in Topbar when avatarUrl is present in session', async () => {
+      const avatarUrl = 'https://s3.storage.supabase.com/avatars/user-123.png';
+      useSessionStore.getState().setSession({
+        user: { ...mockUserProfile, avatarUrl },
+        permissions: ['workflow:view'],
+        activeEntity: 'ATA',
+      });
+
+      render(React.createElement(Topbar), { wrapper: createWrapper() });
+
+      const avatarEl = screen.getByTestId('topbar-user-avatar');
+      expect(avatarEl).toHaveStyle({ backgroundImage: `url('${avatarUrl}')` });
+      expect(avatarEl).not.toHaveTextContent('JD');
+    });
+  });
+});
