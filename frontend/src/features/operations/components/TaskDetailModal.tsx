@@ -202,12 +202,10 @@ export function TaskDetailModal({
 
   const linkedDocs: DmsDocument[] = useMemo(() => {
     const docs = Array.isArray(rawDocs) ? rawDocs : rawDocs?.data ?? [];
-    if (!task) return docs;
-    // Return docs explicitly linked to this task or all WR docs if none specific
-    const taskSpecific = docs.filter(
-      (d) => d.linkedTaskId === task.id || d.linked_task_id === task.id
+    if (!task?.id) return [];
+    return docs.filter(
+      (d) => (d.linkedTaskId ?? d.linked_task_id) === task.id
     );
-    return taskSpecific.length > 0 ? taskSpecific : docs;
   }, [rawDocs, task]);
 
   // Mutations
@@ -1177,7 +1175,7 @@ export function TaskDetailModal({
                 </div>
               ) : linkedDocs.length === 0 ? (
                 <div className="p-4 text-center text-xs text-slate-400 bg-slate-50 rounded border border-slate-200 italic">
-                  No documents linked to this work request or task.
+                  No documents linked to this task.
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

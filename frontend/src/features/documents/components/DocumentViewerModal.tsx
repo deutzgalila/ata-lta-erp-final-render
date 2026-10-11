@@ -12,7 +12,7 @@
  * - Shared design tokens (#f0f0f5, #f0f1f3, #2563eb, #1e293b, #9494a0)
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -45,10 +45,12 @@ import { MAX_FILE_SIZE_BYTES } from '../api/schemas';
 import type { DmsDocument, DmsDocumentComment } from '../api/types';
 import { useSessionStore } from '@/lib/session';
 import { parseExternalUrl } from '../utils/googleDrive';
+import { useTeam } from '@/features/operations/api/useTeam';
 
 export interface ViewerWorkRequest {
   id: string;
   clientId?: string | null;
+  title?: string;
   status?: string;
   archived?: boolean;
 }
@@ -86,6 +88,31 @@ export function DocumentViewerModal({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const currentUserId = useSessionStore((state) => state.user?.id);
   const currentUserName = useSessionStore((state) => state.user?.name || 'User');
+
+  const { data: rawTeam } = useTeam();
+  const teamMap = useMemo(() => {
+    const list = Array.isArray(rawTeam)
+      ? rawTeam
+      : rawTeam && typeof rawTeam === 'object' && 'data' in rawTeam && Array.isArray((rawTeam as { data: unknown[] }).data)
+      ? (rawTeam as { data: Array<{ id: string; name?: string }> }).data
+      : [];
+    const map = new Map<string, string>();
+    list.forEach((m) => {
+      if (m && m.id && m.name) map.set(m.id, m.name);
+    });
+    return map;
+  }, [rawTeam]);
+
+  const formattedUploadDate = useMemo(() => {
+    const rawDate = doc?.upload_date || doc?.created_at;
+    if (!rawDate) return 'Unknown';
+    try {
+      const d = new Date(rawDate);
+      return Number.isNaN(d.getTime()) ? rawDate : d.toLocaleString();
+    } catch {
+      return rawDate;
+    }
+  }, [doc?.upload_date, doc?.created_at]);
 
   // Keep doc synced with initialDoc
   useEffect(() => {
@@ -558,6 +585,54 @@ export function DocumentViewerModal({
 
           {/* Right: Threaded Comments */}
           <div className="w-80 sm:w-96 flex flex-col bg-white">
+            {/* Document Details Metadata Panel */}
+            <div
+              className="p-3 border-b border-[#f0f0f5] bg-[#f8fafc] text-xs space-y-2 shrink-0"
+              data-testid="document-details-panel"
+            >
+              <div className="font-semibold text-[#1e293b] text-xs">
+                Document Details
+              </div>
+              <div className="space-y-1.5 text-[11px]">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-[#9494a0] shrink-0">Uploader:</span>
+                  <span
+                    className="font-medium text-[#1e293b] text-right truncate"
+                    data-testid="doc-uploader-name"
+                  >
+                    {doc?.uploader_name || doc?.uploaderName || (doc?.uploader_id ? teamMap.get(doc.uploader_id) : undefined) || 'Unknown User'}
+                  </span>
+                </div>
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-[#9494a0] shrink-0">Date Uploaded:</span>
+                  <span
+                    className="font-medium text-[#1e293b] text-right truncate"
+                    data-testid="doc-upload-date"
+                  >
+                    {formattedUploadDate}
+                  </span>
+                </div>
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-[#9494a0] shrink-0">Work Request:</span>
+                  <span
+                    className="font-medium text-[#1e293b] text-right truncate"
+                    data-testid="doc-work-request"
+                  >
+                    {doc?.work_request_title || workRequest?.title || 'None / Not Linked'}
+                  </span>
+                </div>
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-[#9494a0] shrink-0">Linked Task:</span>
+                  <span
+                    className="font-medium text-[#1e293b] text-right truncate"
+                    data-testid="doc-linked-task"
+                  >
+                    {doc?.linked_task_title || 'None / Not Linked'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
             <div className="p-3 border-b border-[#f0f0f5] flex items-center gap-1.5 text-xs font-semibold text-[#1e293b]">
               <MessageSquare className="h-3.5 w-3.5 text-[#2563eb]" />
               <span>Comments ({doc?.comments?.length || 0})</span>

@@ -116,7 +116,7 @@ export interface CreateTransmittalItemInput {
 export interface CreateTransmittalInput {
   clientId: string;
   workRequestId: string;
-  trackingNumber: string;
+  trackingNumber?: string;
   items: CreateTransmittalItemInput[];
   notes?: string | null;
   recipientName?: string | null;

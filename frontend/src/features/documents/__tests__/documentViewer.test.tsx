@@ -725,5 +725,55 @@ describe('DocumentViewerModal (UAT2-14)', () => {
     expect(screen.getByText('Download')).toBeDefined();
     expect(screen.getByTestId('doc-preview-pdf')).toBeDefined();
   });
+
+  it('renders Document Details metadata panel with uploader, date, work request, and linked task', () => {
+    const docWithMetadata: DmsDocument = {
+      ...baseDoc,
+      uploader_name: 'Twinkle Documents',
+      work_request_title: 'Annual Tax Returns 2026',
+      linked_task_title: 'BIR Form 1702 Preparation',
+      created_at: '2026-10-12T01:30:00.000Z',
+    };
+
+    render(
+      <DocumentViewerModal
+        isOpen={true}
+        onClose={vi.fn()}
+        document={docWithMetadata}
+      />,
+      { wrapper }
+    );
+
+    expect(screen.getByTestId('document-details-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('doc-uploader-name')).toHaveTextContent('Twinkle Documents');
+    expect(screen.getByTestId('doc-work-request')).toHaveTextContent('Annual Tax Returns 2026');
+    expect(screen.getByTestId('doc-linked-task')).toHaveTextContent('BIR Form 1702 Preparation');
+    expect(screen.getByTestId('doc-upload-date')).not.toHaveTextContent('Unknown');
+  });
+
+  it('renders Document Details fallbacks when metadata fields are missing or not linked', () => {
+    const docWithoutMetadata: DmsDocument = {
+      ...baseDoc,
+      uploader_name: undefined,
+      uploaderName: undefined,
+      uploader_id: 'unknown-user-id',
+      work_request_title: undefined,
+      linked_task_title: undefined,
+    };
+
+    render(
+      <DocumentViewerModal
+        isOpen={true}
+        onClose={vi.fn()}
+        document={docWithoutMetadata}
+      />,
+      { wrapper }
+    );
+
+    expect(screen.getByTestId('document-details-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('doc-uploader-name')).toHaveTextContent('Unknown User');
+    expect(screen.getByTestId('doc-work-request')).toHaveTextContent('None / Not Linked');
+    expect(screen.getByTestId('doc-linked-task')).toHaveTextContent('None / Not Linked');
+  });
 });
 

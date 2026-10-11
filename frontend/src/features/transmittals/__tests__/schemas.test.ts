@@ -91,6 +91,23 @@ describe('Transmittals Zod Schemas (transmittals@2.0.0)', () => {
       expect((parsed as Record<string, unknown>).status).toBeUndefined();
     });
 
+    it('allows trackingNumber to be omitted (optional for auto-generation)', () => {
+      const payloadWithoutTracking = {
+        clientId: validUuid,
+        workRequestId: validUuid,
+        items: [
+          {
+            description: 'Audited Financial Statements',
+            quantity: 1,
+          },
+        ],
+      };
+
+      const parsed = createTransmittalSchema.parse(payloadWithoutTracking);
+      expect(parsed.trackingNumber).toBeUndefined();
+      expect(parsed.items).toHaveLength(1);
+    });
+
     it('requires at least 1 document line item (min 1)', () => {
       const payload = {
         clientId: validUuid,

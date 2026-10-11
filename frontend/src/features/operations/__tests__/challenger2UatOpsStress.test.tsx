@@ -179,7 +179,7 @@ describe('Adversarial Challenger 2 Stress Suite: Parcel OPS', () => {
       const docsSection = await screen.findByTestId('task-documents-section');
       expect(docsSection).toBeInTheDocument();
       expect(
-        await screen.findByText('No documents linked to this work request or task.')
+        await screen.findByText('No documents linked to this task.')
       );
     });
 

@@ -460,6 +460,49 @@ describe('Transmittals UI Integration & Behavioral Parity', () => {
       fireEvent.click(screen.getByTestId('remove-item-row-btn-1'));
       expect(screen.queryByTestId('transmittal-form-item-row-1')).not.toBeInTheDocument();
     });
+
+    it('renders tracking number as disabled/read-only displaying "Auto-generated on Save" in create mode', () => {
+      useSessionStore.getState().setSession({
+        user: { id: 'u-1', email: 'admin@ata-lta.ph', name: 'Admin', role: 'Admin', departments: ['Operations'], entities: ['ATA', 'LTA'] },
+        permissions: ['transmittal:view', 'transmittal:create'],
+        activeEntity: 'ATA',
+      });
+
+      const { wrapper } = createHarness();
+      render(
+        <TransmittalFormModal
+          isOpen={true}
+          onClose={vi.fn()}
+        />,
+        { wrapper }
+      );
+
+      const trackingInput = screen.getByTestId('tracking-number-input');
+      expect(trackingInput).toBeDisabled();
+      expect(trackingInput).toHaveValue('Auto-generated on Save');
+    });
+
+    it('renders tracking number as disabled/read-only displaying existing tracking number in edit mode', () => {
+      useSessionStore.getState().setSession({
+        user: { id: 'u-1', email: 'admin@ata-lta.ph', name: 'Admin', role: 'Admin', departments: ['Operations'], entities: ['ATA', 'LTA'] },
+        permissions: ['transmittal:view', 'transmittal:edit'],
+        activeEntity: 'ATA',
+      });
+
+      const { wrapper } = createHarness();
+      render(
+        <TransmittalFormModal
+          isOpen={true}
+          onClose={vi.fn()}
+          transmittalToEdit={mockTransmittals[0]}
+        />,
+        { wrapper }
+      );
+
+      const trackingInput = screen.getByTestId('tracking-number-input');
+      expect(trackingInput).toBeDisabled();
+      expect(trackingInput).toHaveValue(mockTransmittals[0]!.tracking_number);
+    });
   });
 
   // ==========================================================================

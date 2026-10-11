@@ -105,6 +105,9 @@ export interface DmsDocument {
   handover_log?: HandoverEntry[];
   comments: DmsDocumentComment[];
   versions: DmsDocumentVersion[];
+  uploader_name?: string | null;
+  work_request_title?: string | null;
+  linked_task_title?: string | null;
   upload_date?: string | null;
   created_by?: string | null;
   updated_by?: string | null;
@@ -115,6 +118,7 @@ export interface DmsDocument {
   // Compatibility aliases
   fileName?: string;
   originalName?: string;
+  uploaderName?: string | null;
   workRequestId?: string | null;
   linkedTaskId?: string | null;
   clientId?: string | null;

@@ -872,7 +872,7 @@ describe('Milestone 2 Adversarial Challenge Suite (Empirical Challenger 2)', () 
       let uploadCallCount = 0;
       global.fetch = vi.fn().mockImplementation((url: string) => {
         const u = String(url);
-        if (u.includes('/download-url')) {
+        if (u.includes('/download-url') || u.includes('/me/team')) {
           return Promise.resolve({
             ok: true,
             status: 200,
