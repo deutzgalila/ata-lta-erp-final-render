@@ -145,11 +145,13 @@ const toApiTask = (
   const resolvedAssignees =
     assignees && assignees.length > 0
       ? assignees
-      : row.assignees && row.assignees.length > 0
-        ? row.assignees
-        : row.assignee_id
-          ? [row.assignee_id]
-          : [];
+      : row.relational_assignees && row.relational_assignees.length > 0
+        ? row.relational_assignees
+        : row.assignees && row.assignees.length > 0
+          ? row.assignees
+          : row.assignee_id
+            ? [row.assignee_id]
+            : [];
 
   return {
     id: row.id,
@@ -165,6 +167,7 @@ const toApiTask = (
     assigneeId: row.assignee_id || null,
     assigneeName: row.assignee_name || null,
     assignees: resolvedAssignees,
+    relational_assignees: row.relational_assignees || resolvedAssignees,
     taskAssignees: taskAssignees,
     task_assignees: taskAssignees,
     predecessors: row.predecessors || [],
@@ -287,8 +290,25 @@ const loadTasksForWorkRequests = async (wrIds) => {
     .order('display_order', { ascending: true });
 
   const taskRows = await resolveTasksAssigneeNames(data || []);
+  const taskIds = taskRows.map((t) => t.id).filter(Boolean);
+
+  const taskAssigneesMap = new Map();
+  if (taskIds.length > 0) {
+    const { data: taRows } = await supabaseAdmin
+      .from('task_assignees')
+      .select('task_id, user_id')
+      .in('task_id', taskIds);
+
+    (taRows || []).forEach((ta) => {
+      if (!taskAssigneesMap.has(ta.task_id)) {
+        taskAssigneesMap.set(ta.task_id, []);
+      }
+      taskAssigneesMap.get(ta.task_id).push(ta.user_id);
+    });
+  }
 
   taskRows.forEach((t) => {
+    t.relational_assignees = taskAssigneesMap.get(t.id) || [];
     if (!tasks.has(t.work_request_id)) tasks.set(t.work_request_id, []);
     tasks.get(t.work_request_id).push(t);
   });
@@ -425,6 +445,16 @@ const canViewWorkRequest = (wr, user, taskMap) => {
     if (t.assignee_id === user.id || t.assigneeId === user.id || t.assignee_name === user.name || t.assigneeName === user.name) return true;
     const taskCo = Array.isArray(t.co_assignees) ? t.co_assignees : (t.coAssignees || []);
     if (taskCo.some((ca) => ca === user.id || ca === user.name)) return true;
+    const relationalCo = Array.isArray(t.relational_assignees)
+      ? t.relational_assignees
+      : Array.isArray(t.relationalAssignees)
+        ? t.relationalAssignees
+        : Array.isArray(t.assignees)
+          ? t.assignees
+          : [];
+    if (relationalCo.some((id) => id === user.id || id?.user_id === user.id || id?.userId === user.id)) return true;
+    if (Array.isArray(t.task_assignees) && t.task_assignees.some((ta) => ta.user_id === user.id || ta.userId === user.id)) return true;
+    if (Array.isArray(t.taskAssignees) && t.taskAssignees.some((ta) => ta.user_id === user.id || ta.userId === user.id)) return true;
     if (Array.isArray(t.checklist) && t.checklist.some((item) => item.assignee_name === user.name || item.assigneeName === user.name || item.assignee_id === user.id || item.assigneeId === user.id)) return true;
     return false;
   });
@@ -1394,14 +1424,19 @@ const getWorkRequestById = async ({ id, entityId, user, includeTasks = false }) 
   }
   if (!data) return null;
 
-  const taskMap = await loadTasksForWorkRequests([id]);
+  const withTasks = includeTasks === true || String(includeTasks).toLowerCase() === 'true';
+
+  let taskMap = null;
+  if (withTasks || !canViewWorkRequest(data, user, null)) {
+    taskMap = await loadTasksForWorkRequests([id]);
+  }
   if (!canViewWorkRequest(data, user, taskMap)) return null;
 
   const entityCode = await resolveEntityCode(data.entity_id || entityId);
   const wr = toApiWorkRequest(data, entityCode);
 
-  if (includeTasks) {
-    const taskRows = taskMap.get(id) || [];
+  if (withTasks) {
+    const taskRows = (taskMap && taskMap.get(id)) || [];
     const extras = await loadTaskExtras(taskRows.map((t) => t.id));
     wr.tasks = taskRows.map((t) =>
       toApiTask(t, {
@@ -3682,6 +3717,8 @@ module.exports = {
   isUserAssignedToTask,
   isManager,
   validateProjectTeamRoles,
+  loadTasksForWorkRequests,
+  canViewWorkRequest,
   VALID_TRANSITIONS,
   PHASE_SEQUENCE,
   PHASE_STATUS_MAP,
