@@ -1783,6 +1783,7 @@ const createTask = async ({ workRequestId, entityId, data, user: _user }) => {
     title: data.title,
     description: data.description || null,
     status: data.status || 'Draft',
+    version: 1,
     phase,
     qa_status: 'none',
     assignee_id: primaryAssigneeId,
