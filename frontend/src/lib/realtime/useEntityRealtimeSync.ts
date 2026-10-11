@@ -101,7 +101,7 @@ export function getDefaultListRootKey(table: string): readonly unknown[] {
     case 'work_requests':
       return operationsKeys.workRequests();
     case 'tasks':
-      return ['operations', 'workRequests'];
+      return ['operations', 'tasks'];
     case 'invoices':
       return billingKeys.invoices();
     case 'disbursements':
@@ -860,6 +860,32 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
         }
       }
 
+      if (options.table === 'tasks') {
+        const wrQueries = queryClient.getQueriesData<GenericListResponse | GenericEntityRecord[]>({
+          queryKey: operationsKeys.workRequests(),
+        });
+        for (const [wrQKey, wrListData] of wrQueries) {
+          if (!wrListData) continue;
+          if (!Array.isArray(wrListData) && typeof wrListData === 'object' && 'phases' in wrListData) {
+            const candidateRecord = wrListData as unknown as GenericEntityRecord;
+            queryClient.setQueryData(wrQKey, patchTaskInPhases(candidateRecord, id, undefined));
+          } else if (
+            typeof wrListData === 'object' &&
+            'data' in wrListData &&
+            Array.isArray((wrListData as GenericListResponse).data)
+          ) {
+            const resp = wrListData as GenericListResponse;
+            const hasPhases = resp.data.some((item) => Boolean(item?.phases));
+            if (hasPhases) {
+              queryClient.setQueryData(wrQKey, {
+                ...resp,
+                data: resp.data.map((wr) => patchTaskInPhases(wr, id, undefined)),
+              });
+            }
+          }
+        }
+      }
+
       if (options.table === 'notifications') {
         const wasUnread =
           deletedUnreadNotification ||
@@ -945,6 +971,16 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
 
           // Scoped matcher for tasks: only prepend to matching parent work request query
           if (options.table === 'tasks') {
+            // Guard: Never prepend task records to work request list queries
+            if (
+              Array.isArray(qKey) &&
+              qKey.length >= 3 &&
+              qKey[0] === 'operations' &&
+              qKey[1] === 'workRequests' &&
+              qKey[2] === 'list'
+            ) {
+              continue;
+            }
             if (!targetWrId || !isTaskListOfTargetWr(qKey, targetWrId)) {
               continue;
             }
@@ -1077,6 +1113,32 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
             const hasPhases = resp.data.some((item) => Boolean(item?.phases));
             if (hasPhases) {
               queryClient.setQueryData(qKey, {
+                ...resp,
+                data: resp.data.map((wr) => patchTaskInPhases(wr, id, payloadObj.new)),
+              });
+            }
+          }
+        }
+      }
+
+      if (options.table === 'tasks') {
+        const wrQueries = queryClient.getQueriesData<GenericListResponse | GenericEntityRecord[]>({
+          queryKey: operationsKeys.workRequests(),
+        });
+        for (const [wrQKey, wrListData] of wrQueries) {
+          if (!wrListData) continue;
+          if (!Array.isArray(wrListData) && typeof wrListData === 'object' && 'phases' in wrListData) {
+            const candidateRecord = wrListData as unknown as GenericEntityRecord;
+            queryClient.setQueryData(wrQKey, patchTaskInPhases(candidateRecord, id, payloadObj.new));
+          } else if (
+            typeof wrListData === 'object' &&
+            'data' in wrListData &&
+            Array.isArray((wrListData as GenericListResponse).data)
+          ) {
+            const resp = wrListData as GenericListResponse;
+            const hasPhases = resp.data.some((item) => Boolean(item?.phases));
+            if (hasPhases) {
+              queryClient.setQueryData(wrQKey, {
                 ...resp,
                 data: resp.data.map((wr) => patchTaskInPhases(wr, id, payloadObj.new)),
               });

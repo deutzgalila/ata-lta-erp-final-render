@@ -49,12 +49,11 @@ export interface InvoiceListProps {
 const STATUS_TABS: Array<{ label: string; value: InvoiceStatus | 'All' }> = [
   { label: 'All', value: 'All' },
   { label: 'Draft', value: 'Draft' },
-  { label: 'Approved', value: 'Approved' },
-  { label: 'Pending', value: 'Pending' },
   { label: 'Sent', value: 'Sent' },
   { label: 'Partially Paid', value: 'Partially Paid' },
   { label: 'Paid', value: 'Paid' },
   { label: 'Overdue', value: 'Overdue' },
+  { label: 'Cancelled', value: 'Cancelled' },
 ];
 
 export function InvoiceList({
@@ -88,8 +87,9 @@ export function InvoiceList({
   const { data: clientsData } = useClients();
   const clientsList = clientsData || [];
 
+  const effectiveStatus = statusFilter === 'Approved' ? 'Sent' : statusFilter;
   const { data: invoicesResponse, isLoading } = useInvoices({
-    status: statusFilter,
+    status: effectiveStatus,
     clientId: clientFilter !== 'all' ? clientFilter : undefined,
     search: debouncedSearch || undefined,
     archived: false,

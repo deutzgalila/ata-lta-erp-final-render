@@ -589,15 +589,26 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
 
                   {selectedRequest.linked_task_id && (
                     <div className="text-xs text-slate-700 bg-white p-2.5 rounded border border-slate-200 flex items-center justify-between">
-                      <span className="text-slate-500 font-medium">Linked Task ID:</span>
-                      <span className="font-mono text-slate-800">{selectedRequest.linked_task_id}</span>
+                      <span className="text-slate-500 font-medium">Linked Task:</span>
+                      <span className="font-semibold text-slate-800">
+                        {wrDetail?.tasks?.find((t) => t.id === selectedRequest.linked_task_id)?.title || selectedRequest.linked_task_id}
+                      </span>
                     </div>
                   )}
 
                   {selectedRequest.notes && (
                     <div className="text-xs text-slate-600 bg-white p-2.5 rounded border border-slate-200">
                       <span className="font-semibold text-slate-700">Submitter Notes: </span>
-                      {selectedRequest.notes}
+                      {(() => {
+                        const raw = selectedRequest.notes;
+                        if (typeof raw === 'string' && raw.trim().startsWith('{')) {
+                          try {
+                            const parsed = JSON.parse(raw);
+                            return parsed.user_notes || parsed.notes || raw;
+                          } catch { return raw; }
+                        }
+                        return raw;
+                      })()}
                     </div>
                   )}
                 </div>
@@ -618,7 +629,16 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
                   {selectedRequest.notes && (
                     <div className="text-xs text-slate-600 bg-white p-2.5 rounded border border-slate-200">
                       <span className="font-semibold text-slate-700">Submitter Notes: </span>
-                      {selectedRequest.notes}
+                      {(() => {
+                        const raw = selectedRequest.notes;
+                        if (typeof raw === 'string' && raw.trim().startsWith('{')) {
+                          try {
+                            const parsed = JSON.parse(raw);
+                            return parsed.user_notes || parsed.notes || raw;
+                          } catch { return raw; }
+                        }
+                        return raw;
+                      })()}
                     </div>
                   )}
                 </div>

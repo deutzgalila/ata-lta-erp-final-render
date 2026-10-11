@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -154,6 +154,13 @@ export function TaskDetailModal({
   }, [initialTask, liveTask]);
 
   const task = currentTask;
+
+  // Instant reactive local state for due date (Task B.7)
+  const [localDueDate, setLocalDueDate] = useState<string | null>(task?.dueDate ?? null);
+  useEffect(() => {
+    setLocalDueDate(task?.dueDate ?? null);
+  }, [task?.dueDate]);
+
   // Time logging form state
   const [logDate, setLogDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [logMinutes, setLogMinutes] = useState<number>(30);
@@ -216,6 +223,23 @@ export function TaskDetailModal({
     enabled: Boolean(task?.workRequestId),
   });
   const siblingTasks = siblingTasksData || [];
+
+  // Task B.5: Graceful prerequisite blocker handling
+  const incompletePredecessors = useMemo(() => {
+    if (!task?.predecessors?.length) return [];
+    const predIds = new Set(task.predecessors);
+    return siblingTasks.filter((t) => predIds.has(t.id) && t.status !== 'Completed');
+  }, [task?.predecessors, siblingTasks]);
+
+  const isPrereqBlocked = incompletePredecessors.length > 0;
+  const prereqBlockedTooltip = isPrereqBlocked
+    ? `Blocked by prerequisite task(s): ${incompletePredecessors.map((p) => p.title).join(', ')}`
+    : undefined;
+
+  // Task B.4: Client-side phase gate for processing tasks
+  const isPhaseBlocked = task?.phase === 'processing' && workRequest?.phase === 'pre_processing';
+  const phaseBlockedTooltip =
+    'Parent Work Request is in Pre-processing. Must be routed to Processing before advancing processing tasks.';
 
   // Check pending operations requests for this task
   const { data: rawPendingReqs } = useOperationsRequests(
@@ -478,34 +502,38 @@ export function TaskDetailModal({
     });
   };
 
-  // Handle setting task status (UAT2-9-frontend)
+  // Handle setting task status (UAT2-9-frontend, Task B.5)
   const handleSetTaskStatus = async (nextStatus: TaskStatus) => {
     if (!task || !task.workRequestId) return;
 
-    await runBlockingAction({
-      title: 'Updating Task Status',
-      message: `Setting status of "${task.title}" to ${nextStatus}...`,
-      apiCall: async () => {
-        return await updateTask({
-          workRequestId: task.workRequestId,
-          taskId: task.id,
-          data: { status: nextStatus },
-        });
-      },
-      successTitle: 'Task Updated',
-      successMessage: isAdmin
-        ? `Task "${task.title}" status changed to ${nextStatus} (Directly approved by Admin).`
-        : `Task "${task.title}" status changed to ${nextStatus}.`,
-      onSuccess: (updated) => {
-        if (updated && onTaskUpdated) {
-          onTaskUpdated(updated as Task);
-        }
-      },
-      invalidateQueries: [
-        operationsKeys.tasks(task.workRequestId),
-        operationsKeys.workRequestDetail(task.workRequestId),
-      ],
-    });
+    try {
+      await runBlockingAction({
+        title: 'Updating Task Status',
+        message: `Setting status of "${task.title}" to ${nextStatus}...`,
+        apiCall: async () => {
+          return await updateTask({
+            workRequestId: task.workRequestId,
+            taskId: task.id,
+            data: { status: nextStatus },
+          });
+        },
+        successTitle: 'Task Updated',
+        successMessage: isAdmin
+          ? `Task "${task.title}" status changed to ${nextStatus} (Directly approved by Admin).`
+          : `Task "${task.title}" status changed to ${nextStatus}.`,
+        onSuccess: (updated) => {
+          if (updated && onTaskUpdated) {
+            onTaskUpdated(updated as Task);
+          }
+        },
+        invalidateQueries: [
+          operationsKeys.tasks(task.workRequestId),
+          operationsKeys.workRequestDetail(task.workRequestId),
+        ],
+      });
+    } catch {
+      // Gracefully handled by BlockingActionModal presentation
+    }
   };
 
   // Handle requesting billing invoice from accounting
@@ -701,6 +729,8 @@ export function TaskDetailModal({
                     type="button"
                     variant="outline"
                     size="sm"
+                    disabled={isPhaseBlocked}
+                    title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
                     onClick={() => handleSetTaskStatus('In Progress')}
                     className="text-xs gap-1.5"
                     data-testid="task-status-inprogress-btn"
@@ -714,6 +744,8 @@ export function TaskDetailModal({
                     type="button"
                     variant="outline"
                     size="sm"
+                    disabled={isPhaseBlocked}
+                    title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
                     onClick={() => handleSetTaskStatus('In Progress')}
                     className="text-xs shrink-0 gap-1.5"
                     data-testid="task-toggle-status-btn"
@@ -726,6 +758,14 @@ export function TaskDetailModal({
                     type="button"
                     variant="default"
                     size="sm"
+                    disabled={isPhaseBlocked || isPrereqBlocked}
+                    title={
+                      isPhaseBlocked
+                        ? phaseBlockedTooltip
+                        : isPrereqBlocked
+                        ? prereqBlockedTooltip
+                        : undefined
+                    }
                     onClick={() => handleSetTaskStatus('Completed')}
                     className="text-xs shrink-0 gap-1.5"
                     data-testid="task-toggle-status-btn"
@@ -744,7 +784,7 @@ export function TaskDetailModal({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
               <div>
                 <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">
-                  Lead Assignee
+                  Primary Assignee
                 </span>
                 <div
                   className="flex items-center gap-1.5 font-medium text-slate-800 truncate"
@@ -770,23 +810,41 @@ export function TaskDetailModal({
                     <div className="flex items-center gap-1.5">
                       <input
                         type="date"
-                        value={task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : ''}
+                        value={
+                          localDueDate
+                            ? localDueDate.includes('T')
+                              ? new Date(localDueDate).toISOString().split('T')[0]
+                              : localDueDate
+                            : ''
+                        }
                         onChange={(e) => {
-                          updateTask({
-                            workRequestId: task.workRequestId || '',
-                            taskId: task.id,
-                            data: { dueDate: e.target.value || null },
-                          });
+                          const val = e.target.value || null;
+                          setLocalDueDate(val);
+                          if (task.workRequestId) {
+                            updateTask({
+                              workRequestId: task.workRequestId,
+                              taskId: task.id,
+                              data: { dueDate: val },
+                            })
+                              .then((res) => {
+                                if (res && onTaskUpdated) {
+                                  onTaskUpdated(res as Task);
+                                }
+                              })
+                              .catch(() => {
+                                setLocalDueDate(task.dueDate ?? null);
+                              });
+                          }
                         }}
                         className="text-xs bg-transparent border-b border-dashed border-slate-300 focus:outline-none focus:border-blue-500 py-0.5"
                         data-testid="task-due-date-input"
                       />
-                      {!task.dueDate && <span className="text-slate-400 text-xs">Not set</span>}
+                      {!localDueDate && <span className="text-slate-400 text-xs">Not set</span>}
                     </div>
                   ) : (
                     <span>
-                      {task.dueDate
-                        ? new Date(task.dueDate).toLocaleDateString()
+                      {localDueDate
+                        ? new Date(localDueDate).toLocaleDateString()
                         : 'Not set'}
                     </span>
                   )}
@@ -835,7 +893,7 @@ export function TaskDetailModal({
                       </span>
                     </h4>
                     <p className="text-[11px] text-slate-500">
-                      Primary lead assignee and co-assignees working on this task
+                      Primary assignee and co-assignees working on this task
                     </p>
                   </div>
                 </div>
@@ -853,12 +911,12 @@ export function TaskDetailModal({
                             className="h-7 text-xs bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700"
                             data-testid="reassign-lead-select"
                           >
-                            <SelectValue placeholder="Reassign Lead..." />
+                            <SelectValue placeholder="Select Primary Assignee..." />
                           </SelectTrigger>
                           <SelectContent>
                             {scopedTeamList.map((m) => (
                               <SelectItem key={m.id} value={m.id} className="text-xs">
-                                {m.name} {m.id === task.assigneeId ? '(Lead)' : `(${m.role})`}
+                                {m.name} {m.id === task.assigneeId ? '(Primary)' : `(${m.role})`}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -908,7 +966,7 @@ export function TaskDetailModal({
               {/* Members Chips / Cards */}
               {assignedTeamMembers.length === 0 ? (
                 <div className="py-3 text-center text-xs text-slate-400 italic">
-                  No team members assigned yet. Use the dropdown above to assign a lead or co-assignee.
+                  No team members assigned yet. Use the dropdown above to assign a primary or co-assignee.
                 </div>
               ) : (
                 <div className="flex flex-wrap gap-2 pt-1" data-testid="assigned-team-list">
@@ -927,7 +985,7 @@ export function TaskDetailModal({
                         <span className="font-semibold text-xs">{member.name}</span>
                         {member.isLead ? (
                           <Badge size="compact" className="bg-blue-600 text-white font-medium text-[10px]">
-                            Lead
+                            Primary
                           </Badge>
                         ) : (
                           <Badge variant="outline" size="compact" className="text-[10px] text-slate-500">
@@ -943,10 +1001,10 @@ export function TaskDetailModal({
                               type="button"
                               onClick={() => handleSetLeadAssignee(member.id)}
                               className="text-[10px] text-blue-600 hover:text-blue-800 hover:underline font-medium px-1"
-                              title="Make this member the lead assignee"
+                              title="Make this member the primary assignee"
                               data-testid={`make-lead-btn-${member.id}`}
                             >
-                              Make Lead
+                              Make Primary
                             </button>
                           )}
                           <button
@@ -1054,12 +1112,17 @@ export function TaskDetailModal({
                 </h4>
                 <div className="flex flex-wrap gap-1.5">
                   {task.predecessors.map((pId) => {
+                    const detail = (task as unknown as { predecessorDetails?: Array<{ id: string; title: string; status: string }> })
+                      .predecessorDetails?.find((d) => d.id === pId);
                     const predTask = siblingTasks.find((t) => t.id === pId);
+                    const title = detail?.title || predTask?.title || pId.slice(0, 8);
+                    const status = detail?.status || predTask?.status;
+
                     return (
                       <Badge key={pId} variant="outline" size="compact" className="text-[10px] gap-1">
-                        <span className="font-semibold">{predTask?.title || pId.slice(0, 8)}</span>
-                        {predTask?.status && (
-                          <span className="text-[9px] text-slate-500">({predTask.status})</span>
+                        <span className="font-semibold">{title}</span>
+                        {status && (
+                          <span className="text-[9px] text-slate-500">({status})</span>
                         )}
                       </Badge>
                     );
@@ -1618,6 +1681,7 @@ export function TaskDetailModal({
           }}
           defaultWorkRequestId={task.workRequestId || workRequest?.id}
           defaultClientId={workRequest?.clientId || undefined}
+          {...({ defaultTaskId: task.id } as Record<string, unknown>)}
           onSuccess={() => {
             setIsUploadDocModalOpen(false);
             refetchDocs();

@@ -552,7 +552,12 @@ export function TaskLineItems({
                         }
                         const current = task.checklist || [];
                         const newItem: ChecklistItemData = {
-                          id: `chk-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+                          id: typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+                            ? crypto.randomUUID()
+                            : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+                                const r = (Math.random() * 16) | 0;
+                                return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+                              }),
                           text: '',
                           completed: false,
                           category: 'subtask',
@@ -604,7 +609,12 @@ export function TaskLineItems({
                           onClick={() => {
                             const currentChecklist = task.checklist || [];
                             const newItem: ChecklistItemData = {
-                              id: `chk-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+                              id: typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+                                ? crypto.randomUUID()
+                                : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+                                    const r = (Math.random() * 16) | 0;
+                                    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+                                  }),
                               text: '',
                               completed: false,
                               category: 'subtask',

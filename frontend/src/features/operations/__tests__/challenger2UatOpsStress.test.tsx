@@ -325,7 +325,10 @@ describe('Adversarial Challenger 2 Stress Suite: Parcel OPS', () => {
       let putBody: unknown = null;
       vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
         const url = String(input);
-        if (url.includes('/tasks/task-stress-101') && init?.method === 'PUT') {
+        if (
+          url.includes('/tasks/task-stress-101') &&
+          (init?.method === 'PUT' || init?.method === 'PATCH')
+        ) {
           putBody = JSON.parse(String(init.body));
           return new Response(
             JSON.stringify({

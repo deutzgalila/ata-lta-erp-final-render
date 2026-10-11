@@ -306,7 +306,7 @@ describe('Disbursements UI Components & Integration', () => {
   });
 
   describe('AdminApprovalQueue', () => {
-    it('displays clearance required notice for non-Admin user', () => {
+    it('displays My Submitted Approvals view for non-Admin user', () => {
       // Set session to staff without disbursement:approve
       useSessionStore.getState().setSession({
         user: {
@@ -324,8 +324,8 @@ describe('Disbursements UI Components & Integration', () => {
       const { wrapper } = createHarness();
       render(<AdminApprovalQueue />, { wrapper });
 
-      expect(screen.getByTestId('admin-approval-queue-unauthorized')).toBeInTheDocument();
-      expect(screen.getByText(/Admin Clearance Required/i)).toBeInTheDocument();
+      expect(screen.getByText(/My Submitted Approvals/i)).toBeInTheDocument();
+      expect(screen.queryByTestId('admin-approval-queue-unauthorized')).not.toBeInTheDocument();
     });
 
     it('renders pending items for Admin and executes approve workflow', async () => {

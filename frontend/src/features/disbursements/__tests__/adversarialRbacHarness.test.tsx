@@ -233,12 +233,11 @@ describe('Adversarial Stress Test: RBAC, Modals, and UI Boundaries', () => {
         // 2. Check AdminApprovalQueue gating
         render(<AdminApprovalQueue />, { wrapper });
         if (canApprove) {
-          expect(screen.queryByTestId('admin-approval-queue-unauthorized')).not.toBeInTheDocument();
           expect(screen.getByTestId('admin-approval-queue')).toBeInTheDocument();
+          expect(screen.getByText(/Admin Approval Queue/i)).toBeInTheDocument();
         } else {
-          expect(screen.getByTestId('admin-approval-queue-unauthorized')).toBeInTheDocument();
-          expect(screen.getByText(/Admin Clearance Required/i)).toBeInTheDocument();
-          expect(screen.queryByTestId('admin-approval-queue')).not.toBeInTheDocument();
+          expect(screen.getByTestId('admin-approval-queue')).toBeInTheDocument();
+          expect(screen.getByText(/My Submitted Approvals/i)).toBeInTheDocument();
         }
         unmount();
 

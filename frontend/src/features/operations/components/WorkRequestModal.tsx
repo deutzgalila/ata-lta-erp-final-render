@@ -28,6 +28,7 @@ import { operationsKeys } from '../api/queryKeys';
 import { validateDependencies } from '../utils/dependencyValidator';
 import { parseTaskDelimiterInput } from '../hooks/useTokenizer';
 import { useSessionStore } from '@/lib/session';
+import { Lock } from 'lucide-react';
 import type {
   WorkRequest,
   Priority,
@@ -35,6 +36,11 @@ import type {
   UpdateWorkRequestInput,
   PhaseTaskInput,
 } from '../api/types';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function isValidUUID(id?: string | null): boolean {
+  return typeof id === 'string' && UUID_REGEX.test(id);
+}
 
 export interface WorkRequestModalProps {
   isOpen: boolean;
@@ -69,6 +75,7 @@ export function WorkRequestModal({
   onSuccess,
 }: WorkRequestModalProps) {
   const isEditMode = Boolean(workRequest?.id);
+  const isCompleted = workRequest?.status === 'Completed';
   const activeSessionEntity = useSessionStore((state) => state.activeEntity);
 
   // Queries
@@ -290,6 +297,7 @@ export function WorkRequestModal({
   // Form Submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isCompleted) return;
 
     // 1. Title Validation
     if (!title.trim()) {
@@ -466,7 +474,7 @@ export function WorkRequestModal({
                   assignees,
                   predecessors: resolvePredecessors(t.dependsOn),
                   checklist: t.checklist?.map((c) => ({
-                    id: c.id,
+                    id: isValidUUID(c.id) ? c.id : undefined,
                     text: c.text,
                     completed: c.completed,
                     category: c.category,
@@ -496,7 +504,7 @@ export function WorkRequestModal({
                   assignees: item.assignees,
                   predecessors: finalPredecessors,
                   checklist: item.task.checklist?.map((c) => ({
-                    id: c.id,
+                    id: isValidUUID(c.id) ? c.id : undefined,
                     text: c.text,
                     completed: c.completed,
                     category: c.category,
@@ -521,12 +529,25 @@ export function WorkRequestModal({
               ...t.coAssignees,
             ];
 
-            const taskInput: PhaseTaskInput = {
+            const taskInput: PhaseTaskInput & {
+              checklist?: Array<{
+                text: string;
+                completed?: boolean;
+                category?: string | null;
+                periodYear?: string | null;
+              }>;
+            } = {
               title: t.title.trim(),
               description: t.description?.trim() || null,
               local_id: t.localId,
               assignees,
               depends_on: t.dependsOn || undefined,
+              checklist: t.checklist?.filter((c) => c.text?.trim()).map((c) => ({
+                text: c.text.trim(),
+                completed: c.completed,
+                category: c.category || null,
+                periodYear: c.periodYear ? String(c.periodYear) : null,
+              })),
             };
 
             if (t.phase === 'processing') {
@@ -649,6 +670,17 @@ export function WorkRequestModal({
           </div>
         </DialogHeader>
 
+        {/* Completed Work Request Locked Banner */}
+        {isCompleted && (
+          <div
+            className="px-6 py-2.5 bg-slate-100 border-b border-slate-200 flex items-center gap-2 text-xs text-slate-700 font-medium"
+            data-testid="completed-wr-locked-banner"
+          >
+            <Lock className="h-4 w-4 text-slate-500 shrink-0" />
+            <span>This Work Request is completed and locked. Modifications are disabled.</span>
+          </div>
+        )}
+
         {/* Draft Restore Alert Banner */}
         {hasDraftBanner && (
           <div
@@ -680,7 +712,8 @@ export function WorkRequestModal({
         )}
 
         {/* Scrollable Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4">
+          <fieldset disabled={isCompleted} className="space-y-5">
           {/* Work Request Title */}
           <div className="space-y-1">
             <label className="text-xs font-semibold text-slate-700">
@@ -861,8 +894,10 @@ export function WorkRequestModal({
               setIsDirty(true);
             }}
             projectTeam={projectTeam}
+            disabled={isCompleted}
             isEditMode={isEditMode}
           />
+          </fieldset>
         </form>
 
         <DialogFooter className="px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
@@ -880,6 +915,7 @@ export function WorkRequestModal({
             variant="default"
             size="sm"
             onClick={handleSubmit}
+            disabled={isCompleted}
             data-testid="wr-modal-submit-btn"
             className="text-xs font-semibold"
           >
