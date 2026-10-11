@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Eye, EyeOff, Sparkles, Check, X, Circle, Loader2, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, Sparkles, Check, Circle, Loader2, AlertCircle } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -95,7 +95,6 @@ export function ProfilePasswordCard({ isLoading = false }: ProfilePasswordCardPr
   ];
 
   const passwordsMatch = confirmPassword.length > 0 && confirmPassword === newPassword;
-  const passwordsMismatch = confirmPassword.length > 0 && confirmPassword !== newPassword;
 
   return (
     <Card className="border border-border/80 shadow-sm" data-testid="profile-password-card">

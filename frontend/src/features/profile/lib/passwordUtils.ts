@@ -64,9 +64,10 @@ export function generateSecurePassword(): string {
     if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
       const arr = new Uint32Array(1);
       window.crypto.getRandomValues(arr);
-      return set[arr[0] % set.length];
+      const val = arr[0] ?? 0;
+      return set.charAt(val % set.length);
     }
-    return set[Math.floor(Math.random() * set.length)];
+    return set.charAt(Math.floor(Math.random() * set.length));
   };
 
   const chars: string[] = [
@@ -89,12 +90,13 @@ export function generateSecurePassword(): string {
     if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
       const arr = new Uint32Array(1);
       window.crypto.getRandomValues(arr);
-      j = arr[0] % (i + 1);
+      const val = arr[0] ?? 0;
+      j = val % (i + 1);
     } else {
       j = Math.floor(Math.random() * (i + 1));
     }
-    const temp = chars[i];
-    chars[i] = chars[j];
+    const temp = chars[i]!;
+    chars[i] = chars[j]!;
     chars[j] = temp;
   }
 
