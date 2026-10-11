@@ -17,6 +17,7 @@ import { supabase } from '@/lib/supabase';
 import { isFeatureEnabled } from '@/lib/flags';
 import { useSessionStore } from '@/lib/session';
 import { isSelfOriginatedPayload, isLocalMutation } from './loopPrevention';
+import { documentKeys } from '@/features/documents/api/queryKeys';
 import { operationsKeys } from '@/features/operations/api/queryKeys';
 import { billingKeys } from '@/features/billing/api/queryKeys';
 import { disbursementKeys } from '@/features/disbursements/api/queryKeys';
@@ -90,7 +91,7 @@ export function getDefaultDetailQueryKey(
     case 'operations_requests':
       return operationsKeys.requestDetail(id);
     case 'documents':
-      return operationsKeys.documentDetail(id);
+      return documentKeys.detail(id);
     case 'time_entries':
     case 'task_time_logs':
       return dashboardKeys.timeEntries.detail(id);
@@ -541,6 +542,11 @@ export function triggerCrossDomainCoInvalidations(
       }
       break;
     case 'documents':
+      void queryClient.invalidateQueries({ queryKey: documentKeys.lists() });
+      if (record?.id) {
+        void queryClient.invalidateQueries({ queryKey: documentKeys.detail(String(record.id)) });
+        void queryClient.invalidateQueries({ queryKey: operationsKeys.documentDetail(String(record.id)) });
+      }
       void queryClient.invalidateQueries({ queryKey: operationsKeys.documents() });
       if (taskId) {
         void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(taskId) });

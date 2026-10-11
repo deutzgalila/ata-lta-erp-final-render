@@ -7,7 +7,7 @@ import type { DmsDocument } from '../api/types';
 import { useSessionStore } from '@/lib/session';
 
 // Mock TanStack hooks from useDocuments
-const mockMutateAsyncUpdate = vi.fn();
+const mockMutateAsyncComment = vi.fn();
 const mockMutateAsyncUpload = vi.fn();
 let mockDownloadData: { url: string; fileName: string; contentType?: string } | undefined = {
   url: 'https://storage.test/docs/doc-101.pdf',
@@ -19,8 +19,11 @@ vi.mock('../api/useDocuments', () => ({
     data: mockDownloadData,
     isLoading: false,
   }),
-  useUpdateDocument: () => ({
-    mutateAsync: mockMutateAsyncUpdate,
+  useDocumentDetail: () => ({ data: undefined }),
+  useEditDocumentComment: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeleteDocumentComment: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useAddDocumentComment: () => ({
+    mutateAsync: mockMutateAsyncComment,
     isPending: false,
   }),
   useUploadDocument: () => ({
@@ -37,7 +40,7 @@ describe('DocumentViewerModal (UAT2-14)', () => {
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
     vi.restoreAllMocks();
-    mockMutateAsyncUpdate.mockReset();
+    mockMutateAsyncComment.mockReset();
     mockMutateAsyncUpload.mockReset();
     mockDownloadData = {
       url: 'https://storage.test/docs/doc-101.pdf',
@@ -313,7 +316,7 @@ describe('DocumentViewerModal (UAT2-14)', () => {
   });
 
   it('handles comments: displays existing and posts new comment', async () => {
-    mockMutateAsyncUpdate.mockResolvedValueOnce({
+    mockMutateAsyncComment.mockResolvedValueOnce({
       ...baseDoc,
       comments: [
         ...baseDoc.comments,
@@ -349,13 +352,13 @@ describe('DocumentViewerModal (UAT2-14)', () => {
     fireEvent.click(postBtn);
 
     await waitFor(() => {
-      expect(mockMutateAsyncUpdate).toHaveBeenCalledTimes(1);
+      expect(mockMutateAsyncComment).toHaveBeenCalledTimes(1);
     });
 
-    const callArgs = mockMutateAsyncUpdate.mock.calls[0]![0];
+    const callArgs = mockMutateAsyncComment.mock.calls[0]![0];
     expect(callArgs.id).toBe('doc-101');
-    expect(callArgs.data.comments).toHaveLength(2);
-    expect(callArgs.data.comments![1]!.text).toBe('Verified BIR stamped copy.');
+    expect(callArgs.text).toBe('Verified BIR stamped copy.');
+    expect(callArgs.data).toBeUndefined();
   });
 
   it('enforces 50 MB file size limit and displays error banner when exceeded', async () => {

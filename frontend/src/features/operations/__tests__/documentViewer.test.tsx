@@ -165,10 +165,11 @@ describe('Document Viewer & DMS Integration Flow', () => {
           }),
         } as Response);
       }
+      const detailDoc = [mockDocPdf, mockDocImage, mockDocDocx, baseMockDoc].find((doc) => u.includes(`/documents/${doc.id}?`));
       return Promise.resolve({
         ok: true,
         status: 200,
-        json: async () => ({ data: {} }),
+        json: async () => ({ data: detailDoc || {} }),
       } as Response);
     });
   });
