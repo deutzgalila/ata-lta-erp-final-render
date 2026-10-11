@@ -1,4 +1,5 @@
 import { workDate } from '@/lib/workDate';
+import { DateInput } from '@/components/ui/date-input';
 import { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -167,11 +168,12 @@ export function TimeEntryEditModal({
               <Calendar className="h-3.5 w-3.5 text-slate-500" />
               Work Date
             </label>
-            <Input
+            <DateInput
+              aria-label="Work date"
               type="date"
               max={todayStr}
               value={entryDate}
-              onChange={(e) => setEntryDate(e.target.value)}
+              onValueChange={(value) => setEntryDate(value)}
               className="text-xs h-9"
               required
               data-testid="edit-entry-date-input"

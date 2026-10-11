@@ -1,4 +1,5 @@
 import { workDate } from '@/lib/workDate';
+import { DateInput } from '@/components/ui/date-input';
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   Dialog,
@@ -814,7 +815,8 @@ export function TaskDetailModal({
                   <Calendar className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                   {canEdit ? (
                     <div className="flex items-center gap-1.5">
-                      <input
+                      <DateInput
+                        aria-label="Task due date"
                         type="date"
                         value={
                           localDueDate
@@ -823,8 +825,8 @@ export function TaskDetailModal({
                               : localDueDate
                             : ''
                         }
-                        onChange={(e) => {
-                          const val = e.target.value || null;
+                        onValueChange={(value) => {
+                          const val = value || null;
                           setLocalDueDate(val);
                           if (task.workRequestId) {
                             updateTask({
@@ -842,7 +844,7 @@ export function TaskDetailModal({
                               });
                           }
                         }}
-                        className="text-xs bg-transparent border-b border-dashed border-slate-300 focus:outline-none focus:border-blue-500 py-0.5"
+                        className="h-8 w-44 text-xs"
                         data-testid="task-due-date-input"
                       />
                       {!localDueDate && <span className="text-slate-400 text-xs">Not set</span>}
@@ -1461,11 +1463,12 @@ export function TaskDetailModal({
                       <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1">
                         Date
                       </label>
-                      <Input
+                      <DateInput
+                        aria-label="Time log date"
                         type="date"
                         max={workDate()}
                         value={logDate}
-                        onChange={(e) => setLogDate(e.target.value)}
+                        onValueChange={(value) => setLogDate(value)}
                         className="h-8 text-xs bg-white"
                         required
                         data-testid="log-time-date-input"

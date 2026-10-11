@@ -9,7 +9,7 @@ import type { AssignableTaskOption } from '../api/types';
 
 export function PendingTasksCard() {
   const navigate = useNavigate();
-  const { tasks, isLoading } = useAssignedTasks();
+  const { tasks, isLoading } = useAssignedTasks({ allTasksForAdmin: false });
 
   const pendingTasks = useMemo(() => {
     return tasks.filter(

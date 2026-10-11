@@ -8,9 +8,18 @@ import type { Task, WorkRequest } from '../api/types';
 export function isTaskAssignee(user: UserProfile | null | undefined, task: Task | null | undefined): boolean {
   if (!user?.id || !task) return false;
   if ((task.assigneeId || (task as Task & { assignee_id?: string }).assignee_id) === user.id) return true;
-  if (Array.isArray(task.assignees) && task.assignees.includes(user.id)) return true;
-  const joined = [...(task.taskAssignees || []), ...(task.task_assignees || [])];
-  if (joined.some((ta) => (ta.userId || ta.user_id) === user.id)) return true;
+  const aliases = task as Task & {
+    coAssignees?: unknown; co_assignees?: unknown;
+    relationalAssignees?: unknown; relational_assignees?: unknown;
+  };
+  const lists = [task.assignees, task.taskAssignees, task.task_assignees,
+    aliases.coAssignees, aliases.co_assignees, aliases.relationalAssignees, aliases.relational_assignees];
+  if (lists.some((list) => Array.isArray(list) && list.some((entry: unknown) => {
+    if (typeof entry === 'string') return entry === user.id;
+    if (!entry || typeof entry !== 'object') return false;
+    const member = entry as { userId?: string; user_id?: string; id?: string };
+    return member.userId === user.id || member.user_id === user.id || member.id === user.id;
+  }))) return true;
   return false;
 }
 

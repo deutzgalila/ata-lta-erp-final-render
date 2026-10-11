@@ -1,3 +1,4 @@
+import { DateInput } from '@/components/ui/date-input';
 import { useState, useMemo, useEffect } from 'react';
 import { Plus, Trash2, ArrowUp, ArrowDown, FileText, AlertCircle } from 'lucide-react';
 import {
@@ -402,11 +403,12 @@ export function InvoiceCreateModal({
                 >
                   Issue Date*
                 </label>
-                <Input
+                <DateInput
+                  aria-label="Invoice issue date"
                   id="create-invoice-issue-date"
                   type="date"
                   value={issueDate}
-                  onChange={(e) => setIssueDate(e.target.value)}
+                  onValueChange={(value) => setIssueDate(value)}
                   className="h-9 text-xs"
                   required
                   data-testid="input-issue-date"
@@ -419,11 +421,12 @@ export function InvoiceCreateModal({
                 >
                   Due Date*
                 </label>
-                <Input
+                <DateInput
                   id="create-invoice-due-date"
+                  aria-label="Invoice due date"
                   type="date"
                   value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
+                  onValueChange={(value) => setDueDate(value)}
                   className="h-9 text-xs"
                   required
                   data-testid="input-due-date"

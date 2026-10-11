@@ -10,3 +10,5 @@ Delivered to enterprise-v2, paired with the backend time logging fixes on stagin
 - Measure timer elapsed time using timestamps; stop before saving to avoid submitting the previous duration.
 
 Validation: 126 tests across 13 dashboard/task suites, TypeScript, and production build. Build reports the existing large-chunk advisory. No authenticated live-browser smoke test performed. The backend audit documents historical record handling and environment-dependent test limitations.
+
+PR integration: merged current upstream enterprise-v2, retaining shared Material UI dates and realtime task updates. Expanded shared assignment alias handling. Combined validation: 144 tests across 15 suites, TypeScript, and production build passed.
