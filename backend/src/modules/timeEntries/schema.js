@@ -4,21 +4,23 @@
 
 const { z } = require('zod');
 
-const getMaxAllowedDate = () => {
-  const utc = new Date().toISOString().slice(0, 10);
-  const d = new Date();
-  const local = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  return utc > local ? utc : local;
-};
+// Use the firm's calendar, independent of the deployment server timezone.
+const getMaxAllowedDate = () => new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(new Date());
+
+const calendarDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
+  .refine((value) => {
+    const parsed = new Date(`${value}T00:00:00Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+  }, 'Date must be a valid calendar date');
+const entryDateSchema = calendarDateSchema.refine((value) => value <= getMaxAllowedDate(), {
+  message: 'entry_date cannot be in the future',
+});
 
 const createTimeEntrySchema = z.object({
   task_id: z.string().uuid('task_id must be a valid UUID'),
-  entry_date: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'entry_date must be in YYYY-MM-DD format')
-    .refine((val) => val <= getMaxAllowedDate(), {
-      message: 'entry_date cannot be in the future',
-    }),
+  entry_date: entryDateSchema,
   duration_minutes: z
     .number()
     .int('duration_minutes must be an integer')
@@ -30,13 +32,7 @@ const createTimeEntrySchema = z.object({
 
 const updateTimeEntrySchema = z.object({
   task_id: z.string().uuid('task_id must be a valid UUID').optional(),
-  entry_date: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'entry_date must be in YYYY-MM-DD format')
-    .refine((val) => val <= getMaxAllowedDate(), {
-      message: 'entry_date cannot be in the future',
-    })
-    .optional(),
+  entry_date: entryDateSchema.optional(),
   duration_minutes: z
     .number()
     .int('duration_minutes must be an integer')
@@ -47,22 +43,14 @@ const updateTimeEntrySchema = z.object({
 });
 
 const listQuerySchema = z.object({
-  from: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'from must be in YYYY-MM-DD format')
-    .optional(),
-  to: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'to must be in YYYY-MM-DD format')
-    .optional(),
+  from: calendarDateSchema.optional(),
+  to: calendarDateSchema.optional(),
   task_id: z.string().uuid('task_id must be a valid UUID').optional(),
   user_id: z.string().uuid('user_id must be a valid UUID').optional(),
-});
+}).refine((value) => !value.from || !value.to || value.from <= value.to, 'from must not be after to');
 
 const summaryQuerySchema = z.object({
-  date: z
-    .string({ required_error: 'date is required' })
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'date must be in YYYY-MM-DD format'),
+  date: calendarDateSchema,
   user_id: z.string().uuid('user_id must be a valid UUID').optional(),
 });
 
@@ -77,4 +65,5 @@ module.exports = {
   summaryQuerySchema,
   entryParamsSchema,
   getMaxAllowedDate,
+  entryDateSchema,
 };

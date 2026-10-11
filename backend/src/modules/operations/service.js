@@ -315,16 +315,30 @@ const loadTaskExtras = async (taskIds, knownPredIds = null) => {
     supabaseAdmin.from('task_assignees').select('*').in('task_id', taskIds),
   ];
 
+  queries.push(supabaseAdmin.from('time_entries').select('*').in('task_id', taskIds));
+
   if (!knownPredIds) {
     queries.push(supabaseAdmin.from('tasks').select('id, predecessors').in('id', taskIds));
   }
 
   const results = await Promise.all(queries);
   const clRows = results[0].data;
-  const tlRows = results[1].data;
+  const legacyRows = results[1].data;
+  const canonicalResult = results[4];
+  if (results[1].error || canonicalResult.error) {
+    throw new AppError({ statusCode: 500, title: 'Database Error', detail: 'Unable to load time entries' });
+  }
+  const canonicalRows = canonicalResult.data || [];
+  const tlRows = [
+    ...(Array.isArray(legacyRows) ? legacyRows : legacyRows ? [legacyRows] : []),
+    ...(Array.isArray(canonicalRows) ? canonicalRows : [canonicalRows]).map((entry) => ({
+      ...entry, date: entry.entry_date, hours: entry.duration_minutes / 60,
+      checklist_item_id: null,
+    })),
+  ];
   const docRows = results[2].data;
   const taRows = results[3].data;
-  const taskRows = knownPredIds ? null : results[4]?.data;
+  const taskRows = knownPredIds ? null : results[5]?.data;
 
   const allPredIds = new Set();
   if (knownPredIds) {
@@ -1831,30 +1845,17 @@ const createTask = async ({ workRequestId, entityId, data, user: _user }) => {
 
   if (data.checklist?.length) {
     await upsertChecklist(id, data.checklist);
-    const checklistTimeLogs = [];
-    data.checklist.forEach((item) => {
-      if (Array.isArray(item.timeLogs)) {
-        item.timeLogs.forEach((log) => {
-          checklistTimeLogs.push({
-            ...log,
-            checklistItemId: item.id,
-          });
-        });
-      }
-    });
-    if (checklistTimeLogs.length) {
-      await upsertTimeLogs(id, checklistTimeLogs, false);
-    }
   }
-  if (data.timeLogs?.length) {
-    await upsertTimeLogs(id, data.timeLogs, true);
-  }
+  // Time logs in task snapshots are read-only. Use the permission-checked logging endpoints.
 
   return getTaskById({ workRequestId, taskId: id, entityId });
 };
 
 const upsertChecklist = async (taskId, checklist) => {
-  await supabaseAdmin.from('task_checklists').delete().eq('task_id', taskId);
+  const { data: existingRows, error: readError } = await supabaseAdmin.from('task_checklists')
+    .select('id').eq('task_id', taskId);
+  if (readError) throw new AppError({ statusCode: 500, title: 'Database Error', detail: readError.message });
+  const existingIds = new Set((existingRows || []).map((row) => row.id));
 
   // Map temporary checklist IDs to new valid UUIDs to resolve dependsOn dependencies
   const chkIdMap = new Map();
@@ -1909,47 +1910,24 @@ const upsertChecklist = async (taskId, checklist) => {
       period_year: item.periodYear || null,
     };
   });
-  if (rows.length) await supabaseAdmin.from('task_checklists').insert(rows);
-};
-
-const upsertTimeLogs = async (taskId, timeLogs, deleteExisting = true) => {
-  if (deleteExisting) {
-    await supabaseAdmin
-      .from('task_time_logs')
-      .delete()
-      .eq('task_id', taskId)
-      .is('checklist_item_id', null);
+  // Update retained rows in place: delete/reinsert would cascade-delete their time logs.
+  for (const row of rows) {
+    const query = existingIds.has(row.id)
+      ? supabaseAdmin.from('task_checklists').update(row).eq('id', row.id).eq('task_id', taskId)
+      : supabaseAdmin.from('task_checklists').insert(row);
+    const { error } = await query;
+    if (error) throw new AppError({ statusCode: 500, title: 'Database Error', detail: error.message });
   }
-  const rows = timeLogs.map((log) => {
-    let startTimeStr = null;
-    if (log.date && log.startTime) {
-      if (log.startTime.includes('T') || log.startTime.includes(' ')) {
-        startTimeStr = log.startTime;
-      } else {
-        startTimeStr = `${log.date}T${log.startTime}:00+08:00`;
-      }
-    }
-    let endTimeStr = null;
-    if (log.date && log.endTime) {
-      if (log.endTime.includes('T') || log.endTime.includes(' ')) {
-        endTimeStr = log.endTime;
-      } else {
-        endTimeStr = `${log.date}T${log.endTime}:00+08:00`;
-      }
-    }
-    return {
-      task_id: taskId,
-      start_time: startTimeStr,
-      end_time: endTimeStr,
-      date: log.date || null,
-      hours: log.hours ?? 0,
-      user_id: log.userId || null,
-      note: log.note || null,
-      worker_name: log.workerName || null,
-      checklist_item_id: log.checklistItemId || null,
-    };
-  });
-  if (rows.length) await supabaseAdmin.from('task_time_logs').insert(rows);
+  const retained = new Set(rows.map((row) => row.id));
+  const removed = [...existingIds].filter((id) => !retained.has(id));
+  if (removed.length) {
+    // Removing a checklist item preserves its hours as task-level history.
+    const { error: detachError } = await supabaseAdmin.from('task_time_logs')
+      .update({ checklist_item_id: null }).eq('task_id', taskId).in('checklist_item_id', removed);
+    if (detachError) throw new AppError({ statusCode: 500, title: 'Database Error', detail: detachError.message });
+    const { error } = await supabaseAdmin.from('task_checklists').delete().eq('task_id', taskId).in('id', removed);
+    if (error) throw new AppError({ statusCode: 500, title: 'Database Error', detail: error.message });
+  }
 };
 
 const addTimeLogs = async ({ workRequestId, taskId, entityId, logs, user }) => {
@@ -1958,13 +1936,20 @@ const addTimeLogs = async ({ workRequestId, taskId, entityId, logs, user }) => {
     throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Task not found' });
   }
 
+  if (!await isUserAssignedToTask(taskId, user.id)) {
+    throw new AppError({ statusCode: 403, title: 'Forbidden', detail: 'You are not assigned to this task' });
+  }
+  if (logs.some((log) => log.checklistItemId && !existing.checklist.some((item) => item.id === log.checklistItemId))) {
+    throw new AppError({ statusCode: 400, title: 'Bad Request', detail: 'Checklist item does not belong to this task' });
+  }
+
   const rows = logs.map((log) => {
     let startTimeStr = null;
     if (log.date && log.startTime) {
       if (log.startTime.includes('T') || log.startTime.includes(' ')) {
         startTimeStr = log.startTime;
       } else {
-        startTimeStr = `${log.date}T${log.startTime}:00+08:00`;
+        startTimeStr = `${log.date}T${log.startTime.length === 5 ? `${log.startTime}:00` : log.startTime}+08:00`;
       }
     }
     let endTimeStr = null;
@@ -1972,7 +1957,7 @@ const addTimeLogs = async ({ workRequestId, taskId, entityId, logs, user }) => {
       if (log.endTime.includes('T') || log.endTime.includes(' ')) {
         endTimeStr = log.endTime;
       } else {
-        endTimeStr = `${log.date}T${log.endTime}:00+08:00`;
+        endTimeStr = `${log.date}T${log.endTime.length === 5 ? `${log.endTime}:00` : log.endTime}+08:00`;
       }
     }
     return {
@@ -1981,9 +1966,9 @@ const addTimeLogs = async ({ workRequestId, taskId, entityId, logs, user }) => {
       end_time: endTimeStr,
       date: log.date || null,
       hours: log.hours ?? 0,
-      user_id: log.userId || user.id,
+      user_id: user.id,
       note: log.note || null,
-      worker_name: log.workerName || null,
+      worker_name: user.name || null,
       checklist_item_id: log.checklistItemId || null,
     };
   });
@@ -2299,71 +2284,31 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user }
     }
   }
 
-  // Dual-write assignees to task_assignees join table if assignees provided
-  if (Array.isArray(data.assignees)) {
-    await supabaseAdmin.from('task_assignees').delete().eq('task_id', taskId);
-    const uniqueAssignees = Array.from(new Set(data.assignees.filter(isValidUUID)));
-    if (uniqueAssignees.length > 0) {
+  // Keep the join table aligned with explicit team edits and primary reassignment.
+  if (Array.isArray(data.assignees) || Array.isArray(data.coAssignees)) {
+    const { error: clearError } = await supabaseAdmin.from('task_assignees').delete().eq('task_id', taskId);
+    if (clearError) throw new AppError({ statusCode: 500, title: 'Database Error', detail: clearError.message });
+    const uniqueAssignees = [...new Set([
+      ...(data.assignees || []), ...(data.coAssignees || []), assigneeId,
+    ].filter(isValidUUID))];
+    if (uniqueAssignees.length) {
       const now = new Date().toISOString();
-      const taInserts = uniqueAssignees.map((uId) => ({
-        id: randomUUID(),
-        task_id: taskId,
-        user_id: uId,
-        assigned_by: _user?.id || null,
-        assigned_at: now,
-        created_at: now,
-      }));
-      await supabaseAdmin.from('task_assignees').insert(taInserts);
+      const { error: assignError } = await supabaseAdmin.from('task_assignees').insert(uniqueAssignees.map((userId) => ({
+        id: randomUUID(), task_id: taskId, user_id: userId,
+        assigned_by: _user?.id || null, assigned_at: now, created_at: now,
+      })));
+      if (assignError) throw new AppError({ statusCode: 500, title: 'Database Error', detail: assignError.message });
     }
-  } else if (assigneeId === null && (existing.assigneeId || existing.assignee_id)) {
-    const { error: delError } = await supabaseAdmin
-      .from('task_assignees')
-      .delete()
-      .eq('task_id', taskId)
-      .eq('user_id', existing.assigneeId || existing.assignee_id);
-    if (delError) {
-      throw new AppError({
-        statusCode: 500,
-        title: 'Database Error',
-        detail: `Failed to clear assignee from task_assignees: ${delError.message || delError}`,
-      });
-    }
+  } else if (data.assigneeId !== undefined && assigneeId !== existing.assigneeId && existing.assigneeId) {
+    const { error: delError } = await supabaseAdmin.from('task_assignees').delete()
+      .eq('task_id', taskId).eq('user_id', existing.assigneeId);
+    if (delError) throw new AppError({ statusCode: 500, title: 'Database Error', detail: `Failed to clear assignee from task_assignees: ${delError.message || delError}` });
   }
 
   if (data.checklist !== undefined) {
     await upsertChecklist(taskId, data.checklist);
-    // Only delete and re-insert checklist time logs when at least one
-    // checklist item explicitly provides a timeLogs array.  This prevents
-    // accidental data loss when the frontend sends a checklist update that
-    // is purely metadata (assignee, text, periodYear, etc.).
-    const hasExplicitTimeLogs = data.checklist.some(
-      (item) => Array.isArray(item.timeLogs) && item.timeLogs.length > 0
-    );
-    if (hasExplicitTimeLogs) {
-      const checklistTimeLogs = [];
-      data.checklist.forEach((item) => {
-        if (Array.isArray(item.timeLogs)) {
-          item.timeLogs.forEach((log) => {
-            checklistTimeLogs.push({
-              ...log,
-              checklistItemId: item.id,
-            });
-          });
-        }
-      });
-      await supabaseAdmin
-        .from('task_time_logs')
-        .delete()
-        .eq('task_id', taskId)
-        .not('checklist_item_id', 'is', null);
-      if (checklistTimeLogs.length) {
-        await upsertTimeLogs(taskId, checklistTimeLogs, false);
-      }
-    }
   }
-  if (data.timeLogs !== undefined) {
-    await upsertTimeLogs(taskId, data.timeLogs, true);
-  }
+  // Never replace employee-owned history from an echoed task/checklist snapshot.
 
   return getTaskById({ workRequestId: effectiveWrId, taskId, entityId });
 };

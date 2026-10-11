@@ -42,6 +42,7 @@ const create = async (req, res, next) => {
     // Rule R1: Creator forced to req.user.id; client-supplied user_id ignored
     const data = await service.createTimeEntry({
       userId: req.user.id,
+      entityId: req.entityUUID,
       taskId: validated.task_id,
       entryDate: validated.entry_date,
       durationMinutes: validated.duration_minutes,
@@ -63,6 +64,7 @@ const list = async (req, res, next) => {
     const filters = listQuerySchema.parse(req.query);
     const data = await service.listTimeEntries({
       user: req.user,
+      entityId: req.entityUUID,
       userPermissions: req.userPermissions,
       filters,
     });
@@ -84,6 +86,7 @@ const update = async (req, res, next) => {
     const data = await service.updateTimeEntry({
       id,
       user: req.user,
+      entityId: req.entityUUID,
       userPermissions: req.userPermissions,
       updates,
     });
@@ -104,6 +107,7 @@ const deleteEntry = async (req, res, next) => {
     await service.deleteTimeEntry({
       id,
       user: req.user,
+      entityId: req.entityUUID,
       userPermissions: req.userPermissions,
     });
     res.status(204).send();
@@ -122,6 +126,7 @@ const summary = async (req, res, next) => {
     const { date, user_id } = summaryQuerySchema.parse(req.query);
     const result = await service.getSummary({
       user: req.user,
+      entityId: req.entityUUID,
       userPermissions: req.userPermissions,
       date,
       targetUserId: user_id,
