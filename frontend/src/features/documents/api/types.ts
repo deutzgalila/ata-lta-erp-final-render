@@ -60,6 +60,8 @@ export interface HandoverEntry {
 }
 
 export interface DmsDocumentComment {
+  edited?: boolean;
+  edited_at?: string;
   id?: string;
   userId: string;
   user_id?: string;
