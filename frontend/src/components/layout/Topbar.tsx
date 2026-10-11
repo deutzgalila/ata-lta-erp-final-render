@@ -1,4 +1,4 @@
-import { LogOut, Building2 } from 'lucide-react';
+import { LogOut, Building2, User } from 'lucide-react';
 import { useSessionStore } from '@/lib/session';
 import { signOut } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
@@ -86,8 +86,20 @@ export function Topbar() {
               className="flex items-center gap-3 rounded-lg p-1.5 hover:bg-[#f0f1f3] transition-colors cursor-pointer outline-none"
               data-testid="user-menu-button"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#2563eb] text-xs font-semibold text-white">
-                {initials}
+              <div
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-[#2563eb] text-xs font-semibold text-white overflow-hidden shrink-0 border border-black/5"
+                style={
+                  user?.avatarUrl
+                    ? {
+                        backgroundImage: `url('${user.avatarUrl}')`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                      }
+                    : undefined
+                }
+                data-testid="topbar-user-avatar"
+              >
+                {!user?.avatarUrl && initials}
               </div>
               <div className="hidden sm:flex flex-col text-left">
                 <span className="text-xs font-semibold text-[#1e293b] leading-tight">
@@ -111,6 +123,15 @@ export function Topbar() {
                 Role: {user?.role === 'Admin' || user?.email === 'lorein@ata-lta.ph' ? 'Admin' : user?.role}
               </Badge>
             </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => navigate('/profile')}
+              className="cursor-pointer text-[#1e293b] hover:bg-[#f0f1f3]"
+              data-testid="my-profile-menu-item"
+            >
+              <User className="mr-2 h-4 w-4" />
+              <span>My Profile</span>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={handleSignOut}
