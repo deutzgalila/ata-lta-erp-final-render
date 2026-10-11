@@ -331,7 +331,8 @@ const loadTaskExtras = async (taskIds, knownPredIds = null) => {
     const list = Array.isArray(knownPredIds) ? knownPredIds : [knownPredIds];
     list.filter(isValidUUID).forEach((pId) => allPredIds.add(pId));
   } else {
-    (taskRows || []).forEach((t) => {
+    const taskList = Array.isArray(taskRows) ? taskRows : (taskRows ? [taskRows] : []);
+    taskList.forEach((t) => {
       if (Array.isArray(t.predecessors)) {
         t.predecessors.forEach((pId) => {
           if (pId && isValidUUID(pId)) allPredIds.add(pId);
@@ -346,7 +347,8 @@ const loadTaskExtras = async (taskIds, knownPredIds = null) => {
       .select('id, title, status')
       .in('id', Array.from(allPredIds))
       .is('deleted_at', null);
-    (predTasks || []).forEach((p) => predMap.set(p.id, p));
+    const predList = Array.isArray(predTasks) ? predTasks : (predTasks ? [predTasks] : []);
+    predList.forEach((p) => predMap.set(p.id, p));
   }
 
   const checklistRows = clRows || [];
