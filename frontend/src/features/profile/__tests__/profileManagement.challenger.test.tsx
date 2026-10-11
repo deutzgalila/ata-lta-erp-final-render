@@ -97,9 +97,11 @@ describe('Profile Management Challenger Suite (SPEC-PROFILE-MIGRATION-001)', () 
       const signedUrl = 'https://s3.storage.supabase.com/entities/avatars/user-123.png?signed=xyz';
       const publicUrl = 'https://s3.storage.supabase.com/entities/avatars/user-123.png';
 
+      let currentMockProfile = { ...mockUserProfile };
+
       const apiRequestSpy = vi.spyOn(api, 'apiRequest').mockImplementation(async (path: string, options?: any) => {
         if (path === '/v1/me' && (!options || options.method === 'GET')) {
-          return { data: mockUserProfile };
+          return { data: currentMockProfile };
         }
         if (path === '/v1/me/avatar-upload-url' && options?.method === 'POST') {
           return {
@@ -113,11 +115,12 @@ describe('Profile Management Challenger Suite (SPEC-PROFILE-MIGRATION-001)', () 
         }
         if (path === '/v1/me' && options?.method === 'PATCH') {
           const body = JSON.parse(options.body);
+          currentMockProfile = {
+            ...currentMockProfile,
+            ...body,
+          };
           return {
-            data: {
-              ...mockUserProfile,
-              avatarUrl: body.avatarUrl,
-            },
+            data: currentMockProfile,
           };
         }
         return { data: {} };

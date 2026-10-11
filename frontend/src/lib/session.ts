@@ -28,6 +28,7 @@ export interface SessionState {
     activeEntity?: string | null;
     unreadCount?: number;
   }) => void;
+  updateUser?: (patch: Partial<UserProfile>) => void;
   setActiveEntity: (entity: string | null) => void;
   setUnreadCount: (count: number) => void;
   clearSession: () => void;
@@ -84,6 +85,18 @@ export const useSessionStore = create<SessionState>((set) => ({
       unreadCount: unreadCount ?? 0,
       isAuthenticated: true,
       isLoading: false,
+    });
+  },
+
+  updateUser: (patch) => {
+    set((state) => {
+      if (!state.user) return state;
+      return {
+        user: {
+          ...state.user,
+          ...patch,
+        },
+      };
     });
   },
 

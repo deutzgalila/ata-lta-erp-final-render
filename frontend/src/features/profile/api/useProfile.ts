@@ -21,7 +21,6 @@ export function useProfile() {
 
 export function useUpdateProfile() {
   const queryClient = useQueryClient();
-  const { setSession, user, permissions, activeEntity, unreadCount } = useSessionStore();
 
   return useMutation({
     mutationFn: async (payload: UpdateProfileInput) => {
@@ -34,20 +33,39 @@ export function useUpdateProfile() {
     onSuccess: (updatedProfile) => {
       queryClient.setQueryData(profileKeys.me(), updatedProfile);
       void queryClient.invalidateQueries({ queryKey: profileKeys.me() });
+      void queryClient.invalidateQueries({ queryKey: ['me'] });
 
-      if (user) {
-        setSession({
+      const current = useSessionStore.getState();
+      if (current.user) {
+        current.setSession({
           user: {
-            ...user,
-            name: updatedProfile.name ?? user.name,
-            avatarUrl: updatedProfile.avatarUrl !== undefined ? updatedProfile.avatarUrl : user.avatarUrl,
-            preferences: (updatedProfile.preferences as Record<string, unknown>) ?? user.preferences,
+            ...current.user,
+            name: updatedProfile.name ?? current.user.name,
+            avatarUrl: updatedProfile.avatarUrl !== undefined ? updatedProfile.avatarUrl : current.user.avatarUrl,
+            preferences: (updatedProfile.preferences as Record<string, unknown>) ?? current.user.preferences,
           },
-          permissions,
-          activeEntity,
-          unreadCount,
+          permissions: current.permissions,
+          activeEntity: current.activeEntity,
+          unreadCount: current.unreadCount,
         });
       }
+      current.updateUser?.({
+        name: updatedProfile.name,
+        avatarUrl: updatedProfile.avatarUrl,
+        preferences: (updatedProfile.preferences as Record<string, unknown>) ?? {},
+      });
+
+      queryClient.setQueriesData<Array<{ id?: string; email?: string; avatarUrl?: string | null; name?: string }>>(
+        { queryKey: ['me', 'team'] },
+        (old) => {
+          if (!Array.isArray(old)) return old;
+          return old.map((m) =>
+            m.id === updatedProfile.id || m.email === updatedProfile.email
+              ? { ...m, name: updatedProfile.name, avatarUrl: updatedProfile.avatarUrl }
+              : m
+          );
+        }
+      );
     },
   });
 }
@@ -65,7 +83,6 @@ export function useChangePassword() {
 
 export function useUploadAvatar() {
   const queryClient = useQueryClient();
-  const { setSession, user, permissions, activeEntity, unreadCount } = useSessionStore();
 
   return useMutation({
     mutationFn: async (file: File) => {
@@ -102,18 +119,36 @@ export function useUploadAvatar() {
     onSuccess: (updatedProfile) => {
       queryClient.setQueryData(profileKeys.me(), updatedProfile);
       void queryClient.invalidateQueries({ queryKey: profileKeys.me() });
+      void queryClient.invalidateQueries({ queryKey: ['me'] });
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
 
-      if (user) {
-        setSession({
+      const current = useSessionStore.getState();
+      if (current.user) {
+        current.setSession({
           user: {
-            ...user,
-            avatarUrl: updatedProfile.avatarUrl !== undefined ? updatedProfile.avatarUrl : user.avatarUrl,
+            ...current.user,
+            avatarUrl: updatedProfile.avatarUrl !== undefined ? updatedProfile.avatarUrl : current.user.avatarUrl,
           },
-          permissions,
-          activeEntity,
-          unreadCount,
+          permissions: current.permissions,
+          activeEntity: current.activeEntity,
+          unreadCount: current.unreadCount,
         });
       }
+      current.updateUser?.({
+        avatarUrl: updatedProfile.avatarUrl,
+      });
+
+      queryClient.setQueriesData<Array<{ id?: string; email?: string; avatarUrl?: string | null; name?: string }>>(
+        { queryKey: ['me', 'team'] },
+        (old) => {
+          if (!Array.isArray(old)) return old;
+          return old.map((m) =>
+            m.id === updatedProfile.id || m.email === updatedProfile.email
+              ? { ...m, avatarUrl: updatedProfile.avatarUrl }
+              : m
+          );
+        }
+      );
     },
   });
 }

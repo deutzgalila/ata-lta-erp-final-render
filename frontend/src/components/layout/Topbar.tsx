@@ -19,9 +19,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useProfile } from '@/features/profile/api/useProfile';
 
 export function Topbar() {
   const { user, activeEntity, setActiveEntity } = useSessionStore();
+  const { data: profile } = useProfile();
   const navigate = useNavigate();
 
   const handleSignOut = () => {
@@ -32,8 +34,11 @@ export function Topbar() {
   const entities = user?.entities && user.entities.length > 0 ? user.entities : ['ATA', 'LTA'];
   const entityOptions = Array.from(new Set([...entities, 'ALL']));
 
-  const initials = user?.name
-    ? user.name
+  const avatarUrl = user?.avatarUrl || profile?.avatarUrl || null;
+  const displayName = profile?.name || user?.name || 'User';
+
+  const initials = displayName
+    ? displayName
         .split(' ')
         .map((n) => n[0])
         .join('')
@@ -89,9 +94,9 @@ export function Topbar() {
               <div
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-[#2563eb] text-xs font-semibold text-white overflow-hidden shrink-0 border border-black/5"
                 style={
-                  user?.avatarUrl
+                  avatarUrl
                     ? {
-                        backgroundImage: `url('${user.avatarUrl}')`,
+                        backgroundImage: `url('${avatarUrl}')`,
                         backgroundSize: 'cover',
                         backgroundPosition: 'center',
                       }
@@ -99,7 +104,18 @@ export function Topbar() {
                 }
                 data-testid="topbar-user-avatar"
               >
-                {!user?.avatarUrl && initials}
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={displayName}
+                    className="h-full w-full object-cover"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  initials
+                )}
               </div>
               <div className="hidden sm:flex flex-col text-left">
                 <span className="text-xs font-semibold text-[#1e293b] leading-tight">

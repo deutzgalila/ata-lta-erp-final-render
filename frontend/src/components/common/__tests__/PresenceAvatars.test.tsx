@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-libra
 import { PresenceAvatars, extractViewers, getInitials, getAvatarColorClass } from '../PresenceAvatars';
 import { supabase, MockRealtimeChannel } from '@/lib/supabase';
 import { useSessionStore, type UserProfile } from '@/lib/session';
+import { queryClient } from '@/lib/api';
 
 const currentUser: UserProfile = {
   id: 'user-curr-1',
@@ -42,6 +43,7 @@ describe('PresenceAvatars Component (Parcel F - Ephemeral Collaboration)', () =>
   afterEach(async () => {
     cleanup();
     localStorage.clear();
+    queryClient.clear();
     await supabase.removeAllChannels();
     vi.restoreAllMocks();
   });
@@ -789,6 +791,39 @@ describe('PresenceAvatars Component (Parcel F - Ephemeral Collaboration)', () =>
 
       expect(container.firstChild).toBeNull();
       expect(channelSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  // =========================================================================
+  // 7. Cross-Module Cache Integration & Avatar Resolution
+  // =========================================================================
+  describe('Cross-Module Cache Integration & Avatar Resolution', () => {
+    it('resolves viewer avatar from cached team registry (["me", "team"]) when presence payload has null avatarUrl', async () => {
+      queryClient.setQueryData(['me', 'team'], [
+        {
+          id: otherUserA.userId,
+          name: otherUserA.name,
+          email: otherUserA.email,
+          role: otherUserA.role,
+          avatarUrl: 'https://example.com/resolved-lorein-avatar.png',
+        },
+      ]);
+
+      render(<PresenceAvatars roomId="wr-resolved-team" />);
+      const channel = supabase.channel('presence:work_request:wr-resolved-team') as unknown as MockRealtimeChannel;
+
+      act(() => {
+        channel.setPresenceState({
+          [otherUserA.userId]: [otherUserA], // otherUserA.avatarUrl is null
+        });
+        channel.emit('presence', { event: 'sync' });
+      });
+
+      await waitFor(() => {
+        const img = screen.getByRole('img', { name: 'Lorein Wong' });
+        expect(img).toBeInTheDocument();
+        expect(img).toHaveAttribute('src', 'https://example.com/resolved-lorein-avatar.png');
+      });
     });
   });
 });
