@@ -58,6 +58,7 @@ const DEFAULT_TASKS: TaskItemData[] = [
     coAssignees: [],
     checklist: [],
     dependsOn: null,
+    dueDate: null,
   },
   {
     localId: 'tmp-2',
@@ -66,6 +67,7 @@ const DEFAULT_TASKS: TaskItemData[] = [
     coAssignees: [],
     checklist: [],
     dependsOn: null,
+    dueDate: null,
   },
 ];
 
@@ -141,6 +143,7 @@ export function WorkRequestModal({
               t.assignees ||
               [],
             dependsOn: t.predecessors?.length ? t.predecessors : null,
+            dueDate: t.dueDate ? t.dueDate.split('T')[0] : null,
             checklist: t.checklist?.map((c) => ({
               id: c.id,
               text: c.text,
@@ -425,6 +428,7 @@ export function WorkRequestModal({
                   assigneeId: t.assigneeId || null,
                   assignees,
                   predecessors: initialPredecessors,
+                  dueDate: t.dueDate || null,
                   checklist: t.checklist
                     ?.filter((c) => c.text.trim())
                     .map((c) => ({
@@ -474,6 +478,7 @@ export function WorkRequestModal({
                   assigneeId: t.assigneeId || null,
                   assignees,
                   predecessors: resolvePredecessors(t.dependsOn),
+                  dueDate: t.dueDate || null,
                   checklist: t.checklist?.map((c) => ({
                     id: isValidUUID(c.id) ? c.id : undefined,
                     text: c.text,
@@ -504,6 +509,7 @@ export function WorkRequestModal({
                   assigneeId: item.task.assigneeId || null,
                   assignees: item.assignees,
                   predecessors: finalPredecessors,
+                  dueDate: item.task.dueDate || null,
                   checklist: item.task.checklist?.map((c) => ({
                     id: isValidUUID(c.id) ? c.id : undefined,
                     text: c.text,
@@ -543,6 +549,7 @@ export function WorkRequestModal({
               local_id: t.localId,
               assignees,
               depends_on: t.dependsOn || undefined,
+              dueDate: t.dueDate || null,
               checklist: t.checklist?.filter((c) => c.text?.trim()).map((c) => ({
                 text: c.text.trim(),
                 completed: c.completed,
@@ -899,6 +906,7 @@ export function WorkRequestModal({
             projectTeam={projectTeam}
             disabled={isCompleted}
             isEditMode={isEditMode}
+            defaultPhase={workRequest?.phase === 'processing' ? 'processing' : 'pre_processing'}
           />
           </fieldset>
         </form>

@@ -275,21 +275,23 @@ describe('Phase Kanban Board & Routing Features (Milestone 3)', () => {
       return new Response(JSON.stringify({ data: [] }), { status: 200 });
     });
 
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-
     render(<PhaseKanbanBoard initialWorkRequestId="wr-101" />, { wrapper });
 
     await screen.findByTestId('kanban-task-card-task-1');
 
     // Open task context menu
     const menuBtn = screen.getByTestId('task-menu-btn-task-1');
-    fireEvent.click(menuBtn);
+    fireEvent.pointerDown(menuBtn, { button: 0, ctrlKey: false });
+    fireEvent.keyDown(menuBtn, { key: 'ArrowDown', code: 'ArrowDown' });
 
-    // Click delete task option
-    const deleteBtn = screen.getByTestId('delete-task-btn-task-1');
+    // Click delete task option in dropdown menu
+    const deleteBtn = await screen.findByTestId('menu-delete-task-btn-task-1');
     fireEvent.click(deleteBtn);
 
-    expect(confirmSpy).toHaveBeenCalled();
+    // Confirm deletion in styled dialog modal
+    const confirmBtn = await screen.findByTestId('confirm-delete-task-btn');
+    fireEvent.click(confirmBtn);
+
     await waitFor(() => {
       expect(deletedTaskId).toBe('task-1');
     });

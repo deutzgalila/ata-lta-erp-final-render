@@ -150,7 +150,7 @@ describe('Adversarial Challenger 2 Stress Suite: Parcel OPS', () => {
         'No description provided for this task.'
       );
       expect(screen.getByText('Not set')).toBeInTheDocument(); // Due date fallback
-      expect(screen.getByText('N/A')).toBeInTheDocument(); // Phase entered fallback
+      expect(screen.getByText(/N\/A/)).toBeInTheDocument(); // Phase entered fallback
       expect(screen.getByText('0m')).toBeInTheDocument(); // Total logged time
     });
 

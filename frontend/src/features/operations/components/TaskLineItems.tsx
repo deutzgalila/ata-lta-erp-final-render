@@ -45,6 +45,7 @@ export interface TaskItemData {
   coAssignees: string[];
   dependsOn?: string[] | string | null;
   checklist?: ChecklistItemData[];
+  dueDate?: string | null;
 }
 
 export interface TaskLineItemsProps {
@@ -53,6 +54,7 @@ export interface TaskLineItemsProps {
   projectTeam: TeamMember[];
   disabled?: boolean;
   isEditMode?: boolean;
+  defaultPhase?: CreatablePhase;
 }
 
 export function TaskLineItems({
@@ -60,7 +62,8 @@ export function TaskLineItems({
   onChange,
   projectTeam,
   disabled = false,
-  isEditMode: _isEditMode = false,
+  isEditMode = false,
+  defaultPhase,
 }: TaskLineItemsProps) {
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [activeDepDropdown, setActiveDepDropdown] = useState<string | null>(null);
@@ -116,10 +119,11 @@ export function TaskLineItems({
     const newTask: TaskItemData = {
       localId: newLocalId,
       title: '',
-      phase: 'pre_processing',
+      phase: defaultPhase || 'pre_processing',
       coAssignees: [],
       checklist: [],
       dependsOn: null,
+      dueDate: null,
     };
     onChange([...tasks, newTask]);
     setExpandedRow(newLocalId);
@@ -216,12 +220,20 @@ export function TaskLineItems({
 
           // Predecessors candidate calculation:
           // Named tasks only, excluding self
-          const namedCandidates = tasks.filter(
-            (t) => t.localId !== task.localId && t.title.trim().length > 0
-          );
+          const namedCandidates = tasks.filter((t) => {
+            if (t.localId !== task.localId && t.title.trim().length > 0) {
+              if (task.phase === 'pre_processing' && t.phase === 'processing') return false;
+              return true;
+            }
+            return false;
+          });
           const precedingNamed = tasks
             .slice(0, index)
-            .filter((t) => t.title.trim().length > 0);
+            .filter((t) => {
+              if (!t.title.trim()) return false;
+              if (task.phase === 'pre_processing' && t.phase === 'processing') return false;
+              return true;
+            });
 
           const currentDeps = task.dependsOn
             ? Array.isArray(task.dependsOn)
@@ -293,8 +305,12 @@ export function TaskLineItems({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="pre_processing" className="text-xs">
-                        Pre-processing
+                      <SelectItem
+                        value="pre_processing"
+                        className="text-xs"
+                        disabled={isEditMode && defaultPhase === 'processing'}
+                      >
+                        Pre-processing{isEditMode && defaultPhase === 'processing' ? ' (Phase Ended)' : ''}
                       </SelectItem>
                       <SelectItem value="processing" className="text-xs">
                         Processing
@@ -327,6 +343,19 @@ export function TaskLineItems({
                   </Select>
                 </div>
 
+                {/* Task Due Date */}
+                <div className="w-32 shrink-0">
+                  <Input
+                    type="date"
+                    value={task.dueDate || ''}
+                    onChange={(e) => handleUpdateTask(index, 'dueDate', e.target.value || null)}
+                    disabled={disabled}
+                    className="h-8 text-[11px] bg-white px-2"
+                    title="Task Due Date"
+                    data-testid={`task-due-date-input-${task.localId}`}
+                  />
+                </div>
+
                 {/* Dependency Selector Dropdown Trigger */}
                 <div className="relative shrink-0">
                   <button
@@ -337,7 +366,7 @@ export function TaskLineItems({
                       )
                     }
                     disabled={disabled}
-                    className="h-8 px-2 max-w-36 truncate text-[11px] font-normal border border-slate-200 rounded-md bg-white text-slate-600 hover:bg-slate-50 flex items-center gap-1 focus:outline-none"
+                    className="h-8 px-2 min-w-44 max-w-56 truncate text-[11px] font-normal border border-slate-200 rounded-md bg-white text-slate-600 hover:bg-slate-50 flex items-center gap-1 focus:outline-none"
                     data-testid={`task-dep-btn-${task.localId}`}
                     title={depDisplayText}
                   >
@@ -346,7 +375,7 @@ export function TaskLineItems({
 
                   {/* Dependency Dropdown Popover */}
                   {activeDepDropdown === task.localId && (
-                    <div className="absolute right-0 top-9 z-50 w-56 p-2 bg-white rounded-md shadow-lg border border-slate-200 text-xs space-y-1">
+                    <div className="absolute right-0 top-9 z-50 w-80 p-2 bg-white rounded-md shadow-lg border border-slate-200 text-xs space-y-1">
                       <div className="font-semibold text-slate-500 pb-1 border-b text-[10px] uppercase">
                         Select Predecessor Tasks
                       </div>

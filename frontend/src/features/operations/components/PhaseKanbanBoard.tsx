@@ -18,6 +18,14 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -154,23 +162,26 @@ function PhaseKanbanBoardInner({
     hasPermission(permissions, 'workflow:task_add') ||
     hasPermission(permissions, 'workflow:edit');
 
-  const handleDeleteTask = async (taskId: string, taskTitle?: string) => {
-    const isConfirmed =
-      typeof window !== 'undefined' && typeof window.confirm === 'function'
-        ? window.confirm(
-            `Are you sure you want to delete "${taskTitle || 'this task'}"? This action cannot be undone.`
-          )
-        : true;
+  const [taskToDelete, setTaskToDelete] = useState<{
+    id: string;
+    title: string;
+    assigneeName?: string | null;
+  } | null>(null);
+  const [isDeletingTask, setIsDeletingTask] = useState(false);
 
-    if (!isConfirmed) return;
-
+  const handleConfirmDeleteTask = async () => {
+    if (!taskToDelete) return;
+    setIsDeletingTask(true);
     try {
-      await deleteTask(taskId);
-      if (selectedTask?.id === taskId) {
+      await deleteTask(taskToDelete.id);
+      if (selectedTask?.id === taskToDelete.id) {
         setSelectedTask(null);
       }
+      setTaskToDelete(null);
     } catch (err) {
       console.error('Failed to delete task:', err);
+    } finally {
+      setIsDeletingTask(false);
     }
   };
 
@@ -692,52 +703,38 @@ function PhaseKanbanBoardInner({
                             </Badge>
 
                             {(canEdit || isAdmin) && (
-                              <div className="flex items-center gap-0.5">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="xs"
-                                  className="h-5 w-5 p-0 text-slate-400 hover:text-red-600 focus:outline-none"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteTask(task.id, task.title);
-                                  }}
-                                  data-testid={`delete-task-btn-${task.id}`}
-                                  title="Delete Task"
-                                  aria-label="Delete Task"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="xs"
-                                      className="h-5 w-5 p-0 text-slate-400 hover:text-slate-600 focus:outline-none"
-                                      onClick={(e) => e.stopPropagation()}
-                                      data-testid={`task-menu-btn-${task.id}`}
-                                      aria-label="Task options"
-                                    >
-                                      <MoreVertical className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                                    <DropdownMenuItem
-                                      className="text-xs text-red-600 focus:text-red-700 focus:bg-red-50 cursor-pointer gap-1.5"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDeleteTask(task.id, task.title);
-                                      }}
-                                      data-testid={`menu-delete-task-btn-${task.id}`}
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                      Delete Task
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="xs"
+                                    className="h-5 w-5 p-0 text-slate-400 hover:text-slate-600 focus:outline-none"
+                                    onClick={(e) => e.stopPropagation()}
+                                    data-testid={`task-menu-btn-${task.id}`}
+                                    aria-label="Task options"
+                                  >
+                                    <MoreVertical className="h-3.5 w-3.5" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                                  <DropdownMenuItem
+                                    className="text-xs text-red-600 focus:text-red-700 focus:bg-red-50 cursor-pointer gap-1.5"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setTaskToDelete({
+                                        id: task.id,
+                                        title: task.title,
+                                        assigneeName: task.assigneeName,
+                                      });
+                                    }}
+                                    data-testid={`menu-delete-task-btn-${task.id}`}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                    Delete Task
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             )}
                           </div>
                         </div>
@@ -996,6 +993,68 @@ function PhaseKanbanBoardInner({
           }}
         />
       )}
+
+      {/* Delete Task Confirmation Modal (Task OA.4) */}
+      <Dialog
+        open={Boolean(taskToDelete)}
+        onOpenChange={(open) => !open && setTaskToDelete(null)}
+      >
+        <DialogContent
+          className="max-w-md"
+          data-testid="delete-task-modal"
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600 text-base">
+              <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
+              Delete Task
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500 pt-1">
+              Are you sure you want to delete this task? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          {taskToDelete && (
+            <div className="p-3 bg-red-50/50 border border-red-100 rounded-md text-xs space-y-1.5">
+              <div className="text-slate-800">
+                <span className="font-semibold">Task: </span>
+                <span className="font-medium text-slate-900">{taskToDelete.title}</span>
+              </div>
+              {taskToDelete.assigneeName && (
+                <div className="text-slate-600">
+                  <span className="font-semibold">Assignee: </span>
+                  <span>{taskToDelete.assigneeName}</span>
+                </div>
+              )}
+              <div className="text-[11px] text-amber-700 font-medium pt-0.5">
+                Warning: Any dependencies or records linked to this task will be affected.
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setTaskToDelete(null)}
+              disabled={isDeletingTask}
+              data-testid="cancel-delete-task-btn"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={handleConfirmDeleteTask}
+              disabled={isDeletingTask}
+              data-testid="confirm-delete-task-btn"
+            >
+              {isDeletingTask ? 'Deleting...' : 'Delete Task'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
