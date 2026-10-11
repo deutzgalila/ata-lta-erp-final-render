@@ -1,3 +1,4 @@
+import { workDate } from '@/lib/workDate';
 import { DateInput } from '@/components/ui/date-input';
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
@@ -41,7 +42,7 @@ export function LogTimeWidget() {
   const canEditAll = hasPermission(permissions, 'timelog:edit_all');
 
   // Form State
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = workDate();
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
   const [selectedTaskId, setSelectedTaskId] = useState<string>('');
   const [durationMinutes, setDurationMinutes] = useState<number>(30);
@@ -51,6 +52,7 @@ export function LogTimeWidget() {
   // Timer State (Optional Timer Toggle per Spec §4.2)
   const [isTimerRunning, setIsTimerRunning] = useState<boolean>(false);
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
+  const timerStartedAt = useRef<number | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Modals for Edit and Delete
@@ -58,11 +60,10 @@ export function LogTimeWidget() {
   const [deletingEntry, setDeletingEntry] = useState<TimeEntry | null>(null);
 
   // Queries & Mutations
-  const { tasks: assignedTasks, isLoading: isLoadingTasks } = useAssignedTasks({
-    allTasksForAdmin: true,
-  });
-  const { data: summary } = useTimeSummary(selectedDate);
+  const { tasks: assignedTasks, isLoading: isLoadingTasks, isError: taskLoadFailed, refetch: reloadTasks } = useAssignedTasks();
+  const { data: summary } = useTimeSummary(selectedDate, user?.id);
   const { data: entries = [], isLoading: isLoadingEntries } = useTimeEntriesList({
+    userId: user?.id,
     from: selectedDate,
     to: selectedDate,
   });
@@ -72,19 +73,18 @@ export function LogTimeWidget() {
 
   // Set default task if available and none selected
   useEffect(() => {
-    if (!selectedTaskId && assignedTasks.length > 0) {
-      const firstTask = assignedTasks[0];
-      if (firstTask) {
-        setSelectedTaskId(firstTask.taskId);
-      }
+    if (!isLoadingTasks && !assignedTasks.some((task) => task.taskId === selectedTaskId)) {
+      setSelectedTaskId(assignedTasks[0]?.taskId || '');
     }
-  }, [assignedTasks, selectedTaskId]);
+  }, [assignedTasks, selectedTaskId, isLoadingTasks]);
 
   // Timer Effect
   useEffect(() => {
     if (isTimerRunning) {
       timerRef.current = setInterval(() => {
-        setElapsedSeconds((sec) => sec + 1);
+        if (timerStartedAt.current !== null) {
+          setElapsedSeconds(Math.floor((Date.now() - timerStartedAt.current) / 1000));
+        }
       }, 1000);
     } else if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -98,17 +98,21 @@ export function LogTimeWidget() {
   }, [isTimerRunning]);
 
   const handleStartTimer = () => {
+    timerStartedAt.current = Date.now() - elapsedSeconds * 1000;
     setIsTimerRunning(true);
   };
 
   const handleStopTimer = () => {
     setIsTimerRunning(false);
     // Convert elapsed seconds to minutes, minimum 1 minute
-    const computedMinutes = Math.max(1, Math.ceil(elapsedSeconds / 60));
+    const seconds = timerStartedAt.current === null ? elapsedSeconds : Math.floor((Date.now() - timerStartedAt.current) / 1000);
+    setElapsedSeconds(seconds);
+    const computedMinutes = Math.max(1, Math.ceil(seconds / 60));
     setDurationMinutes(computedMinutes);
   };
 
   const handleResetTimer = () => {
+    timerStartedAt.current = null;
     setIsTimerRunning(false);
     setElapsedSeconds(0);
   };
@@ -126,11 +130,16 @@ export function LogTimeWidget() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedTaskId) {
+    if (createMutation.isPending) return;
+    if (isTimerRunning) {
+      setValidationError('Stop the timer before saving your time entry.');
+      return;
+    }
+    if (!selectedTaskId || !assignedTasks.some((task) => task.taskId === selectedTaskId)) {
       setValidationError('Please select an assigned task to log time against.');
       return;
     }
-    if (!durationMinutes || durationMinutes < 1 || durationMinutes > 1440) {
+    if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 1440) {
       setValidationError('Duration must be between 1 and 1440 minutes.');
       return;
     }
@@ -143,7 +152,7 @@ export function LogTimeWidget() {
 
     openLoading({
       title: 'Logging Time Entry',
-      message: 'Recording duration and work summary to staging backend...',
+      message: 'Saving your time entry...',
       actionName: 'create-time-entry',
     });
 
@@ -157,7 +166,7 @@ export function LogTimeWidget() {
 
       openSuccess({
         title: 'Time Logged Successfully',
-        message: `${durationMinutes} minutes recorded for today.`,
+        message: `${durationMinutes} minutes recorded for ${selectedDate}.`,
       });
 
       // Reset form
@@ -265,6 +274,12 @@ export function LogTimeWidget() {
                 </span>
               </div>
 
+              {taskLoadFailed && (
+                <div role="alert" className="text-xs text-red-700">
+                  Unable to load assigned tasks.{' '}
+                  <button type="button" onClick={() => void reloadTasks()} className="underline">Retry</button>
+                </div>
+              )}
               {isLoadingTasks ? (
                 <div className="h-9 w-full bg-slate-100 animate-pulse rounded-md" />
               ) : (
@@ -457,7 +472,7 @@ export function LogTimeWidget() {
             <Button
               type="submit"
               size="sm"
-              disabled={!canCreateLog || createMutation.isPending || !selectedTaskId}
+              disabled={!canCreateLog || createMutation.isPending || isTimerRunning || !selectedTaskId}
               className="w-full text-xs font-semibold gap-1.5 h-9"
               data-testid="submit-timelog-btn"
             >

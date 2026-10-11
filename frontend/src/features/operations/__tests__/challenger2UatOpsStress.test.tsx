@@ -58,7 +58,7 @@ const baseTask: Task = {
   phaseEnteredAt: '2026-02-01T00:00:00Z',
   assigneeId: 'user-associate-1',
   assigneeName: 'Senior Associate B',
-  assignees: ['user-associate-1'],
+  assignees: ['user-associate-1', 'user-challenger-2'],
   predecessors: [],
   dueDate: '2026-03-15T00:00:00Z',
   requiredLinkType: null,
@@ -264,7 +264,7 @@ describe('Adversarial Challenger 2 Stress Suite: Parcel OPS', () => {
 
       // Error banner renders and no API call is made
       expect(
-        await screen.findByText('Duration must be greater than 0 minutes.')
+        await screen.findByText('Duration must be an integer between 1 and 1440 minutes.')
       ).toBeInTheDocument();
       expect(postSpy).not.toHaveBeenCalled();
 
@@ -272,7 +272,7 @@ describe('Adversarial Challenger 2 Stress Suite: Parcel OPS', () => {
       fireEvent.change(minInput, { target: { value: '-15' } });
       fireEvent.submit(screen.getByTestId('log-time-form'));
       expect(
-        await screen.findByText('Duration must be greater than 0 minutes.')
+        await screen.findByText('Duration must be an integer between 1 and 1440 minutes.')
       ).toBeInTheDocument();
       expect(postSpy).not.toHaveBeenCalled();
     });

@@ -1,3 +1,4 @@
+import { dashboardKeys } from '@/features/dashboard/api/queryKeys';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { apiRequest, ApiError } from '@/lib/api';
 import { useSessionStore } from '@/lib/session';
@@ -167,6 +168,8 @@ export function useTaskMutations(boundWorkRequestId?: string) {
       return res.data;
     },
     onSuccess: (task, variables) => {
+      queryClient.invalidateQueries({ queryKey: dashboardKeys.assignedTasks.all });
+      queryClient.invalidateQueries({ queryKey: dashboardKeys.timeEntries.all });
       const wrId = variables.workRequestId || boundWorkRequestId || task.workRequestId;
       queryClient.invalidateQueries({ queryKey: operationsKeys.workRequestDetail(wrId) });
       queryClient.invalidateQueries({ queryKey: operationsKeys.tasks(wrId) });
@@ -269,6 +272,7 @@ export function useTaskMutations(boundWorkRequestId?: string) {
       });
     },
     onSettled: (task, _err, variables) => {
+      queryClient.invalidateQueries({ queryKey: dashboardKeys.assignedTasks.all });
       const wrId = variables.workRequestId || boundWorkRequestId || task?.workRequestId;
       if (!wrId) return;
       // Invalidate ONLY secondary queries (parent WR detail, counters).
@@ -339,6 +343,8 @@ export function useTaskMutations(boundWorkRequestId?: string) {
       return res.data;
     },
     onSuccess: (task, variables) => {
+      queryClient.invalidateQueries({ queryKey: dashboardKeys.assignedTasks.all });
+      queryClient.invalidateQueries({ queryKey: dashboardKeys.timeEntries.all });
       const wrId = variables.workRequestId || boundWorkRequestId || task.workRequestId;
       queryClient.invalidateQueries({ queryKey: operationsKeys.workRequestDetail(wrId) });
       queryClient.invalidateQueries({ queryKey: operationsKeys.tasks(wrId) });

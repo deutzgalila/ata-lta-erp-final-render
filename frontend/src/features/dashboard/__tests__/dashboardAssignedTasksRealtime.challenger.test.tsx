@@ -162,7 +162,7 @@ describe('Challenger M3: Dashboard Assigned Tasks Real-Time Caching & Strict Use
     });
 
     expect(apiSpy).toHaveBeenCalledWith(
-      '/operations/work-requests?archived=false&limit=100&includeTasks=true'
+      '/operations/work-requests?archived=false&includeTasks=true&limit=100&page=1'
     );
     expect(screen.queryByText('Reconcile General Ledger')).not.toBeInTheDocument();
   });
@@ -286,10 +286,10 @@ describe('Challenger M3: Dashboard Assigned Tasks Real-Time Caching & Strict Use
     const select = await screen.findByTestId('task-picker-select');
     expect(select).toBeInTheDocument();
 
-    // In LogTimeWidget, Admins retain the ability to log time on any task across the organization
+    // Creating personal logs requires assignment, including for Admins.
     await waitFor(() => {
       expect(screen.getByText(/Executive Review of Audited Statements/)).toBeInTheDocument();
-      expect(screen.getByText(/Junior Voucher Verification/)).toBeInTheDocument();
+      expect(screen.queryByText(/Junior Voucher Verification/)).not.toBeInTheDocument();
     });
   });
 
