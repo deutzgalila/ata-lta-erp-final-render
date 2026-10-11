@@ -200,7 +200,6 @@ export default function BillingPage() {
         <TabsContent value="invoices" className="focus-visible:outline-none">
           <InvoiceList
             onSelectInvoice={handleOpenDetail}
-            onCreateInvoice={() => setIsCreateModalOpen(true)}
             onRecordPayment={handleOpenPayment}
             onPrintPreview={handleOpenPreview}
           />

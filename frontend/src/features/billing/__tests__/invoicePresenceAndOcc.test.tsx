@@ -81,9 +81,9 @@ describe('Billing Presence & Optimistic Concurrency Control (Milestone 4 / Parce
     useSessionStore.getState().setSession({
       user: {
         id: 'u-admin-1',
-        email: 'admin@ata-lta.ph',
-        name: 'Admin User',
-        role: 'Admin',
+        email: 'staff@ata-lta.ph',
+        name: 'Staff User',
+        role: 'Staff',
         departments: ['Accounting'],
         entities: ['ATA', 'LTA'],
       },

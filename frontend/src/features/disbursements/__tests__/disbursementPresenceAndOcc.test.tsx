@@ -60,10 +60,10 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
     useBlockingModalStore.getState().reset();
     useSessionStore.getState().setSession({
       user: {
-        id: 'u-admin-1',
-        email: 'admin@ata-lta.ph',
-        name: 'Admin User',
-        role: 'Admin',
+        id: 'u-staff-1',
+        email: 'staff@ata-lta.ph',
+        name: 'Staff User',
+        role: 'Staff',
         departments: ['Operations'],
         entities: ['ATA', 'LTA'],
       },
@@ -801,6 +801,80 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
 
       expect(invalidateSpy).not.toHaveBeenCalledWith({
         queryKey: disbursementKeys.detail('disb-201'),
+      });
+    });
+
+    it('allows Admin to directly approve Draft voucher to Approved', async () => {
+      useSessionStore.getState().setSession({
+        user: {
+          id: 'u-admin-1',
+          email: 'admin@ata-lta.ph',
+          name: 'Admin User',
+          role: 'Admin',
+          departments: ['Operations'],
+          entities: ['ATA', 'LTA'],
+        },
+        permissions: ['disbursement:view', 'disbursement:approve'],
+        activeEntity: 'ATA',
+      });
+
+      const draftVoucher = {
+        ...mockDisbursementDetail,
+        status: 'Draft',
+      };
+
+      global.fetch = vi.fn().mockImplementation((url: string, opts?: RequestInit) => {
+        const u = String(url);
+        const method = opts?.method || 'GET';
+
+        if (u.includes('/disbursements/disb-201') && method === 'GET') {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: draftVoucher }),
+          } as Response);
+        }
+
+        if (u.includes('/disbursements/disb-201/approve') && method === 'POST') {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: { ...draftVoucher, status: 'Approved' } }),
+          } as Response);
+        }
+
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ data: [] }),
+        } as Response);
+      });
+
+      const { wrapper } = createHarness();
+      render(
+        <DisbursementDetailDrawer
+          id="disb-201"
+          isOpen={true}
+          onClose={vi.fn()}
+        />,
+        { wrapper }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('drawer-direct-approve-btn')).toBeInTheDocument();
+      });
+      expect(screen.queryByTestId('drawer-submit-btn')).not.toBeInTheDocument();
+
+      const directApproveBtn = screen.getByTestId('drawer-direct-approve-btn');
+      fireEvent.click(directApproveBtn);
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalledWith(
+          expect.stringContaining('/disbursements/disb-201/approve'),
+          expect.objectContaining({
+            method: 'POST',
+          })
+        );
       });
     });
   });

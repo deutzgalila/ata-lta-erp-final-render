@@ -10,6 +10,7 @@ import {
   X,
   Send,
   CheckCircle,
+  XCircle,
 } from 'lucide-react';
 import {
   Dialog,
@@ -46,6 +47,8 @@ import {
 import { useBlockingModalStore } from '@/features/operations/components/BlockingActionModal';
 import { billingKeys } from '../api/queryKeys';
 import { queryClient, type ApiError } from '@/lib/api';
+import { useSessionStore } from '@/lib/session';
+import { isUserAdmin } from '@/features/operations/lib/taskScope';
 import type { Invoice } from '../api/types';
 
 export interface InvoiceDetailModalProps {
@@ -71,6 +74,10 @@ export function InvoiceDetailModal({
   });
 
   const invoice = fetchedInvoice || initialInvoice;
+
+  // Session & Admin Check
+  const user = useSessionStore((state) => state.user);
+  const isAdmin = isUserAdmin(user);
 
   // Permissions
   const canEdit = usePermission('billing:edit');
@@ -162,7 +169,7 @@ export function InvoiceDetailModal({
     }
   };
 
-  const handleTransitionStatus = async (targetStatus: 'Pending' | 'Sent') => {
+  const handleTransitionStatus = async (targetStatus: 'Draft' | 'Pending' | 'Sent') => {
     if (!invoice.id) return;
     try {
       await updateInvoiceAction(
@@ -579,7 +586,19 @@ export function InvoiceDetailModal({
         <DialogFooter className="border-t border-slate-200 pt-3 flex flex-col sm:flex-row justify-between items-center gap-2">
           {/* Left: Status Progression Flow */}
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            {invoice.status === 'Draft' && (canEdit || canRequest) && (
+            {invoice.status === 'Draft' && isAdmin && (
+              <Button
+                size="sm"
+                onClick={() => handleTransitionStatus('Sent')}
+                className="text-xs bg-blue-600 hover:bg-blue-700 text-white gap-1 cursor-pointer"
+                data-testid="btn-approve-and-issue"
+              >
+                <CheckCircle className="w-3.5 h-3.5" />
+                <span>Approve & Issue</span>
+              </Button>
+            )}
+
+            {invoice.status === 'Draft' && !isAdmin && (canEdit || canRequest) && (
               <Button
                 size="sm"
                 onClick={() => handleTransitionStatus('Pending')}
@@ -591,16 +610,28 @@ export function InvoiceDetailModal({
               </Button>
             )}
 
-            {invoice.status === 'Pending' && canEdit && (
-              <Button
-                size="sm"
-                onClick={() => handleTransitionStatus('Sent')}
-                className="text-xs bg-blue-600 hover:bg-blue-700 text-white gap-1 cursor-pointer"
-                data-testid="btn-approve-and-issue"
-              >
-                <CheckCircle className="w-3.5 h-3.5" />
-                <span>Approve & Issue (Sent)</span>
-              </Button>
+            {invoice.status === 'Pending' && (isAdmin || canEdit) && (
+              <>
+                <Button
+                  size="sm"
+                  onClick={() => handleTransitionStatus('Sent')}
+                  className="text-xs bg-blue-600 hover:bg-blue-700 text-white gap-1 cursor-pointer"
+                  data-testid="btn-approve-and-issue"
+                >
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  <span>Approve & Issue (Sent)</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleTransitionStatus('Draft')}
+                  className="text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 gap-1 cursor-pointer"
+                  data-testid="btn-reject-to-draft"
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                  <span>Reject / Return to Draft</span>
+                </Button>
+              </>
             )}
 
             {canEdit && (

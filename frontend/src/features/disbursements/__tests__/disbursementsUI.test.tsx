@@ -303,6 +303,235 @@ describe('Disbursements UI Components & Integration', () => {
       expect(screen.getByTestId('display-client-name')).toBeDisabled();
       expect(screen.getByTestId('select-work-request-task')).toBeDisabled();
     });
+
+    it('renders Employee select dropdown and receipt dropzone with clean label without optional or asterisk', async () => {
+      const mockTeamMembers = [
+        { id: '11111111-2222-3333-4444-555555555555', name: 'Maria Santos', email: 'maria@ata-lta.ph', role: 'Staff' },
+        { id: '22222222-3333-4444-5555-666666666666', name: 'Juan Dela Cruz', email: 'juan@ata-lta.ph', role: 'Manager' },
+      ];
+
+      global.fetch = vi.fn().mockImplementation(async (url: string) => {
+        const u = String(url);
+        if (u.includes('/me/team')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({ data: mockTeamMembers }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ data: [] }),
+        };
+      });
+
+      const { wrapper } = createHarness();
+      render(
+        <CreateDisbursementModal isOpen={true} onClose={() => {}} />,
+        { wrapper }
+      );
+
+      // Verify select-employee dropdown
+      const employeeSelect = screen.getByTestId('select-employee') as HTMLSelectElement;
+      expect(employeeSelect).toBeInTheDocument();
+
+      // Verify receipt-dropzone
+      const receiptDropzone = screen.getByTestId('receipt-dropzone');
+      expect(receiptDropzone).toBeInTheDocument();
+
+      // Verify receipt attachment label is cleanly "Receipt Attachment" without "optional" and without "*"
+      const receiptLabel = screen.getByText('Receipt Attachment');
+      expect(receiptLabel).toBeInTheDocument();
+      expect(receiptLabel.textContent).not.toMatch(/optional/i);
+      expect(receiptLabel.textContent).not.toContain('*');
+
+      // Verify no optional indicators in dropzone container
+      expect(receiptDropzone.textContent).not.toMatch(/optional/i);
+      expect(receiptDropzone.textContent).not.toContain('*');
+
+      // Verify options in employee select
+      await waitFor(() => {
+        expect(screen.getByText('Maria Santos')).toBeInTheDocument();
+        expect(screen.getByText('Juan Dela Cruz')).toBeInTheDocument();
+      });
+    });
+
+    it('submits successfully with employee selected and without receipt (receiptFilename is null)', async () => {
+      let dispatchedBody: Record<string, unknown> | null = null;
+      const mockTeamMembers = [
+        { id: '11111111-2222-3333-4444-555555555555', name: 'Maria Santos', email: 'maria@ata-lta.ph', role: 'Staff' },
+      ];
+
+      global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+        const u = String(url);
+        if (init?.method === 'POST') {
+          dispatchedBody = JSON.parse(init.body as string);
+          return {
+            ok: true,
+            status: 201,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({
+              data: {
+                id: 'new-disb-id',
+                status: 'Draft',
+                ...dispatchedBody,
+              },
+            }),
+          };
+        }
+        if (u.includes('/me/team')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({ data: mockTeamMembers }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ data: [] }),
+        };
+      });
+
+      const { wrapper } = createHarness();
+      render(
+        <CreateDisbursementModal
+          isOpen={true}
+          onClose={() => {}}
+          defaultWorkRequestId="11111111-1111-1111-1111-111111111111"
+        />,
+        { wrapper }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Maria Santos')).toBeInTheDocument();
+      });
+
+      // Select employee
+      fireEvent.change(screen.getByTestId('select-employee'), {
+        target: { value: '11111111-2222-3333-4444-555555555555' },
+      });
+
+      // Fill in amount & description
+      fireEvent.change(screen.getByTestId('input-amount'), { target: { value: '1200' } });
+      fireEvent.change(screen.getByTestId('textarea-description'), {
+        target: { value: 'Travel allowance for client visit' },
+      });
+
+      // Submit without dropping any receipt
+      fireEvent.click(screen.getByTestId('submit-create-disbursement-btn'));
+
+      await waitFor(() => {
+        expect(dispatchedBody).not.toBeNull();
+      });
+
+      expect(dispatchedBody!.employeeId).toBe('11111111-2222-3333-4444-555555555555');
+      expect(dispatchedBody!.receiptFilename).toBeNull();
+    });
+
+    it('submits successfully with receipt attached via dropzone (receiptFilename is receipt.pdf)', async () => {
+      let dispatchedBody: Record<string, unknown> | null = null;
+
+      global.fetch = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
+        if (init?.method === 'POST') {
+          dispatchedBody = JSON.parse(init.body as string);
+          return {
+            ok: true,
+            status: 201,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({
+              data: {
+                id: 'new-disb-id',
+                status: 'Draft',
+                ...dispatchedBody,
+              },
+            }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ data: [] }),
+        };
+      });
+
+      const { wrapper } = createHarness();
+      render(
+        <CreateDisbursementModal
+          isOpen={true}
+          onClose={() => {}}
+          defaultWorkRequestId="11111111-1111-1111-1111-111111111111"
+        />,
+        { wrapper }
+      );
+
+      // Fill in amount & description
+      fireEvent.change(screen.getByTestId('input-amount'), { target: { value: '3500' } });
+      fireEvent.change(screen.getByTestId('textarea-description'), {
+        target: { value: 'Consultancy receipt payment' },
+      });
+
+      // Drop receipt file into receipt-dropzone
+      const dropzone = screen.getByTestId('receipt-dropzone');
+      const testFile = new File(['dummy-receipt-content'], 'receipt.pdf', { type: 'application/pdf' });
+      fireEvent.drop(dropzone, {
+        dataTransfer: {
+          files: [testFile],
+        },
+      });
+
+      // Attached file name is displayed
+      await waitFor(() => {
+        expect(screen.getByTestId('receipt-attached-filename')).toHaveTextContent('receipt.pdf');
+      });
+
+      // Submit
+      fireEvent.click(screen.getByTestId('submit-create-disbursement-btn'));
+
+      await waitFor(() => {
+        expect(dispatchedBody).not.toBeNull();
+      });
+
+      expect(dispatchedBody!.receiptFilename).toBe('receipt.pdf');
+    });
+
+    it('allows removing an attached receipt before submission', async () => {
+      const { wrapper } = createHarness();
+      render(
+        <CreateDisbursementModal
+          isOpen={true}
+          onClose={() => {}}
+        />,
+        { wrapper }
+      );
+
+      const dropzone = screen.getByTestId('receipt-dropzone');
+      const testFile = new File(['content'], 'receipt.pdf', { type: 'application/pdf' });
+      fireEvent.drop(dropzone, {
+        dataTransfer: {
+          files: [testFile],
+        },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('receipt-attached-filename')).toHaveTextContent('receipt.pdf');
+      });
+
+      // Click remove button
+      const removeBtn = screen.getByTestId('remove-receipt-btn');
+      fireEvent.click(removeBtn);
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('receipt-attached-filename')).not.toBeInTheDocument();
+        expect(screen.getByText('Drag and drop receipt here, or browse')).toBeInTheDocument();
+      });
+    });
   });
 
   describe('AdminApprovalQueue', () => {

@@ -4,7 +4,6 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  Plus,
   Printer,
   CreditCard,
   Eye,
@@ -41,6 +40,7 @@ import type { Invoice, InvoiceStatus } from '../api/types';
 
 export interface InvoiceListProps {
   onSelectInvoice?: (invoice: Invoice) => void;
+  /** @deprecated Creation moved to BillingPage header */
   onCreateInvoice?: () => void;
   onRecordPayment?: (invoice: Invoice) => void;
   onPrintPreview?: (invoice: Invoice) => void;
@@ -58,7 +58,6 @@ const STATUS_TABS: Array<{ label: string; value: InvoiceStatus | 'All' }> = [
 
 export function InvoiceList({
   onSelectInvoice,
-  onCreateInvoice,
   onRecordPayment,
   onPrintPreview,
 }: InvoiceListProps) {
@@ -79,8 +78,6 @@ export function InvoiceList({
   const [pageSize, setPageSize] = useState(25);
 
   // Permissions (hooks must be unconditional)
-  const canEdit = usePermission('billing:edit');
-  const canCreate = canEdit;
   const canRecordPayment = usePermission('billing:payments');
 
   // Queries
@@ -204,17 +201,6 @@ export function InvoiceList({
             testIdPrefix="view-mode"
             className="hidden sm:flex"
           />
-
-          {canCreate && onCreateInvoice && (
-            <Button
-              onClick={onCreateInvoice}
-              className="bg-blue-600 hover:bg-blue-700 text-white shadow-xs text-xs h-8 gap-1.5 cursor-pointer"
-              data-testid="create-invoice-button"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Create Invoice</span>
-            </Button>
-          )}
         </div>
       </div>
 

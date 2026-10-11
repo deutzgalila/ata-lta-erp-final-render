@@ -10,13 +10,15 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/api';
+import { Upload, FileText, X } from 'lucide-react';
 import { useSessionStore } from '@/lib/session';
 import { DISBURSEMENT_CATEGORIES, FUND_SOURCES } from '../api/schemas';
 import { useCreateDisbursement } from '../api/useDisbursements';
 import { useWorkRequests } from '@/features/operations/api/useWorkRequests';
 import { useWorkRequestTasks } from '@/features/operations/api/useTasks';
+import { useTeam } from '@/features/operations/api/useTeam';
 import type { ClientSummary } from '@/features/operations/api/useClients';
 import type { WorkRequest } from '@/features/operations/api/types';
 import type { CreateDisbursementInput, FundSource } from '../api/types';
@@ -64,8 +66,34 @@ export function CreateDisbursementModal({
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
   const [receiptFilename, setReceiptFilename] = useState('');
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const [customCategory, setCustomCategory] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      setReceiptFile(file);
+      setReceiptFilename(file.name);
+    }
+  };
 
   const canFetch = React.useMemo(() => {
     if (!isOpen) return false;
@@ -80,6 +108,11 @@ export function CreateDisbursementModal({
       typeof window !== 'undefined' && Boolean(window.localStorage?.getItem('erp_access_token'));
     return isTest ? isMocked : hasToken;
   }, [isOpen]);
+
+  const queryClient = useQueryClient();
+  queryClient.setQueryDefaults(['me', 'team'], { enabled: canFetch });
+  const { data: teamData } = useTeam();
+  const team = teamData || [];
 
   const activeEntity = useSessionStore((state) => state.activeEntity);
   const currentUser = useSessionStore((state) => state.user);
@@ -128,7 +161,10 @@ export function CreateDisbursementModal({
       setLinkedWorkRequestId(prefill?.workRequestId || defaultWorkRequestId || '');
       setClientId(prefill?.clientId || defaultClientId || '');
       setSelectedTaskId(prefill?.taskId || '');
-      setEmployeeId(currentUser?.id || '');
+      setEmployeeId('');
+      setReceiptFile(null);
+      setReceiptFilename('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
       setErrors({});
     } else {
       setCategory(DISBURSEMENT_CATEGORIES[0]);
@@ -142,7 +178,9 @@ export function CreateDisbursementModal({
       setEmployeeId('');
       setDueDate('');
       setNotes('');
+      setReceiptFile(null);
       setReceiptFilename('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
       setErrors({});
     }
   }, [isOpen, prefill, defaultWorkRequestId, defaultClientId]);
@@ -243,7 +281,9 @@ export function CreateDisbursementModal({
     setEmployeeId('');
     setDueDate('');
     setNotes('');
+    setReceiptFile(null);
     setReceiptFilename('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
     setErrors({});
   };
 
@@ -255,6 +295,11 @@ export function CreateDisbursementModal({
     const effectiveCategory = category === 'Other' && customCategory.trim() ? customCategory.trim() : category;
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const validEmployeeId = employeeId.trim() && uuidRegex.test(employeeId.trim()) ? employeeId.trim() : null;
+    const effectiveReceiptFilename = receiptFile?.name
+      ? receiptFile.name.trim()
+      : receiptFilename.trim()
+      ? receiptFilename.trim()
+      : null;
     const payload: CreateDisbursementInput = {
       category: effectiveCategory,
       description: description.trim(),
@@ -266,7 +311,7 @@ export function CreateDisbursementModal({
       employeeId: validEmployeeId,
       dueDate: dueDate ? dueDate : null,
       notes: notes.trim() ? notes.trim() : null,
-      receiptFilename: receiptFilename.trim() ? receiptFilename.trim() : null,
+      receiptFilename: effectiveReceiptFilename,
     };
 
     try {
@@ -466,27 +511,34 @@ export function CreateDisbursementModal({
             </div>
           </div>
 
-          {/* Employee ID */}
+          {/* Employee Selector */}
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-slate-700">Employee ID (Optional)</label>
+              <label className="text-xs font-semibold text-slate-700">Employee</label>
               {currentUser?.name && (
                 <span className="text-[11px] text-slate-500 font-medium">
-                  Assigned Staff: {currentUser.name}
+                  Current User: {currentUser.name}
                 </span>
               )}
             </div>
-            <Input
-              type="text"
-              placeholder={currentUser?.name ? `${currentUser.name} (${currentUser.id || 'UUID'})` : 'Employee UUID'}
+            <select
               value={employeeId}
               onChange={(e) => {
                 setEmployeeId(e.target.value);
                 if (errors.employeeId) setErrors((prev) => ({ ...prev, employeeId: '' }));
               }}
-              className={errors.employeeId ? 'border-red-500' : ''}
-              data-testid="input-employee-id"
-            />
+              className={`w-full text-xs p-2 border rounded-md bg-white text-slate-800 border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                errors.employeeId ? 'border-red-500' : ''
+              }`}
+              data-testid="select-employee"
+            >
+              <option value="">Select Employee...</option>
+              {team.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.name}
+                </option>
+              ))}
+            </select>
             {errors.employeeId && (
               <span className="text-[11px] text-red-600 block">{errors.employeeId}</span>
             )}
@@ -532,18 +584,76 @@ export function CreateDisbursementModal({
             />
           </div>
 
-          {/* Receipt Filename */}
+          {/* Receipt Attachment */}
           <div className="space-y-1">
             <label className="text-xs font-semibold text-slate-700">
-              Receipt Attachment (Optional)
+              Receipt Attachment
             </label>
-            <Input
-              type="text"
-              placeholder="e.g. bir_official_receipt_48912.pdf"
-              value={receiptFilename}
-              onChange={(e) => setReceiptFilename(e.target.value)}
-              data-testid="input-receipt-filename"
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  setReceiptFile(file);
+                  setReceiptFilename(file.name);
+                }
+              }}
+              data-testid="receipt-file-input"
             />
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => {
+                if (!receiptFile && !receiptFilename) {
+                  fileInputRef.current?.click();
+                }
+              }}
+              className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer ${
+                isDragging
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-slate-200 hover:border-blue-400 bg-slate-50/50'
+              }`}
+              data-testid="receipt-dropzone"
+            >
+              {receiptFile || receiptFilename ? (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 truncate">
+                    <FileText className="h-4 w-4 text-blue-600 shrink-0" />
+                    <span className="text-xs font-medium text-slate-800 truncate" data-testid="receipt-attached-filename">
+                      {receiptFile?.name || receiptFilename}
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setReceiptFile(null);
+                      setReceiptFilename('');
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
+                    className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    data-testid="remove-receipt-btn"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-2">
+                  <Upload className="h-6 w-6 text-slate-400 mb-1" />
+                  <p className="text-xs font-medium text-slate-700">
+                    Drag and drop receipt here, or browse
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    PDF, PNG, JPG up to 10MB
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
           <DialogFooter className="flex items-center justify-end gap-2 pt-2">

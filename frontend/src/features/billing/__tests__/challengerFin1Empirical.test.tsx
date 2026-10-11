@@ -225,12 +225,12 @@ describe('CHALLENGER FIN 1 — Empirical Adversarial Verification Suite', () => 
         expect(screen.getByTestId('billing-page')).toBeInTheDocument();
       });
 
-      // Both buttons must be visible
+      // Header button must be visible, list button removed (deduplicated)
       expect(screen.getByTestId('header-create-invoice-button')).toBeInTheDocument();
-      expect(screen.getByTestId('create-invoice-button')).toBeInTheDocument();
+      expect(screen.queryByTestId('create-invoice-button')).toBeNull();
     });
 
-    it('PROVE: User with wildcard billing:* CAN see "New Invoice" in header and "Create Invoice" in list', async () => {
+    it('PROVE: User with wildcard billing:* CAN see "New Invoice" in header and "Create Invoice" in list is deduplicated', async () => {
       useSessionStore.getState().setSession({
         user: {
           id: 'user-admin',
@@ -252,7 +252,7 @@ describe('CHALLENGER FIN 1 — Empirical Adversarial Verification Suite', () => 
       });
 
       expect(screen.getByTestId('header-create-invoice-button')).toBeInTheDocument();
-      expect(screen.getByTestId('create-invoice-button')).toBeInTheDocument();
+      expect(screen.queryByTestId('create-invoice-button')).toBeNull();
     });
   });
 
