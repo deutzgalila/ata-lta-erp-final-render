@@ -16,40 +16,95 @@ import { dashboardKeys } from './queryKeys';
 import type { AssignableTaskOption } from './types';
 import type { WorkRequest, Task } from '@/features/operations/api/types';
 
-export function useAssignedTasks() {
+function matchesUserId(entry: unknown, targetUserId?: string): boolean {
+  if (!targetUserId || !entry) return false;
+  if (typeof entry === 'string') return entry === targetUserId;
+  if (typeof entry === 'object' && entry !== null) {
+    const obj = entry as { userId?: unknown; user_id?: unknown; id?: unknown };
+    return (
+      obj.userId === targetUserId ||
+      obj.user_id === targetUserId ||
+      obj.id === targetUserId
+    );
+  }
+  return false;
+}
+
+export interface UseAssignedTasksOptions {
+  allTasksForAdmin?: boolean;
+}
+
+export function useAssignedTasks(options: UseAssignedTasksOptions = {}) {
+  const { allTasksForAdmin = false } = options;
   const user = useSessionStore((state) => state.user);
   const permissions = useSessionStore((state) => state.permissions);
   const activeEntity = useSessionStore((state) => state.activeEntity);
   const canEditAll = hasPermission(permissions, 'timelog:edit_all');
   const userId = user?.id;
 
+  const effectiveAllTasksForAdmin = Boolean(allTasksForAdmin && canEditAll);
+  const queryKey = effectiveAllTasksForAdmin
+    ? [...dashboardKeys.assignedTasks.scoped(userId), activeEntity, { allTasksForAdmin: true }]
+    : [...dashboardKeys.assignedTasks.scoped(userId), activeEntity];
+
   const query = useQuery({
-    queryKey: [...dashboardKeys.assignedTasks.scoped(userId), activeEntity],
+    queryKey,
     queryFn: async (): Promise<AssignableTaskOption[]> => {
       // Query active work requests with their tasks
       const response = await apiRequest<{ data: WorkRequest[] }>(
-        '/operations/work-requests?archived=false&limit=100'
+        '/operations/work-requests?archived=false&limit=100&includeTasks=true'
       );
       const workRequests = response.data || [];
 
-      const options: AssignableTaskOption[] = [];
+      const optionsList: AssignableTaskOption[] = [];
 
       for (const wr of workRequests) {
         const tasks: Task[] = wr.tasks || [];
         for (const task of tasks) {
           // Check task assignment:
-          // 1. If admin with timelog:edit_all, allow any active task
-          // 2. Otherwise verify assignment: assigneeId == userId OR assignees array includes userId OR taskAssignees includes userId
-          const isDirectAssignee = task.assigneeId === userId || (task as { assignee_id?: string }).assignee_id === userId;
-          const isCoAssignee = Array.isArray(task.assignees) && task.assignees.includes(userId ?? '');
-          const taskAssigneesList = task.taskAssignees || task.task_assignees || [];
-          const isTaskAssigneeJoined = Array.isArray(taskAssigneesList) &&
-            taskAssigneesList.some((ta) => ta.userId === userId || (ta as { user_id?: string }).user_id === userId);
+          // 1. If admin with timelog:edit_all AND allTasksForAdmin is enabled, allow any active task
+          // 2. Otherwise verify assignment defensively against assigneeId, assignee_id, coAssignees,
+          //    co_assignees, taskAssignees, task_assignees, relational_assignees, and assignees
+          const isDirectAssignee = Boolean(
+            userId && (
+              task.assigneeId === userId ||
+              (task as { assignee_id?: string }).assignee_id === userId
+            )
+          );
 
-          const isAssigned = canEditAll || isDirectAssignee || isCoAssignee || isTaskAssigneeJoined;
+          const coAssigneeLists = [
+            task.assignees,
+            (task as { coAssignees?: unknown }).coAssignees,
+            (task as { co_assignees?: unknown }).co_assignees,
+          ];
+          const isCoAssignee = Boolean(
+            userId &&
+              coAssigneeLists.some(
+                (list) => Array.isArray(list) && list.some((item) => matchesUserId(item, userId))
+              )
+          );
+
+          const taskAssigneeLists = [
+            task.taskAssignees,
+            (task as { task_assignees?: unknown }).task_assignees,
+            (task as { relational_assignees?: unknown }).relational_assignees,
+            (task as { relationalAssignees?: unknown }).relationalAssignees,
+          ];
+          const isTaskAssigneeJoined = Boolean(
+            userId &&
+              taskAssigneeLists.some(
+                (list) => Array.isArray(list) && list.some((item) => matchesUserId(item, userId))
+              )
+          );
+
+          const isAssigned =
+            (allTasksForAdmin && canEditAll) ||
+            isDirectAssignee ||
+            isCoAssignee ||
+            isTaskAssigneeJoined;
 
           if (isAssigned) {
-            options.push({
+            optionsList.push({
               taskId: task.id,
               taskTitle: task.title,
               workRequestId: wr.id,
@@ -57,31 +112,13 @@ export function useAssignedTasks() {
               entity: (wr as { entity_code?: string }).entity_code || wr.entity || 'ATA',
               status: task.status,
               phase: task.phase || null,
-              clientName: wr.clientName || wr.client_name || null,
+              clientName: wr.clientName || wr.client_name || (wr.client && wr.client.name) || null,
             });
           }
         }
       }
 
-      // Also ensure known staging fixture for dev-docs is guaranteed included if matching
-      // Task dfd6d8fd-e4f0-42eb-8a34-c12cdcb6cb2e ("Gather BIR Form 2307" / "SMOKE P0-D B battery")
-      const hasDocsFixture = options.some(
-        (o) => o.taskId === 'dfd6d8fd-e4f0-42eb-8a34-c12cdcb6cb2e'
-      );
-      if (!hasDocsFixture && (canEditAll || user?.email === 'dev-docs@ata-lta.ph')) {
-        options.unshift({
-          taskId: 'dfd6d8fd-e4f0-42eb-8a34-c12cdcb6cb2e',
-          taskTitle: 'Gather BIR Form 2307',
-          workRequestId: '706e7c4f-16ab-4901-92dc-d7d97060366f',
-          workRequestTitle: 'SMOKE P0-D B battery',
-          entity: 'ATA',
-          status: 'In Progress',
-          phase: 'processing',
-          clientName: 'SMOKE Client',
-        });
-      }
-
-      return options;
+      return optionsList;
     },
     staleTime: 60 * 1000,
   });

@@ -58,7 +58,9 @@ export function LogTimeWidget() {
   const [deletingEntry, setDeletingEntry] = useState<TimeEntry | null>(null);
 
   // Queries & Mutations
-  const { tasks: assignedTasks, isLoading: isLoadingTasks } = useAssignedTasks();
+  const { tasks: assignedTasks, isLoading: isLoadingTasks } = useAssignedTasks({
+    allTasksForAdmin: true,
+  });
   const { data: summary } = useTimeSummary(selectedDate);
   const { data: entries = [], isLoading: isLoadingEntries } = useTimeEntriesList({
     from: selectedDate,
