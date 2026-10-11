@@ -7,6 +7,7 @@ const { supabaseAdmin } = require('../../services/supabaseClient');
 const env = require('../../config/env');
 const AppError = require('../../lib/AppError');
 const storageService = require('../../services/storageService');
+const { evictUserProfile } = require('../../middleware/auth');
 
 const MAX_AVATAR_SIZE_MB = 5;
 
@@ -88,6 +89,8 @@ const updateProfile = async ({ userId, data }) => {
       detail: 'Unable to update profile',
     });
   }
+
+  evictUserProfile(userId);
 
   return getProfile(userId);
 };
