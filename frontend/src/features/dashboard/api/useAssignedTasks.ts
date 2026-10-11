@@ -42,7 +42,7 @@ export function useAssignedTasks(options: UseAssignedTasksOptions = {}) {
       let totalPages = 1;
       do {
         const response = await apiRequest<{ data: WorkRequest[]; meta?: { totalPages: number } }>(
-          `/operations/work-requests?archived=false&includeTasks=true&limit=100&page=${page}`
+          `/operations/work-requests?archived=false&limit=100&includeTasks=true&page=${page}`
         );
         workRequests.push(...(response.data || []));
         totalPages = response.meta?.totalPages || 1;

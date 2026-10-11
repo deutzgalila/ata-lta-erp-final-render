@@ -40,6 +40,7 @@ import {
   X,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useEntityRealtimeSync } from '@/lib/realtime';
 import { useTimeEntriesList, useCreateTimeEntry } from '@/features/dashboard/api/useTimeEntries';
 import { InvoiceCreateModal } from '@/features/billing';
 import { CreateDisbursementModal } from '@/features/disbursements';
@@ -177,6 +178,16 @@ export function TaskDetailModal({
   const [addSelectKey, setAddSelectKey] = useState(0);
   const [reassignSelectKey, setReassignSelectKey] = useState(0);
   const [newChecklistText, setNewChecklistText] = useState('');
+
+  // Live Collaborative Real-Time CDC Subscriptions for Task Time Logs (SPEC-REALTIME-TIME-LOGGING-001)
+  useEntityRealtimeSync({
+    table: 'time_entries',
+    enabled: isOpen && Boolean(task?.id),
+  });
+  useEntityRealtimeSync({
+    table: 'task_time_logs',
+    enabled: isOpen && Boolean(task?.id),
+  });
 
   // Time entries for this task
   const { data: timeEntries = [], isLoading: isLoadingTime } = useTimeEntriesList(
@@ -1691,7 +1702,7 @@ export function TaskDetailModal({
           }}
           defaultWorkRequestId={task.workRequestId || workRequest?.id}
           defaultClientId={workRequest?.clientId || undefined}
-          {...({ defaultTaskId: task.id } as Record<string, unknown>)}
+          defaultTaskId={task.id}
           onSuccess={() => {
             setIsUploadDocModalOpen(false);
             refetchDocs();

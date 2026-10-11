@@ -88,6 +88,12 @@ export default function OperationsPage() {
     enabled: canViewModule,
   });
 
+  // Collaborative Realtime CDC Subscriptions for Time Logging across Operations (SPEC-REALTIME-TIME-LOGGING-001)
+  const isTimeLoggingEnabled = Boolean(canViewModule && activeTab !== 'pending-approvals');
+  useEntityRealtimeSync({ table: 'time_entries', enabled: isTimeLoggingEnabled });
+  useEntityRealtimeSync({ table: 'task_time_logs', enabled: isTimeLoggingEnabled });
+
+
   // Badge Counts Queries
   const { data: requestCounts } = useOperationsRequestCounts();
   const { data: wrCounts } = useWorkRequestCounts();

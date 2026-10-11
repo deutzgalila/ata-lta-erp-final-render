@@ -34,6 +34,7 @@ import {
   FileQuestion,
   Maximize2,
   Minimize2,
+  ExternalLink,
 } from 'lucide-react';
 import {
   useDocumentDownloadUrl,
@@ -43,6 +44,7 @@ import {
 import { MAX_FILE_SIZE_BYTES } from '../api/schemas';
 import type { DmsDocument, DmsDocumentComment } from '../api/types';
 import { useSessionStore } from '@/lib/session';
+import { parseExternalUrl } from '../utils/googleDrive';
 
 export interface ViewerWorkRequest {
   id: string;
@@ -54,8 +56,10 @@ export interface ViewerWorkRequest {
 export interface DocumentViewerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  document: DmsDocument | null;
+  document?: DmsDocument | null;
+  doc?: DmsDocument | null;
   workRequest?: ViewerWorkRequest | null;
+  workRequests?: ViewerWorkRequest[] | null;
   onUploadSuccess?: (doc: DmsDocument) => void;
   readOnly?: boolean;
 }
@@ -63,11 +67,15 @@ export interface DocumentViewerModalProps {
 export function DocumentViewerModal({
   isOpen,
   onClose,
-  document: initialDoc,
-  workRequest,
+  document: propDocument,
+  doc: propDoc,
+  workRequest: propWorkRequest,
+  workRequests: propWorkRequests,
   onUploadSuccess,
   readOnly = false,
 }: DocumentViewerModalProps) {
+  const initialDoc = propDocument ?? propDoc ?? null;
+  const workRequest = propWorkRequest ?? (propWorkRequests && propWorkRequests[0]) ?? null;
   const [doc, setDoc] = useState<DmsDocument | null>(initialDoc);
   const [isFullPage, setIsFullPage] = useState(false);
   const [newCommentText, setNewCommentText] = useState('');
@@ -132,7 +140,18 @@ export function DocumentViewerModal({
     doc?.fileName ||
     'Document';
   const contentType = doc?.contentType || doc?.content_type || '';
-  const downloadUrl = downloadData?.url || doc?.external_url || null;
+  const effectiveExternalUrl =
+    (doc?.external_url && doc.external_url.trim()) ||
+    (doc?.externalUrl && doc.externalUrl.trim()) ||
+    null;
+  const rawUrl = effectiveExternalUrl || downloadData?.url || null;
+  const parsedExternal = parseExternalUrl(rawUrl || '', fileName);
+  const previewUrl = parsedExternal.isGoogleDrive ? parsedExternal.previewUrl : rawUrl;
+  const isExternal = Boolean(
+    effectiveExternalUrl ||
+    parsedExternal.isGoogleDrive
+  );
+  const downloadUrl = isExternal ? null : rawUrl;
 
   // File Upload Handler (3-step signed upload)
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -265,10 +284,58 @@ export function DocumentViewerModal({
       );
     }
 
-    if (isDownloadLoading) {
+    if (isDownloadLoading && !doc?.external_url && !doc?.externalUrl) {
       return (
         <div className="h-full flex items-center justify-center text-[#9494a0] text-sm">
           Loading document preview...
+        </div>
+      );
+    }
+
+    if (parsedExternal.isGoogleDrive && previewUrl) {
+      return (
+        <div className="w-full h-full flex flex-col">
+          <div className="bg-blue-50 border-b border-blue-100 px-4 py-2 flex items-center justify-between text-xs text-blue-800">
+            <span>Google Drive Document Preview</span>
+            <a
+              href={parsedExternal.originalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium underline hover:text-blue-950 flex items-center gap-1"
+            >
+              Open Original <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
+          <iframe
+            src={previewUrl}
+            className="w-full flex-1 border-0"
+            title={fileName}
+            allow="autoplay"
+            data-testid="doc-preview-gdrive"
+          />
+        </div>
+      );
+    }
+
+    // External Document Non-Embeddable Card (Architecture Spec Section 2 RENDER -> FALLBACK)
+    if (isExternal) {
+      const openUrl = effectiveExternalUrl || parsedExternal.originalUrl;
+      return (
+        <div className="h-full flex flex-col items-center justify-center p-8 space-y-4 text-center">
+          <ExternalLink className="h-16 w-16 text-[#2563eb]" />
+          <div className="space-y-1">
+            <h4 className="font-semibold text-[#1e293b] text-sm">{fileName}</h4>
+            <p className="text-xs text-[#9494a0] max-w-sm">
+              This external document cannot be embedded inline. You can open the external link directly in your browser.
+            </p>
+          </div>
+          {openUrl && (
+            <a href={openUrl} target="_blank" rel="noopener noreferrer">
+              <Button type="button" size="sm" className="gap-2 bg-[#2563eb] hover:bg-[#1d4ed8] text-white">
+                <ExternalLink className="h-4 w-4" /> Open External Link
+              </Button>
+            </a>
+          )}
         </div>
       );
     }
@@ -286,10 +353,10 @@ export function DocumentViewerModal({
       fileName.toLowerCase().endsWith('.docx');
     const isLegacyDoc = fileName.toLowerCase().endsWith('.doc');
 
-    if (downloadUrl && isPdf) {
+    if (previewUrl && isPdf) {
       return (
         <iframe
-          src={downloadUrl}
+          src={previewUrl}
           className="w-full h-full border-0 rounded-md"
           title={fileName}
           data-testid="doc-preview-pdf"
@@ -297,11 +364,11 @@ export function DocumentViewerModal({
       );
     }
 
-    if (downloadUrl && isImage) {
+    if (previewUrl && isImage) {
       return (
         <div className="w-full h-full flex items-center justify-center p-4">
           <img
-            src={downloadUrl}
+            src={previewUrl}
             alt={fileName}
             className="max-w-full max-h-full object-contain shadow-xs rounded"
             data-testid="doc-preview-image"
@@ -310,10 +377,10 @@ export function DocumentViewerModal({
       );
     }
 
-    if (isText && downloadUrl) {
+    if (isText && previewUrl) {
       return (
         <iframe
-          src={downloadUrl}
+          src={previewUrl}
           className="w-full h-full border-0 p-4 font-mono text-xs bg-white rounded"
           title={fileName}
           data-testid="doc-preview-text"
@@ -447,7 +514,18 @@ export function DocumentViewerModal({
                 <Upload className="h-3.5 w-3.5" /> Replace / Upload
               </Button>
             )}
-            {downloadUrl && (
+            {isExternal ? (
+              <a
+                href={effectiveExternalUrl || parsedExternal.originalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Button variant="outline" size="xs" className="gap-1.5 text-xs text-[#2563eb]">
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  {parsedExternal.isGoogleDrive ? 'Open in Google Drive' : 'Open External Link'}
+                </Button>
+              </a>
+            ) : downloadUrl ? (
               <a href={downloadUrl} download={fileName} target="_blank" rel="noreferrer">
                 <Button
                   type="button"
@@ -459,7 +537,7 @@ export function DocumentViewerModal({
                   <Download className="h-3.5 w-3.5" /> Download
                 </Button>
               </a>
-            )}
+            ) : null}
           </div>
         </DialogHeader>
 

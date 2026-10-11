@@ -41,6 +41,7 @@ import type {
 } from '../api/types';
 import { CATEGORY_LABELS } from '../constants';
 import { formatFileSize } from '../utils/formatters';
+import { parseExternalUrl } from '../utils/googleDrive';
 import { useUploadDocument } from '../api/useDocuments';
 
 export interface DocumentUploadModalProps {
@@ -49,6 +50,7 @@ export interface DocumentUploadModalProps {
   onSuccess?: (doc: DmsDocument) => void;
   defaultWorkRequestId?: string;
   defaultClientId?: string;
+  defaultTaskId?: string;
 }
 
 
@@ -58,6 +60,7 @@ export function DocumentUploadModal({
   onSuccess,
   defaultWorkRequestId,
   defaultClientId,
+  defaultTaskId,
 }: DocumentUploadModalProps) {
   const [mode, setMode] = useState<'file' | 'external'>('file');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -68,7 +71,16 @@ export function DocumentUploadModal({
   const [externalUrl, setExternalUrl] = useState('');
   const [workRequestId, setWorkRequestId] = useState(defaultWorkRequestId || '');
   const [clientId, setClientId] = useState(defaultClientId || '');
+  const [linkedTaskId, setLinkedTaskId] = useState(defaultTaskId || '');
   const [sizeError, setSizeError] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setLinkedTaskId(defaultTaskId || '');
+      setWorkRequestId(defaultWorkRequestId || '');
+      setClientId(defaultClientId || '');
+    }
+  }, [isOpen, defaultTaskId, defaultWorkRequestId, defaultClientId]);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const uploadMutation = useUploadDocument();
@@ -82,6 +94,7 @@ export function DocumentUploadModal({
     setExternalUrl('');
     setWorkRequestId(defaultWorkRequestId || '');
     setClientId(defaultClientId || '');
+    setLinkedTaskId(defaultTaskId || '');
     setSizeError(null);
   };
 
@@ -120,8 +133,9 @@ export function DocumentUploadModal({
         category,
         documentType: documentType.trim() || undefined,
         description: description.trim() || undefined,
-        workRequestId: workRequestId.trim() || undefined,
-        clientId: clientId.trim() || undefined,
+        workRequestId: workRequestId.trim() || defaultWorkRequestId?.trim() || undefined,
+        clientId: clientId.trim() || defaultClientId?.trim() || undefined,
+        linkedTaskId: linkedTaskId.trim() || defaultTaskId?.trim() || undefined,
       };
 
       try {
@@ -137,17 +151,20 @@ export function DocumentUploadModal({
     } else {
       if (!externalUrl.trim() || !fileName.trim()) return;
 
-      // Create a dummy 0-byte file object for external URL payload flow
-      const dummyFile = new File([''], fileName.trim(), { type: 'text/plain' });
+      const parsed = parseExternalUrl(externalUrl, fileName);
+      // Create dummy 0-byte file object with detected MIME type for external URL payload flow
+      const dummyFile = new File([''], fileName.trim(), { type: parsed.detectedMimeType });
       const metadata: Partial<CreateDocumentInput> = {
         fileName: fileName.trim(),
         originalName: fileName.trim(),
-        externalUrl: externalUrl.trim(),
+        externalUrl: parsed.originalUrl || externalUrl.trim(),
         category,
+        contentType: parsed.detectedMimeType,
         documentType: documentType.trim() || undefined,
         description: description.trim() || undefined,
-        workRequestId: workRequestId.trim() || undefined,
-        clientId: clientId.trim() || undefined,
+        workRequestId: workRequestId.trim() || defaultWorkRequestId?.trim() || undefined,
+        clientId: clientId.trim() || defaultClientId?.trim() || undefined,
+        linkedTaskId: linkedTaskId.trim() || defaultTaskId?.trim() || undefined,
       };
 
       try {
@@ -293,6 +310,9 @@ export function DocumentUploadModal({
                 required
                 data-testid="external-url-input"
               />
+              <p className="text-xs text-[#64748b] mt-1" data-testid="external-url-gdrive-hint">
+                Tip for Google Drive: Ensure the link is shared as &quot;Anyone with the link can view&quot; so team members can preview it without authentication prompts.
+              </p>
             </div>
           )}
 

@@ -51,6 +51,7 @@ import { isUserAdmin } from '../lib/taskScope';
 import { getPhaseBadgeInfo, getStatusBadgeInfo } from '../lib/statusBadges';
 import { TaskDetailModal } from './TaskDetailModal';
 import { DocumentViewerModal } from './DocumentViewerModal';
+import { parseExternalUrl } from '@/features/documents';
 import {
   ConflictResolutionModal,
   isConcurrencyConflictError,
@@ -1007,11 +1008,23 @@ function InlineDocPreviewPanel({
 }) {
   const { data: downloadData, isLoading } = useDocumentDownloadUrl(document.id);
   const name = document.fileName || document.file_name || document.originalName || 'Document';
-  const downloadUrl = downloadData?.url;
+  const effectiveExternalUrl =
+    (document.external_url && document.external_url.trim()) ||
+    (document.externalUrl && document.externalUrl.trim()) ||
+    null;
+  const rawUrl = effectiveExternalUrl || downloadData?.url || null;
+  const parsedExternal = parseExternalUrl(rawUrl || '', name);
+  const previewUrl = parsedExternal.isGoogleDrive ? parsedExternal.previewUrl : rawUrl;
+  const isExternal = Boolean(
+    effectiveExternalUrl ||
+    parsedExternal.isGoogleDrive
+  );
+  const downloadUrl = isExternal ? null : rawUrl;
 
-  const isPdf = name.toLowerCase().endsWith('.pdf') || document.contentType?.includes('pdf');
-  const isImg = /\.(png|jpe?g|gif|webp|svg)$/i.test(name) || document.contentType?.startsWith('image/');
-  const isText = /\.(txt|json|csv|md|log)$/i.test(name) || document.contentType?.includes('text');
+  const contentType = document.contentType || document.content_type || '';
+  const isPdf = name.toLowerCase().endsWith('.pdf') || contentType.includes('pdf');
+  const isImg = /\.(png|jpe?g|gif|webp|svg)$/i.test(name) || contentType.startsWith('image/');
+  const isText = /\.(txt|json|csv|md|log)$/i.test(name) || contentType.includes('text');
 
   return (
     <div className="border border-indigo-200 bg-indigo-50/20 rounded-xl p-3.5 space-y-2.5 shadow-sm">
@@ -1025,13 +1038,24 @@ function InlineDocPreviewPanel({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          {downloadUrl && (
+          {isExternal ? (
+            <a
+              href={effectiveExternalUrl || parsedExternal.originalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Button size="xs" variant="outline" className="gap-1 text-[11px] h-7 text-blue-600 border-blue-200 hover:bg-blue-50">
+                <ExternalLink className="h-3 w-3" />
+                {parsedExternal.isGoogleDrive ? 'Open in Drive' : 'Open Link'}
+              </Button>
+            </a>
+          ) : downloadUrl ? (
             <a href={downloadUrl} download={name} target="_blank" rel="noreferrer">
               <Button size="xs" variant="outline" className="gap-1 text-[11px] h-7">
                 <Download className="h-3 w-3" /> Download
               </Button>
             </a>
-          )}
+          ) : null}
           <Button
             size="xs"
             variant="outline"
@@ -1054,18 +1078,58 @@ function InlineDocPreviewPanel({
 
       {/* Panel Body */}
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden min-h-[220px]">
-        {isLoading ? (
+        {isLoading && !document.external_url && !document.externalUrl ? (
           <div className="p-10 text-center text-xs text-slate-500 space-y-2">
             <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
             <p>Loading document preview...</p>
           </div>
-        ) : !downloadUrl ? (
+        ) : !previewUrl ? (
           <div className="p-8 text-center text-xs text-slate-500">
             Preview is unavailable for this document.
           </div>
+        ) : parsedExternal.isGoogleDrive && previewUrl ? (
+          <div className="w-full flex flex-col">
+            <div className="bg-blue-50 border-b border-blue-100 px-3 py-1.5 flex items-center justify-between text-[11px] text-blue-800">
+              <span>Google Drive Preview</span>
+              <a
+                href={parsedExternal.originalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium underline hover:text-blue-950 flex items-center gap-1"
+              >
+                Open Original <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+            <iframe
+              src={previewUrl}
+              className="w-full h-80 sm:h-96 border-0"
+              title={`Preview - ${name}`}
+              allow="autoplay"
+              data-testid="inline-doc-preview-gdrive"
+            />
+          </div>
+        ) : isExternal ? (
+          <div className="p-8 text-center space-y-3">
+            <ExternalLink className="h-10 w-10 text-blue-600 mx-auto" />
+            <div className="space-y-1">
+              <h5 className="font-semibold text-slate-800 text-xs">{name}</h5>
+              <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
+                This external link cannot be embedded inline. You can open the link directly in a new tab.
+              </p>
+            </div>
+            <a
+              href={effectiveExternalUrl || parsedExternal.originalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Button size="sm" className="gap-1.5 text-xs text-white bg-blue-600 hover:bg-blue-700">
+                <ExternalLink className="h-3.5 w-3.5" /> Open External Link
+              </Button>
+            </a>
+          </div>
         ) : isPdf ? (
           <iframe
-            src={downloadUrl}
+            src={previewUrl}
             className="w-full h-80 sm:h-96 border-0"
             title={`Preview - ${name}`}
             data-testid="inline-doc-preview-frame"
@@ -1073,7 +1137,7 @@ function InlineDocPreviewPanel({
         ) : isImg ? (
           <div className="w-full h-72 sm:h-80 flex items-center justify-center p-3 bg-slate-50">
             <img
-              src={downloadUrl}
+              src={previewUrl}
               alt={name}
               className="max-h-full max-w-full object-contain rounded shadow-xs"
               data-testid="inline-doc-preview-image"
@@ -1081,7 +1145,7 @@ function InlineDocPreviewPanel({
           </div>
         ) : isText ? (
           <iframe
-            src={downloadUrl}
+            src={previewUrl}
             className="w-full h-72 border-0 font-mono text-xs p-3 bg-slate-50"
             title={`Preview - ${name}`}
             data-testid="inline-doc-preview-frame"
@@ -1095,11 +1159,13 @@ function InlineDocPreviewPanel({
                 This document type cannot be embedded inline. You can download or open it in the full viewer.
               </p>
             </div>
-            <a href={downloadUrl} download={name} target="_blank" rel="noreferrer">
-              <Button size="sm" className="gap-1.5 text-xs">
-                <Download className="h-3.5 w-3.5" /> Download File
-              </Button>
-            </a>
+            {downloadUrl ? (
+              <a href={downloadUrl} download={name} target="_blank" rel="noreferrer">
+                <Button size="sm" className="gap-1.5 text-xs">
+                  <Download className="h-3.5 w-3.5" /> Download File
+                </Button>
+              </a>
+            ) : null}
           </div>
         )}
       </div>

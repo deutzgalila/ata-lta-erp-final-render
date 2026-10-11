@@ -784,10 +784,10 @@ describe('M4 Challenger 2: Multi-Tenant Scoping & Teardown Lifecycle', () => {
         </QueryClientProvider>
       );
 
-      // OperationsPage mounts cdc_operations_requests (subscriber count = 1)
+      // OperationsPage mounts cdc_operations_requests, cdc_work_requests, cdc_tasks, cdc_time_entries, cdc_task_time_logs
       const channel = mockClient.getChannel('cdc_operations_requests');
       expect(channel).toBeDefined();
-      expect(mockClient.getChannels()).toHaveLength(3);
+      expect(mockClient.getChannels()).toHaveLength(5);
 
       // Unmount OperationsPage
       unmount();

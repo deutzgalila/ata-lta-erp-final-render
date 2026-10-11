@@ -28,6 +28,8 @@ export type RealtimeTable =
   | 'tasks'
   | 'invoices'
   | 'disbursements'
+  | 'time_entries'
+  | 'task_time_logs'
   | string;
 
 export interface UseEntityRealtimeSyncOptions<T = Record<string, unknown>> {
@@ -89,6 +91,9 @@ export function getDefaultDetailQueryKey(
       return operationsKeys.requestDetail(id);
     case 'documents':
       return operationsKeys.documentDetail(id);
+    case 'time_entries':
+    case 'task_time_logs':
+      return dashboardKeys.timeEntries.detail(id);
     default:
       return [table, 'detail', id];
   }
@@ -111,6 +116,9 @@ export function getDefaultListRootKey(table: string): readonly unknown[] {
       return operationsKeys.requests();
     case 'documents':
       return operationsKeys.documents();
+    case 'time_entries':
+    case 'task_time_logs':
+      return dashboardKeys.timeEntries.all;
     default:
       return [table, 'list'];
   }
@@ -279,6 +287,57 @@ export function normalizeCdcTaskAssignee(record: Record<string, unknown>): Recor
 }
 
 /**
+ * Normalizes PostgreSQL CDC time_entries records into unified objects with both
+ * camelCase and snake_case properties to ensure full TanStack Query and UI compatibility.
+ */
+export function normalizeCdcTimeEntry(record: Record<string, unknown>): Record<string, unknown> {
+  if (!record || typeof record !== 'object') return record;
+  const durationMinutes = record.duration_minutes ?? record.durationMinutes ?? 0;
+  const taskId = record.task_id ?? record.taskId;
+  const userId = record.user_id ?? record.userId;
+  const entryDate = record.entry_date ?? record.entryDate;
+  const note = record.note ?? null;
+  return {
+    ...record,
+    durationMinutes: Number(durationMinutes),
+    duration_minutes: Number(durationMinutes),
+    taskId,
+    task_id: taskId,
+    userId,
+    user_id: userId,
+    entryDate,
+    entry_date: entryDate,
+    note,
+  };
+}
+
+/**
+ * Normalizes PostgreSQL CDC task_time_logs records into unified objects with both
+ * camelCase and snake_case properties converting legacy hours to durationMinutes.
+ */
+export function normalizeCdcTaskTimeLog(record: Record<string, unknown>): Record<string, unknown> {
+  if (!record || typeof record !== 'object') return record;
+  const hours = Number(record.hours ?? 0);
+  const durationMinutes = Math.round(hours * 60);
+  const taskId = record.task_id ?? record.taskId ?? record.linked_task_id;
+  const userId = record.user_id ?? record.userId;
+  const entryDate = record.date ?? record.entry_date ?? record.entryDate;
+  const note = record.note ?? null;
+  return {
+    ...record,
+    durationMinutes,
+    duration_minutes: durationMinutes,
+    taskId,
+    task_id: taskId,
+    userId,
+    user_id: userId,
+    entryDate,
+    entry_date: entryDate,
+    note,
+  };
+}
+
+/**
  * Dispatches raw incoming CDC payloads to table-specific normalizers.
  */
 export function normalizeCdcPayload(
@@ -296,6 +355,10 @@ export function normalizeCdcPayload(
       return normalizeCdcNotification(record);
     case 'task_assignees':
       return normalizeCdcTaskAssignee(record);
+    case 'time_entries':
+      return normalizeCdcTimeEntry(record);
+    case 'task_time_logs':
+      return normalizeCdcTaskTimeLog(record);
     default:
       return record;
   }
@@ -501,6 +564,31 @@ export function triggerCrossDomainCoInvalidations(
         void queryClient.invalidateQueries({ queryKey: ['operations', 'tasks', taskId] });
       }
       break;
+  }
+}
+
+/**
+ * Invalidates time entries and task-related caches on CDC events (SPEC-REALTIME-TIME-LOGGING-001 §4.1).
+ */
+export function triggerTimeEntryCoInvalidation(
+  queryClient: QueryClient,
+  _table: string,
+  record?: Record<string, unknown> | null,
+  oldRecord?: Record<string, unknown> | null
+): void {
+  // Invalidate all time entries queries (task lists, date lists, daily summaries)
+  void queryClient.invalidateQueries({ queryKey: dashboardKeys.timeEntries.all });
+
+  // If taskId is present, also invalidate operations task-related details
+  const taskId = (
+    record?.task_id ??
+    record?.taskId ??
+    oldRecord?.task_id ??
+    oldRecord?.taskId
+  ) as string | undefined;
+
+  if (taskId) {
+    void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(taskId) });
   }
 }
 
@@ -1118,6 +1206,18 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
             }
           }
 
+          // Scoped matcher for time entries: only prepend to matching task query if query is filtered by taskId
+          if (options.table === 'time_entries' || options.table === 'task_time_logs') {
+            const entryTaskId = (payloadObj.new?.task_id ?? payloadObj.new?.taskId) as string | undefined;
+            const filterObj = Array.isArray(qKey)
+              ? (qKey.find((k) => k && typeof k === 'object' && ('taskId' in k || 'task_id' in k)) as { taskId?: string; task_id?: string } | undefined)
+              : undefined;
+            const filterTaskId = filterObj?.taskId ?? filterObj?.task_id;
+            if (filterTaskId && entryTaskId && filterTaskId !== entryTaskId) {
+              continue;
+            }
+          }
+
           if (Array.isArray(listData)) {
             if (!listData.some((item) => item?.id === id)) {
               queryClient.setQueryData(qKey, [payloadObj.new, ...listData]);
@@ -1364,6 +1464,16 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
     payloadObj.old as Record<string, unknown> | undefined,
     isDelete
   );
+
+  // Trigger time entries co-invalidation (SPEC-REALTIME-TIME-LOGGING-001)
+  if (options.table === 'time_entries' || options.table === 'task_time_logs') {
+    triggerTimeEntryCoInvalidation(
+      queryClient,
+      options.table,
+      payloadObj.new as Record<string, unknown> | undefined,
+      payloadObj.old as Record<string, unknown> | undefined
+    );
+  }
 
   return true;
 }

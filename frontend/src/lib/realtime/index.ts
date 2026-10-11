@@ -17,6 +17,9 @@ export {
   isTaskListOfTargetWr,
   triggerTaskCoInvalidations,
   triggerCrossDomainCoInvalidations,
+  normalizeCdcTimeEntry,
+  normalizeCdcTaskTimeLog,
+  triggerTimeEntryCoInvalidation,
 } from './useEntityRealtimeSync';
 export type {
   UseEntityRealtimeSyncOptions,

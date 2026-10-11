@@ -162,7 +162,7 @@ describe('Challenger M3: Dashboard Assigned Tasks Real-Time Caching & Strict Use
     });
 
     expect(apiSpy).toHaveBeenCalledWith(
-      '/operations/work-requests?archived=false&includeTasks=true&limit=100&page=1'
+      '/operations/work-requests?archived=false&limit=100&includeTasks=true&page=1'
     );
     expect(screen.queryByText('Reconcile General Ledger')).not.toBeInTheDocument();
   });

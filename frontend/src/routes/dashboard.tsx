@@ -13,10 +13,12 @@ export default function DashboardPage() {
   const todayStr = new Date().toISOString().slice(0, 10);
   const { data: summary } = useTimeSummary(todayStr);
 
-  // Collaborative Realtime CDC Subscriptions for Dashboard Live Sync (SPEC-DASHBOARD-ASSIGNED-TASKS-REALTIME-001 §R3)
+  // Collaborative Realtime CDC Subscriptions for Dashboard Live Sync (SPEC-DASHBOARD-ASSIGNED-TASKS-REALTIME-001 §R3 & SPEC-REALTIME-TIME-LOGGING-001)
   useEntityRealtimeSync({ table: 'tasks' });
   useEntityRealtimeSync({ table: 'task_assignees' });
   useEntityRealtimeSync({ table: 'work_requests' });
+  useEntityRealtimeSync({ table: 'time_entries' });
+  useEntityRealtimeSync({ table: 'task_time_logs' });
 
   const totalTodayMinutes = summary?.totalMinutes ?? 0;
   const hours = Math.floor(totalTodayMinutes / 60);

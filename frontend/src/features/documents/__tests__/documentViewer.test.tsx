@@ -435,4 +435,295 @@ describe('DocumentViewerModal (UAT2-14)', () => {
     expect(screen.queryByTestId('new-comment-textarea')).toBeNull();
     expect(screen.queryByTestId('post-comment-btn')).toBeNull();
   });
+
+  it('renders Google Drive document with /preview iframe and Open in Google Drive CTA', () => {
+    const gdriveDoc: DmsDocument = {
+      ...baseDoc,
+      id: 'doc-gdrive',
+      original_name: 'Master Contract.pdf',
+      external_url: 'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs/view?usp=sharing',
+      storage_path: null,
+    };
+
+    render(
+      <DocumentViewerModal
+        isOpen={true}
+        onClose={vi.fn()}
+        document={gdriveDoc}
+      />,
+      { wrapper }
+    );
+
+    // Google Drive iframe preview rendered with transformed preview URL
+    const iframe = screen.getByTestId('doc-preview-gdrive');
+    expect(iframe).toBeDefined();
+    expect(iframe.getAttribute('src')).toBe(
+      'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs/preview'
+    );
+
+    // Open in Google Drive CTA button rendered
+    expect(screen.getByText('Open in Google Drive')).toBeDefined();
+  });
+
+  it('falls back to doc.external_url when downloadData is null or absent', () => {
+    const gdriveDoc: DmsDocument = {
+      ...baseDoc,
+      id: 'doc-gdrive-fallback',
+      original_name: 'Financial Model.xlsx',
+      external_url: 'https://docs.google.com/spreadsheets/d/1spreadSheetId123/edit',
+      storage_path: null,
+    };
+
+    render(
+      <DocumentViewerModal
+        isOpen={true}
+        onClose={vi.fn()}
+        document={gdriveDoc}
+      />,
+      { wrapper }
+    );
+
+    const iframe = screen.getByTestId('doc-preview-gdrive');
+    expect(iframe).toBeDefined();
+    expect(iframe.getAttribute('src')).toBe(
+      'https://docs.google.com/spreadsheets/d/1spreadSheetId123/preview'
+    );
+  });
+
+  it('renders informative external fallback card and Open External Link CTA for non-embeddable external URLs', () => {
+    const genericExternalDoc: DmsDocument = {
+      ...baseDoc,
+      id: 'doc-generic-external',
+      original_name: 'SEC Company Registration Verification',
+      content_type: null,
+      contentType: null,
+      external_url: 'https://sec.gov.ph/verification/company-12345',
+      storage_path: null,
+    };
+
+    render(
+      <DocumentViewerModal
+        isOpen={true}
+        onClose={vi.fn()}
+        document={genericExternalDoc}
+      />,
+      { wrapper }
+    );
+
+    // Fallback card text
+    expect(
+      screen.getByText(/This external document cannot be embedded inline/i)
+    ).toBeDefined();
+
+    // CTA button rendered
+    const openBtns = screen.getAllByText('Open External Link');
+    expect(openBtns.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('handles camelCase externalUrl compatibility alias', () => {
+    const camelCaseDoc = {
+      ...baseDoc,
+      id: 'doc-camel',
+      original_name: 'Presentation.pptx',
+      external_url: null,
+      externalUrl: 'https://docs.google.com/presentation/d/1presentationId/edit',
+      storage_path: null,
+    } as unknown as DmsDocument;
+
+    render(
+      <DocumentViewerModal
+        isOpen={true}
+        onClose={vi.fn()}
+        document={camelCaseDoc}
+      />,
+      { wrapper }
+    );
+
+    const iframe = screen.getByTestId('doc-preview-gdrive');
+    expect(iframe).toBeDefined();
+    expect(iframe.getAttribute('src')).toBe(
+      'https://docs.google.com/presentation/d/1presentationId/preview'
+    );
+    expect(screen.getByText('Open in Google Drive')).toBeDefined();
+  });
+
+  it('supports doc prop alias and correctly renders DocumentViewerModal', () => {
+    render(
+      <DocumentViewerModal
+        isOpen={true}
+        onClose={vi.fn()}
+        doc={baseDoc}
+      />,
+      { wrapper }
+    );
+
+    expect(screen.getByText('Compliance Report 2026.pdf')).toBeDefined();
+  });
+
+  it('keeps internal documents with undefined storage_path downloadable without falsely marking as external', () => {
+    const internalDocWithoutStoragePath: DmsDocument = {
+      ...baseDoc,
+      id: 'doc-internal-no-path',
+      original_name: 'Raw_Data_Export.csv',
+      fileName: 'Raw_Data_Export.csv',
+      external_url: null,
+      externalUrl: null,
+      storage_path: undefined as unknown as null,
+    };
+
+    render(
+      <DocumentViewerModal
+        isOpen={true}
+        onClose={vi.fn()}
+        document={internalDocWithoutStoragePath}
+      />,
+      { wrapper }
+    );
+
+    // Download button is rendered in header and not marked as Open External Link
+    expect(screen.queryByText('Open External Link')).toBeNull();
+    expect(screen.getByText('Download')).toBeDefined();
+  });
+
+  it('renders informative external fallback card and Open External Link CTA for external .docx documents', () => {
+    const externalDocx: DmsDocument = {
+      ...baseDoc,
+      id: 'doc-ext-docx',
+      original_name: 'board_resolution.docx',
+      fileName: 'board_resolution.docx',
+      external_url: 'https://sec.gov.ph/files/board_resolution.docx',
+      storage_path: null,
+      content_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    };
+
+    render(
+      <DocumentViewerModal
+        isOpen={true}
+        onClose={vi.fn()}
+        document={externalDocx}
+      />,
+      { wrapper }
+    );
+
+    // Fallback card text is shown instead of broken Word download view
+    expect(
+      screen.getByText(/This external document cannot be embedded inline/i)
+    ).toBeDefined();
+
+    const openBtns = screen.getAllByText('Open External Link');
+    expect(openBtns.length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText('Download to View')).toBeNull();
+  });
+
+  it('correctly handles internal documents with camelCase storagePath without false external classification', () => {
+    const camelCaseInternalDoc = {
+      ...baseDoc,
+      id: 'doc-internal-camel',
+      original_name: 'Spreadsheet.xlsx',
+      fileName: 'Spreadsheet.xlsx',
+      storage_path: null,
+      storagePath: 'entity/storage/Spreadsheet.xlsx',
+      external_url: null,
+      externalUrl: null,
+    } as unknown as DmsDocument;
+
+    render(
+      <DocumentViewerModal
+        isOpen={true}
+        onClose={vi.fn()}
+        document={camelCaseInternalDoc}
+      />,
+      { wrapper }
+    );
+
+    expect(screen.queryByText('Open External Link')).toBeNull();
+    expect(screen.getByText('Download')).toBeDefined();
+  });
+
+  it('renders informative external fallback card and Open External Link CTA for external .pdf documents', () => {
+    const externalPdf: DmsDocument = {
+      ...baseDoc,
+      id: 'doc-ext-pdf',
+      original_name: 'SEC_Registration_Certificate.pdf',
+      fileName: 'SEC_Registration_Certificate.pdf',
+      external_url: 'https://sec.gov.ph/files/registration.pdf',
+      storage_path: null,
+      content_type: 'application/pdf',
+    };
+
+    render(
+      <DocumentViewerModal
+        isOpen={true}
+        onClose={vi.fn()}
+        document={externalPdf}
+      />,
+      { wrapper }
+    );
+
+    // Fallback card text is shown instead of broken cross-origin PDF iframe
+    expect(
+      screen.getByText(/This external document cannot be embedded inline/i)
+    ).toBeDefined();
+
+    expect(screen.queryByTestId('doc-preview-pdf')).toBeNull();
+
+    const openBtns = screen.getAllByText('Open External Link');
+    expect(openBtns.length).toBeGreaterThanOrEqual(1);
+    const anchor = openBtns[0]?.closest('a');
+    expect(anchor?.href).toBe('https://sec.gov.ph/files/registration.pdf');
+  });
+
+  it('renders informative external fallback card for external text documents', () => {
+    const externalText: DmsDocument = {
+      ...baseDoc,
+      id: 'doc-ext-txt',
+      original_name: 'server_log.txt',
+      fileName: 'server_log.txt',
+      external_url: 'https://example.com/logs/server_log.txt',
+      storage_path: null,
+      content_type: 'text/plain',
+    };
+
+    render(
+      <DocumentViewerModal
+        isOpen={true}
+        onClose={vi.fn()}
+        document={externalText}
+      />,
+      { wrapper }
+    );
+
+    expect(
+      screen.getByText(/This external document cannot be embedded inline/i)
+    ).toBeDefined();
+    expect(screen.queryByTestId('doc-preview-text')).toBeNull();
+  });
+
+  it('does not falsely classify document as external when external_url is only whitespace', () => {
+    const whitespaceExternalDoc: DmsDocument = {
+      ...baseDoc,
+      id: 'doc-whitespace-ext',
+      original_name: 'Internal_Report.pdf',
+      fileName: 'Internal_Report.pdf',
+      external_url: '   ',
+      externalUrl: '   ',
+      storage_path: 'entities/ATA/documents/Internal_Report.pdf',
+      content_type: 'application/pdf',
+    };
+
+    render(
+      <DocumentViewerModal
+        isOpen={true}
+        onClose={vi.fn()}
+        document={whitespaceExternalDoc}
+      />,
+      { wrapper }
+    );
+
+    // Rendered as internal PDF preview and download button, not external link
+    expect(screen.queryByText('Open External Link')).toBeNull();
+    expect(screen.getByText('Download')).toBeDefined();
+    expect(screen.getByTestId('doc-preview-pdf')).toBeDefined();
+  });
 });
+
