@@ -627,7 +627,7 @@ const listWorkRequests = async ({
 // In-flight mutex map to guarantee idempotency against concurrent double-submits
 const inFlightWorkRequests = new Map();
 
-const validateProjectTeamRoles = async ({ assignedTo, coAssignees }) => {
+const validateProjectTeamRoles = async ({ assignedTo, coAssignees, rejectAdminCoAssignees = false }) => {
   if (assignedTo) {
     const { data: assignedUser } = await supabaseAdmin
       .from('users')
@@ -664,8 +664,8 @@ const validateProjectTeamRoles = async ({ assignedTo, coAssignees }) => {
     }
     const invalidMember = (matchedUsers || []).find((u) => {
       const r = (u.role || '').toLowerCase();
-      // Admins are unconditionally rejected from co-assignees
-      if (r === 'admin') return true;
+      // In retainer generation, Admins are strictly rejected from co-assignees
+      if (rejectAdminCoAssignees && r === 'admin') return true;
       let depts = [];
       if (Array.isArray(u.user_departments)) {
         depts = u.user_departments
@@ -676,7 +676,7 @@ const validateProjectTeamRoles = async ({ assignedTo, coAssignees }) => {
       }
       const isOps = depts.includes('operations');
       if (isOps) return false;
-      return r === 'manager';
+      return r === 'admin' || r === 'manager';
     });
     if (invalidMember) {
       throw new AppError({
@@ -2693,8 +2693,13 @@ const generateRetainerTemplate = async ({ entityId, templateId, user, data = {} 
 
   const overrides = data.overrides || {};
 
-  // 1. Enforce mandatory overrides.assignedTo
-  const assignedTo = overrides.assignedTo || overrides.assigned_to || null;
+  // 1. Enforce mandatory overrides.assignedTo (falling back to template configuration)
+  const assignedTo =
+    overrides.assignedTo ||
+    overrides.assigned_to ||
+    template.assigned_to ||
+    template.assignedTo ||
+    null;
   if (!assignedTo) {
     throw new AppError({
       statusCode: 400,
@@ -2705,9 +2710,14 @@ const generateRetainerTemplate = async ({ entityId, templateId, user, data = {} 
   }
 
   // 2. Validate Project Team Roles
-  const rawCo = overrides.coAssignees || overrides.co_assignees || [];
+  const rawCo =
+    overrides.coAssignees ||
+    overrides.co_assignees ||
+    template.coAssignees ||
+    template.co_assignees ||
+    [];
   const coAssignees = Array.isArray(rawCo) ? rawCo : [];
-  await validateProjectTeamRoles({ assignedTo, coAssignees });
+  await validateProjectTeamRoles({ assignedTo, coAssignees, rejectAdminCoAssignees: true });
 
   // 3. Strict Task Assignee Scoping Validation
   const projectTeam = new Set([assignedTo, ...coAssignees].filter(Boolean));

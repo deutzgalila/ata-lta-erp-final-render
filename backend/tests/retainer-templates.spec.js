@@ -39,6 +39,7 @@ const { registerUser, seedDefaults, resetMock, mockTables } = require('./fixture
 describe('Parcel P0-E: Retainer Templates & Recurrence', () => {
   let adminToken;
   let managerToken;
+  let managerId;
   let opsToken;
   let acctToken;
   let staffWorker;
@@ -58,7 +59,9 @@ describe('Parcel P0-E: Retainer Templates & Recurrence', () => {
     });
 
     // 2. Manager (has retainers:use, lacks retainers:edit)
+    managerId = '22222222-2222-4222-8222-222222222222';
     managerToken = registerUser({
+      id: managerId,
       email: 'manager@ata-lta.ph',
       name: 'Operations Manager',
       role: 'Manager',
@@ -314,6 +317,8 @@ describe('Parcel P0-E: Retainer Templates & Recurrence', () => {
         client_id: testClient.id,
         priority: 'Normal',
         recurrence: 'none',
+        assigned_to: managerId,
+        co_assignees: [staffWorker.id],
         tasks: [
           {
             local_id: 't_intake',
@@ -397,6 +402,7 @@ describe('Parcel P0-E: Retainer Templates & Recurrence', () => {
         name: 'Alias Test Retainer',
         client_id: testClient.id,
         recurrence: 'none',
+        assigned_to: managerId,
         tasks: [{ title: 'Single Task', phase: 'pre_processing' }],
       });
 
@@ -443,6 +449,7 @@ describe('Parcel P0-E: Retainer Templates & Recurrence', () => {
         client_id: testClient.id,
         priority: 'Normal',
         recurrence: 'annual',
+        assigned_to: managerId,
         tasks: [
           {
             local_id: 't_audit',
@@ -573,6 +580,7 @@ describe('Parcel P0-E: Retainer Templates & Recurrence', () => {
         name: 'Idempotency Retainer',
         client_id: testClient.id,
         recurrence: 'annual',
+        assigned_to: managerId,
         tasks: [{ title: 'Single Step', phase: 'pre_processing' }],
       });
 
@@ -675,6 +683,7 @@ describe('Parcel P0-E: Retainer Templates & Recurrence', () => {
         entity_id: 'ent-ata',
         name: 'Ad-hoc Retainer',
         recurrence: 'none',
+        assigned_to: managerId,
         tasks: [{ title: 'Ad-hoc Step', phase: 'pre_processing' }],
       });
 
