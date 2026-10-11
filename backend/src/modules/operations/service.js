@@ -590,7 +590,8 @@ const validateProjectTeamRoles = async ({ assignedTo, coAssignees }) => {
       .select('id, name, role')
       .eq('id', assignedTo)
       .maybeSingle();
-    if (assignedUser && (assignedUser.role || '').toLowerCase() !== 'manager') {
+    const roleLower = (assignedUser?.role || '').toLowerCase();
+    if (assignedUser && roleLower !== 'manager' && roleLower !== 'admin') {
       throw new AppError({
         statusCode: 400,
         title: 'Invalid Manager',
@@ -619,6 +620,8 @@ const validateProjectTeamRoles = async ({ assignedTo, coAssignees }) => {
     }
     const invalidMember = (matchedUsers || []).find((u) => {
       const r = (u.role || '').toLowerCase();
+      // Admins are unconditionally rejected from co-assignees
+      if (r === 'admin') return true;
       let depts = [];
       if (Array.isArray(u.user_departments)) {
         depts = u.user_departments
@@ -629,7 +632,7 @@ const validateProjectTeamRoles = async ({ assignedTo, coAssignees }) => {
       }
       const isOps = depts.includes('operations');
       if (isOps) return false;
-      return r === 'admin' || r === 'manager';
+      return r === 'manager';
     });
     if (invalidMember) {
       throw new AppError({
@@ -2708,40 +2711,126 @@ const generateRetainerTemplate = async ({ entityId, templateId, user, data = {} 
   }
 
   const overrides = data.overrides || {};
+
+  // 1. Enforce mandatory overrides.assignedTo
+  const assignedTo = overrides.assignedTo || overrides.assigned_to || null;
+  if (!assignedTo) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Validation Error',
+      code: 'MANAGER_REQUIRED',
+      detail: 'Manager (assignedTo) is required to generate work requests.',
+    });
+  }
+
+  // 2. Validate Project Team Roles
+  const rawCo = overrides.coAssignees || overrides.co_assignees || [];
+  const coAssignees = Array.isArray(rawCo) ? rawCo : [];
+  await validateProjectTeamRoles({ assignedTo, coAssignees });
+
+  // 3. Strict Task Assignee Scoping Validation
+  const projectTeam = new Set([assignedTo, ...coAssignees].filter(Boolean));
+
   const preProcessingTasks = [];
   const processingTasks = [];
 
   const templateTasks = Array.isArray(template.tasks) ? template.tasks : [];
-
+  const templateTaskMap = new Map();
   templateTasks.forEach((t, idx) => {
     const localId = t.local_id || t.localId || t.id || `tpl_t_${idx + 1}`;
-    const assignees =
-      t.default_assignees ||
-      t.defaultAssignees ||
-      t.assignees ||
-      [
-        ...(t.assigneeId ? [t.assigneeId] : []),
-        ...(t.assigned_to ? [t.assigned_to] : []),
-        ...(Array.isArray(t.coAssignees) ? t.coAssignees : []),
-        ...(Array.isArray(t.co_assignees) ? t.co_assignees : []),
-      ];
+    templateTaskMap.set(localId, t);
+  });
+
+  const overrideTaskMap = new Map();
+  if (Array.isArray(overrides.tasks)) {
+    overrides.tasks.forEach((ot) => {
+      const id = ot.local_id || ot.localId || ot.id;
+      if (id) {
+        overrideTaskMap.set(id, ot);
+      }
+    });
+  }
+
+  let sourceTasks = [];
+  if (Array.isArray(overrides.tasks) && overrides.tasks.length > 0) {
+    const processedOverrideIds = new Set();
+    templateTasks.forEach((t, idx) => {
+      const localId = t.local_id || t.localId || t.id || `tpl_t_${idx + 1}`;
+      const ov = overrideTaskMap.get(localId);
+      if (ov) {
+        processedOverrideIds.add(localId);
+        sourceTasks.push({ ...t, ...ov, local_id: localId });
+      } else {
+        sourceTasks.push({ ...t, local_id: localId });
+      }
+    });
+    overrides.tasks.forEach((ot, idx) => {
+      const id = ot.local_id || ot.localId || ot.id || `ov_t_${idx + 1}`;
+      if (!processedOverrideIds.has(id)) {
+        sourceTasks.push({ ...ot, local_id: id });
+      }
+    });
+  } else {
+    sourceTasks = templateTasks.map((t, idx) => ({
+      ...t,
+      local_id: t.local_id || t.localId || t.id || `tpl_t_${idx + 1}`,
+    }));
+  }
+
+  sourceTasks.forEach((t, idx) => {
+    const localId = t.local_id || t.localId || t.id || `tpl_t_${idx + 1}`;
+    const base = templateTaskMap.get(localId) || {};
+    const title = t.title || base.title || '';
+    const description = t.description !== undefined ? t.description : (base.description || null);
+    const phase = t.phase || base.phase || 'pre_processing';
     const dependsOn =
-      t.depends_on_local_id ??
-      t.dependsOnLocalId ??
       t.depends_on ??
       t.dependsOn ??
-      (Array.isArray(t.predecessors) && t.predecessors.length > 0 ? t.predecessors[0] : null);
+      base.depends_on_local_id ??
+      base.dependsOnLocalId ??
+      base.depends_on ??
+      base.dependsOn ??
+      (Array.isArray(base.predecessors) && base.predecessors.length > 0 ? base.predecessors[0] : null);
+    const dueDate = t.dueDate || t.due_date || base.dueDate || base.due_date || null;
+
+    let rawAssignees = t.assignees;
+    if (rawAssignees === undefined) {
+      rawAssignees =
+        base.default_assignees ||
+        base.defaultAssignees ||
+        base.assignees ||
+        [
+          ...(base.assigneeId ? [base.assigneeId] : []),
+          ...(base.assigned_to ? [base.assigned_to] : []),
+          ...(Array.isArray(base.coAssignees) ? base.coAssignees : []),
+          ...(Array.isArray(base.co_assignees) ? base.co_assignees : []),
+        ];
+    }
+    const assignees = Array.isArray(rawAssignees)
+      ? Array.from(new Set(rawAssignees.filter(Boolean)))
+      : [];
+
+    for (const assigneeId of assignees) {
+      if (!projectTeam.has(assigneeId)) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Validation Error',
+          code: 'TASK_ASSIGNEE_NOT_IN_TEAM',
+          detail: `Task assignee ${assigneeId} does not belong to the selected project team.`,
+        });
+      }
+    }
 
     const taskObj = {
       local_id: localId,
-      title: t.title,
-      description: t.description || null,
-      assignees: Array.isArray(assignees) ? Array.from(new Set(assignees.filter(Boolean))) : [],
+      title,
+      description,
+      assignees,
       depends_on: dependsOn || null,
-      dueDate: t.dueDate || t.due_date || null,
+      dueDate,
     };
 
-    if (t.phase === 'processing') {
+    if (phase === 'processing') {
       processingTasks.push(taskObj);
     } else {
       preProcessingTasks.push(taskObj);
@@ -2757,8 +2846,8 @@ const generateRetainerTemplate = async ({ entityId, templateId, user, data = {} 
     description: overrides.description !== undefined ? overrides.description : template.description,
     clientId: overrides.clientId || overrides.client_id || template.client_id || null,
     priority: overrides.priority || template.priority || 'Normal',
-    assignedTo: overrides.assignedTo || overrides.assigned_to || template.assigned_to || null,
-    coAssignees: overrides.coAssignees || overrides.co_assignees || [],
+    assignedTo,
+    coAssignees,
     dueDate: overrides.dueDate || overrides.due_date || null,
     phases: {
       pre_processing: { tasks: preProcessingTasks },
@@ -2788,6 +2877,7 @@ const generateRetainerTemplate = async ({ entityId, templateId, user, data = {} 
 
   if (genError) {
     try {
+      await supabaseAdmin.from('tasks').delete().eq('work_request_id', wrGraph.id);
       await supabaseAdmin.from('work_requests').delete().eq('id', wrGraph.id);
     } catch (_rollbackErr) {
       // ignore
