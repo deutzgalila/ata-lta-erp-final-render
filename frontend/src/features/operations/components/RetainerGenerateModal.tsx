@@ -28,6 +28,7 @@ import { useSessionStore } from '@/lib/session';
 import type {
   RetainerGenerateResponse,
   RetainerTemplateTask,
+  ChecklistItemData,
   Priority,
   CreatablePhase,
 } from '../api/types';
@@ -46,6 +47,7 @@ interface BlueprintTask {
   assignees: string[];
   depends_on?: string | null;
   dueDate?: string | null;
+  checklist?: ChecklistItemData[];
 }
 
 export function RetainerGenerateModal({
@@ -132,6 +134,7 @@ export function RetainerGenerateModal({
           assignees: Array.isArray(rawAssignees) ? rawAssignees : [],
           depends_on: dependsOn,
           dueDate: t.dueDate || t.due_date || null,
+          checklist: t.checklist || [],
         };
       })
     );
@@ -206,6 +209,7 @@ export function RetainerGenerateModal({
               assignees: t.assignees,
               depends_on: t.depends_on || null,
               dueDate: t.dueDate || null,
+              checklist: t.checklist || [],
             })),
           },
         });

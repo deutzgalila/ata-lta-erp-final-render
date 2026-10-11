@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Plus,
   Trash2,
   Layers,
   Split,
+  X,
+  CheckSquare,
+  FileText,
 } from 'lucide-react';
 import {
   Dialog,
@@ -29,6 +32,7 @@ import { useSessionStore } from '@/lib/session';
 import type {
   RetainerTemplate,
   RetainerTemplateTask,
+  ChecklistItemData,
   CreateRetainerTemplateInput,
   CreatablePhase,
 } from '../api/types';
@@ -56,7 +60,22 @@ export function OtherTemplateModal({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [tasks, setTasks] = useState<RetainerTemplateTask[]>([]);
+  const taskTitleInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const [focusNewTaskIndex, setFocusNewTaskIndex] = useState<number | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (focusNewTaskIndex !== null) {
+      const el = taskTitleInputRefs.current[focusNewTaskIndex];
+      if (el) {
+        if (typeof el.scrollIntoView === 'function') {
+          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        el.focus?.();
+      }
+      setFocusNewTaskIndex(null);
+    }
+  }, [focusNewTaskIndex, tasks.length]);
 
   useEffect(() => {
     if (template) {
@@ -68,6 +87,7 @@ export function OtherTemplateModal({
           local_id: t.local_id || t.localId || `task_${idx + 1}`,
           phase: t.phase || 'pre_processing',
           depends_on_local_id: t.depends_on_local_id || t.dependsOnLocalId || null,
+          checklist: t.checklist || [],
         }))
       );
       setErrors({});
@@ -81,6 +101,7 @@ export function OtherTemplateModal({
           description: '',
           phase: 'pre_processing',
           depends_on_local_id: null,
+          checklist: [],
         },
       ]);
       setErrors({});
@@ -90,6 +111,7 @@ export function OtherTemplateModal({
   // Task Helpers
   const addTaskRow = () => {
     const nextIdx = tasks.length + 1;
+    const newTaskIndex = tasks.length;
     setTasks([
       ...tasks,
       {
@@ -98,8 +120,64 @@ export function OtherTemplateModal({
         description: '',
         phase: 'pre_processing',
         depends_on_local_id: null,
+        checklist: [],
       },
     ]);
+    setFocusNewTaskIndex(newTaskIndex);
+  };
+
+  const addChecklistItem = (taskIndex: number) => {
+    const updated = [...tasks];
+    const target = updated[taskIndex];
+    if (target) {
+      const currentList = target.checklist || [];
+      const newItem: ChecklistItemData = {
+        id:
+          typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+                const r = (Math.random() * 16) | 0;
+                return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+              }),
+        text: '',
+        completed: false,
+        category: 'subtask',
+      };
+      updated[taskIndex] = {
+        ...target,
+        checklist: [...currentList, newItem],
+      };
+      setTasks(updated);
+    }
+  };
+
+  const updateChecklistItem = <K extends keyof ChecklistItemData>(
+    taskIndex: number,
+    itemIndex: number,
+    field: K,
+    val: ChecklistItemData[K]
+  ) => {
+    const updated = [...tasks];
+    const target = updated[taskIndex];
+    if (target) {
+      const currentList = [...(target.checklist || [])];
+      const item = currentList[itemIndex];
+      if (item) {
+        currentList[itemIndex] = { ...item, [field]: val };
+        updated[taskIndex] = { ...target, checklist: currentList };
+        setTasks(updated);
+      }
+    }
+  };
+
+  const removeChecklistItem = (taskIndex: number, itemIndex: number) => {
+    const updated = [...tasks];
+    const target = updated[taskIndex];
+    if (target) {
+      const currentList = (target.checklist || []).filter((_, i) => i !== itemIndex);
+      updated[taskIndex] = { ...target, checklist: currentList };
+      setTasks(updated);
+    }
   };
 
   const removeTaskRow = (index: number) => {
@@ -200,6 +278,14 @@ export function OtherTemplateModal({
         description: t.description?.trim() || null,
         phase: t.phase,
         depends_on_local_id: t.depends_on_local_id || null,
+        checklist: (t.checklist || []).map((c) => ({
+          id: c.id,
+          text: c.text.trim(),
+          completed: Boolean(c.completed),
+          category: c.category || 'subtask',
+          periodYear: c.category === 'document' ? (c.periodYear ?? new Date().getFullYear()) : null,
+          dependsOn: c.dependsOn || null,
+        })),
       })),
     };
 
@@ -349,6 +435,9 @@ export function OtherTemplateModal({
                         {/* Task Title Input */}
                         <div className="flex-1 space-y-1">
                           <Input
+                            ref={(el) => {
+                              taskTitleInputRefs.current[idx] = el;
+                            }}
                             type="text"
                             placeholder="Task title (e.g. Draft Resolution, Review Filings)"
                             value={task.title}
@@ -454,10 +543,118 @@ export function OtherTemplateModal({
                         </Select>
                       </div>
                     </div>
+
+                    {/* Checklist & Documents Sub-Section */}
+                    <div className="pt-2 border-t border-slate-100 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold text-slate-700 flex items-center gap-1.5">
+                          <CheckSquare className="h-3.5 w-3.5 text-blue-600" />
+                          Checklist & Subtasks ({task.checklist?.length || 0})
+                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="xs"
+                          onClick={() => addChecklistItem(idx)}
+                          className="h-6 text-[11px] text-blue-600 hover:bg-blue-50 border-blue-200 gap-1"
+                          data-testid={`add-subtask-btn-${idx}`}
+                        >
+                          <Plus className="h-3 w-3 mr-0.5" />
+                          Add Subtask
+                        </Button>
+                      </div>
+
+                      {task.checklist && task.checklist.length > 0 ? (
+                        <div className="space-y-1.5 bg-slate-50/50 p-2 rounded border border-slate-100">
+                          {task.checklist.map((item, ci) => (
+                            <div key={item.id || ci} className="flex items-center gap-2 text-xs">
+                              {/* Text input */}
+                              <input
+                                type="text"
+                                value={item.text}
+                                onChange={(e) =>
+                                  updateChecklistItem(idx, ci, 'text', e.target.value)
+                                }
+                                placeholder="Checklist item or document requirement..."
+                                className="flex-1 text-xs border border-slate-200 rounded px-2 py-1 bg-white text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                data-testid={`checklist-item-input-${idx}-${ci}`}
+                              />
+
+                              {/* Category toggle: Sub-task vs Doc */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const nextCat =
+                                    item.category === 'document' ? 'subtask' : 'document';
+                                  updateChecklistItem(idx, ci, 'category', nextCat);
+                                }}
+                                className="px-2 py-1 text-[11px] rounded border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 font-medium shrink-0"
+                                data-testid={`checklist-category-toggle-${idx}-${ci}`}
+                              >
+                                {item.category === 'document' ? (
+                                  <span className="flex items-center gap-1 text-blue-700">
+                                    <FileText className="h-3 w-3" /> Doc
+                                  </span>
+                                ) : (
+                                  <span>Sub-task</span>
+                                )}
+                              </button>
+
+                              {/* Period Year (if document) */}
+                              {item.category === 'document' && (
+                                <input
+                                  type="number"
+                                  value={item.periodYear ?? new Date().getFullYear()}
+                                  onChange={(e) =>
+                                    updateChecklistItem(
+                                      idx,
+                                      ci,
+                                      'periodYear',
+                                      parseInt(e.target.value, 10) || null
+                                    )
+                                  }
+                                  className="w-16 text-xs p-1 border border-slate-200 rounded bg-white text-center shrink-0"
+                                  placeholder="Year"
+                                  data-testid={`checklist-period-year-${idx}-${ci}`}
+                                />
+                              )}
+
+                              {/* Delete button */}
+                              <button
+                                type="button"
+                                onClick={() => removeChecklistItem(idx, ci)}
+                                className="text-slate-400 hover:text-red-500 p-0.5 shrink-0"
+                                title="Remove item"
+                                data-testid={`checklist-remove-btn-${idx}-${ci}`}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-slate-400 italic">
+                          No checklist items.
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}
             </div>
+
+            {/* Bottom Add Task Button matching TaskLineItems.tsx */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addTaskRow}
+              data-testid="add-task-btn"
+              className="w-full border-dashed text-xs text-slate-600 hover:text-slate-900 hover:bg-slate-50 h-8"
+            >
+              <Plus className="h-3.5 w-3.5 mr-1 text-slate-500" />
+              Add task
+            </Button>
           </div>
 
           <DialogFooter className="pt-4 border-t border-slate-200">

@@ -143,6 +143,15 @@ export interface ChecklistItem {
   timeLogs?: TaskTimeLog[];
 }
 
+export interface ChecklistItemData {
+  id: string;
+  text: string;
+  completed: boolean;
+  category?: 'subtask' | 'document';
+  periodYear?: number | null;
+  dependsOn?: string | null;
+}
+
 export interface TaskTimeLog {
   id: string;
   date: string;
@@ -335,6 +344,7 @@ export interface RetainerTemplateTask {
   requiredLinkType?: string | null;
   dueDate?: string | null;
   due_date?: string | null;
+  checklist?: ChecklistItemData[];
 }
 
 export type TemplateType = 'retainer' | 'other';
