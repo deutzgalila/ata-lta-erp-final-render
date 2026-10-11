@@ -175,7 +175,10 @@ export function WorkRequestSidePeek({
 
   const coAssigneeNames = useMemo(() => {
     if (!workRequest?.coAssignees || !Array.isArray(workRequest.coAssignees)) return [];
-    return workRequest.coAssignees.map((val) => resolveUserName(val));
+    const resolved = workRequest.coAssignees
+      .map((val) => resolveUserName(val))
+      .filter(Boolean);
+    return Array.from(new Set(resolved));
   }, [workRequest, resolveUserName]);
 
   // Escape key handler
@@ -338,7 +341,7 @@ export function WorkRequestSidePeek({
                         const statusInfo = getStatusBadgeInfo(workRequest.status);
                         const StatusIcon = statusInfo.Icon;
 
-                        if (isAdmin) {
+                        if (isAdmin && workRequest.status !== 'Completed') {
                           return (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -484,6 +487,17 @@ export function WorkRequestSidePeek({
                 </div>
               ) : workRequest ? (
                 <>
+                  {/* Completed Work Request Read-Only Lock Banner */}
+                  {workRequest.status === 'Completed' && (
+                    <div
+                      className="bg-amber-50 border border-amber-200 text-amber-800 text-xs px-3.5 py-2.5 rounded-xl flex items-center gap-2.5 shadow-2xs"
+                      data-testid="completed-wr-lock-banner"
+                    >
+                      <Lock className="h-4 w-4 text-amber-600 shrink-0" />
+                      <span>Completed Work Request: This record is finalized and locked against edits or mutations.</span>
+                    </div>
+                  )}
+
                   {/* 1. Gate Blocker Warning */}
                   {blockerInfo.hasBlockers && (
                     <div

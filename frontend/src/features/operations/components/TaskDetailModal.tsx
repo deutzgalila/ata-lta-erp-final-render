@@ -38,6 +38,8 @@ import {
   ExternalLink,
   Link as LinkIcon,
   X,
+  Pencil,
+  Lock,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEntityRealtimeSync } from '@/lib/realtime';
@@ -216,7 +218,37 @@ export function TaskDetailModal({
   const permissions = useSessionStore((state) => state.permissions);
   const currentUser = useSessionStore((state) => state.user);
   const isAdmin = isUserAdmin(currentUser);
-  const canEdit = hasPermission(permissions, 'workflow:edit');
+  const isCompletedWr = workRequest?.status === 'Completed';
+  const canEdit = !isCompletedWr && hasPermission(permissions, 'workflow:edit');
+
+  // Task description editing state (OA.5)
+  const [isEditingDesc, setIsEditingDesc] = useState(false);
+  const [descText, setDescText] = useState(task?.description || '');
+  const [isSavingDesc, setIsSavingDesc] = useState(false);
+
+  useEffect(() => {
+    setDescText(task?.description || '');
+  }, [task?.description]);
+
+  const handleSaveDescription = async () => {
+    if (!task || !task.workRequestId) return;
+    setIsSavingDesc(true);
+    try {
+      const res = await updateTask({
+        workRequestId: task.workRequestId,
+        taskId: task.id,
+        data: { description: descText.trim() || null },
+      });
+      if (res && onTaskUpdated) {
+        onTaskUpdated(res as Task);
+      }
+      setIsEditingDesc(false);
+    } catch (err) {
+      console.error('Failed to update task description:', err);
+    } finally {
+      setIsSavingDesc(false);
+    }
+  };
 
   // RBAC permissions for linked financial creation (UAT2-7)
   const canCreateInvoice =
@@ -374,17 +406,17 @@ export function TaskDetailModal({
 
   // Task Scoping Rules:
   // 1. Only assigned employee or Admin can mutate status, log time, upload docs
-  const canMutateStatus = canMutateTaskStatus(currentUser, task);
-  const canLogTime = hasPermission(permissions, 'timelog:create') && canLogTaskTime(currentUser, task);
-  const canUploadDoc = canUploadTaskDocument(currentUser, task);
+  const canMutateStatus = !isCompletedWr && canMutateTaskStatus(currentUser, task);
+  const canLogTime = !isCompletedWr && hasPermission(permissions, 'timelog:create') && canLogTaskTime(currentUser, task);
+  const canUploadDoc = !isCompletedWr && canUploadTaskDocument(currentUser, task);
 
   // 2. Financial record linking vs requesting:
-  const canLinkInv = canLinkInvoice(currentUser, task, workRequest, siblingTasks) && canCreateInvoice;
-  const canLinkTrans = canLinkTransmittal(currentUser, task, workRequest, siblingTasks) && canCreateTransmittal;
-  const canLinkDisb = canLinkDisbursement(currentUser, task, canCreateDisbursement);
+  const canLinkInv = !isCompletedWr && canLinkInvoice(currentUser, task, workRequest, siblingTasks) && canCreateInvoice;
+  const canLinkTrans = !isCompletedWr && canLinkTransmittal(currentUser, task, workRequest, siblingTasks) && canCreateTransmittal;
+  const canLinkDisb = !isCompletedWr && canLinkDisbursement(currentUser, task, canCreateDisbursement);
 
-  const canReqInv = canRequestInvoice(currentUser, task, workRequest, siblingTasks);
-  const canReqTrans = canRequestTransmittal(currentUser, task, workRequest, siblingTasks);
+  const canReqInv = !isCompletedWr && canRequestInvoice(currentUser, task, workRequest, siblingTasks);
+  const canReqTrans = !isCompletedWr && canRequestTransmittal(currentUser, task, workRequest, siblingTasks);
 
   // Handle adding a co-assignee (UAT2-8 + multi-assignee)
   const handleAddCoAssignee = async (employeeId: string) => {
@@ -796,14 +828,24 @@ export function TaskDetailModal({
 
           {/* Modal Body: Scrollable */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            {isCompletedWr && (
+              <div
+                className="bg-amber-50 border border-amber-200 text-amber-800 text-xs px-3 py-2 rounded-md flex items-center gap-2"
+                data-testid="completed-wr-lock-banner"
+              >
+                <Lock className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                <span>Completed Work Request: Task records and attachments are finalized and locked.</span>
+              </div>
+            )}
+
             {/* 1. Meta Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
-              <div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+              <div className="min-w-0">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">
                   Primary Assignee
                 </span>
                 <div
-                  className="flex items-center gap-1.5 font-medium text-slate-800 truncate"
+                  className="flex items-center gap-1.5 font-medium text-slate-800 truncate min-w-0"
                   data-testid="task-assignee"
                 >
                   <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
@@ -816,14 +858,14 @@ export function TaskDetailModal({
                 )}
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">
                   Due Date
                 </span>
-                <div className="flex items-center gap-1.5 font-medium text-slate-800">
+                <div className="flex items-center gap-1.5 font-medium text-slate-800 min-w-0 truncate">
                   <Calendar className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                   {canEdit ? (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 min-w-0 truncate">
                       <DateInput
                         aria-label="Task due date"
                         type="date"
@@ -859,7 +901,7 @@ export function TaskDetailModal({
                       {!localDueDate && <span className="text-slate-400 text-xs">Not set</span>}
                     </div>
                   ) : (
-                    <span>
+                    <span className="truncate">
                       {localDueDate
                         ? new Date(localDueDate).toLocaleDateString()
                         : 'Not set'}
@@ -868,29 +910,25 @@ export function TaskDetailModal({
                 </div>
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">
                   Phase Entered
                 </span>
-                <div className="flex items-center gap-1.5 font-medium text-slate-800">
+                <div className="flex items-center gap-1.5 font-medium text-slate-800 min-w-0 truncate">
                   <Clock className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                  <span>
-                    {task.phaseEnteredAt
-                      ? new Date(task.phaseEnteredAt).toLocaleDateString()
-                      : (workRequest?.phaseEnteredAt
-                          ? new Date(workRequest.phaseEnteredAt).toLocaleDateString()
-                          : 'N/A')}
+                  <span className="capitalize truncate">
+                    {task.phase?.replace('_', ' ')} • {task.phaseEnteredAt ? new Date(task.phaseEnteredAt).toLocaleDateString() : 'N/A'}
                   </span>
                 </div>
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">
                   Total Logged Time
                 </span>
-                <div className="flex items-center gap-1.5 font-bold text-blue-700">
+                <div className="flex items-center gap-1.5 font-bold text-blue-700 min-w-0 truncate">
                   <Clock className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-                  <span>{formatHours(totalMinutes)}</span>
+                  <span className="truncate">{formatHours(totalMinutes)}</span>
                 </div>
               </div>
             </div>
@@ -1043,17 +1081,72 @@ export function TaskDetailModal({
 
             {/* 3. Description / Requirements */}
             <div className="space-y-1.5">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Description & Instructions
-              </h4>
-              <div
-                className="p-3.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 whitespace-pre-wrap leading-relaxed min-h-[60px]"
-                data-testid="task-description"
-              >
-                {task.description || (
-                  <span className="text-slate-400 italic">No description provided for this task.</span>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Description & Instructions
+                </h4>
+                {!isCompletedWr && canEdit && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => setIsEditingDesc(!isEditingDesc)}
+                    className="h-6 px-1.5 text-slate-500 hover:text-blue-600 gap-1"
+                    title="Edit Task Description"
+                    data-testid="edit-task-description-btn"
+                  >
+                    <Pencil className="h-3 w-3" />
+                    <span className="text-[11px]">{isEditingDesc ? 'Cancel' : 'Edit'}</span>
+                  </Button>
                 )}
               </div>
+
+              {isEditingDesc ? (
+                <div className="space-y-2">
+                  <textarea
+                    value={descText}
+                    onChange={(e) => setDescText(e.target.value)}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 min-h-[80px]"
+                    placeholder="Enter task description or instructions..."
+                    data-testid="task-description-textarea"
+                  />
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => {
+                        setDescText(task.description || '');
+                        setIsEditingDesc(false);
+                      }}
+                      className="h-7 text-xs"
+                      data-testid="cancel-edit-description-btn"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="xs"
+                      onClick={handleSaveDescription}
+                      disabled={isSavingDesc}
+                      className="h-7 text-xs"
+                      data-testid="save-description-btn"
+                    >
+                      {isSavingDesc ? 'Saving...' : 'Save Changes'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className="p-3.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 whitespace-pre-wrap leading-relaxed min-h-[60px]"
+                  data-testid="task-description"
+                >
+                  {task.description || (
+                    <span className="text-slate-400 italic">No description provided for this task.</span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* 3. Checklist Items */}
