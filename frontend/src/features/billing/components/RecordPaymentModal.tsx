@@ -1,3 +1,4 @@
+import { DateInput } from '@/components/ui/date-input';
 import { useState } from 'react';
 import { CreditCard, AlertCircle } from 'lucide-react';
 import {
@@ -204,11 +205,12 @@ export function RecordPaymentModal({
           {/* Payment Date */}
           <div>
             <label htmlFor="payment-date" className="text-xs font-semibold text-slate-700 block mb-1">Payment Date*</label>
-            <Input
+            <DateInput
+                  aria-label="Payment date"
               id="payment-date"
               type="date"
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onValueChange={(value) => setDate(value)}
               className="h-9 text-xs"
               required
               data-testid="payment-date-input"

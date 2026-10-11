@@ -26,7 +26,7 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+>(({ className, children, onEscapeKeyDown, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -36,6 +36,19 @@ const DialogContent = React.forwardRef<
         className
       )}
       {...props}
+      data-erp-dialog=""
+      onEscapeKeyDown={(event) => {
+        // Radix listens in capture phase, before MUI can consume Escape.
+        // Let an open calendar close itself without dismissing the enclosing form.
+        const target = event.target;
+        if (target instanceof Element &&
+          (target.closest('.erp-date-picker-popup') ||
+            target.closest('[data-erp-dialog]')?.querySelector('.erp-date-picker-popup'))) {
+          event.preventDefault();
+          return;
+        }
+        onEscapeKeyDown?.(event);
+      }}
     >
       {children}
       <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-white transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-[#2563eb] disabled:pointer-events-none cursor-pointer">

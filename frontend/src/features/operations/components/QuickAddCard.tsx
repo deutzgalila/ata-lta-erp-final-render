@@ -1,3 +1,4 @@
+import { DateInput } from '@/components/ui/date-input';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Calendar,
@@ -211,12 +212,13 @@ export function QuickAddCard({ phase, workRequest, onCreate, onCancel }: QuickAd
           )}
         </button>
         {dateOpen && (
-          <input
+          <DateInput
             type="date"
             aria-label="Task due date"
+            disabled={pending}
             value={dueDate}
-            onChange={(event) => setDueDate(event.target.value)}
-            className="w-full rounded border border-slate-200 p-1 text-xs"
+            onValueChange={(value) => setDueDate(value)}
+            className="h-8 w-full text-xs"
             autoFocus
           />
         )}

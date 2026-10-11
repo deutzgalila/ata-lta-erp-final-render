@@ -484,7 +484,7 @@ describe('UAT Wave 2: Operations Linkage, Assignee Controls, and Modals', () => 
     fireEvent.change(assignee, { target: { value: 'u-staff-1' } });
     expect(assignee.parentElement).toHaveTextContent('JC');
     fireEvent.click(screen.getByLabelText('Choose due date'));
-    fireEvent.change(screen.getByLabelText('Task due date'), { target: { value: '2026-10-20' } });
+    fireEvent.change(screen.getByLabelText('Task due date', { selector: 'input' }), { target: { value: '2026-10-20' } });
     expect(screen.getByLabelText('Choose due date')).toHaveTextContent('Oct 20');
     fireEvent.change(title, { target: { value: '  Prepare invoice  ' } });
     fireEvent.keyDown(title, { key: 'Enter', shiftKey: true });
@@ -505,7 +505,7 @@ describe('UAT Wave 2: Operations Linkage, Assignee Controls, and Modals', () => 
     fireEvent.change(screen.getByLabelText('Lead assignee'), { target: { value: 'u-staff-1' } });
     fireEvent.change(screen.getByLabelText('Lead assignee'), { target: { value: '' } });
     fireEvent.click(screen.getByLabelText('Choose due date'));
-    fireEvent.change(screen.getByLabelText('Task due date'), { target: { value: '2026-10-20' } });
+    fireEvent.change(screen.getByLabelText('Task due date', { selector: 'input' }), { target: { value: '2026-10-20' } });
     fireEvent.click(screen.getByLabelText('Clear due date'));
     fireEvent.change(screen.getByLabelText('Task title'), { target: { value: 'New task' } });
     fireEvent.click(screen.getByLabelText('Create task'));
