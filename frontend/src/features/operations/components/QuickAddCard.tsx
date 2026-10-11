@@ -1,25 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
-  Banknote,
   Calendar,
   CheckSquare,
-  ChevronDown,
   CornerDownLeft,
   Loader2,
-  Receipt,
-  Send,
   User,
   X,
 } from 'lucide-react';
 import { getEligibleStaff, useTeam } from '../api/useTeam';
 import type { CreatablePhase, CreateTaskInput, WorkRequest } from '../api/types';
-
-const TASK_TYPES = [
-  { value: '', label: 'Standard Task', Icon: CheckSquare },
-  { value: 'billing', label: 'Invoice Linked', Icon: Receipt },
-  { value: 'disbursement', label: 'Disbursement Linked', Icon: Banknote },
-  { value: 'transmittal', label: 'Transmittal Linked', Icon: Send },
-] as const;
 
 interface QuickAddCardProps {
   phase: CreatablePhase;
@@ -30,7 +19,6 @@ interface QuickAddCardProps {
 
 export function QuickAddCard({ phase, workRequest, onCreate, onCancel }: QuickAddCardProps) {
   const [title, setTitle] = useState('');
-  const [linkType, setLinkType] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [dateOpen, setDateOpen] = useState(false);
   const [assigneeId, setAssigneeId] = useState('');
@@ -54,8 +42,6 @@ export function QuickAddCard({ phase, workRequest, onCreate, onCancel }: QuickAd
     : getEligibleStaff(team);
   // Re-check scope on each render so a removed WR member cannot be submitted.
   const assignee = eligible.find((member) => member.id === assigneeId);
-  const taskType = TASK_TYPES.find((type) => type.value === linkType) ?? TASK_TYPES[0];
-  const TypeIcon = taskType.Icon;
   const initials = assignee?.name
     .trim()
     .split(/\s+/)
@@ -89,7 +75,7 @@ export function QuickAddCard({ phase, workRequest, onCreate, onCancel }: QuickAd
         title: title.trim(),
         phase,
         status: assignee ? 'Assigned' : 'Draft',
-        requiredLinkType: linkType || null,
+        requiredLinkType: null,
         dueDate: dueDate || null,
         assigneeId: assignee?.id ?? null,
         assigneeName: assignee?.name ?? null,
@@ -159,23 +145,9 @@ export function QuickAddCard({ phase, workRequest, onCreate, onCancel }: QuickAd
         disabled={pending}
         className="flex min-w-0 flex-wrap items-center gap-1 disabled:opacity-60"
       >
-        <label className={`${controlClass} px-1`} title={taskType.label}>
-          <TypeIcon className="h-4 w-4 text-blue-600" />
-          <ChevronDown className="h-3 w-3" />
-          <select
-            aria-label="Task link type"
-            value={linkType}
-            onChange={(event) => setLinkType(event.target.value)}
-            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-            data-testid={`quick-add-type-trigger-${phase}`}
-          >
-            {TASK_TYPES.map((type) => (
-              <option key={type.value} value={type.value}>
-                {type.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <span className="flex h-7 items-center justify-center px-1" title="Standard Task">
+          <CheckSquare className="h-4 w-4 text-blue-600" role="img" aria-label="Standard Task" />
+        </span>
         <button
           type="button"
           className={`${controlClass} gap-1 px-1`}

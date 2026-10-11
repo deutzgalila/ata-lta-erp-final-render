@@ -469,7 +469,7 @@ describe('UAT Wave 2: Operations Linkage, Assignee Controls, and Modals', () => 
     expect(screen.getByTestId('quick-add-title-input-pre_processing')).toBeInTheDocument();
   });
 
-  it('quick-add selects scoped assignee, date and link type and submits with Enter', async () => {
+  it('quick-add selects scoped assignee and date and submits a standard task with Enter', async () => {
     const onCreate = vi.fn().mockResolvedValue(undefined);
     const onCancel = vi.fn();
     const { wrapper } = createHarness();
@@ -486,19 +486,18 @@ describe('UAT Wave 2: Operations Linkage, Assignee Controls, and Modals', () => 
     fireEvent.click(screen.getByLabelText('Choose due date'));
     fireEvent.change(screen.getByLabelText('Task due date'), { target: { value: '2026-10-20' } });
     expect(screen.getByLabelText('Choose due date')).toHaveTextContent('Oct 20');
-    fireEvent.change(screen.getByLabelText('Task link type'), { target: { value: 'billing' } });
     fireEvent.change(title, { target: { value: '  Prepare invoice  ' } });
     fireEvent.keyDown(title, { key: 'Enter', shiftKey: true });
     expect(onCreate).not.toHaveBeenCalled();
     fireEvent.keyDown(title, { key: 'Enter' });
     await waitFor(() => expect(onCreate).toHaveBeenCalledWith({
-      title: 'Prepare invoice', phase: 'processing', status: 'Assigned', requiredLinkType: 'billing',
+      title: 'Prepare invoice', phase: 'processing', status: 'Assigned', requiredLinkType: null,
       dueDate: '2026-10-20', assigneeId: 'u-staff-1', assigneeName: 'Juan Dela Cruz', assignees: ['u-staff-1'],
     }));
     expect(onCancel).toHaveBeenCalledOnce();
   });
 
-  it.each(['disbursement', 'transmittal', ''])('quick-add submits link type %s and clears optional fields', async (linkType) => {
+  it('quick-add submits a standard task and clears optional fields', async () => {
     const onCreate = vi.fn().mockResolvedValue(undefined);
     const { wrapper } = createHarness();
     render(<QuickAddCard phase="pre_processing" workRequest={mockWr} onCreate={onCreate} onCancel={vi.fn()} />, { wrapper });
@@ -508,11 +507,10 @@ describe('UAT Wave 2: Operations Linkage, Assignee Controls, and Modals', () => 
     fireEvent.click(screen.getByLabelText('Choose due date'));
     fireEvent.change(screen.getByLabelText('Task due date'), { target: { value: '2026-10-20' } });
     fireEvent.click(screen.getByLabelText('Clear due date'));
-    fireEvent.change(screen.getByLabelText('Task link type'), { target: { value: linkType } });
     fireEvent.change(screen.getByLabelText('Task title'), { target: { value: 'New task' } });
     fireEvent.click(screen.getByLabelText('Create task'));
     await waitFor(() => expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({
-      status: 'Draft', requiredLinkType: linkType || null, dueDate: null, assigneeId: null, assigneeName: null, assignees: [],
+      status: 'Draft', requiredLinkType: null, dueDate: null, assigneeId: null, assigneeName: null, assignees: [],
     })));
   });
 
@@ -521,12 +519,12 @@ describe('UAT Wave 2: Operations Linkage, Assignee Controls, and Modals', () => 
     render(<PhaseKanbanBoard initialWorkRequestId="wr-w2-1" />, { wrapper });
     fireEvent.click(await screen.findByTestId('quick-add-task-pre_processing'));
     fireEvent.change(screen.getByLabelText('Task title'), { target: { value: 'Discard me' } });
-    fireEvent.change(screen.getByLabelText('Task link type'), { target: { value: 'billing' } });
     fireEvent.keyDown(screen.getByLabelText('Task title'), { key: 'Escape' });
     expect(screen.queryByTestId('quick-add-form-pre_processing')).toBeNull();
     fireEvent.click(screen.getByTestId('quick-add-task-pre_processing'));
     expect(screen.getByLabelText('Task title')).toHaveValue('');
-    expect(screen.getByLabelText('Task link type')).toHaveValue('');
+    expect(screen.getByRole('img', { name: 'Standard Task' })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Task link type' })).toBeNull();
     expect(screen.queryByTestId('quick-add-task-quality_assurance')).toBeNull();
     expect(screen.queryByTestId('quick-add-task-completion')).toBeNull();
   });
