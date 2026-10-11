@@ -177,7 +177,7 @@ const taskTemplateSchema = z.object({
   dueDate: z.string().optional().nullable(),
 });
 
-const retainerTemplateSchema = z.object({
+const retainerTemplateBaseSchema = z.object({
   title: z.string().min(1).max(255).optional(),
   name: z.string().min(1).max(255).optional(),
   description: z.string().max(2000).optional().nullable(),
@@ -188,8 +188,32 @@ const retainerTemplateSchema = z.object({
   pfAmount: z.number().nonnegative().optional().nullable(),
   pf_amount: z.number().nonnegative().optional().nullable(),
   recurrence: z.enum(['none', 'annual']).default('none').optional(),
+  templateType: z.enum(['retainer', 'other']).default('retainer').optional(),
+  template_type: z.enum(['retainer', 'other']).default('retainer').optional(),
   tasks: z.array(taskTemplateSchema).optional(),
 });
+
+const retainerTemplateSchema = retainerTemplateBaseSchema.superRefine((data, ctx) => {
+  const hasTitle = Boolean((data.title && data.title.trim()) || (data.name && data.name.trim()));
+  if (!hasTitle) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Title or name is required',
+      path: ['title'],
+    });
+  }
+  const type = data.templateType || data.template_type || 'retainer';
+  if (type === 'other') {
+    if (!data.tasks || !Array.isArray(data.tasks) || data.tasks.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Tasks are required for other templates',
+        path: ['tasks'],
+      });
+    }
+  }
+});
+retainerTemplateSchema.partial = (mask) => retainerTemplateBaseSchema.partial(mask);
 
 const generateTaskOverrideSchema = z.object({
   local_id: z.string().optional().nullable(),

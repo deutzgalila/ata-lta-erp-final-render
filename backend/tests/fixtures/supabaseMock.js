@@ -244,6 +244,9 @@ const tableQuery = (table) => {
         if (VERSIONED_TABLES.has(table) && stored.version === undefined) {
           stored.version = 1;
         }
+        if (table === 'retainer_templates' && stored.template_type === undefined) {
+          stored.template_type = 'retainer';
+        }
         rows.set(id, stored);
         inserted.push(stored);
       });

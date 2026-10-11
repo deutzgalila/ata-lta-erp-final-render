@@ -2533,7 +2533,7 @@ const getTaskRelated = async ({ id, entityId }) => {
 // Retainer Templates
 // ============================================================
 
-const listRetainerTemplates = async ({ entityId }) => {
+const listRetainerTemplates = async ({ entityId, type }) => {
   let query = supabaseAdmin
     .from('retainer_templates')
     .select('*, entities(code), clients(name)')
@@ -2542,6 +2542,10 @@ const listRetainerTemplates = async ({ entityId }) => {
 
   if (entityId && entityId !== 'ALL') {
     query = query.eq('entity_id', entityId);
+  }
+
+  if (type) {
+    query = query.eq('template_type', type);
   }
 
   const { data, error } = await query;
@@ -2558,15 +2562,19 @@ const listRetainerTemplates = async ({ entityId }) => {
 };
 
 const createRetainerTemplate = async ({ entityId, userId, data }) => {
+  const templateType = data.templateType || data.template_type || 'retainer';
+  const isOther = templateType === 'other';
+
   const row = {
     entity_id: entityId,
     name: data.title || data.name,
     description: data.description || null,
-    client_id: data.clientId || data.client_id || null,
-    schedule: data.schedule || null,
+    template_type: templateType,
+    client_id: isOther ? null : (data.clientId || data.client_id || null),
+    schedule: isOther ? null : (data.schedule || null),
     priority: data.priority || 'Normal',
-    pf_amount: data.pfAmount ?? data.pf_amount ?? 0,
-    recurrence: data.recurrence || 'none',
+    pf_amount: isOther ? 0 : (data.pfAmount ?? data.pf_amount ?? 0),
+    recurrence: isOther ? 'none' : (data.recurrence || 'none'),
     assigned_to: data.assignedTo || data.assigned_to || null,
     tasks: data.tasks || [],
     created_by: userId,
@@ -2592,6 +2600,8 @@ const createRetainerTemplate = async ({ entityId, userId, data }) => {
 const updateRetainerTemplate = async ({ entityId, id, data }) => {
   const updates = { updated_at: new Date().toISOString() };
 
+  if (data.templateType !== undefined) updates.template_type = data.templateType;
+  else if (data.template_type !== undefined) updates.template_type = data.template_type;
   if (data.title !== undefined) updates.name = data.title;
   else if (data.name !== undefined) updates.name = data.name;
   if (data.description !== undefined) updates.description = data.description;
