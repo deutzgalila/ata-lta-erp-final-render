@@ -164,7 +164,7 @@ describe('Challenger Stress Harness: useEntityRealtimeSync & Supabase Realtime',
       expect(rejectedCount).toBe(20);
     });
 
-    it('suppresses high-frequency duplicate version bursts without cache thrashing', () => {
+    it('suppresses high-frequency duplicate INSERT version bursts without cache thrashing', () => {
       const entityId = 'wr-burst-test';
       queryClient.setQueryData(operationsKeys.workRequestDetail(entityId), {
         id: entityId,
@@ -173,12 +173,11 @@ describe('Challenger Stress Harness: useEntityRealtimeSync & Supabase Realtime',
         entity: 'ATA',
       });
 
-      // Burst of 15 identical version 10 updates
+      // Burst of 15 identical version 10 duplicate INSERTs
       for (let i = 0; i < 15; i++) {
         const duplicatePayload = {
-          eventType: 'UPDATE',
+          eventType: 'INSERT',
           new: { id: entityId, title: `Burst Duplicate ${i}`, version: 10, entity: 'ATA' },
-          old: { id: entityId, version: 9 },
         };
         const processed = handleRealtimePayload(queryClient, { table: 'work_requests' }, duplicatePayload);
         expect(processed).toBe(false);

@@ -4,7 +4,7 @@
  * Subscribes to PostgreSQL CDC changes on public schema tables via Supabase Realtime.
  * Enforces three mandatory safety guards:
  * 1. Tenant Isolation Guard: Discards cross-tenant payloads when activeEntity !== 'ALL'.
- * 2. Stale Version Rejection Guard: Discards payloads where payload.new.version <= localCachedVersion.
+ * 2. Stale Version Rejection Guard: Discards duplicate INSERTs when version <= localCachedVersion, and stale UPDATEs when version < localCachedVersion.
  * 3. Loop Prevention Guard: Discards payloads originated by current browser tab or local mutation registry.
  *
  * Reconciles TanStack Query detail and list caches via queryClient.setQueryData.
@@ -453,6 +453,63 @@ function patchTaskInPhases(
 }
 
 /**
+ * Scans the TanStack Query cache to locate the parent work_request_id for a given taskId
+ * when CDC DELETE or soft-delete payloads lack parent foreign keys.
+ */
+export function findWrIdForTaskFromCache(queryClient: QueryClient, taskId: string): string | undefined {
+  if (!taskId) return undefined;
+
+  const allQueries = queryClient.getQueryCache().getAll();
+
+  // 1. Inspect task detail query keys: ['operations', 'workRequests', 'detail', wrId, 'tasks', taskId]
+  for (const query of allQueries) {
+    const qKey = query.queryKey;
+    if (Array.isArray(qKey) && qKey.includes(taskId)) {
+      const qData = query.state.data as GenericEntityRecord | undefined;
+      const wrId = qData?.work_request_id ?? qData?.workRequestId;
+      if (typeof wrId === 'string' && wrId) {
+        return wrId;
+      }
+      const tasksIdx = qKey.indexOf('tasks');
+      if (tasksIdx > 0 && typeof qKey[tasksIdx - 1] === 'string') {
+        return qKey[tasksIdx - 1] as string;
+      }
+    }
+  }
+
+  // 2. Inspect cached task lists and work requests with phases
+  for (const query of allQueries) {
+    const qData = query.state.data;
+    if (!qData) continue;
+
+    if (Array.isArray(qData)) {
+      const found = qData.find((item: GenericEntityRecord) => item?.id === taskId);
+      const wrId = found?.work_request_id ?? found?.workRequestId;
+      if (typeof wrId === 'string' && wrId) return wrId;
+    } else if (typeof qData === 'object' && 'data' in qData && Array.isArray((qData as GenericListResponse).data)) {
+      const found = (qData as GenericListResponse).data.find((item) => item?.id === taskId);
+      const wrId = found?.work_request_id ?? found?.workRequestId;
+      if (typeof wrId === 'string' && wrId) return wrId;
+    }
+
+    if (typeof qData === 'object' && (qData as GenericEntityRecord).phases) {
+      const phases = (qData as GenericEntityRecord).phases!;
+      for (const phaseKey of Object.keys(phases)) {
+        const container = phases[phaseKey];
+        if (container?.tasks && Array.isArray(container.tasks)) {
+          if (container.tasks.some((t) => t?.id === taskId)) {
+            const wrId = (qData as GenericEntityRecord).id;
+            if (typeof wrId === 'string' && wrId) return wrId;
+          }
+        }
+      }
+    }
+  }
+
+  return undefined;
+}
+
+/**
  * Core event handler for PostgreSQL CDC payloads.
  * Returns true if event was processed, false if dropped by one of the guards.
  */
@@ -612,15 +669,31 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
   }
 
   // =========================================================================
-  // Guard 2: Stale Version Rejection Guard
+  // Query Keys & Soft-Delete Detection (Pre-Guard 2)
   // =========================================================================
-  const incomingVersion = payloadObj.new?.version;
-  const detailKey = options.detailQueryKey
+  let detailKey = options.detailQueryKey
     ? options.detailQueryKey(id, incomingRecord as T)
     : getDefaultDetailQueryKey(options.table, id, incomingRecord);
   const listRootKey = options.listRootKey ?? getDefaultListRootKey(options.table);
 
-  if (typeof incomingVersion === 'number') {
+  // Soft-delete detection and event classification (executed before Guard 2)
+  const isSoftDeleted = isSoftDeleteRecord(incomingRecord);
+  const isDelete =
+    eventType === 'DELETE' ||
+    isSoftDeleted ||
+    (eventType !== 'UPDATE' && !payloadObj.new && Boolean(payloadObj.old));
+  const isInsert =
+    !isDelete &&
+    (eventType === 'INSERT' ||
+      (eventType !== 'UPDATE' && Boolean(payloadObj.new) && !payloadObj.old));
+
+  // =========================================================================
+  // Guard 2: Stale Version Rejection Guard
+  // =========================================================================
+  const incomingVersion = payloadObj.new?.version;
+
+  // Soft-deletes and hard deletes bypass Guard 2 version checks so they are never dropped by version equality
+  if (!isDelete && typeof incomingVersion === 'number') {
     let localCachedVersion: number | undefined = undefined;
 
     // 1. Inspect detail cache
@@ -660,9 +733,13 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
       }
     }
 
-    if (typeof localCachedVersion === 'number' && incomingVersion <= localCachedVersion) {
-      // Discard: stale or equal version
-      return false;
+    if (typeof localCachedVersion === 'number') {
+      const isStale = isInsert
+        ? incomingVersion <= localCachedVersion
+        : incomingVersion < localCachedVersion;
+      if (isStale) {
+        return false;
+      }
     }
   }
 
@@ -682,20 +759,36 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
   // =========================================================================
   // Guards Passed: TanStack Query Cache Reconciliation
   // =========================================================================
-  const isSoftDeleted = isSoftDeleteRecord(incomingRecord);
-  const isDelete =
-    eventType === 'DELETE' ||
-    isSoftDeleted ||
-    (eventType !== 'UPDATE' && !payloadObj.new && Boolean(payloadObj.old));
-  const isInsert =
-    !isDelete &&
-    (eventType === 'INSERT' ||
-      (eventType !== 'UPDATE' && Boolean(payloadObj.new) && !payloadObj.old));
-
   if (isDelete) {
+    // Resolve targetWrId for tasks with fallback scan across TanStack query cache
+    let targetWrId = (
+      payloadObj.new?.work_request_id ??
+      payloadObj.new?.workRequestId ??
+      payloadObj.old?.work_request_id ??
+      payloadObj.old?.workRequestId ??
+      incomingRecord.work_request_id ??
+      incomingRecord.workRequestId
+    ) as string | undefined;
+
+    if (options.table === 'tasks' && !targetWrId) {
+      targetWrId = findWrIdForTaskFromCache(queryClient, id);
+    }
+
+    // If detailKey was undefined due to missing work_request_id in bare DELETE payload, reconstruct it
+    const effectiveDetailKey =
+      detailKey ?? (options.table === 'tasks' && targetWrId ? operationsKeys.taskDetail(targetWrId, id) : undefined);
+
     // Remove detail cache
-    if (detailKey) {
-      queryClient.removeQueries({ queryKey: detailKey });
+    if (effectiveDetailKey) {
+      queryClient.removeQueries({ queryKey: effectiveDetailKey });
+    } else if (options.table === 'tasks') {
+      // Fallback: remove any taskDetail query matching this taskId
+      queryClient.removeQueries({
+        predicate: (query) => {
+          const qKey = query.queryKey;
+          return Array.isArray(qKey) && qKey.includes('tasks') && qKey.includes(id);
+        },
+      });
     }
 
     // Filter out from matching list caches
@@ -821,14 +914,9 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
 
     // Purge embedded task objects from workRequestDetail if targetWrId is known
     if (options.table === 'tasks') {
-      const targetWrId = (
-        payloadObj.new?.work_request_id ??
-        payloadObj.new?.workRequestId ??
-        payloadObj.old?.work_request_id ??
-        payloadObj.old?.workRequestId ??
-        incomingRecord.work_request_id ??
-        incomingRecord.workRequestId
-      ) as string | undefined;
+      if (!targetWrId) {
+        targetWrId = findWrIdForTaskFromCache(queryClient, id);
+      }
 
       if (targetWrId) {
         const wrDetailKey = operationsKeys.workRequestDetail(targetWrId);
@@ -836,6 +924,7 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
         if (wrData?.phases) {
           queryClient.setQueryData(wrDetailKey, patchTaskInPhases(wrData, id, undefined));
         }
+        triggerTaskCoInvalidations(queryClient, targetWrId, id, activeEntity);
       }
     }
   } else if (isInsert) {
@@ -1109,7 +1198,7 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
 
   // Trigger task mutation co-invalidations
   if (options.table === 'tasks') {
-    const targetWrId = (
+    let targetWrId = (
       payloadObj.new?.work_request_id ??
       payloadObj.new?.workRequestId ??
       payloadObj.old?.work_request_id ??
@@ -1117,6 +1206,10 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
       incomingRecord.work_request_id ??
       incomingRecord.workRequestId
     ) as string | undefined;
+
+    if (!targetWrId) {
+      targetWrId = findWrIdForTaskFromCache(queryClient, id);
+    }
 
     if (targetWrId) {
       triggerTaskCoInvalidations(queryClient, targetWrId, id, activeEntity);
@@ -1178,6 +1271,13 @@ export function clearChannelRegistryForTesting(): void {
 }
 
 /**
+ * Testing helper to inspect active channel registry size.
+ */
+export function getActiveChannelRegistrySizeForTesting(): number {
+  return activeChannelRegistry.size;
+}
+
+/**
  * Generic React hook for subscribing to Supabase PostgreSQL CDC changes.
  */
 export function useEntityRealtimeSync<T = Record<string, unknown>>(
@@ -1236,17 +1336,24 @@ export function useEntityRealtimeSync<T = Record<string, unknown>>(
       );
 
       channel.subscribe((status, err) => {
-        if (status === 'CHANNEL_ERROR') {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           const errObj = err as { message?: string; cause?: { code?: number; wasClean?: boolean } } | undefined;
           const isCleanClose =
-            errObj?.cause?.code === 1000 ||
-            errObj?.cause?.code === 1001 ||
-            errObj?.cause?.wasClean === true ||
-            errObj?.message?.includes('socket closed: 1000') ||
-            errObj?.message?.includes('socket closed: 1001');
+            status === 'CLOSED' &&
+            (errObj?.cause?.code === 1000 ||
+              errObj?.cause?.code === 1001 ||
+              errObj?.cause?.wasClean === true ||
+              errObj?.message?.includes('socket closed: 1000') ||
+              errObj?.message?.includes('socket closed: 1001'));
 
           if (!isCleanClose) {
-            console.warn(`[Realtime] Subscription error on ${options.table}:`, err);
+            console.warn(`[Realtime] Subscription error (${status}) on ${options.table}:`, err);
+            // Evict dead channel from activeChannelRegistry so subsequent mounts establish a fresh channel
+            const currentEntry = activeChannelRegistry.get(registryKey);
+            if (currentEntry && currentEntry.channel === channel) {
+              activeChannelRegistry.delete(registryKey);
+              void supabase.removeChannel(channel);
+            }
           }
         }
       });

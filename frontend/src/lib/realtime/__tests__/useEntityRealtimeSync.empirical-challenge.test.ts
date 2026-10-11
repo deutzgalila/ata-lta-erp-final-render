@@ -173,7 +173,7 @@ describe('Empirical Adversarial Challenge Suite: useEntityRealtimeSync & Supabas
         const result = handleRealtimePayload(queryClient, { table: 'work_requests' }, payload);
 
         const rec = records.find((r) => r.id === evt.id)!;
-        if (evt.version > rec.currentVersion) {
+        if (evt.version >= rec.currentVersion) {
           expect(result).toBe(true);
           rec.currentVersion = evt.version;
         } else {
@@ -205,8 +205,12 @@ describe('Empirical Adversarial Challenge Suite: useEntityRealtimeSync & Supabas
       const resV0 = handleRealtimePayload(queryClient, { table: 'work_requests' }, v0Payload);
       expect(resV0).toBe(true);
 
-      // Version 0 arrives again -> equal version, rejected
-      const resV0Dup = handleRealtimePayload(queryClient, { table: 'work_requests' }, v0Payload);
+      // Version 0 arrives again as duplicate INSERT -> equal version, rejected
+      const v0InsertDup = {
+        eventType: 'INSERT',
+        new: { id: entityId, title: 'V0 Duplicate Insert', version: 0, entity: 'ATA' },
+      };
+      const resV0Dup = handleRealtimePayload(queryClient, { table: 'work_requests' }, v0InsertDup);
       expect(resV0Dup).toBe(false);
 
       // Version -1 arrives -> lower version, rejected

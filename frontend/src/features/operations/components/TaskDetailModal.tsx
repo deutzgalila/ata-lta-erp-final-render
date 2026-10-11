@@ -97,15 +97,35 @@ export function TaskDetailModal({
     if (!liveTask || !liveTask.id) return initialTask;
     if (!initialTask) return liveTask as Task;
 
+    // 1. Explicit unassignment check (applies across all versions):
+    // Authoritative live unassignment must completely clear lead and co-assignees,
+    // preventing static initialTask props from resurrecting stale assignees.
+    const isLiveExplicitlyUnassigned =
+      liveTask.assigneeId === null ||
+      (liveTask as { assignee_id?: string | null }).assignee_id === null ||
+      liveTask.assigneeId === '';
+
+    if (isLiveExplicitlyUnassigned) {
+      return {
+        ...initialTask,
+        ...liveTask,
+        assigneeId: null,
+        assigneeName: null,
+        assignees: [],
+        taskAssignees: [],
+        task_assignees: [],
+      } as Task;
+    }
+
     const initialVersion = typeof initialTask.version === 'number' ? initialTask.version : 0;
     const liveVersion = typeof liveTask.version === 'number' ? liveTask.version : 0;
 
-    // 1. If live query has an explicitly higher version, live CDC update takes precedence
+    // 2. If live query has an explicitly higher version, live CDC update takes precedence
     if (liveVersion > initialVersion) {
       return { ...initialTask, ...liveTask } as Task;
     }
 
-    // 2. When versions are equal (or unversioned):
+    // 3. When versions are equal (or unversioned):
     // Check if initialTask has richer assignee information (e.g. multi-assignees in test suites or optimistic props)
     const initialAssigneeCount = Math.max(
       initialTask.assignees?.length ?? 0,
@@ -129,19 +149,7 @@ export function TaskDetailModal({
       } as Task;
     }
 
-    // If initialTask specifies an explicit lead assignee that differs from liveTask at the same version
-    if (initialTask.assigneeId && initialTask.assigneeId !== liveTask.assigneeId && initialVersion >= liveVersion) {
-      return {
-        ...initialTask,
-        ...liveTask,
-        assigneeId: initialTask.assigneeId,
-        assigneeName: initialTask.assigneeName ?? liveTask.assigneeName,
-        assignees: initialTask.assignees ?? liveTask.assignees,
-        taskAssignees: initialTask.taskAssignees ?? liveTask.taskAssignees,
-      } as Task;
-    }
-
-    // Default safe fallback/merge
+    // Authoritative liveTask fields always override static initialTask prop
     return { ...initialTask, ...liveTask } as Task;
   }, [initialTask, liveTask]);
 

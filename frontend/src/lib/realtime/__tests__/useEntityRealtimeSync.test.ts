@@ -410,7 +410,7 @@ describe('useEntityRealtimeSync and Three-Guard CDC Engine (R4 Criteria)', () =>
   // Criterion 4: Stale Version Rejection Guard
   // =========================================================================
   describe('Criterion 4: Stale Version Guard', () => {
-    it('discards payloads where version is equal to cached version', () => {
+    it('discards duplicate INSERT payloads where version is equal to cached version', () => {
       useSessionStore.setState({ activeEntity: 'ATA' });
 
       queryClient.setQueryData(operationsKeys.workRequestDetail('wr-10'), {
@@ -420,17 +420,40 @@ describe('useEntityRealtimeSync and Three-Guard CDC Engine (R4 Criteria)', () =>
         title: 'Original V5',
       });
 
-      const equalPayload = {
+      const duplicateInsertPayload = {
+        eventType: 'INSERT',
+        new: { id: 'wr-10', entity: 'ATA', version: 5, title: 'Duplicate INSERT V5' },
+      };
+
+      const processed = handleRealtimePayload(queryClient, { table: 'work_requests' }, duplicateInsertPayload);
+      expect(processed).toBe(false);
+
+      const cached = queryClient.getQueryData<TestRecord>(operationsKeys.workRequestDetail('wr-10'));
+      expect(cached?.title).toBe('Original V5');
+    });
+
+    it('accepts UPDATE payloads where version is equal to cached version (SPEC-002)', () => {
+      useSessionStore.setState({ activeEntity: 'ATA' });
+
+      queryClient.setQueryData(operationsKeys.workRequestDetail('wr-10'), {
+        id: 'wr-10',
+        entity: 'ATA',
+        version: 5,
+        title: 'Original V5',
+      });
+
+      const equalUpdatePayload = {
         eventType: 'UPDATE',
         new: { id: 'wr-10', entity: 'ATA', version: 5, title: 'Duplicate V5' },
         old: { id: 'wr-10', entity: 'ATA', version: 4 },
       };
 
-      const processed = handleRealtimePayload(queryClient, { table: 'work_requests' }, equalPayload);
-      expect(processed).toBe(false);
+      const processed = handleRealtimePayload(queryClient, { table: 'work_requests' }, equalUpdatePayload);
+      expect(processed).toBe(true);
 
       const cached = queryClient.getQueryData<TestRecord>(operationsKeys.workRequestDetail('wr-10'));
-      expect(cached?.title).toBe('Original V5');
+      expect(cached?.title).toBe('Duplicate V5');
+      expect(cached?.version).toBe(5);
     });
 
     it('discards payloads where version is lower than cached version', () => {
