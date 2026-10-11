@@ -4,14 +4,20 @@
  */
 
 const { z } = require('zod');
+const { entryDateSchema } = require('../timeEntries/schema');
+
+const timeLogTimestampSchema = z.string().refine((value) =>
+  /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(value) ||
+  (/^\d{4}-\d{2}-\d{2}[T ]/.test(value) && !Number.isNaN(Date.parse(value))),
+'Use HH:mm, HH:mm:ss, or a valid timestamp').optional().nullable();
 
 const timeLogSchema = z.object({
-  startTime: z.string().optional().nullable(),
-  endTime: z.string().optional().nullable(),
-  date: z.string(),
-  hours: z.number().nonnegative(),
+  startTime: timeLogTimestampSchema,
+  endTime: timeLogTimestampSchema,
+  date: entryDateSchema,
+  hours: z.number().min(1 / 60).max(24),
   userId: z.string().uuid().optional().nullable(),
-  note: z.string().optional().nullable(),
+  note: z.string().max(5000).optional().nullable(),
   workerName: z.string().optional().nullable(),
   checklistItemId: z.string().uuid().optional().nullable(),
 });
@@ -33,7 +39,6 @@ const checklistItemSchema = z.object({
     .max(100)
     .optional()
     .nullable(),
-  timeLogs: z.array(timeLogSchema).optional(),
 });
 
 const phaseTaskSchema = z.object({
@@ -125,7 +130,6 @@ const createTaskSchema = z.object({
   predecessors: z.array(z.string().uuid()).optional(),
   dueDate: z.string().optional().nullable(),
   checklist: z.array(checklistItemSchema).optional(),
-  timeLogs: z.array(timeLogSchema).optional(),
   coAssignees: z.array(z.string().uuid()).optional().nullable(),
   taskDocuments: z.array(z.any()).optional().nullable(),
   requiredLinkType: z.string().max(50).optional().nullable(),

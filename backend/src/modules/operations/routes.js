@@ -297,7 +297,7 @@ router.patch(
 router.post(
   ['/work-requests/:wrId/tasks/:taskId/time-logs', '/:wrId/tasks/:taskId/time-logs', '/tasks/:taskId/time-logs'],
   resolveEntity(),
-  requirePermission(['workflow:edit', 'workflow:task_add', 'workflow:task_upload']),
+  requirePermission('timelog:create'),
   audit('task.time_log_added', { table: 'task_time_logs' }),
   operationsController.addTimeLogs
 );

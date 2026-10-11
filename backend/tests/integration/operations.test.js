@@ -236,6 +236,7 @@ describe('/v1/work-requests', () => {
 
   it('supports logging time under a task via POST /time-logs', async () => {
     const admin = registerUser({
+      id: 'aaaabbbb-0001-4000-8000-000000000001',
       email: 'admin-tl@ata-lta.ph',
       name: 'Admin TL',
       role: 'Admin',
@@ -255,6 +256,7 @@ describe('/v1/work-requests', () => {
       .set('X-Active-Entity', 'ATA')
       .send({
         title: 'Task with time log',
+        assigneeId: 'aaaabbbb-0001-4000-8000-000000000001',
         checklist: [
           { id: '9a217645-7399-4893-99d0-9a2451b11c74', text: 'Subtask 1', completed: false },
         ],
@@ -286,7 +288,7 @@ describe('/v1/work-requests', () => {
     expect(updatedTask.body.data.checklist[0].timeLogs).toHaveLength(1);
     expect(updatedTask.body.data.checklist[0].timeLogs[0].startTime).toBe('09:00');
     expect(updatedTask.body.data.checklist[0].timeLogs[0].endTime).toBe('17:00');
-    expect(updatedTask.body.data.checklist[0].timeLogs[0].workerName).toBe('Integration Tester');
+    expect(updatedTask.body.data.checklist[0].timeLogs[0].workerName).toBe('Admin TL');
   });
 
   it('forbids workflow:edit for staff without permission', async () => {
