@@ -28,6 +28,7 @@ import {
   Link as LinkIcon,
   FileText,
   AlertCircle,
+  Briefcase,
   X,
 } from 'lucide-react';
 import {
@@ -43,6 +44,12 @@ import { CATEGORY_LABELS } from '../constants';
 import { formatFileSize } from '../utils/formatters';
 import { parseExternalUrl } from '../utils/googleDrive';
 import { useUploadDocument } from '../api/useDocuments';
+import { useSessionStore } from '@/lib/session';
+import { hasPermission } from '@/lib/permissions';
+import { isUserAdmin } from '@/features/operations/lib/taskScope';
+import { useWorkRequests } from '@/features/operations/api/useWorkRequests';
+import { useWorkRequestTasks } from '@/features/operations/api/useTasks';
+import type { WorkRequest } from '@/features/operations/api/types';
 
 export interface DocumentUploadModalProps {
   isOpen: boolean;
@@ -51,6 +58,7 @@ export interface DocumentUploadModalProps {
   defaultWorkRequestId?: string;
   defaultClientId?: string;
   defaultTaskId?: string;
+  allowTaskLinking?: boolean;
 }
 
 
@@ -61,6 +69,7 @@ export function DocumentUploadModal({
   defaultWorkRequestId,
   defaultClientId,
   defaultTaskId,
+  allowTaskLinking,
 }: DocumentUploadModalProps) {
   const [mode, setMode] = useState<'file' | 'external'>('file');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -74,6 +83,19 @@ export function DocumentUploadModal({
   const [linkedTaskId, setLinkedTaskId] = useState(defaultTaskId || '');
   const [sizeError, setSizeError] = useState<string | null>(null);
 
+  const currentUser = useSessionStore((state) => state.user);
+  const permissions = useSessionStore((state) => state.permissions);
+  const activeEntity = useSessionStore((state) => state.activeEntity);
+
+  const isAllowedUser = Boolean(
+    allowTaskLinking ??
+      (currentUser &&
+        (isUserAdmin(currentUser) ||
+          hasPermission(permissions, 'workflow:view') ||
+          hasPermission(permissions, 'workflow:task_upload') ||
+          hasPermission(permissions, 'workflow:edit')))
+  );
+
   React.useEffect(() => {
     if (isOpen) {
       setLinkedTaskId(defaultTaskId || '');
@@ -81,6 +103,120 @@ export function DocumentUploadModal({
       setClientId(defaultClientId || '');
     }
   }, [isOpen, defaultTaskId, defaultWorkRequestId, defaultClientId]);
+
+  // Load active work requests with embedded tasks for allowed users
+  const { data: rawWorkRequests } = useWorkRequests(
+    { archived: false, includeTasks: true, limit: 200 },
+    { enabled: isOpen && isAllowedUser }
+  );
+
+  const { data: specificTasksData } = useWorkRequestTasks(workRequestId || undefined, {
+    enabled: isOpen && isAllowedUser && Boolean(workRequestId),
+  });
+
+  const workRequests: WorkRequest[] = React.useMemo(() => {
+    if (!rawWorkRequests) return [];
+    const list = Array.isArray(rawWorkRequests) ? rawWorkRequests : rawWorkRequests.data ?? [];
+    return list.filter((wr) => {
+      if (wr.archived) return false;
+      if (activeEntity && activeEntity !== 'ALL') {
+        const wrEntity = (wr as { entity_code?: string; entity?: string }).entity_code || wr.entity;
+        if (wrEntity && wrEntity !== activeEntity) return false;
+      }
+      return true;
+    });
+  }, [rawWorkRequests, activeEntity]);
+
+  const allTasks = React.useMemo(() => {
+    const result: Array<{
+      id: string;
+      title: string;
+      workRequestId: string;
+      workRequestTitle: string;
+      clientId?: string | null;
+      entity: string;
+    }> = [];
+
+    for (const wr of workRequests) {
+      const wrEntity = (wr as { entity_code?: string; entity?: string }).entity_code || wr.entity || 'ATA';
+      const wrTasks = wr.tasks || [];
+      for (const t of wrTasks) {
+        result.push({
+          id: t.id,
+          title: t.title,
+          workRequestId: wr.id,
+          workRequestTitle: (wr as { tracking_number?: string }).tracking_number || wr.title,
+          clientId: wr.clientId || wr.client_id || null,
+          entity: wrEntity,
+        });
+      }
+    }
+    return result;
+  }, [workRequests]);
+
+  const selectableTasks = React.useMemo(() => {
+    if (workRequestId) {
+      if (specificTasksData && specificTasksData.length > 0) {
+        const parentWr = workRequests.find((w) => w.id === workRequestId);
+        const wrTitle =
+          (parentWr as { tracking_number?: string } | undefined)?.tracking_number ||
+          parentWr?.title ||
+          '';
+        const wrEntity = parentWr
+          ? (parentWr as { entity_code?: string; entity?: string }).entity_code || parentWr.entity || 'ATA'
+          : 'ATA';
+        return specificTasksData.map((t) => ({
+          id: t.id,
+          title: t.title,
+          workRequestId,
+          workRequestTitle: wrTitle,
+          clientId: parentWr?.clientId || parentWr?.client_id || null,
+          entity: wrEntity,
+        }));
+      }
+      return allTasks.filter((t) => t.workRequestId === workRequestId);
+    }
+    return allTasks;
+  }, [workRequestId, specificTasksData, allTasks, workRequests]);
+
+  const handleWorkRequestChange = (val: string) => {
+    const nextWrId = val === '__none__' ? '' : val;
+    setWorkRequestId(nextWrId);
+    if (nextWrId) {
+      const parentWr = workRequests.find((w) => w.id === nextWrId);
+      if (parentWr?.clientId || parentWr?.client_id) {
+        setClientId(parentWr.clientId || parentWr.client_id || '');
+      }
+      if (linkedTaskId) {
+        const stillValid = allTasks.some(
+          (t) => t.id === linkedTaskId && t.workRequestId === nextWrId
+        );
+        if (!stillValid) {
+          setLinkedTaskId('');
+        }
+      }
+    } else {
+      setLinkedTaskId('');
+    }
+  };
+
+  const handleTaskChange = (val: string) => {
+    const nextTaskId = val === '__none__' ? '' : val;
+    setLinkedTaskId(nextTaskId);
+    if (nextTaskId) {
+      const foundTask =
+        allTasks.find((t) => t.id === nextTaskId) ||
+        selectableTasks.find((t) => t.id === nextTaskId);
+      if (foundTask) {
+        if (!workRequestId || workRequestId !== foundTask.workRequestId) {
+          setWorkRequestId(foundTask.workRequestId);
+        }
+        if (foundTask.clientId && (!clientId || clientId !== foundTask.clientId)) {
+          setClientId(foundTask.clientId);
+        }
+      }
+    }
+  };
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const uploadMutation = useUploadDocument();
@@ -365,6 +501,74 @@ export function DocumentUploadModal({
               />
             </div>
           </div>
+
+          {/* Work Request & Task Link (for allowed users) */}
+          {isAllowedUser && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-lg border border-[#f0f0f5] bg-[#f8fafc]/50">
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="workRequest"
+                  className="text-xs font-medium text-[#1e293b] flex items-center gap-1"
+                >
+                  <Briefcase className="h-3.5 w-3.5 text-[#9494a0]" />
+                  Work Request (Optional)
+                </label>
+                <Select
+                  value={workRequestId || '__none__'}
+                  onValueChange={handleWorkRequestChange}
+                  disabled={Boolean(defaultWorkRequestId)}
+                >
+                  <SelectTrigger
+                    id="workRequest"
+                    className="text-xs bg-white"
+                    data-testid="work-request-select"
+                  >
+                    <SelectValue placeholder="Link to work request..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None (No work request)</SelectItem>
+                    {workRequests.map((wr) => (
+                      <SelectItem key={wr.id} value={wr.id}>
+                        {(wr as { tracking_number?: string }).tracking_number || wr.title}
+                        {wr.clientName || wr.client_name ? ` — ${wr.clientName || wr.client_name}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="workRequestTask"
+                  className="text-xs font-medium text-[#1e293b] flex items-center gap-1"
+                >
+                  <Briefcase className="h-3.5 w-3.5 text-[#9494a0]" />
+                  Work Request Task (Optional)
+                </label>
+                <Select
+                  value={linkedTaskId || '__none__'}
+                  onValueChange={handleTaskChange}
+                  disabled={Boolean(defaultTaskId)}
+                >
+                  <SelectTrigger
+                    id="workRequestTask"
+                    className="text-xs bg-white"
+                    data-testid="work-request-task-select"
+                  >
+                    <SelectValue placeholder="Select work request task..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None (No linked task)</SelectItem>
+                    {selectableTasks.map((task) => (
+                      <SelectItem key={task.id} value={task.id}>
+                        {task.title} {task.workRequestTitle ? `(${task.workRequestTitle})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
 
           {/* Description */}
           <div className="space-y-1.5">

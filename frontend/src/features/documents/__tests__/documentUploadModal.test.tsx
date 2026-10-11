@@ -4,12 +4,62 @@ import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DocumentUploadModal } from '../components/DocumentUploadModal';
 
+import { useSessionStore } from '@/lib/session';
+
 const mockMutateAsyncUpload = vi.fn();
+
+const mockWorkRequestsData = [
+  {
+    id: 'wr-ata-1',
+    entity: 'ATA',
+    title: 'ATA Tax Compliance',
+    tracking_number: 'WR-ATA-001',
+    clientId: 'cli-ata-1',
+    archived: false,
+    tasks: [
+      { id: 'task-ata-1', title: 'Prepare ATA BIR 1702', workRequestId: 'wr-ata-1' },
+      { id: 'task-ata-2', title: 'Review ATA Books', workRequestId: 'wr-ata-1' },
+    ],
+  },
+  {
+    id: 'wr-lta-1',
+    entity: 'LTA',
+    title: 'LTA Annual Audit',
+    tracking_number: 'WR-LTA-001',
+    clientId: 'cli-lta-1',
+    archived: false,
+    tasks: [
+      { id: 'task-lta-1', title: 'Draft LTA Report', workRequestId: 'wr-lta-1' },
+    ],
+  },
+];
 
 vi.mock('../api/useDocuments', () => ({
   useUploadDocument: () => ({
     mutateAsync: mockMutateAsyncUpload,
     isPending: false,
+  }),
+}));
+
+vi.mock('@/features/operations/api/useWorkRequests', () => ({
+  useWorkRequests: () => ({
+    data: mockWorkRequestsData,
+    isLoading: false,
+  }),
+}));
+
+vi.mock('@/features/operations/api/useTasks', () => ({
+  useWorkRequestTasks: (wrId?: string) => ({
+    data:
+      wrId === 'wr-ata-1'
+        ? [
+            { id: 'task-ata-1', title: 'Prepare ATA BIR 1702', workRequestId: 'wr-ata-1' },
+            { id: 'task-ata-2', title: 'Review ATA Books', workRequestId: 'wr-ata-1' },
+          ]
+        : wrId === 'wr-lta-1'
+        ? [{ id: 'task-lta-1', title: 'Draft LTA Report', workRequestId: 'wr-lta-1' }]
+        : [],
+    isLoading: false,
   }),
 }));
 
@@ -22,6 +72,7 @@ describe('DocumentUploadModal - External URL & Task Linking', () => {
     });
     vi.restoreAllMocks();
     mockMutateAsyncUpload.mockReset();
+    useSessionStore.getState().clearSession();
   });
 
   const wrapper = ({ children }: { children: React.ReactNode }) =>
@@ -187,6 +238,160 @@ describe('DocumentUploadModal - External URL & Task Linking', () => {
     const trigger = screen.getByTestId('upload-category-select');
     expect(trigger).toBeDefined();
     expect(trigger.textContent).toContain('Others');
+  });
+
+  describe('Work Request Task Linking & Active Entity Awareness', () => {
+    it('does not render work request task dropdown for disallowed users', () => {
+      useSessionStore.getState().setSession({
+        user: {
+          id: 'u-accounting',
+          email: 'accounting@ata-lta.ph',
+          name: 'Accounting Staff',
+          role: 'Accounting',
+          departments: ['Accounting'],
+          entities: ['ATA'],
+        },
+        permissions: ['dms:edit'], // lacks workflow:view
+        activeEntity: 'ATA',
+      });
+
+      render(<DocumentUploadModal isOpen={true} onClose={vi.fn()} />, { wrapper });
+
+      expect(screen.queryByTestId('work-request-task-select')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('work-request-select')).not.toBeInTheDocument();
+    });
+
+    it('renders work request task dropdown for allowed users (e.g. workflow:view) and filters by active entity ATA', () => {
+      useSessionStore.getState().setSession({
+        user: {
+          id: 'u-docs',
+          email: 'twinkle@ata-lta.ph',
+          name: 'Twinkle Documents',
+          role: 'Documentation',
+          departments: ['Documentation'],
+          entities: ['ATA', 'LTA'],
+        },
+        permissions: ['dms:edit', 'workflow:view'],
+        activeEntity: 'ATA',
+      });
+
+      render(<DocumentUploadModal isOpen={true} onClose={vi.fn()} />, { wrapper });
+
+      const wrTrigger = screen.getByTestId('work-request-select');
+      const taskTrigger = screen.getByTestId('work-request-task-select');
+      expect(wrTrigger).toBeInTheDocument();
+      expect(taskTrigger).toBeInTheDocument();
+
+      // Open task select
+      fireEvent.click(taskTrigger);
+
+      // Verify ATA tasks are shown and LTA tasks are filtered out
+      expect(screen.getByRole('option', { name: /Prepare ATA BIR 1702/i })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: /Review ATA Books/i })).toBeInTheDocument();
+      expect(screen.queryByRole('option', { name: /Draft LTA Report/i })).not.toBeInTheDocument();
+    });
+
+    it('filters work request task dropdown by active entity LTA when active entity is switched', () => {
+      useSessionStore.getState().setSession({
+        user: {
+          id: 'u-docs',
+          email: 'twinkle@ata-lta.ph',
+          name: 'Twinkle Documents',
+          role: 'Documentation',
+          departments: ['Documentation'],
+          entities: ['ATA', 'LTA'],
+        },
+        permissions: ['dms:edit', 'workflow:view'],
+        activeEntity: 'LTA',
+      });
+
+      render(<DocumentUploadModal isOpen={true} onClose={vi.fn()} />, { wrapper });
+
+      const taskTrigger = screen.getByTestId('work-request-task-select');
+      fireEvent.click(taskTrigger);
+
+      // Verify LTA task is shown and ATA tasks are filtered out
+      expect(screen.getByRole('option', { name: /Draft LTA Report/i })).toBeInTheDocument();
+      expect(screen.queryByRole('option', { name: /Prepare ATA BIR 1702/i })).not.toBeInTheDocument();
+    });
+
+    it('allows selecting a work request task and populates linkedTaskId and workRequestId in metadata on submit', async () => {
+      mockMutateAsyncUpload.mockResolvedValueOnce({
+        id: 'doc-with-task',
+        linked_task_id: 'task-ata-1',
+        work_request_id: 'wr-ata-1',
+      });
+
+      useSessionStore.getState().setSession({
+        user: {
+          id: 'u-docs',
+          email: 'twinkle@ata-lta.ph',
+          name: 'Twinkle Documents',
+          role: 'Documentation',
+          departments: ['Documentation'],
+          entities: ['ATA'],
+        },
+        permissions: ['dms:edit', 'workflow:view'],
+        activeEntity: 'ATA',
+      });
+
+      render(<DocumentUploadModal isOpen={true} onClose={vi.fn()} />, { wrapper });
+
+      // Select task
+      const taskTrigger = screen.getByTestId('work-request-task-select');
+      fireEvent.click(taskTrigger);
+
+      const taskOption = screen.getByRole('option', { name: /Prepare ATA BIR 1702/i });
+      fireEvent.click(taskOption);
+
+      // Switch to external mode to submit
+      fireEvent.click(screen.getByTestId('mode-tab-external'));
+      fireEvent.change(screen.getByTestId('external-url-input'), {
+        target: { value: 'https://sec.gov.ph/files/bir1702.pdf' },
+      });
+      fireEvent.change(screen.getByTestId('document-name-input'), {
+        target: { value: 'BIR 1702 Filed.pdf' },
+      });
+
+      fireEvent.click(screen.getByTestId('upload-submit-button'));
+
+      await waitFor(() => {
+        expect(mockMutateAsyncUpload).toHaveBeenCalledTimes(1);
+      });
+
+      const payload = mockMutateAsyncUpload.mock.calls[0]![0];
+      expect(payload.metadata.linkedTaskId).toBe('task-ata-1');
+      expect(payload.metadata.workRequestId).toBe('wr-ata-1');
+      expect(payload.metadata.clientId).toBe('cli-ata-1');
+    });
+
+    it('disables task select when defaultTaskId prop is provided', () => {
+      useSessionStore.getState().setSession({
+        user: {
+          id: 'u-docs',
+          email: 'twinkle@ata-lta.ph',
+          name: 'Twinkle Documents',
+          role: 'Documentation',
+          departments: ['Documentation'],
+          entities: ['ATA'],
+        },
+        permissions: ['dms:edit', 'workflow:view'],
+        activeEntity: 'ATA',
+      });
+
+      render(
+        <DocumentUploadModal
+          isOpen={true}
+          onClose={vi.fn()}
+          defaultTaskId="task-fixed"
+          defaultWorkRequestId="wr-fixed"
+        />,
+        { wrapper }
+      );
+
+      expect(screen.getByTestId('work-request-task-select')).toBeDisabled();
+      expect(screen.getByTestId('work-request-select')).toBeDisabled();
+    });
   });
 });
 
