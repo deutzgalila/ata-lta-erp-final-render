@@ -65,7 +65,7 @@ export function DocumentUploadModal({
   const [mode, setMode] = useState<'file' | 'external'>('file');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState('');
-  const [category, setCategory] = useState<DocumentCategory>('OTHER');
+  const [category, setCategory] = useState<DocumentCategory>('Others');
   const [documentType, setDocumentType] = useState('');
   const [description, setDescription] = useState('');
   const [externalUrl, setExternalUrl] = useState('');
@@ -88,7 +88,7 @@ export function DocumentUploadModal({
   const resetForm = () => {
     setSelectedFile(null);
     setFileName('');
-    setCategory('OTHER');
+    setCategory('Others');
     setDocumentType('');
     setDescription('');
     setExternalUrl('');

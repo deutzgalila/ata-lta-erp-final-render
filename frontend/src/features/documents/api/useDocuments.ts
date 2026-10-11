@@ -163,7 +163,7 @@ export function useUploadDocument() {
         linkedTaskId: metadata.linkedTaskId,
         clientId: metadata.clientId,
         documentType: metadata.documentType,
-        category: metadata.category ?? 'OTHER',
+        category: metadata.category ?? 'Others',
         description: metadata.description,
         externalUrl: metadata.externalUrl,
       };

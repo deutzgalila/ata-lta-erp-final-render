@@ -129,18 +129,21 @@ describe('Documents Zod Schemas (documents@2.0.0)', () => {
   });
 
   describe('Domain Constants', () => {
-    it('exposes exactly 9 categories', () => {
-      expect(DOCUMENT_CATEGORIES.length).toBe(9);
+    it('exposes exactly 12 categories', () => {
+      expect(DOCUMENT_CATEGORIES.length).toBe(12);
       expect(DOCUMENT_CATEGORIES).toEqual([
+        'Owner Details',
+        'Business Details',
         'SEC',
+        'City Hall',
         'BIR',
-        'CONTRACT',
-        'PERMIT',
-        'FINANCIAL',
-        'CORRESPONDENCE',
-        'LEGAL',
-        'HR',
-        'OTHER',
+        'SSS',
+        'PhilHealth',
+        'Pag-IBIG',
+        'IPO',
+        'FDA',
+        'Labor',
+        'Others',
       ]);
     });
 

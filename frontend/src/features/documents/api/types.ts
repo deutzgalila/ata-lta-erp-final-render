@@ -5,8 +5,21 @@
  */
 
 export const DOCUMENT_CATEGORIES = [
+  'Owner Details',
+  'Business Details',
   'SEC',
+  'City Hall',
   'BIR',
+  'SSS',
+  'PhilHealth',
+  'Pag-IBIG',
+  'IPO',
+  'FDA',
+  'Labor',
+  'Others',
+] as const;
+
+export const LEGACY_DOCUMENT_CATEGORIES = [
   'CONTRACT',
   'PERMIT',
   'FINANCIAL',
@@ -16,7 +29,14 @@ export const DOCUMENT_CATEGORIES = [
   'OTHER',
 ] as const;
 
-export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number];
+export const ALL_DOCUMENT_CATEGORIES = [
+  ...DOCUMENT_CATEGORIES,
+  ...LEGACY_DOCUMENT_CATEGORIES,
+] as const;
+
+export type DocumentCategory =
+  | (typeof DOCUMENT_CATEGORIES)[number]
+  | (typeof LEGACY_DOCUMENT_CATEGORIES)[number];
 
 export const DOCUMENT_LIFECYCLE_STAGES = [
   'collected',

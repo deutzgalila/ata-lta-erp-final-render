@@ -79,8 +79,18 @@ export const requestStatusEnum = z.enum(['pending', 'fulfilled', 'rejected', 'ca
 export const recurrenceTypeEnum = z.enum(['none', 'annual']);
 
 export const documentCategoryEnum = z.enum([
+  'Owner Details',
+  'Business Details',
   'SEC',
+  'City Hall',
   'BIR',
+  'SSS',
+  'PhilHealth',
+  'Pag-IBIG',
+  'IPO',
+  'FDA',
+  'Labor',
+  'Others',
   'CONTRACT',
   'PERMIT',
   'FINANCIAL',

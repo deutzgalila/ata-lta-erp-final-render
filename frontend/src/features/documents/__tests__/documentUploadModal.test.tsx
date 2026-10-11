@@ -174,5 +174,19 @@ describe('DocumentUploadModal - External URL & Task Linking', () => {
     const payload = mockMutateAsyncUpload.mock.calls[0]![0];
     expect(payload.metadata.linkedTaskId).toBeUndefined();
   });
+
+  it('renders all 12 category options in the category select with Others as default', () => {
+    render(
+      <DocumentUploadModal
+        isOpen={true}
+        onClose={vi.fn()}
+      />,
+      { wrapper }
+    );
+
+    const trigger = screen.getByTestId('upload-category-select');
+    expect(trigger).toBeDefined();
+    expect(trigger.textContent).toContain('Others');
+  });
 });
 

@@ -83,8 +83,18 @@ export type RequestStatus = 'pending' | 'fulfilled' | 'rejected' | 'cancelled';
 export type RecurrenceType = 'none' | 'annual';
 
 export type DocumentCategory =
+  | 'Owner Details'
+  | 'Business Details'
   | 'SEC'
+  | 'City Hall'
   | 'BIR'
+  | 'SSS'
+  | 'PhilHealth'
+  | 'Pag-IBIG'
+  | 'IPO'
+  | 'FDA'
+  | 'Labor'
+  | 'Others'
   | 'CONTRACT'
   | 'PERMIT'
   | 'FINANCIAL'

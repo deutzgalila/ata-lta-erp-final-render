@@ -98,7 +98,7 @@ describe('Documents DMS UI Components', () => {
       );
 
       expect(screen.getByText('SEC GIS 2026.pdf')).toBeDefined();
-      expect(screen.getByText('SEC Filings')).toBeDefined();
+      expect(screen.getByTestId('document-category-doc-101').textContent).toContain('SEC');
       expect(screen.getByText('Collected')).toBeDefined();
     });
 
