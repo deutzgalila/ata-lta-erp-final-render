@@ -7,9 +7,10 @@ import type { Task, WorkRequest } from '../api/types';
  */
 export function isTaskAssignee(user: UserProfile | null | undefined, task: Task | null | undefined): boolean {
   if (!user?.id || !task) return false;
-  if (task.assigneeId === user.id) return true;
+  if ((task.assigneeId || (task as Task & { assignee_id?: string }).assignee_id) === user.id) return true;
   if (Array.isArray(task.assignees) && task.assignees.includes(user.id)) return true;
-  if (Array.isArray(task.taskAssignees) && task.taskAssignees.some((ta) => (ta.userId || ta.user_id) === user.id)) return true;
+  const joined = [...(task.taskAssignees || []), ...(task.task_assignees || [])];
+  if (joined.some((ta) => (ta.userId || ta.user_id) === user.id)) return true;
   return false;
 }
 
@@ -57,11 +58,10 @@ export function canMutateTaskStatus(user: UserProfile | null | undefined, task: 
 }
 
 /**
- * Only the assigned employee (or Admin) can log time to this task.
+ * Time is always attributed to the caller, who must be assigned (including Admins).
  */
 export function canLogTaskTime(user: UserProfile | null | undefined, task: Task | null | undefined): boolean {
   if (!user || !task) return false;
-  if (isUserAdmin(user)) return true;
   return isTaskAssignee(user, task);
 }
 

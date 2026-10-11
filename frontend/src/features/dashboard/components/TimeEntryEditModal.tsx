@@ -1,3 +1,4 @@
+import { workDate } from '@/lib/workDate';
 import { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -37,7 +38,7 @@ export function TimeEntryEditModal({
   const updateMutation = useUpdateTimeEntry();
   const { openLoading, openSuccess, openError } = useBlockingModal();
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = workDate();
 
   useEffect(() => {
     if (entry) {
@@ -57,7 +58,7 @@ export function TimeEntryEditModal({
     e.preventDefault();
     if (!entry) return;
 
-    if (!durationMinutes || durationMinutes < 1 || durationMinutes > 1440) {
+    if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 1440) {
       setValidationError('Duration must be between 1 and 1440 minutes (24h).');
       return;
     }
@@ -74,7 +75,7 @@ export function TimeEntryEditModal({
 
     openLoading({
       title: 'Updating Time Entry',
-      message: 'Submitting updated duration and note to staging backend...',
+      message: 'Saving your changes...',
       actionName: 'update-time-entry',
     });
 

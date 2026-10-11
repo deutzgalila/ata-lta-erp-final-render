@@ -1,3 +1,4 @@
+import { workDate } from '@/lib/workDate';
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   Dialog,
@@ -162,7 +163,7 @@ export function TaskDetailModal({
   }, [task?.dueDate]);
 
   // Time logging form state
-  const [logDate, setLogDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [logDate, setLogDate] = useState(() => workDate());
   const [logMinutes, setLogMinutes] = useState<number>(30);
   const [logNote, setLogNote] = useState('');
   const [showLogForm, setShowLogForm] = useState(false);
@@ -364,7 +365,7 @@ export function TaskDetailModal({
   // Task Scoping Rules:
   // 1. Only assigned employee or Admin can mutate status, log time, upload docs
   const canMutateStatus = canMutateTaskStatus(currentUser, task);
-  const canLogTime = canLogTaskTime(currentUser, task);
+  const canLogTime = hasPermission(permissions, 'timelog:create') && canLogTaskTime(currentUser, task);
   const canUploadDoc = canUploadTaskDocument(currentUser, task);
 
   // 2. Financial record linking vs requesting:
@@ -649,8 +650,13 @@ export function TaskDetailModal({
   const handleLogTimeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!task) return;
-    if (logMinutes <= 0) {
-      setLogError('Duration must be greater than 0 minutes.');
+    if (createTimeEntryMutation.isPending) return;
+    if (!Number.isInteger(logMinutes) || logMinutes < 1 || logMinutes > 1440) {
+      setLogError('Duration must be an integer between 1 and 1440 minutes.');
+      return;
+    }
+    if (!logDate || logDate > workDate()) {
+      setLogError('Entry date is required and cannot be in the future.');
       return;
     }
     setLogError(null);
@@ -658,7 +664,7 @@ export function TaskDetailModal({
     try {
       await createTimeEntryMutation.mutateAsync({
         taskId: task.id,
-        entryDate: logDate || new Date().toISOString().split('T')[0]!,
+        entryDate: logDate || workDate(),
         durationMinutes: Number(logMinutes),
         note: logNote.trim() || undefined,
       });
@@ -1457,6 +1463,7 @@ export function TaskDetailModal({
                       </label>
                       <Input
                         type="date"
+                        max={workDate()}
                         value={logDate}
                         onChange={(e) => setLogDate(e.target.value)}
                         className="h-8 text-xs bg-white"
