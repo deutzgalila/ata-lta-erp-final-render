@@ -8,8 +8,18 @@
 const { z } = require('zod');
 
 const DOCUMENT_CATEGORIES = [
+  'Owner Details',
+  'Business Details',
   'SEC',
+  'City Hall',
   'BIR',
+  'SSS',
+  'PhilHealth',
+  'Pag-IBIG',
+  'IPO',
+  'FDA',
+  'Labor',
+  'Others',
   'CONTRACT',
   'PERMIT',
   'FINANCIAL',
