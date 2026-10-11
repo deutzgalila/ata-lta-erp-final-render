@@ -367,7 +367,7 @@ const updateDocument = async ({ entityId, id, userId, data }) => {
   if (data.storedLocation !== undefined) updates.stored_location = data.storedLocation;
   if (data.handoverLog !== undefined) updates.handover_log = data.handoverLog;
   if (data.archived !== undefined) updates.archived = data.archived;
-  if (data.comments !== undefined) updates.comments = data.comments;
+
   if (data.versions !== undefined) updates.versions = data.versions;
 
   const { data: updated, error } = await supabaseAdmin
@@ -630,7 +630,35 @@ const updateLifecycle = async ({ entityId, id, userId, lifecycle }) => {
   return updated;
 };
 
+// Authorization and mutation run together under a PostgreSQL row lock. Never
+// read/replace the thread in JavaScript: separate API workers must serialize too.
+const mutateDocumentComment = async ({ entityId, id, commentId, user, text, action }) => {
+  const { data, error } = await supabaseAdmin.rpc('mutate_document_comment', {
+    p_entity_id: entityId,
+    p_document_id: id,
+    p_comment_id: commentId || null,
+    p_user_id: user.id,
+    p_text: text || null,
+    p_action: action,
+  });
+  if (error) {
+    const statusCode = { P0002: 404, '42501': 403, '22023': 400, '22P02': 400 }[error.code] || 500;
+    throw new AppError({
+      statusCode,
+      title: { 404: 'Not Found', 403: 'Forbidden', 400: 'Validation Error' }[statusCode] || 'Database Error',
+      detail: statusCode === 500 ? 'Failed to save document comment' : error.message,
+    });
+  }
+  return data;
+};
+const addDocumentComment = (params) => mutateDocumentComment({ ...params, action: 'add' });
+const updateDocumentComment = (params) => mutateDocumentComment({ ...params, action: 'edit' });
+const deleteDocumentComment = (params) => mutateDocumentComment({ ...params, action: 'delete' });
+
 module.exports = {
+  addDocumentComment,
+  updateDocumentComment,
+  deleteDocumentComment,
   sanitizeFileName,
   generateStoragePath,
   listDocuments,

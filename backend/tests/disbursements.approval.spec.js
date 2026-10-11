@@ -7,13 +7,8 @@
  */
 
 const mockNotify = jest.fn().mockResolvedValue();
-jest.mock(
-  '../src/services/notify',
-  () => ({
-    notify: mockNotify,
-  }),
-  { virtual: true }
-);
+// This service exists; a virtual mock can resolve inconsistently across suites.
+jest.mock('../src/services/notify', () => ({ notify: mockNotify }));
 
 jest.mock('../src/services/supabaseClient', () => {
   const { supabaseAdmin } = require('./fixtures/supabaseMock');

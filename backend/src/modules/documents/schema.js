@@ -89,16 +89,8 @@ const updateDocumentSchema = z.object({
     )
     .optional(),
   archived: z.boolean().optional(),
-  comments: z
-    .array(
-      z.object({
-        id: z.string().min(1).optional(),
-        userId: z.string().min(1),
-        date: z.string().min(1),
-        text: z.string().min(1),
-      })
-    )
-    .optional(),
+  // Whole-thread replacement bypasses ownership and loses concurrent comments.
+  comments: z.never().optional(),
   versions: z
     .array(
       z.object({
@@ -118,7 +110,12 @@ const lifecycleSchema = z.object({
   lifecycle: z.enum(LIFECYCLE_STATES),
 });
 
+const addDocumentCommentSchema = z.object({ text: z.string().trim().min(1).max(4000) });
+const updateDocumentCommentSchema = addDocumentCommentSchema;
+
 module.exports = {
+  addDocumentCommentSchema,
+  updateDocumentCommentSchema,
   createDocumentSchema,
   updateDocumentSchema,
   lifecycleSchema,

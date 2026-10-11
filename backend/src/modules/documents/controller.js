@@ -5,7 +5,7 @@
  * Phase 3 — Agent B
  */
 
-const { createDocumentSchema, updateDocumentSchema, lifecycleSchema } = require('./schema');
+const { createDocumentSchema, updateDocumentSchema, lifecycleSchema, addDocumentCommentSchema, updateDocumentCommentSchema } = require('./schema');
 const service = require('./service');
 const AppError = require('../../lib/AppError');
 
@@ -239,8 +239,31 @@ const unarchiveDocument = async (req, res, next) => {
   }
 };
 
+const commentHandler = (action, schema, status = 200) => async (req, res, next) => {
+  try {
+    const input = schema ? schema.parse(req.body) : {};
+    const data = await service[action]({
+      entityId: req.activeEntity,
+      id: req.params.id,
+      commentId: req.params.commentId,
+      user: req.user,
+      text: input.text,
+    });
+    res.status(status).json({ data });
+  } catch (err) {
+    if (err.name === 'ZodError') {
+      return next(new AppError({ statusCode: 400, title: 'Validation Error',
+        detail: err.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join('; ') }));
+    }
+    next(err);
+  }
+};
+
 module.exports = {
   documentsController: {
+    addDocumentComment: commentHandler('addDocumentComment', addDocumentCommentSchema, 201),
+    updateDocumentComment: commentHandler('updateDocumentComment', updateDocumentCommentSchema),
+    deleteDocumentComment: commentHandler('deleteDocumentComment'),
     listDocuments,
     getDocumentCounts,
     createDocument,
