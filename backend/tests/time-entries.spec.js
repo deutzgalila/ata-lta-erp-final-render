@@ -817,4 +817,127 @@ describe('Time Entries Module (/v1/time-entries)', () => {
       expect(res.status).toBe(403);
     });
   });
+  describe('Time logging audit regressions', () => {
+    const call = (method, path, token = tokenA) => request(app)[method](path)
+      .set('Authorization', `Bearer ${token}`).set('X-Active-Entity', 'ATA');
+    const payload = () => ({ task_id: task1Id, entry_date: getTodayStr(), duration_minutes: 30 });
+
+    it('rejects impossible dates and reversed ranges before database writes', async () => {
+      expect((await call('post', '/v1/time-entries').send({ ...payload(), entry_date: '2026-02-31' })).status).toBe(400);
+      expect((await call('get', '/v1/time-entries?from=2026-04-02&to=2026-04-01')).status).toBe(400);
+      expect((await call('get', '/v1/time-entries/summary?date=2026-02-31')).status).toBe(400);
+      expect(mockTables.time_entries.size).toBe(0);
+    });
+
+    it('uses the Manila calendar even when the server is still on the prior UTC day', () => {
+      jest.useFakeTimers().setSystemTime(new Date('2026-10-10T16:15:00Z'));
+      try {
+        const { getMaxAllowedDate, createTimeEntrySchema } = require('../src/modules/timeEntries/schema');
+        expect(getMaxAllowedDate()).toBe('2026-10-11');
+        expect(createTimeEntrySchema.safeParse({ ...payload(), entry_date: '2026-10-11' }).success).toBe(true);
+        expect(createTimeEntrySchema.safeParse({ ...payload(), entry_date: '2026-10-12' }).success).toBe(false);
+      } finally { jest.useRealTimers(); }
+    });
+
+    it('rejects deleted tasks even when the join-table assignment survives', async () => {
+      mockTables.tasks.get(task1Id).deleted_at = new Date().toISOString();
+      expect((await call('post', '/v1/time-entries').send(payload())).status).toBe(404);
+    });
+
+    it('enforces selected entity for list, summary, create, edit and delete', async () => {
+      const created = await call('post', '/v1/time-entries').send(payload());
+      const id = created.body.data.id;
+      mockTables.work_requests.get(wr1Id).entity_id = 'ent-lta';
+      expect((await call('get', '/v1/time-entries')).body.data).toEqual([]);
+      expect((await call('get', `/v1/time-entries/summary?date=${getTodayStr()}`)).body.total_minutes).toBe(0);
+      expect((await call('post', '/v1/time-entries').send(payload())).status).toBe(404);
+      expect((await call('patch', `/v1/time-entries/${id}`).send({ note: 'No access' })).status).toBe(404);
+      expect((await call('delete', `/v1/time-entries/${id}`)).status).toBe(404);
+      expect(mockTables.time_entries.has(id)).toBe(true);
+    });
+
+    it('requires the entry owner to be assigned when an admin moves their entry', async () => {
+      const created = await call('post', '/v1/time-entries').send(payload());
+      expect((await call('patch', `/v1/time-entries/${created.body.data.id}`, tokenAdmin)
+        .send({ task_id: task3Id })).status).toBe(403);
+    });
+
+    it('legacy endpoint requires assignment and ignores forged worker identity', async () => {
+      const path = `/v1/operations/work-requests/${wr1Id}/tasks/${task1Id}/time-logs`;
+      const body = { logs: [{ date: getTodayStr(), hours: 0.5, userId: userBId, workerName: 'Forged' }] };
+      expect((await call('post', path, tokenB).send(body)).status).toBe(403);
+      const result = await call('post', path).send(body);
+      expect(result.status).toBe(201);
+      const rows = [...mockTables.task_time_logs.values()];
+      expect(rows).toHaveLength(1);
+      expect(rows[0].user_id).toBe(userAId);
+      expect(rows[0].worker_name).not.toBe('Forged');
+    });
+
+    it('combines legacy and canonical time, with owner-safe edit/delete of legacy rows', async () => {
+      const id = '33333333-0001-4000-8000-000000000001';
+      mockTables.task_time_logs.set(id, { id, task_id: task1Id, user_id: userAId,
+        date: getTodayStr(), hours: 1.5, created_at: new Date().toISOString() });
+      await call('post', '/v1/time-entries').send(payload());
+      expect((await call('get', '/v1/time-entries')).body.data).toHaveLength(2);
+      expect((await call('get', `/v1/time-entries/summary?date=${getTodayStr()}`)).body.total_minutes).toBe(120);
+      expect((await call('patch', `/v1/time-entries/${id}`, tokenB).send({ duration_minutes: 60 })).status).toBe(403);
+      expect((await call('patch', `/v1/time-entries/${id}`).send({ duration_minutes: 60 })).body.data.duration_minutes).toBe(60);
+      expect(mockTables.task_time_logs.get(id).hours).toBe(1);
+      expect((await call('delete', `/v1/time-entries/${id}`)).status).toBe(204);
+      expect(mockTables.task_time_logs.has(id)).toBe(false);
+    });
+
+    it('preserves time history on checklist edits/removal and ignores embedded time replacements', async () => {
+      const checklistId = '44444444-0001-4000-8000-000000000001';
+      const logId = '55555555-0001-4000-8000-000000000001';
+      mockTables.task_checklists.set(checklistId, { id: checklistId, task_id: task1Id, text: 'Original' });
+      mockTables.task_time_logs.set(logId, { id: logId, task_id: task1Id, user_id: userAId,
+        checklist_item_id: checklistId, date: getTodayStr(), hours: 1 });
+      const path = `/v1/operations/work-requests/${wr1Id}/tasks/${task1Id}`;
+      const edited = await call('patch', path, tokenAdmin).send({ timeLogs: [],
+        checklist: [{ id: checklistId, text: 'Edited', timeLogs: [{ date: getTodayStr(), hours: 9, userId: userBId }] }] });
+      expect(edited.status).toBe(200);
+      expect(mockTables.task_time_logs.get(logId).hours).toBe(1);
+      expect(mockTables.task_checklists.get(checklistId).text).toBe('Edited');
+      expect((await call('patch', path, tokenAdmin).send({ checklist: [] })).status).toBe(200);
+      expect(mockTables.task_time_logs.get(logId).checklist_item_id).toBeNull();
+      expect(mockTables.task_time_logs.get(logId).hours).toBe(1);
+    });
+
+    it('revokes a former primary assignee and allows the replacement to log', async () => {
+      mockTables.tasks.get(task1Id).assignee_id = userAId;
+      const path = `/v1/operations/work-requests/${wr1Id}/tasks/${task1Id}`;
+      expect((await call('patch', path, tokenAdmin).send({ assigneeId: userBId })).status).toBe(200);
+      expect((await call('post', '/v1/time-entries').send(payload())).status).toBe(403);
+      expect((await call('post', '/v1/time-entries', tokenB).send(payload())).status).toBe(201);
+    });
+
+    it('rejects a checklist item belonging to another task', async () => {
+      const result = await call('post', `/v1/operations/work-requests/${wr1Id}/tasks/${task1Id}/time-logs`)
+        .send({ logs: [{ date: getTodayStr(), hours: 1, checklistItemId: '44444444-0001-4000-8000-000000000099' }] });
+      expect(result.status).toBe(400);
+      expect(mockTables.task_time_logs.size).toBe(0);
+    });
+
+    it('includes canonical duration entries in the operations task projection', async () => {
+      await call('post', '/v1/time-entries').send(payload());
+      const result = await call('get', `/v1/operations/work-requests/${wr1Id}/tasks/${task1Id}`, tokenAdmin);
+      expect(result.status).toBe(200);
+      expect(result.body.data.timeLogs).toHaveLength(1);
+      expect(result.body.data.timeLogs[0].hours).toBe(0.5);
+    });
+
+    it('includes entries past the default database row limit in daily totals', async () => {
+      for (let n = 0; n < 1005; n++) {
+        const id = `entry-${String(n).padStart(5, '0')}`;
+        mockTables.time_entries.set(id, { id, task_id: task1Id, user_id: userAId,
+          entry_date: getTodayStr(), duration_minutes: 1 });
+      }
+      const result = await call('get', `/v1/time-entries/summary?date=${getTodayStr()}`);
+      expect(result.status).toBe(200);
+      expect(result.body.total_minutes).toBe(1005);
+    });
+  });
+
 });

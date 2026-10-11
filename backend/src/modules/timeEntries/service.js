@@ -7,7 +7,76 @@ const { randomUUID } = require('crypto');
 const { supabaseAdmin } = require('../../services/supabaseClient');
 const AppError = require('../../lib/AppError');
 const { buildPermissionSet, hasPermission } = require('../../lib/permissions');
-const { getMaxAllowedDate } = require('./schema');
+const { entryDateSchema } = require('./schema');
+
+const databaseError = (error) => {
+  if (error) throw new AppError({ statusCode: 500, title: 'Database Error', detail: error.message });
+};
+
+// The time table has no entity column; scope through its task's parent request.
+const assertTaskScope = async (taskId, entityId, { activeOnly = false } = {}) => {
+  const { data: task, error } = await supabaseAdmin.from('tasks')
+    .select('id, work_request_id, deleted_at').eq('id', taskId).maybeSingle();
+  databaseError(error);
+  if (!task || (activeOnly && task.deleted_at)) {
+    throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Task not found' });
+  }
+  const { data: wr, error: wrError } = await supabaseAdmin.from('work_requests')
+    .select('id, entity_id, deleted_at').eq('id', task.work_request_id).maybeSingle();
+  databaseError(wrError);
+  if (!wr || (entityId && wr.entity_id !== entityId) || (activeOnly && wr.deleted_at)) {
+    throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Task not found in the selected entity' });
+  }
+};
+
+// Paginate the scope lookup so assignments past the PostgREST row cap are retained.
+const readAll = async (makeQuery) => {
+  const rows = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await makeQuery().range(offset, offset + 999);
+    databaseError(error);
+    rows.push(...(data || []));
+    if (!data || data.length < 1000) return rows;
+  }
+};
+const scopedTaskIds = async (entityId) => {
+  if (!entityId) return null; // ALL is authorized by entityScope middleware.
+  const requests = await readAll(() => supabaseAdmin.from('work_requests').select('id')
+    .eq('entity_id', entityId).order('id'));
+  const ids = [];
+  for (let index = 0; index < requests.length; index += 100) {
+    const tasks = await readAll(() => supabaseAdmin.from('tasks').select('id')
+      .in('work_request_id', requests.slice(index, index + 100).map((wr) => wr.id)).order('id'));
+    ids.push(...tasks.map((task) => task.id));
+  }
+  return ids;
+};
+
+const mapLegacyEntry = (row) => ({
+  id: row.id, user_id: row.user_id, task_id: row.task_id,
+  entry_date: row.date, duration_minutes: Math.round(Number(row.hours) * 60),
+  note: row.note || null, created_at: row.created_at, updated_at: row.created_at,
+});
+
+const readEntries = async ({ table, dateColumn, userId, filters, taskIds }) => {
+  if (taskIds && !taskIds.length) return [];
+  // Keep URL filters bounded even for large entities.
+  const batches = taskIds ? Array.from({ length: Math.ceil(taskIds.length / 100) },
+    (_, index) => taskIds.slice(index * 100, index * 100 + 100)) : [null];
+  const rows = [];
+  for (const batch of batches) {
+    rows.push(...await readAll(() => {
+      let query = supabaseAdmin.from(table).select('*');
+      if (userId) query = query.eq('user_id', userId);
+      if (batch) query = query.in('task_id', batch);
+      if (filters.task_id) query = query.eq('task_id', filters.task_id);
+      if (filters.from) query = query.gte(dateColumn, filters.from);
+      if (filters.to) query = query.lte(dateColumn, filters.to);
+      return query.order(dateColumn, { ascending: false }).order('id');
+    }));
+  }
+  return rows;
+};
 
 /**
  * Helper to compute effective permissions for a user.
@@ -94,11 +163,13 @@ const isUserAssignedToTask = async (taskId, userId) => {
  */
 const createTimeEntry = async ({
   userId,
+  entityId,
   taskId,
   entryDate,
   durationMinutes,
   note,
 }) => {
+  await assertTaskScope(taskId, entityId, { activeOnly: true });
   // Validate assignee scope (Rule R2)
   const isAssigned = await isUserAssignedToTask(taskId, userId);
   if (!isAssigned) {
@@ -111,11 +182,11 @@ const createTimeEntry = async ({
   }
 
   // Defensive validation on date and duration (Rule R3)
-  if (entryDate > getMaxAllowedDate()) {
+  if (!entryDateSchema.safeParse(entryDate).success) {
     throw new AppError({
       statusCode: 400,
       title: 'Validation Error',
-      detail: 'entry_date cannot be in the future',
+      detail: 'entry_date must be a valid calendar date and cannot be in the future',
       code: 'INVALID_ENTRY_DATE',
     });
   }
@@ -176,47 +247,19 @@ const createTimeEntry = async ({
  * @param {string} [params.filters.user_id] Filter by user UUID (Admin only)
  * @returns {Promise<object[]>} List of time entries
  */
-const listTimeEntries = async ({ user, userPermissions, filters = {} }) => {
+const listTimeEntries = async ({ user, userPermissions, entityId, filters = {} }) => {
   const perms = getEffectivePermissions(user, userPermissions);
   const hasEditAll = hasPermission(perms, 'timelog:edit_all');
 
-  let query = supabaseAdmin.from('time_entries').select('*');
-
-  // Scoping logic:
-  // Non-admins only ever see their own entries.
-  // Admins can filter by specific user_id if provided, or see all if omitted.
-  if (hasEditAll) {
-    if (filters.user_id) {
-      query = query.eq('user_id', filters.user_id);
-    }
-  } else {
-    query = query.eq('user_id', user.id);
-  }
-
-  if (filters.task_id) {
-    query = query.eq('task_id', filters.task_id);
-  }
-
-  if (filters.from) {
-    query = query.gte('entry_date', filters.from);
-  }
-
-  if (filters.to) {
-    query = query.lte('entry_date', filters.to);
-  }
-
-  query = query.order('entry_date', { ascending: false });
-
-  const { data, error } = await query;
-  if (error) {
-    throw new AppError({
-      statusCode: 500,
-      title: 'Database Error',
-      detail: error.message,
-    });
-  }
-
-  return data || [];
+  const taskIds = await scopedTaskIds(entityId);
+  const userId = hasEditAll ? filters.user_id : user.id;
+  const [entries, legacy] = await Promise.all([
+    readEntries({ table: 'time_entries', dateColumn: 'entry_date', userId, filters, taskIds }),
+    readEntries({ table: 'task_time_logs', dateColumn: 'date', userId, filters, taskIds }),
+  ]);
+  // Unattributed/zero-duration legacy placeholders are not employee time entries.
+  return [...entries, ...legacy.filter((row) => row.user_id && row.date && Number(row.hours) > 0)
+    .map(mapLegacyEntry)].sort((a, b) => b.entry_date.localeCompare(a.entry_date) || a.id.localeCompare(b.id));
 };
 
 /**
@@ -238,6 +281,15 @@ const getTimeEntryById = async (id) => {
       title: 'Database Error',
       detail: error.message,
     });
+  }
+
+  if (!data) {
+    const { data: legacy, error: legacyError } = await supabaseAdmin.from('task_time_logs')
+      .select('*').eq('id', id).maybeSingle();
+    databaseError(legacyError);
+    if (legacy?.user_id && legacy.date && Number(legacy.hours) > 0) {
+      return { ...mapLegacyEntry(legacy), legacy: true };
+    }
   }
 
   if (!data) {
@@ -263,8 +315,9 @@ const getTimeEntryById = async (id) => {
  * @param {object} params.updates Update payload
  * @returns {Promise<object>} Updated entry
  */
-const updateTimeEntry = async ({ id, user, userPermissions, updates }) => {
+const updateTimeEntry = async ({ id, user, userPermissions, entityId, updates }) => {
   const existing = await getTimeEntryById(id);
+  await assertTaskScope(existing.task_id, entityId);
 
   const perms = getEffectivePermissions(user, userPermissions);
   const hasEditAll = hasPermission(perms, 'timelog:edit_all');
@@ -279,8 +332,9 @@ const updateTimeEntry = async ({ id, user, userPermissions, updates }) => {
     });
   }
 
-  // If task_id is being updated, verify caller is assigned to new task
+  // If task_id changes, the entry owner must be assigned to the destination task
   if (updates.task_id && updates.task_id !== existing.task_id) {
+    await assertTaskScope(updates.task_id, entityId, { activeOnly: true });
     const isAssigned = await isUserAssignedToTask(updates.task_id, existing.user_id);
     if (!isAssigned) {
       throw new AppError({
@@ -293,11 +347,11 @@ const updateTimeEntry = async ({ id, user, userPermissions, updates }) => {
   }
 
   // If entry_date is being updated, verify not in future
-  if (updates.entry_date && updates.entry_date > getMaxAllowedDate()) {
+  if (updates.entry_date !== undefined && !entryDateSchema.safeParse(updates.entry_date).success) {
     throw new AppError({
       statusCode: 400,
       title: 'Validation Error',
-      detail: 'entry_date cannot be in the future',
+      detail: 'entry_date must be a valid calendar date and cannot be in the future',
       code: 'INVALID_ENTRY_DATE',
     });
   }
@@ -327,6 +381,20 @@ const updateTimeEntry = async ({ id, user, userPermissions, updates }) => {
     updated_at: new Date().toISOString(),
   };
 
+  if (existing.legacy) {
+    const payload = {
+      ...(updates.duration_minutes !== undefined && { hours: updates.duration_minutes / 60 }),
+      ...(updates.note !== undefined && { note: updates.note }),
+      ...(updates.entry_date !== undefined && { date: updates.entry_date }),
+      ...(updates.task_id !== undefined && { task_id: updates.task_id }),
+      ...(updates.task_id && updates.task_id !== existing.task_id && { checklist_item_id: null }),
+    };
+    const { data, error } = await supabaseAdmin.from('task_time_logs')
+      .update(payload).eq('id', id).select('*').single();
+    databaseError(error);
+    return mapLegacyEntry(data);
+  }
+
   const { data, error } = await supabaseAdmin
     .from('time_entries')
     .update(updatePayload)
@@ -355,8 +423,9 @@ const updateTimeEntry = async ({ id, user, userPermissions, updates }) => {
  * @param {Set<string>} [params.userPermissions]
  * @returns {Promise<{id: string, deleted: boolean}>}
  */
-const deleteTimeEntry = async ({ id, user, userPermissions }) => {
+const deleteTimeEntry = async ({ id, user, userPermissions, entityId }) => {
   const existing = await getTimeEntryById(id);
+  await assertTaskScope(existing.task_id, entityId);
 
   const perms = getEffectivePermissions(user, userPermissions);
   const hasEditAll = hasPermission(perms, 'timelog:edit_all');
@@ -372,7 +441,7 @@ const deleteTimeEntry = async ({ id, user, userPermissions }) => {
   }
 
   const { error } = await supabaseAdmin
-    .from('time_entries')
+    .from(existing.legacy ? 'task_time_logs' : 'time_entries')
     .delete()
     .eq('id', id);
 
@@ -389,7 +458,7 @@ const deleteTimeEntry = async ({ id, user, userPermissions }) => {
 
 /**
  * Summary endpoint aggregation (Rule R5).
- * Single indexed query aggregating total minutes and grouping by task with WR linkage.
+ * Aggregates scoped, paginated canonical and legacy records with work-request linkage.
  *
  * @param {object} params
  * @param {object} params.user Authenticated user
@@ -398,51 +467,30 @@ const deleteTimeEntry = async ({ id, user, userPermissions }) => {
  * @param {string} [params.targetUserId] Optional target user ID (Admin only)
  * @returns {Promise<{date: string, total_minutes: number, by_task: Array<{task_id: string, work_request_id: string|null, title: string, minutes: number}>}>}
  */
-const getSummary = async ({ user, userPermissions, date, targetUserId }) => {
+const getSummary = async ({ user, userPermissions, entityId, date, targetUserId }) => {
   const perms = getEffectivePermissions(user, userPermissions);
   const hasEditAll = hasPermission(perms, 'timelog:edit_all');
   const effectiveUserId = hasEditAll && targetUserId ? targetUserId : user.id;
 
-  // Single query utilizing idx_time_entries_user_date (user_id, entry_date DESC)
-  const { data: rawEntries, error } = await supabaseAdmin
-    .from('time_entries')
-    .select(`
-      id,
-      task_id,
-      duration_minutes,
-      entry_date,
-      tasks (
-        id,
-        title,
-        work_request_id
-      )
-    `)
-    .eq('user_id', effectiveUserId)
-    .eq('entry_date', date);
+  const entries = await listTimeEntries({
+    user, userPermissions, entityId,
+    filters: { from: date, to: date, user_id: effectiveUserId },
+  });
 
-  if (error) {
-    throw new AppError({
-      statusCode: 500,
-      title: 'Database Error',
-      detail: error.message,
-    });
-  }
-
-  const entries = rawEntries || [];
-
-  // Resilient resolution: in test mock environments where nested relations are not auto-expanded,
-  // batch fetch tasks by ID in one lookup
+  // Resolve titles in bounded batches for both historical and canonical entries.
   const missingTaskIds = entries
     .filter((e) => !e.tasks || !e.tasks.title)
     .map((e) => e.task_id);
 
   if (missingTaskIds.length > 0) {
     const uniqueIds = Array.from(new Set(missingTaskIds));
-    const { data: taskRows } = await supabaseAdmin
-      .from('tasks')
-      .select('id, title, work_request_id')
-      .in('id', uniqueIds);
-
+    const taskRows = [];
+    for (let index = 0; index < uniqueIds.length; index += 100) {
+      const { data, error } = await supabaseAdmin.from('tasks')
+        .select('id, title, work_request_id').in('id', uniqueIds.slice(index, index + 100));
+      databaseError(error);
+      taskRows.push(...(data || []));
+    }
     const taskMap = new Map((taskRows || []).map((t) => [t.id, t]));
     entries.forEach((e) => {
       if (!e.tasks || !e.tasks.title) {
