@@ -44,7 +44,7 @@ import { CreateDisbursementModal } from '@/features/disbursements';
 import { TransmittalFormModal } from '@/features/transmittals';
 import { DocumentUploadModal, DocumentViewerModal } from '@/features/documents';
 import { useDocuments } from '../api/useDocuments';
-import { useTaskMutations, useTaskRelated, useWorkRequestTasks } from '../api/useTasks';
+import { useTaskMutations, useTaskRelated, useWorkRequestTasks, useTaskDetail } from '../api/useTasks';
 import { useCreateOperationsRequest, useOperationsRequests } from '../api/usePhaseTransitions';
 import { useTeam } from '../api/useTeam';
 import { useSessionStore } from '@/lib/session';
@@ -75,10 +75,77 @@ export interface TaskDetailModalProps {
 export function TaskDetailModal({
   isOpen,
   onClose,
-  task,
+  task: initialTask,
   workRequest,
   onTaskUpdated,
 }: TaskDetailModalProps) {
+  // Live query binding for task details with multi-case workRequestId fallback
+  const effectiveWrId =
+    initialTask?.workRequestId ||
+    (initialTask as { work_request_id?: string } | null | undefined)?.work_request_id ||
+    workRequest?.id;
+  const effectiveTaskId = initialTask?.id;
+
+  const { data: rawLiveTask } = useTaskDetail(effectiveWrId, effectiveTaskId, {
+    enabled: Boolean(effectiveWrId && effectiveTaskId && isOpen),
+  });
+  const liveTask = Array.isArray(rawLiveTask)
+    ? rawLiveTask.find((t) => t?.id === effectiveTaskId) || rawLiveTask[0]
+    : rawLiveTask;
+
+  const currentTask = useMemo<Task | null>(() => {
+    if (!liveTask || !liveTask.id) return initialTask;
+    if (!initialTask) return liveTask as Task;
+
+    const initialVersion = typeof initialTask.version === 'number' ? initialTask.version : 0;
+    const liveVersion = typeof liveTask.version === 'number' ? liveTask.version : 0;
+
+    // 1. If live query has an explicitly higher version, live CDC update takes precedence
+    if (liveVersion > initialVersion) {
+      return { ...initialTask, ...liveTask } as Task;
+    }
+
+    // 2. When versions are equal (or unversioned):
+    // Check if initialTask has richer assignee information (e.g. multi-assignees in test suites or optimistic props)
+    const initialAssigneeCount = Math.max(
+      initialTask.assignees?.length ?? 0,
+      initialTask.taskAssignees?.length ?? 0,
+      (initialTask as unknown as { task_assignees?: unknown[] }).task_assignees?.length ?? 0
+    );
+    const liveAssigneeCount = Math.max(
+      liveTask.assignees?.length ?? 0,
+      liveTask.taskAssignees?.length ?? 0,
+      (liveTask as unknown as { task_assignees?: unknown[] }).task_assignees?.length ?? 0
+    );
+
+    if (initialAssigneeCount > liveAssigneeCount) {
+      return {
+        ...initialTask,
+        ...liveTask,
+        assigneeId: initialTask.assigneeId ?? liveTask.assigneeId,
+        assigneeName: initialTask.assigneeName ?? liveTask.assigneeName,
+        assignees: initialTask.assignees ?? liveTask.assignees,
+        taskAssignees: initialTask.taskAssignees ?? liveTask.taskAssignees,
+      } as Task;
+    }
+
+    // If initialTask specifies an explicit lead assignee that differs from liveTask at the same version
+    if (initialTask.assigneeId && initialTask.assigneeId !== liveTask.assigneeId && initialVersion >= liveVersion) {
+      return {
+        ...initialTask,
+        ...liveTask,
+        assigneeId: initialTask.assigneeId,
+        assigneeName: initialTask.assigneeName ?? liveTask.assigneeName,
+        assignees: initialTask.assignees ?? liveTask.assignees,
+        taskAssignees: initialTask.taskAssignees ?? liveTask.taskAssignees,
+      } as Task;
+    }
+
+    // Default safe fallback/merge
+    return { ...initialTask, ...liveTask } as Task;
+  }, [initialTask, liveTask]);
+
+  const task = currentTask;
   // Time logging form state
   const [logDate, setLogDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [logMinutes, setLogMinutes] = useState<number>(30);
@@ -588,7 +655,7 @@ export function TaskDetailModal({
                   {workRequest?.entity || 'ATA'}
                 </Badge>
                 <Badge variant="outline" size="compact" className="font-semibold text-blue-700 bg-blue-50">
-                  {task.phase.replace('_', ' ')}
+                  {task.phase ? task.phase.replace('_', ' ') : ''}
                 </Badge>
                 <Badge
                   variant={task.status === 'Completed' ? 'success' : 'secondary'}
@@ -1461,19 +1528,25 @@ export function TaskDetailModal({
       </Dialog>
 
       {/* 1. Invoice Create Modal (UAT2-7) */}
-      {isInvoiceModalOpen && (
+      {isInvoiceModalOpen && task && (
         <InvoiceCreateModal
           isOpen={isInvoiceModalOpen}
           onClose={() => {
             setIsInvoiceModalOpen(false);
             refetchRelated();
+            if (task.id) {
+              void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(task.id) });
+            }
           }}
           onCreated={() => {
             setIsInvoiceModalOpen(false);
             refetchRelated();
+            if (task.id) {
+              void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(task.id) });
+            }
           }}
           prefill={{
-            workRequestId: task.workRequestId,
+            workRequestId: task.workRequestId || workRequest?.id,
             taskId: task.id,
             clientId: workRequest?.clientId || undefined,
           }}
@@ -1481,19 +1554,25 @@ export function TaskDetailModal({
       )}
 
       {/* 2. Disbursement Create Modal (UAT2-7) */}
-      {isDisbursementModalOpen && (
+      {isDisbursementModalOpen && task && (
         <CreateDisbursementModal
           isOpen={isDisbursementModalOpen}
           onClose={() => {
             setIsDisbursementModalOpen(false);
             refetchRelated();
+            if (task.id) {
+              void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(task.id) });
+            }
           }}
           onSuccess={() => {
             setIsDisbursementModalOpen(false);
             refetchRelated();
+            if (task.id) {
+              void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(task.id) });
+            }
           }}
           prefill={{
-            workRequestId: task.workRequestId,
+            workRequestId: task.workRequestId || workRequest?.id,
             taskId: task.id,
             clientId: workRequest?.clientId || undefined,
           }}
@@ -1501,15 +1580,18 @@ export function TaskDetailModal({
       )}
 
       {/* 3. Transmittal Form Modal (UAT2-7) */}
-      {isTransmittalModalOpen && (
+      {isTransmittalModalOpen && task && (
         <TransmittalFormModal
           isOpen={isTransmittalModalOpen}
           onClose={() => {
             setIsTransmittalModalOpen(false);
             refetchRelated();
+            if (task.id) {
+              void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(task.id) });
+            }
           }}
           prefill={{
-            workRequestId: task.workRequestId,
+            workRequestId: task.workRequestId || workRequest?.id,
             taskId: task.id,
             clientId: workRequest?.clientId || undefined,
           }}
@@ -1517,18 +1599,26 @@ export function TaskDetailModal({
       )}
 
       {/* 4. Document Upload Modal (UAT2-11) */}
-      {isUploadDocModalOpen && (
+      {isUploadDocModalOpen && task && (
         <DocumentUploadModal
           isOpen={isUploadDocModalOpen}
-          onClose={() => setIsUploadDocModalOpen(false)}
-          defaultWorkRequestId={task.workRequestId}
+          onClose={() => {
+            setIsUploadDocModalOpen(false);
+            if (task.id) {
+              void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(task.id) });
+            }
+          }}
+          defaultWorkRequestId={task.workRequestId || workRequest?.id}
           defaultClientId={workRequest?.clientId || undefined}
           onSuccess={() => {
             setIsUploadDocModalOpen(false);
             refetchDocs();
-            queryClient.invalidateQueries({
+            void queryClient.invalidateQueries({
               queryKey: operationsKeys.documents(),
             });
+            if (task.id) {
+              void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(task.id) });
+            }
           }}
         />
       )}
@@ -1537,9 +1627,24 @@ export function TaskDetailModal({
       {selectedDoc && (
         <DocumentViewerModal
           isOpen={Boolean(selectedDoc)}
-          onClose={() => setSelectedDoc(null)}
+          onClose={() => {
+            setSelectedDoc(null);
+            refetchDocs();
+            void queryClient.invalidateQueries({ queryKey: operationsKeys.documents() });
+            if (task?.id) {
+              void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(task.id) });
+            }
+          }}
           document={selectedDoc}
           workRequest={workRequest}
+          onUploadSuccess={(updatedDoc) => {
+            setSelectedDoc(updatedDoc);
+            refetchDocs();
+            void queryClient.invalidateQueries({ queryKey: operationsKeys.documents() });
+            if (task?.id) {
+              void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(task.id) });
+            }
+          }}
         />
       )}
     </>

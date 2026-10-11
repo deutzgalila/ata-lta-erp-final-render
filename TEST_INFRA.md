@@ -1,153 +1,210 @@
 # Test Infrastructure & Validation Framework (ATA/LTA ERP v2)
 
-**Version**: 2.0.0  
-**Target Architecture**: Tier 2 UX Parity, Ephemeral Collaboration & Optimistic Concurrency Control  
+**Version**: 2.1.0  
+**Target Architecture**: Real-Time Caching & CDC Synchronization Remediation (SPEC-REALTIME-SYNC-001)  
 **Test Engine**: Vitest 3.2.7 + Testing Library (React 19 / JSDOM)  
-**Total Test Files**: 93  
-**Total Automated Tests**: 1,331  
+**Total Target Test Files**: 97+  
+**Total Automated Tests**: >= 1,450  
 **Test Pass Rate**: 100% (0 failures, 0 regressions)  
 **TypeScript Diagnostic Errors**: 0 (`tsc -b` clean)  
 
 ---
 
-## 1. Architectural Testing Doctrine
+## 1. Architectural Testing Doctrine & Philosophy
 
-The ATA/LTA ERP automated verification framework is governed by five foundational architectural principles:
+The ATA/LTA ERP Real-Time Caching and CDC Synchronization test infrastructure adheres to five core architectural tenets:
 
-### 1.1 Zero Optimistic Updates Doctrine
-- Data persistence strictly follows the **Zero Optimistic Updates Doctrine**. User actions initiate blocking transitions (`runBlockingAction`) that await authoritative server persistence before mutating client-side caches.
-- Speculative local state mutations that risk divergence or phantom records are prohibited across all enterprise domains (Operations, Billing, Disbursements, Documents, Admin, Reports).
+### 1.1 Dual-Track E2E & Opaque-Box Testing Doctrine
+- Testing operates along dual tracks: requirement-driven specification verification and empirical component-level integration.
+- Tests exercise opaque-box system boundaries: Supabase Realtime WebSocket events, TanStack Query cache updates, Zustand session store states, and user-visible React components.
+- Implementation details (internal helper closures, unexported state) are never coupled to test assertions. All tests target authoritative contracts defined in `PROJECT.md` and `SPEC-REALTIME-SYNC-001`.
 
-### 1.2 Ephemeral Presence Integrity
-- Collaborative awareness is established via Supabase Realtime WebSocket presence channels (`presence:${domain}:${roomId}`) with **zero database persistence**.
-- User joins and leaves are tracked entirely in-memory.
-- Dynamic unmounts and dropdown switches trigger clean untracking and channel teardown (`< 200ms`), preventing orphaned connections, memory leaks, and ghost avatar remnants.
-- Gated strictly by the `realtime_sync` feature flag.
+### 1.2 Dual-Case Normalization Contract
+- PostgreSQL CDC payloads arrive from the logical replication stream with raw `snake_case` database column names (`work_request_id`, `qa_status`, `due_date`, `display_order`, `assignee_id`, etc.).
+- TanStack Query caches and React UI components (`PhaseKanbanBoard`, `TaskDetailModal`, `TaskCard`) consume camelCase properties (`workRequestId`, `qaStatus`, `dueDate`, `displayOrder`, `assigneeId`, etc.).
+- Normalizers produce unified objects containing both camelCase and snake_case properties, preventing stale UI state while preserving backward compatibility with legacy consumers.
 
-### 1.3 Optimistic Concurrency Control (OCC) & RFC 7807 Conflict Handling
-- Data writes to shared entities (Invoices, Disbursements, Work Requests) carry `expectedVersion: entity.version` when `strict_occ` is enabled.
-- Stale writes trigger RFC 7807 HTTP 409 Concurrency Conflicts (`ERR_CONCURRENCY_CONFLICT` or `CONCURRENCY_CONFLICT`).
-- UI error interceptors catch 409 responses, automatically dismiss `BlockingActionModal`, and mount the non-destructive `<ConflictResolutionModal />`.
-- Conflict resolution provides clear side-by-side comparison between local draft and server truth, with a dedicated "Refresh & Keep Latest" button that invalidates and refetches appropriate query keys.
+### 1.3 Strict Soft-Delete & Gate Integrity
+- Deletion in PostgreSQL is soft (`deleted_at = now()`), arriving over WebSocket as an `UPDATE` event.
+- The reconciler classifies `deleted_at != null || deletedAt != null` as `isDelete = true`.
+- Deletions immediately evict detail query caches, filter item records from list queries, and purge embedded task objects from parent work request phase containers.
+- Kanban gate calculations (`gateInfo`) and phase columns strictly exclude soft-deleted tasks (`!t.deletedAt && !t.deleted_at`).
 
-### 1.4 Absolute Playwright Prohibition
-- In strict adherence to CI/CD and container execution guidelines, **zero Playwright browser plugins or headless browser runners are invoked or configured**.
-- All unit, integration, and end-to-end user journeys are verified deterministically via Vitest and Testing Library with mock Supabase Realtime channels and simulated JSDOM pointer/keyboard interactions.
+### 1.4 Scoped Targeting & Cross-Domain Co-Invalidation
+- Task CDC events are strictly scoped via `isTaskListOfTargetWr` to prevent cross-work-request cache pollution under `listRootKey`.
+- Mutations trigger precise co-invalidations across domain boundaries:
+  - Task updates invalidate parent `workRequestDetail(wrId)`, `workRequestCounts(entity)`, and `taskRelated(taskId)`.
+  - Invoices, disbursements, transmittals, and documents invalidate `taskRelated(taskId)`.
+  - Operations requests invalidate `requests()`, `requestCounts()`, and parent `workRequestDetail(wrId)`.
 
-### 1.5 Zero Hardcoded Secrets
-- Tests and source files are strictly free of hardcoded credentials (`sb_secret_*`, raw JWTs, or persistent authentication tokens). Mock authentication leverages transient in-memory session stores (`useSessionStore`).
+### 1.5 Strict Zero-Playwright & Zero-Secret Invariants
+- Under **NO circumstances** is the Playwright browser runner or any headless browser plugin invoked, configured, or installed.
+- All multi-user browser scenarios (Browser 1 and Browser 2) are modeled deterministically using concurrent Vitest React Testing Library contexts and in-memory `MockRealtimeChannel` WebSocket multiplexers.
+- Zero hardcoded secrets (`sb_secret_*`, raw JWT tokens, API keys). Transient sessions are configured strictly via in-memory stores (`useSessionStore`).
 
 ---
 
-## 2. Test Tiers & Methodology
+## 2. Feature Inventory & Test Mapping
+
+| # | Feature ID | Feature Name | Primary Test File | Coverage Tier |
+|---|------------|--------------|-------------------|---------------|
+| 1 | F-NORM | Dual-Case Normalization Engine (`normalizeCdcTask`, `normalizeCdcWorkRequest`, `normalizeCdcOperationsRequest`, `normalizeCdcNotification`, `normalizeCdcPayload`) | `src/lib/realtime/__tests__/cdcNormalization.test.ts` | Tier 1, Tier 2 |
+| 2 | F-DEL | Accurate Soft-Delete Eviction (`deleted_at != null \|\| deletedAt != null` treated as `isDelete`) | `src/lib/realtime/__tests__/cdcSoftDeleteAndScope.test.ts` | Tier 1, Tier 2 |
+| 3 | F-SCOPE | Scoped Task List Query Matcher (`isTaskListOfTargetWr`) | `src/lib/realtime/__tests__/cdcSoftDeleteAndScope.test.ts` | Tier 1, Tier 2 |
+| 4 | F-COINV | Task & Cross-Domain Query Co-Invalidations (`workRequestDetail`, `taskRelated`, `requests`) | `src/lib/realtime/__tests__/cdcSoftDeleteAndScope.test.ts` | Tier 1, Tier 3 |
+| 5 | F-NOTIF | User-Scoped Realtime Notifications Hook & Bell Mount (`useNotificationRealtimeSync`, `NotificationBellPanel`) | `src/features/dashboard/__tests__/notificationRealtime.test.tsx` | Tier 1, Tier 2, Tier 3 |
+| 6 | F-OPS | Reactive Operations Requests & Approvals Inbox (`PendingApprovalsInbox`, `operations.tsx`) | `src/features/operations/__tests__/operationsRealtimeSync.test.tsx` | Tier 1, Tier 3, Tier 4 |
+| 7 | F-KANBAN | Reactive Kanban Selection & Task Sync (`PhaseKanbanBoard`, `TaskDetailModal`) | `src/features/operations/__tests__/operationsRealtimeSync.test.tsx` | Tier 1, Tier 3, Tier 4 |
+| 8 | F-E2E | Real-World Multi-User Application Scenarios (E2E-RT-1 through E2E-RT-8) | `src/features/operations/__tests__/operationsRealtimeSync.test.tsx` | Tier 4 |
+
+---
+
+## 3. Four-Tier Test Strategy
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ Tier 4: Concurrency, Adversarial & Boundary Stress Suites   │
-│ (Multi-tenant isolation, OCC race conditions, RBAC gates)   │
-├─────────────────────────────────────────────────────────────┤
-│ Tier 3: Component & User Workflow Integration Suites        │
-│ (InvoiceDetailModal, DisbursementDetailDrawer, PhaseKanban) │
-├─────────────────────────────────────────────────────────────┤
-│ Tier 2: State Hooks, Realtime Sync & Mutation Protocols     │
-│ (useBillingMutations, useDisbursements, useEntityRealtime)  │
-├─────────────────────────────────────────────────────────────┤
-│ Tier 1: Zod Schemas, Type Contracts & Currency Formatters   │
-│ (RFC 7807 problem details, currency formatting, validation) │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│ Tier 4: Real-World Multi-User Application Scenarios (E2E-RT-1 to 8)     │
+│ Simulates concurrent browser instances, multi-user handoffs & live sync │
+├─────────────────────────────────────────────────────────────────────────┤
+│ Tier 3: Cross-Feature Combinations & Pairwise Interactions              │
+│ Normalization + Soft-Delete, Scope Filtering + Co-Invalidations         │
+├─────────────────────────────────────────────────────────────────────────┤
+│ Tier 2: Boundary & Corner Cases (>=5 per feature)                       │
+│ Nulls, undef, extreme payloads, malformed JSON, prototype keys, jitter  │
+├─────────────────────────────────────────────────────────────────────────┤
+│ Tier 1: Feature Coverage (>=5 tests per feature)                        │
+│ Happy-path contracts, primary transformations, deterministic events     │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Tier 1: Domain Schemas, Formatter Contracts & Types
-- Validates data boundary schemas across all modules:
-  - `billing`: Invoice line items, tax computations, payment records.
-  - `disbursements`: Voucher creation, rejection justification lengths (1–500 chars), release payments.
-  - `operations`: Work requests, task checklists, phase transition gates.
-  - `clients`, `documents`, `reports`, `transmittals`.
-- Formatter fidelity: Currency rendering (`₱XX,XXX.XX`), date parsing, status badge variants.
+### 3.1 Tier 1: Feature Coverage (>=5 Tests Per Feature)
+- **F-NORM (Normalization)**:
+  1. `normalizeCdcTask` converts snake_case task attributes to camelCase (`qa_status` -> `qaStatus`, `work_request_id` -> `workRequestId`).
+  2. `normalizeCdcWorkRequest` converts snake_case work request attributes (`work_request_no`, `client_id`, `on_hold`).
+  3. `normalizeCdcOperationsRequest` converts snake_case operations request attributes (`request_type` -> `type`, `linked_task_id` -> `linkedTaskId`).
+  4. `normalizeCdcNotification` converts notification keys (`user_id` -> `userId`, `read_at` -> `readAt`, `created_at` -> `createdAt`).
+  5. `normalizeCdcPayload` routes incoming CDC payload to table-specific normalizer.
+- **F-DEL (Soft-Delete)**:
+  1. Detects `deleted_at: '2026-10-10T12:00:00Z'` on `UPDATE` event as `isDelete = true`.
+  2. Detects `deletedAt: '2026-10-10T12:00:00Z'` on `UPDATE` event as `isDelete = true`.
+  3. Evicts task record from detail query cache upon soft deletion.
+  4. Removes soft-deleted item from list cache array and decrements list total count.
+  5. Purges soft-deleted task from parent work request embedded `phases` containers.
+- **F-SCOPE (Query Scoping)**:
+  1. Prepending a task to target work request `wr-A` list query leaves sibling `wr-B` list query untouched.
+  2. Updates to a task under `wr-A` only match queries containing `wr-A`.
+  3. Detail query cache targeting matches specific work request and task ID tuple.
+  4. List root query search respects explicit array query keys.
+  5. Non-matching query keys are completely bypassed without cache mutations.
+- **F-COINV (Co-Invalidations)**:
+  1. Task update invalidates `operationsKeys.workRequestDetail(wrId)`.
+  2. Task update invalidates `operationsKeys.workRequestCounts(entity)`.
+  3. Task update invalidates `operationsKeys.taskRelated(taskId)`.
+  4. Linked invoice with `task_id` invalidates `operationsKeys.taskRelated(taskId)`.
+  5. Linked disbursement with `task_id` invalidates `operationsKeys.taskRelated(taskId)`.
+  6. Linked transmittal and document invalidate `operationsKeys.taskRelated(taskId)`.
+  7. Operations request mutation invalidates `operationsKeys.requests()` and `requestCounts(entity)`.
+- **F-NOTIF (Real-Time Notifications)**:
+  1. `useNotificationRealtimeSync` subscribes to table `notifications` filtered by `user_id=eq.${user.id}`.
+  2. Incoming notification INSERT immediately increments `unreadCount` in `useSessionStore`.
+  3. Incoming notification INSERT prepends item to `dashboardKeys.notifications.all` query cache.
+  4. Marking notification as read decrements `unreadCount` in session store.
+  5. `NotificationBellPanel` renders live notification bell badge reflecting unread count.
+- **F-OPS (Operations Requests)**:
+  1. Mounts `useEntityRealtimeSync({ table: 'operations_requests' })`.
+  2. Creating an operations request reactively appends item to pending inbox list.
+  3. Approving an operations request updates status badge in `PendingApprovalsInbox`.
+  4. Rejecting an operations request reflects rejection reason reactively.
+  5. Badge count for pending approvals decrements when request is resolved.
+- **F-KANBAN (Kanban & Task Modal)**:
+  1. `PhaseKanbanBoard` synchronizes `selectedTask` when live query cache task updates.
+  2. Kanban board filters out soft-deleted tasks (`!t.deletedAt && !t.deleted_at`).
+  3. Gate calculation (`gateInfo`) excludes soft-deleted tasks from unblocking criteria.
+  4. `TaskDetailModal` binds to live task query cache falling back to task prop.
+  5. Closing child financial/document modals invalidates `operationsKeys.taskRelated(taskId)`.
 
-### Tier 2: State Hooks, Mutations & Concurrency Guards
-- `useBillingMutations.ts`:
-  - `updateInvoiceAction` & `updateClientAddressAction` conditionally append `expectedVersion` when `strict_occ` is true.
-  - Strips/omits `expectedVersion` when `strict_occ` is false for backwards compatibility.
-- `useDisbursements.ts`:
-  - Enforces `expectedVersion` across `useApproveDisbursement`, `useRejectDisbursement`, `useFundDisbursement`, and `useReleaseDisbursement`.
-  - Supports both positional parameters and structured object parameter signatures.
-  - Verifies cache rollback on mutation failure and cross-tab sync broadcast (`broadcastEntityChange`).
+### 3.2 Tier 2: Boundary & Corner Cases (>=5 Tests Per Feature)
+- **F-NORM Boundaries**:
+  1. Handles missing, undefined, and null fields gracefully (sets sensible defaults: `qaStatus: 'none'`, `displayOrder: 0`, `onHold: false`).
+  2. Preserves already camelCase payload without overwriting with defaults.
+  3. Preserves unexpected extra payload fields (payload pass-through).
+  4. Resists prototype pollution keys (`__proto__`, `constructor`).
+  5. Correctly handles empty objects and malformed records.
+- **F-DEL Boundaries**:
+  1. Distinguishes `deleted_at: null` (active record) from `deleted_at: string` (soft-deleted).
+  2. Handles empty string `deleted_at: ""` as falsy (active record).
+  3. Handles `DELETE` event where `new` is null and `old` is populated.
+  4. Handles `UPDATE` event where `old` is missing (partial CDC stream).
+  5. Eviction survives missing parent phases container.
+- **F-SCOPE Boundaries**:
+  1. Malformed query keys (null, numbers, empty arrays) do not crash query search.
+  2. Work request IDs with substrings (e.g. `wr-1` vs `wr-10`) do not cross-match.
+  3. Handles empty cache list arrays without index errors.
+  4. Prevents duplicate prepending if item already exists in target list.
+  5. Supports pagination metadata `meta.total` boundary when decrementing at zero.
+- **F-NOTIF Boundaries**:
+  1. Unauthenticated / unassigned user (`user: null`) disables realtime subscription.
+  2. Discards notification payloads belonging to a different user ID.
+  3. Discards notification payloads when `realtime_sync` feature flag is disabled.
+  4. Handles rapid successive notification INSERTs without race condition or duplicate badge counts.
+  5. Handles notification payload with null or empty title/body.
 
-### Tier 3: Component Integration & Collaborative UI
-- **`PresenceAvatars.tsx`**:
-  - Universal domain routing across `'work_request'`, `'invoice'`, `'disbursement'`, `'document'`.
-  - Channel name derivation: `presence:${domain}:${cleanRoomId}` (preserves pre-prefixed IDs).
-  - Rapid room teardown and unmount cleanup.
-  - Overflow badge rendering (`+N` more) when viewers exceed `maxAvatars`.
-- **`ConflictResolutionModal.tsx`**:
-  - RFC 7807 error detection via `isConcurrencyConflictError(err)` for status 409 and conflict codes.
-  - Renders side-by-side local vs server diffs and attempted status.
-  - "Refresh & Keep Latest" refetch triggers and cancel dismissal.
-- **`InvoiceDetailModal.tsx`**:
-  - Header presence avatars (`domain="invoice"`).
-  - Intercepts 409 on address update, notes edit, status transition, archive, and delete.
-  - Invalidates `billingKeys.invoiceDetail(effectiveId)` and `billingKeys.invoices()`.
-- **`DisbursementDetailDrawer.tsx`**:
-  - Header presence avatars (`domain="disbursement"`).
-  - Intercepts 409 on approval, rejection, funding, and submission.
-  - Invalidates `disbursementKeys.detail(id)` and `disbursementKeys.lists()`.
-- **`PhaseKanbanBoard.tsx`**:
-  - Header toolbar presence avatars beside work request dropdown.
-  - Dynamic dropdown switching between work requests cleanly untracks previous channels, clears viewers, and subscribes to new room channels.
+### 3.3 Tier 3: Cross-Feature Combinations & Pairwise Interactions
+1. **Normalization + Soft-Delete Interaction**:
+   A soft-deleted task payload with snake_case keys (`deleted_at: '...'`, `qa_status: 'passed'`) is normalized and correctly evicted from both camelCase and snake_case query caches.
+2. **Query Scoping + Co-Invalidation Interaction**:
+   A task update under `wr-A` patches `tasks(wr-A)`, does not touch `tasks(wr-B)`, and successfully invalidates `workRequestDetail(wr-A)`.
+3. **Cross-Domain Linked Record + Task Modal Interaction**:
+   An invoice creation linking `taskId: 'task-1'` invalidates `operationsKeys.taskRelated('task-1')`, which triggers live re-render of linked invoices in open `TaskDetailModal`.
+4. **Operations Request Approval + Notification Interaction**:
+   When an admin approves a transition request in Browser 1, the operations request status updates in `PendingApprovalsInbox` while simultaneously triggering a notification CDC insert that increments the requester's notification bell badge.
+5. **Phase Reroute + Gate Recalculation Interaction**:
+   Rerouting a work request resets task status and invalidates `workRequestDetail`, dynamically resetting the Kanban board column and gate badges.
 
-### Tier 4: Adversarial, Concurrency & Boundary Stress
-- **Multi-Tenant Isolation**: ATA and LTA tenant barriers enforced with zero data leakage.
-- **Role-Based Access Control (RBAC)**: Verification of permissions (`billing:edit`, `disbursement:approve`, `workflow:phase_transition`).
-- **Network Outage & Recovery**: Handling of offline events, WebSocket reconnection, and cache hydration.
+### 3.4 Tier 4: Real-World Multi-User Application Scenarios (Spec §5.2)
+
+| Scenario ID | Test Steps | Expected Real-Time Behavior (Zero Page Reload) |
+|---|---|---|
+| **E2E-RT-1** | User A advances task to `In Progress` in Browser 1. | Browser 2 Kanban board immediately shifts task card to `In Progress` column. |
+| **E2E-RT-2** | User A marks task `Completed` in Browser 1. | Browser 2 immediately shifts card to `Completed` and unlocks phase advancement gate. |
+| **E2E-RT-3** | User A evaluates QA review: marks task `failed` in Browser 1. | Browser 2 displays red `Failed QA` badge on task card instantly. |
+| **E2E-RT-4** | User A triggers phase reroute from QA to `processing`. | Browser 2 shifts work request phase back to `processing` and resets failed task to `In Progress` with `qaStatus: none`. |
+| **E2E-RT-5** | User A removes task lead in `TaskDetailModal`. | Browser 2 Kanban card and open `TaskDetailModal` immediately update lead to `Unassigned`. |
+| **E2E-RT-6** | User A soft-deletes task in Browser 1 (`deleted_at = now()`). | Browser 2 removes task card from Kanban board immediately. |
+| **E2E-RT-7** | User A links invoice or disbursement to task. | Browser 2 `TaskDetailModal` immediately shows the new linked financial record. |
+| **E2E-RT-8** | Admin approves transition request in Browser 1. | Requester's Browser 2 immediately increments notification bell count and removes item from pending tab. |
 
 ---
 
-## 3. Milestone 4 Test Deliverables Inventory
-
-| # | Test File Path | Tests | Scope & Key Behaviors Covered |
-|---|----------------|-------|-------------------------------|
-| 1 | `frontend/src/features/billing/__tests__/invoicePresenceAndOcc.test.tsx` | 12 | Ephemeral presence mounting (`domain="invoice"`); `expectedVersion` propagation in `updateInvoiceAction` & `updateClientAddressAction`; HTTP 409 interception dismissing `BlockingActionModal` and mounting `ConflictResolutionModal`; "Refresh & Keep Latest" query cache invalidation. |
-| 2 | `frontend/src/features/disbursements/__tests__/disbursementPresenceAndOcc.test.tsx` | 15 | Ephemeral presence mounting (`domain="disbursement"`); `expectedVersion` parameter propagation in `useApproveDisbursement`, `useRejectDisbursement`, `useFundDisbursement`, `useReleaseDisbursement`; 409 conflict interception on approve/reject/fund/submit; cache invalidation of `disbursementKeys.detail(id)` and `disbursementKeys.lists()`. |
-| 3 | `frontend/src/features/operations/__tests__/phaseKanban.test.tsx` | 11 | Phase board gating and column transitions; toolbar presence mounting; **Dynamic dropdown presence switching**: untracking previous channel, removing channel subscription, eager clearing of previous viewers, resubscribing to new work request channel, and zero-DB-write verification. |
-
----
-
-## 4. Verification & Execution Guide
+## 4. Test Execution & Verification Guide
 
 ### 4.1 Prerequisites
-- Node.js 18+ (tested on Node.js 20+).
-- Dependencies installed in `frontend/`.
+- Node.js 20+
+- Dependencies installed in `/home/javvii/FreelanceProject/ata-lta-erp-v2/frontend`
 
 ### 4.2 TypeScript Typecheck
-Execute TypeScript project-reference compilation to ensure zero diagnostic errors:
 ```bash
 cd frontend
 npm run typecheck
 ```
 *Expected Output*: Exit code 0, 0 diagnostic errors (`tsc -b`).
 
-### 4.3 Running the Full Test Suite
-Execute all automated test suites across the repository:
+### 4.3 Running Real-Time & CDC Test Suites
+```bash
+cd frontend
+npx vitest run \
+  src/lib/realtime/__tests__/cdcNormalization.test.ts \
+  src/lib/realtime/__tests__/cdcSoftDeleteAndScope.test.ts \
+  src/features/dashboard/__tests__/notificationRealtime.test.tsx \
+  src/features/operations/__tests__/operationsRealtimeSync.test.tsx
+```
+
+### 4.4 Running Full Repository Regression Test Suite
 ```bash
 cd frontend
 npm test
 ```
 *Expected Output*:
-- **Test Files**: 93 passed (93)
-- **Tests**: 1,331 passed (1,331)
-- **Duration**: ~23 seconds
-
-### 4.4 Running Milestone 4 Specific Test Suites
-To run only the test suites authored/enhanced for Milestone 4:
-```bash
-cd frontend
-npx vitest run \
-  src/features/billing/__tests__/invoicePresenceAndOcc.test.tsx \
-  src/features/disbursements/__tests__/disbursementPresenceAndOcc.test.tsx \
-  src/features/operations/__tests__/phaseKanban.test.tsx
-```
-*Expected Output*:
-- **Test Files**: 3 passed (3)
-- **Tests**: 38 passed (38)
-- **Status**: 100% pass rate
+- **Test Files**: 97+ passed
+- **Tests**: >= 1,450 passed
+- **Status**: 100% pass rate with zero regressions

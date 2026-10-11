@@ -211,14 +211,56 @@ function PhaseKanbanBoardInner({
   // Task Detail Modal State (UAT-OPS4)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
-  // Support deep link ?taskId=xxx
+  // Keep selectedTask synchronized with live TanStack Query cache
+  useEffect(() => {
+    if (selectedTask?.id && tasks.length > 0) {
+      const latest = tasks.find((t) => t.id === selectedTask.id);
+      if (!latest) {
+        // If task was purged from tasks list while belonging to this WR, deselect
+        if (selectedTask.workRequestId === effectiveWrId) {
+          setSelectedTask(null);
+        }
+        return;
+      }
+
+      const recLatest = (latest as unknown as Record<string, unknown>) || {};
+      const recSelected = (selectedTask as unknown as Record<string, unknown>) || {};
+
+      // If task was soft-deleted, deselect immediately
+      if (recLatest.deletedAt || recLatest.deleted_at) {
+        setSelectedTask(null);
+        return;
+      }
+
+      // Synchronize if version, status, QA status, or attributes have mutated
+      if (
+        latest.version !== selectedTask.version ||
+        latest.qaStatus !== selectedTask.qaStatus ||
+        latest.status !== selectedTask.status ||
+        recLatest.qa_status !== recSelected.qa_status ||
+        latest.assigneeId !== selectedTask.assigneeId ||
+        latest.assigneeName !== selectedTask.assigneeName ||
+        latest.title !== selectedTask.title ||
+        latest.description !== selectedTask.description ||
+        latest.dueDate !== selectedTask.dueDate ||
+        latest.phase !== selectedTask.phase
+      ) {
+        setSelectedTask(latest);
+      }
+    }
+  }, [tasks, selectedTask, effectiveWrId]);
+
+  // Support deep link ?taskId=xxx with soft-delete exclusion
   useEffect(() => {
     try {
       if (typeof window !== 'undefined' && window.location) {
         const urlParams = new URLSearchParams(window.location.search);
         const taskIdParam = urlParams.get('taskId');
         if (taskIdParam && tasks.length > 0) {
-          const found = tasks.find((t) => t.id === taskIdParam);
+          const found = tasks.find((t) => {
+            const rec = (t as unknown as Record<string, unknown>) || {};
+            return t.id === taskIdParam && !rec.deletedAt && !rec.deleted_at;
+          });
           if (found) {
             setSelectedTask(found);
           }
@@ -234,16 +276,23 @@ function PhaseKanbanBoardInner({
 
   // Task Gate & Blocker Logic
   const gateInfo = useMemo(() => {
-    const activeTasks = tasks.filter((t) => t.status !== 'Cancelled');
+    const activeTasks = tasks.filter((t) => {
+      const rec = (t as unknown as Record<string, unknown>) || {};
+      return t.status !== 'Cancelled' && !rec.deletedAt && !rec.deleted_at;
+    });
     const preTasks = activeTasks.filter((t) => t.phase === 'pre_processing');
     const procTasks = activeTasks.filter((t) => t.phase === 'processing');
 
     const preIncomplete = preTasks.filter((t) => t.status !== 'Completed');
     const procIncomplete = procTasks.filter((t) => t.status !== 'Completed');
-    const qaIncomplete = activeTasks.filter(
-      (t) => t.status !== 'Completed' || t.qaStatus !== 'passed'
-    );
-    const qaFailed = activeTasks.filter((t) => t.qaStatus === 'failed');
+    const qaIncomplete = activeTasks.filter((t) => {
+      const rec = (t as unknown as Record<string, unknown>) || {};
+      return t.status !== 'Completed' || (t.qaStatus !== 'passed' && rec.qa_status !== 'passed');
+    });
+    const qaFailed = activeTasks.filter((t) => {
+      const rec = (t as unknown as Record<string, unknown>) || {};
+      return t.qaStatus === 'failed' || rec.qa_status === 'failed';
+    });
 
     return {
       pre: {
@@ -478,6 +527,10 @@ function PhaseKanbanBoardInner({
 
           // Filter tasks belonging to this phase zone
           const phaseTasks = tasks.filter((t) => {
+            const rec = (t as unknown as Record<string, unknown>) || {};
+            if (t.status === 'Cancelled' || rec.deletedAt || rec.deleted_at) {
+              return false;
+            }
             if (col.id === 'pre_processing') return t.phase === 'pre_processing';
             if (col.id === 'processing') return t.phase === 'processing';
             if (col.id === 'quality_assurance') {

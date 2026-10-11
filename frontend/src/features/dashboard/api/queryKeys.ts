@@ -20,6 +20,7 @@ export const dashboardKeys = {
     lists: () => [...dashboardKeys.notifications.all, 'list'] as const,
     list: (params?: { limit?: number; cursor?: string }) =>
       [...dashboardKeys.notifications.lists(), params || {}] as const,
+    detail: (id: string) => [...dashboardKeys.notifications.all, 'detail', id] as const,
     unreadCount: () => [...dashboardKeys.notifications.all, 'unread-count'] as const,
   },
   assignedTasks: {

@@ -8,6 +8,15 @@ export {
   useEntityRealtimeSync,
   handleRealtimePayload,
   clearChannelRegistryForTesting,
+  normalizeCdcTask,
+  normalizeCdcWorkRequest,
+  normalizeCdcOperationsRequest,
+  normalizeCdcNotification,
+  normalizeCdcPayload,
+  isSoftDeleteRecord,
+  isTaskListOfTargetWr,
+  triggerTaskCoInvalidations,
+  triggerCrossDomainCoInvalidations,
 } from './useEntityRealtimeSync';
 export type {
   UseEntityRealtimeSyncOptions,

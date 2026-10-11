@@ -45,10 +45,13 @@ export function useTaskDetail(
     queryKey: operationsKeys.taskDetail(workRequestId ?? '', taskId ?? ''),
     queryFn: async () => {
       if (!workRequestId || !taskId) throw new Error('IDs are required');
-      const res = await apiRequest<{ data: Task }>(
+      const res = await apiRequest<{ data: Task | Task[] }>(
         `/operations/work-requests/${workRequestId}/tasks/${taskId}`
       );
-      return res.data;
+      if (Array.isArray(res?.data)) {
+        return (res.data.find((t) => t?.id === taskId) || res.data[0] || null) as Task | null;
+      }
+      return (res?.data ?? null) as Task | null;
     },
     enabled: Boolean(workRequestId && taskId) && (options?.enabled ?? true),
     // Instant feel: seed from the work request's task list cache while the

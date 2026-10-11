@@ -1,79 +1,113 @@
-# Project: Tier 2 UX Parity, Ephemeral Presence & Optimistic Concurrency Control
+# Project: Real-Time Caching & CDC Synchronization Remediation (SPEC-REALTIME-SYNC-001)
 
 ## Architecture
-The Tier 2 UX Parity and Concurrency architecture delivers real-time collaboration awareness and data-loss prevention across high-traffic ERP domains (Operations, Billing, Disbursements, DMS):
-1. **Ephemeral Presence Subsystem**:
-   - Pure in-memory Supabase WebSockets (`presence:${domain}:${roomId}`) with zero database persistence.
-   - Guarded by `isFeatureEnabled('realtime_sync')`.
-   - Rapid lifecycle transitions (< 200ms untrack cleanup upon unmount or dynamic dropdown switching).
-2. **Optimistic Concurrency Control (OCC) Subsystem**:
-   - RFC 7807 HTTP 409 conflict detection via `isConcurrencyConflictError(err)` for stale entity writes.
-   - Guarded by `isFeatureEnabled('strict_occ')` passing `expectedVersion`.
-   - Non-destructive `ConflictResolutionModal` surfaces side-by-side comparison and "Refresh & Keep Latest" query invalidation.
-3. **Cross-Surface Collaboration Protocol**:
-   - Work Request presence synchronization between List View (`WorkRequestSidePeek.tsx`) and Board View (`PhaseKanbanBoard.tsx`).
-   - Dynamic untrack/re-track on dropdown change in Kanban toolbar.
+The Real-Time Caching and CDC Synchronization architecture resolves multi-user stale cache snapshots and unifies PostgreSQL logical replication with TanStack Query client caches across the ATA/LTA ERP platform:
+1. **PostgreSQL Logical Replication & Supabase Realtime Publication**:
+   - `supabase_realtime` publication expanded to include all collaborative entities: `work_requests`, `tasks`, `operations_requests`, `notifications`, `disbursements`, `invoices`, `transmittals`, `documents`, `task_assignees`.
+   - `REPLICA IDENTITY FULL` configured across all 9 collaborative tables ensuring complete previous row attributes (`payload.old`) during UPDATE and DELETE operations.
+2. **Frontend CDC Normalization & Reconciler Subsystem**:
+   - Dual-case normalization engine (`normalizeCdcPayload`) bridging snake_case PostgreSQL attributes with camelCase API models in TanStack Query.
+   - Comprehensive soft-delete eviction (`deleted_at != null || deletedAt != null` treated as `isDelete`), evicting detail caches, filtering list caches, and removing tasks from phase containers (`patchTaskInPhases`).
+   - Precision query matching (`isTaskListOfTargetWr`) preventing cross-work-request task cache pollution under `listRootKey`.
+   - Cross-domain co-invalidations propagating task mutations to work request details, work request counts, taskRelated queries, and linked financial/transmittal/document records.
+3. **Reactive In-App Notifications Subsystem**:
+   - User-scoped real-time subscription (`user_id=eq.${user.id}`) in `useNotificationRealtimeSync`.
+   - Immediate unread counter increment in `useSessionStore` and cache prepending on notification INSERT.
+   - Live subscription mounted in `NotificationBellPanel.tsx`.
+4. **Reactive Operations Requests & Approvals**:
+   - Real-time subscription for `operations_requests` mounted in `operations.tsx`.
+   - Live badge counters and inbox lists updating on request creation, approval, and rejection.
+5. **Reactive Kanban Board & Task Detail Modal**:
+   - `selectedTask` synchronized with live TanStack tasks query cache in `PhaseKanbanBoard.tsx`.
+   - Gate calculations (`gateInfo`) and phase columns strictly excluding soft-deleted tasks (`!t.deletedAt && !t.deleted_at`).
+   - `TaskDetailModal.tsx` bound to live query `useTaskDetail(task?.workRequestId, task?.id)` with fallback.
+   - Invalidation of `operationsKeys.taskRelated(task.id)` on closure of linked invoice, disbursement, transmittal, and document modals.
 
 ## Feature Inventory
 | # | Feature | Description | Milestone | Source | Status |
 |---|---------|-------------|-----------|--------|--------|
-| 1 | Universal Domain Routing in PresenceAvatars | Support optional `domain` prop defaulting to `'work_request'`, format channel name as `presence:${domain}:${roomId}` with prefix protection | M1 | ORIGINAL_REQUEST §R1 | DONE |
-| 2 | Dynamic Untrack and Room Teardown | Cleanly untrack previous channel and reset viewers within ~200ms when `roomId` or `domain` prop changes | M1 | Spec §3 Parcel 2A | DONE |
-| 3 | Realtime Sync Feature Flag Gating | Strictly bypass WebSocket connections and return null when `realtime_sync` flag is false | M1 | ORIGINAL_REQUEST §R1 | DONE |
-| 4 | Kanban Board Toolbar Presence Integration | Mount `<PresenceAvatars roomId={effectiveWrId} />` in PhaseKanbanBoard toolbar beside dropdown | M1 | ORIGINAL_REQUEST §R1 | DONE |
-| 5 | Cross-Surface Work Request Collaboration | Synchronize viewers between WorkRequestSidePeek and PhaseKanbanBoard on identical `work_request` channel | M1 | ORIGINAL_REQUEST §R1 | DONE |
-| 6 | Document Viewer Presence Mount | Mount `<PresenceAvatars domain="document" roomId={doc.id} maxAvatars={4} />` in DocumentViewerModal header | M1 | ORIGINAL_REQUEST §R1 | DONE |
-| 7 | Strict OCC in Billing Mutations | Pass `expectedVersion` in `updateInvoiceAction` and `updateClientAddressAction` when `strict_occ` is enabled | M2 | ORIGINAL_REQUEST §R2 | DONE |
-| 8 | Invoice Presence Avatar Mount | Mount `<PresenceAvatars domain="invoice" roomId={effectiveId} maxAvatars={4} />` in InvoiceDetailModal header | M2 | ORIGINAL_REQUEST §R1 | DONE |
-| 9 | Invoice OCC Conflict Modal | Intercept 409 errors in InvoiceDetailModal and present `<ConflictResolutionModal />` | M2 | ORIGINAL_REQUEST §R2 | DONE |
-| 10 | Invoice Cache Revalidation | Invalidate/refetch `billingKeys.invoiceDetail(effectiveId)` and `billingKeys.invoices()` on conflict refresh | M2 | ORIGINAL_REQUEST §R2 | DONE |
-| 11 | Strict OCC in Disbursement Mutations | Enforce `expectedVersion: item.version` in `useApproveDisbursement`, `useRejectDisbursement`, and `useFundDisbursement` | M3 | ORIGINAL_REQUEST §R3 | DONE |
-| 12 | Disbursement Presence Avatar Mount | Mount `<PresenceAvatars domain="disbursement" roomId={id} maxAvatars={4} />` in DisbursementDetailDrawer header | M3 | ORIGINAL_REQUEST §R1 | DONE |
-| 13 | Disbursement OCC Conflict Modal | Intercept 409 errors on approve/reject/fund in DisbursementDetailDrawer and mount `<ConflictResolutionModal />` | M3 | ORIGINAL_REQUEST §R3 | DONE |
-| 14 | Disbursement Cache Revalidation | Invalidate/refetch `disbursementKeys.detail(id)` and `disbursementKeys.lists()` on conflict refresh | M3 | ORIGINAL_REQUEST §R3 | DONE |
-| 15 | Billing Presence & OCC Test Suite | Unit tests in `frontend/src/features/billing/__tests__/invoicePresenceAndOcc.test.tsx` | M4 | ORIGINAL_REQUEST §R4 | DONE |
-| 16 | Disbursements Presence & OCC Test Suite | Unit tests in `frontend/src/features/disbursements/__tests__/disbursementPresenceAndOcc.test.tsx` | M4 | ORIGINAL_REQUEST §R4 | DONE |
-| 17 | Phase Kanban Dynamic Teardown Test Suite | Enhanced unit tests in `frontend/src/features/operations/__tests__/phaseKanban.test.tsx` verifying dropdown switching | M4 | ORIGINAL_REQUEST §R4 | DONE |
+| 1 | Backend Realtime Publication Expansion | Idempotently register `operations_requests`, `notifications`, `transmittals`, `documents`, and `task_assignees` to `supabase_realtime` in migration 000061 | M1 | SPEC §4 Parcel 1 | DONE |
+| 2 | Backend Replica Identity Full | Set `REPLICA IDENTITY FULL` on `work_requests`, `tasks`, `operations_requests`, `notifications`, `disbursements`, `invoices`, `transmittals`, `documents`, `task_assignees` | M1 | SPEC §4 Parcel 1 | DONE |
+| 3 | Backend Down Migration Idempotency | Idempotent down migration safely dropping added tables from `supabase_realtime` publication | M1 | SPEC §4 Parcel 1 | DONE |
+| 4 | Backend Migration Unit Tests | Author comprehensive migration unit test suite for migration 000061 matching `migrations_realtime.spec.js` | M1 | Backend Test Harness | DONE |
+| 5 | Dual-Case Normalization Engine | Implement `normalizeCdcTask`, `normalizeCdcWorkRequest`, `normalizeCdcOperationsRequest`, `normalizeCdcNotification`, `normalizeCdcPayload` producing dual camelCase & snake_case properties | M2 | SPEC §4 Parcel 2 | DONE |
+| 6 | Accurate Soft-Delete Eviction | Detect `deleted_at != null || deletedAt != null` as `isDelete = true`, evicting detail cache, filtering list queries, and purging from phase containers | M2 | SPEC §4 Parcel 2 | DONE |
+| 7 | Scoped Task List Query Matcher | Enforce `isTaskListOfTargetWr` so `targetWrId` task mutations do not contaminate sibling WR list caches under `listRootKey` | M2 | SPEC §4 Parcel 2 | DONE |
+| 8 | Task Mutation Query Co-Invalidations | Patch `tasks` and `taskDetail`, invalidate `operationsKeys.workRequestDetail(targetWrId)`, `operationsKeys.workRequestCounts(activeEntity)`, and `operationsKeys.taskRelated(id)` | M2 | SPEC §4 Parcel 2 | DONE |
+| 9 | Cross-Domain Co-Invalidations | `invoices`, `disbursements`, `transmittals`, `documents` invalidate `operationsKeys.taskRelated(taskId)`; `operations_requests` invalidates `requests()`, `requestCounts()`, and `workRequestDetail(wrId)`; `task_assignees` invalidates task queries | M2 | SPEC §4 Parcel 2 | DONE |
+| 10 | User-Scoped Realtime Notification Hook | Implement `useNotificationRealtimeSync` hook subscribing to `notifications` filtered by `user_id=eq.${user.id}` | M3 | SPEC §4 Parcel 3 | DONE |
+| 11 | Immediate Unread Counter Store Mutation | Increment `unreadCount` in `useSessionStore` and prepend incoming notification to `dashboardKeys.notifications.all` on INSERT | M3 | SPEC §4 Parcel 3 | DONE |
+| 12 | Notification Bell Panel Live Mount | Mount `useNotificationRealtimeSync` in `NotificationBellPanel.tsx` ensuring instant badge counter increments | M3 | SPEC §4 Parcel 3 | DONE |
+| 13 | Operations Requests Real-Time Subscription | Mount `useEntityRealtimeSync({ table: 'operations_requests' })` in `frontend/src/routes/operations.tsx` | M4 | SPEC §4 Parcel 4 | DONE |
+| 14 | Reactive Approvals Inbox & Tab Badge | Ensure pending approvals inbox and `pendingCount` tab badges reactively update on request creation, approval, and rejection | M4 | SPEC §4 Parcel 4 | DONE |
+| 15 | Kanban Reactive Task Selection Synchronization | Synchronize `selectedTask` with live TanStack tasks query cache in `PhaseKanbanBoard.tsx` when task attributes change | M5 | SPEC §4 Parcel 5 | DONE |
+| 16 | Soft-Deleted Task Filtering in Kanban Board | Exclude soft-deleted tasks (`!t.deletedAt && !t.deleted_at`) from `activeTasks` gate calculations and phase column views | M5 | SPEC §4 Parcel 5 | DONE |
+| 17 | Task Detail Modal Live Query Binding | Bind `TaskDetailModal.tsx` to `useTaskDetail(task?.workRequestId, task?.id)` falling back to prop `currentTask = liveTask || task` | M5 | SPEC §4 Parcel 5 | DONE |
+| 18 | Modal Close Linked Entity Invalidation | Invalidate `operationsKeys.taskRelated(task.id)` on closure of Invoice, Disbursement, Transmittal, and Document child modals | M5 | SPEC §4 Parcel 5 | DONE |
+| 19 | Dual-Track E2E Test Suite & Adversarial Hardening | Comprehensive test coverage across all tiers, 100% pass on backend (48/48 suites) and frontend (`realtime`, `operations`, `dashboard`), clean typecheck, adversarial stress testing | M6 | SPEC §5 Verification | PLANNED |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Foundation & Presence Core | `PresenceAvatars.tsx`, `PhaseKanbanBoard.tsx`, `DocumentViewerModal.tsx`, `WorkRequestSidePeek.tsx` | none | DONE |
-| M2 | Billing Presence & OCC Guard | `frontend/src/features/billing/api/useBillingMutations.ts`, `frontend/src/features/billing/components/InvoiceDetailModal.tsx` | M1 | DONE |
-| M3 | Disbursements Presence & OCC Guard | `frontend/src/features/disbursements/api/useDisbursements.ts`, `frontend/src/features/disbursements/components/DisbursementDetailDrawer.tsx` | M1 | DONE |
-| M4 | E2E & Unit Test Suites | `invoicePresenceAndOcc.test.tsx`, `disbursementPresenceAndOcc.test.tsx`, `phaseKanban.test.tsx`, `TEST_INFRA.md`, `TEST_READY.md` | M1, M2, M3 | DONE |
-| M5 | Final Verification & Forensic Audit | Full test suite execution (1,376 tests, 100% pass), typecheck (0 errors), build (clean), Reviewers (APPROVE), Challengers (APPROVE), Forensic Auditor (CLEAN) | M4 | DONE |
+| M1 | Backend Realtime Publication & Replica Identity | `backend/migrations/000061_enable_collaborative_realtime_publication.js`, unit test in `backend/tests/unit/` | none | DONE |
+| M2 | Frontend Core CDC Reconciler Overhaul | `frontend/src/lib/realtime/useEntityRealtimeSync.ts`, unit tests in `frontend/src/lib/realtime/` | none | DONE |
+| M3 | Real-Time Notifications Engine | `frontend/src/features/dashboard/api/useNotifications.ts`, `frontend/src/features/dashboard/components/NotificationBellPanel.tsx` | M2 | DONE |
+| M4 | Real-Time Operations Requests | `frontend/src/routes/operations.tsx`, `frontend/src/features/operations/components/PendingApprovalsInbox.tsx` | M2 | DONE |
+| M5 | Kanban & Task Detail Modal Reactive Binding | `frontend/src/features/operations/components/PhaseKanbanBoard.tsx`, `frontend/src/features/operations/components/TaskDetailModal.tsx` | M2 | DONE |
+| M6 | E2E Test Suite Verification & Adversarial Hardening | Full backend test suite (48/48 suites), frontend test suites (`realtime`, `operations`, `dashboard`), type checks, adversarial test coverage | M1, M2, M3, M4, M5 | IN_PROGRESS |
 
 ## Interface Contracts
-### Presence Channel Contract
-- Room ID format: `presence:${domain}:${cleanRoomId}`
-- If `cleanRoomId.startsWith('presence:')`, use `cleanRoomId` directly.
-- Default domain: `'work_request'`
-- Supported domains: `'work_request' | 'invoice' | 'disbursement' | 'document' | string`
-- User presence payload: `{ id, name, email, role, avatarUrl, onlineAt }`
 
-### Conflict Resolution Contract
-- Error detection: `isConcurrencyConflictError(err)` returns true for `status === 409 || code === 'CONCURRENCY_CONFLICT' || code === 'ERR_CONCURRENCY_CONFLICT'`
-- Modal properties: `<ConflictResolutionModal isOpen={...} onClose={...} error={...} entityTitle={...} entityType={...} expectedVersion={...} onRefreshAndKeepLatest={...} />`
-- Refetch invalidation:
-  - Billing: `billingKeys.invoiceDetail(effectiveId)` and `billingKeys.invoices()`
-  - Disbursements: `disbursementKeys.detail(id)` and `disbursementKeys.lists()`
+### 1. Backend Realtime Publication Contract
+- Publication name: `supabase_realtime`
+- Newly registered tables: `operations_requests`, `notifications`, `transmittals`, `documents`, `task_assignees`
+- Replica Identity: `FULL` on `work_requests`, `tasks`, `operations_requests`, `notifications`, `disbursements`, `invoices`, `transmittals`, `documents`, `task_assignees`
+- Migration file: `backend/migrations/000061_enable_collaborative_realtime_publication.js`
+
+### 2. Normalization Dictionary Contract
+- `normalizeCdcTask(record)`:
+  - Produces dual keys: `workRequestId` & `work_request_id`, `qaStatus` & `qa_status`, `dueDate` & `due_date`, `displayOrder` & `display_order`, `assigneeId` & `assignee_id`, `assigneeName` & `assignee_name`, `requiredLinkType` & `required_link_type`, `phaseEnteredAt` & `phase_entered_at`, `assignedBy` & `assigned_by`, `assignedAt` & `assigned_at`, `deletedAt` & `deleted_at`.
+- `normalizeCdcWorkRequest(record)`:
+  - Produces dual keys: `workRequestNo` & `work_request_no`, `clientId` & `client_id`, `clientName` & `client_name`, `onHold` & `on_hold`, `phaseEnteredAt` & `phase_entered_at`, `requestedBy` & `requested_by`, `assignedTo` & `assigned_to`, `coAssignees` & `co_assignees`, `dueDate` & `due_date`, `deletedAt` & `deleted_at`.
+- `normalizeCdcOperationsRequest(record)`:
+  - Normalizes `request_type` -> `type` & `request_type`, `work_request_id` -> `workRequestId` & `work_request_id`, `linked_task_id` -> `linkedTaskId` & `linked_task_id`, `client_id` -> `clientId` & `client_id`, `rejection_reason` -> `rejectionReason` & `rejection_reason`.
+- `normalizeCdcNotification(record)`:
+  - Normalizes `user_id` -> `userId` & `user_id`, `read_at` -> `readAt` & `read_at`, `created_at` -> `createdAt` & `created_at`.
+
+### 3. Soft-Delete Contract
+- `isSoftDeleted`: `Boolean(incomingRecord.deleted_at) || Boolean(incomingRecord.deletedAt)`
+- `isDelete`: `eventType === 'DELETE' || isSoftDeleted || (eventType !== 'UPDATE' && !payloadObj.new && Boolean(payloadObj.old))`
+- When `isDelete === true`:
+  - Detail query cache: set to `null` or remove
+  - List queries: filter out `item.id !== id`
+  - Parent WorkRequest phase containers: call `patchTaskInPhases(wr, id, undefined)`
+
+### 4. Query Scope & Co-Invalidation Contract
+- Task query targeting: `isTaskListOfTargetWr` checks `Array.isArray(qKey) && qKey.includes('tasks') && qKey.includes(targetWrId)`.
+- Task mutations co-invalidate:
+  - `operationsKeys.workRequestDetail(targetWrId)`
+  - `operationsKeys.workRequestCounts(activeEntity)`
+  - `operationsKeys.taskRelated(id)`
+- Linked entity co-invalidations:
+  - Invoices / Disbursements with `task_id` -> `operationsKeys.taskRelated(taskId)`
+  - Transmittals / Documents with `linked_task_id` -> `operationsKeys.taskRelated(taskId)`
+  - Operations requests -> `operationsKeys.requests()`, `operationsKeys.requestCounts(activeEntity)`, and `operationsKeys.workRequestDetail(workRequestId)`
+
+### 5. Notification Real-Time Contract
+- Channel: `useEntityRealtimeSync<RawNotificationItemApi>` on table `'notifications'`
+- Filter: `user_id=eq.${user.id}`
+- Root Key: `dashboardKeys.notifications.all`
+- On INSERT: Immediately increment `unreadCount` in `useSessionStore` and prepend to notifications list.
 
 ## Code Layout
-- Common Components:
-  - `frontend/src/components/common/PresenceAvatars.tsx`: Universal presence avatar stack
-  - `frontend/src/components/common/ConflictResolutionModal.tsx`: Shared OCC conflict modal
-- Operations Domain:
-  - `frontend/src/features/operations/components/PhaseKanbanBoard.tsx`: Board toolbar presence & dropdown switcher
-  - `frontend/src/features/operations/components/WorkRequestSidePeek.tsx`: Side peek drawer presence
-  - `frontend/src/features/operations/__tests__/phaseKanban.test.tsx`: Kanban presence tests
-- Billing Domain:
-  - `frontend/src/features/billing/api/useBillingMutations.ts`: OCC version parameter handling
-  - `frontend/src/features/billing/components/InvoiceDetailModal.tsx`: Presence mounting & OCC conflict handling
-  - `frontend/src/features/billing/__tests__/invoicePresenceAndOcc.test.tsx`: Billing presence & OCC tests
-- Disbursements Domain:
-  - `frontend/src/features/disbursements/api/useDisbursements.ts`: Disbursement mutation hooks OCC version handling
-  - `frontend/src/features/disbursements/components/DisbursementDetailDrawer.tsx`: Presence mounting & OCC conflict handling
-  - `frontend/src/features/disbursements/__tests__/disbursementPresenceAndOcc.test.tsx`: Disbursement presence & OCC tests
-- Documents Domain:
-  - `frontend/src/features/documents/components/DocumentViewerModal.tsx`: DMS presence mounting
+- Secondary Backend Workspace: `/home/javvii/FreelanceProject/Project4_Final-Render` (branch: `staging`)
+  - `backend/migrations/000061_enable_collaborative_realtime_publication.js`: Publication & replica identity migration
+  - `backend/tests/unit/migrations_realtime_collaborative.spec.js`: Migration 000061 unit tests
+- Primary Frontend Workspace: `/home/javvii/FreelanceProject/ata-lta-erp-v2` (branch: `enterprise-v2`)
+  - `frontend/src/lib/realtime/useEntityRealtimeSync.ts`: Core CDC reconciler, normalizers, soft delete, invalidations
+  - `frontend/src/features/dashboard/api/useNotifications.ts`: `useNotificationRealtimeSync` hook
+  - `frontend/src/features/dashboard/components/NotificationBellPanel.tsx`: Live notification listener mount
+  - `frontend/src/routes/operations.tsx`: Operations requests CDC listener mount
+  - `frontend/src/features/operations/components/PendingApprovalsInbox.tsx`: Reactive approvals inbox
+  - `frontend/src/features/operations/components/PhaseKanbanBoard.tsx`: Reactive task synchronization & soft delete filter
+  - `frontend/src/features/operations/components/TaskDetailModal.tsx`: Live `useTaskDetail` binding & modal close invalidation

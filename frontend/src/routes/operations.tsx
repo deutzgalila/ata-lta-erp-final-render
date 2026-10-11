@@ -61,15 +61,32 @@ export default function OperationsPage() {
   const activeEntity = useSessionStore((state) => state.activeEntity);
   const setActiveEntity = useSessionStore((state) => state.setActiveEntity);
 
-  // Top-level CDC Subscriptions across all Operations views (List & Board)
-  useEntityRealtimeSync({ table: 'work_requests' });
-  useEntityRealtimeSync({ table: 'tasks' });
-
   // Permission Checks
   const canViewModule = hasPermission(permissions, 'workflow:view');
   const canEdit = hasPermission(permissions, 'workflow:edit');
   const canUseRetainers = hasPermission(permissions, 'retainers:use');
   const canEditRetainers = hasPermission(permissions, 'retainers:edit') || user?.role === 'Admin';
+
+  // Top-level CDC Subscriptions across all Operations views (List & Board)
+  useEntityRealtimeSync({
+    table: 'work_requests',
+    listRootKey: operationsKeys.workRequests(),
+    activeEntity,
+    enabled: canViewModule,
+  });
+  useEntityRealtimeSync({
+    table: 'tasks',
+    listRootKey: operationsKeys.workRequests(),
+    activeEntity,
+    enabled: canViewModule,
+  });
+  useEntityRealtimeSync({
+    table: 'operations_requests',
+    listRootKey: operationsKeys.requests(),
+    detailQueryKey: (id) => operationsKeys.requestDetail(id),
+    activeEntity,
+    enabled: canViewModule,
+  });
 
   // Badge Counts Queries
   const { data: requestCounts } = useOperationsRequestCounts();

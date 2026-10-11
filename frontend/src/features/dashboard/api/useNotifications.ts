@@ -23,6 +23,7 @@ import type {
   NotificationPayload,
 } from './types';
 import { rawNotificationListApiResponseSchema } from './schemas';
+import { useEntityRealtimeSync } from '@/lib/realtime/useEntityRealtimeSync';
 
 // ============================================================================
 // 1. Transformer
@@ -90,9 +91,25 @@ export function useNotifications(params?: { limit?: number; cursor?: string }) {
       };
     },
     staleTime: 30 * 1000,
-    refetchInterval: 30 * 1000,
+    refetchInterval: 60 * 1000, // Fallback polling alongside Supabase Realtime CDC
     // Instant feel: poll refetches keep the previous page rendered.
     placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * Live Supabase Realtime CDC subscription for authenticated user's notifications.
+ * Automatically synchronizes incoming notifications and unread badge count in real-time.
+ */
+export function useNotificationRealtimeSync() {
+  const user = useSessionStore((state) => state.user);
+
+  useEntityRealtimeSync<RawNotificationItemApi>({
+    table: 'notifications',
+    filter: user?.id ? `user_id=eq.${user.id}` : undefined,
+    enabled: Boolean(user?.id),
+    listRootKey: dashboardKeys.notifications.all,
+    detailQueryKey: (id) => dashboardKeys.notifications.detail(id),
   });
 }
 

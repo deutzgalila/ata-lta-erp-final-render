@@ -32,6 +32,7 @@ import { operationsKeys } from '../api/queryKeys';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
 import { isUserAdmin } from '../lib/taskScope';
+import { useEntityRealtimeSync } from '@/lib/realtime';
 import type { Phase, OperationsRequest } from '../api/types';
 
 export interface PendingApprovalsInboxProps {
@@ -54,6 +55,14 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
 
   const canApprove = hasPermission(permissions, 'workflow:phase_transition');
   const canRequest = hasPermission(permissions, 'workflow:transition_request');
+
+  // Real-time CDC subscription for operations requests
+  useEntityRealtimeSync({
+    table: 'operations_requests',
+    listRootKey: operationsKeys.requests(),
+    detailQueryKey: (id) => operationsKeys.requestDetail(id),
+    activeEntity,
+  });
 
   // Queries
   const { data: rawRequests, isLoading, isError, refetch } = useOperationsRequests({
@@ -140,7 +149,12 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
 
     const fromPhase = selectedRequest.from_phase || (selectedRequest as unknown as { fromPhase?: Phase })?.fromPhase;
     const tasks = wrDetail.tasks || [];
-    const activeTasks = tasks.filter((t) => t.status !== 'Cancelled');
+    const activeTasks = tasks.filter(
+      (t) =>
+        t.status !== 'Cancelled' &&
+        !(t as unknown as { deletedAt?: string | null; deleted_at?: string | null }).deletedAt &&
+        !(t as unknown as { deletedAt?: string | null; deleted_at?: string | null }).deleted_at
+    );
 
     if (fromPhase === 'pre_processing') {
       const preTasks = activeTasks.filter((t) => t.phase === 'pre_processing');
@@ -164,7 +178,11 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
       };
     } else if (fromPhase === 'quality_assurance') {
       const incomplete = activeTasks.filter((t) => t.status !== 'Completed');
-      const unpassed = activeTasks.filter((t) => t.qaStatus !== 'passed');
+      const unpassed = activeTasks.filter(
+        (t) =>
+          t.qaStatus !== 'passed' &&
+          (t as unknown as { qa_status?: string }).qa_status !== 'passed'
+      );
       const blockers = [...new Set([...incomplete, ...unpassed])];
       return {
         passed: blockers.length === 0,

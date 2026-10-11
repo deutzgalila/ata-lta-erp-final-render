@@ -17,12 +17,14 @@ import { Badge } from '@/components/ui/badge';
 import { useSessionStore } from '@/lib/session';
 import {
   useNotifications,
+  useNotificationRealtimeSync,
   useMarkNotificationRead,
   useMarkAllNotificationsRead,
 } from '../api/useNotifications';
 import type { NotificationItem, NotificationType } from '../api/types';
 
 export function NotificationBellPanel() {
+  useNotificationRealtimeSync();
   const [isOpen, setIsOpen] = useState(false);
   const [filterUnreadOnly, setFilterUnreadOnly] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
