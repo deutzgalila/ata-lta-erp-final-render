@@ -1497,10 +1497,9 @@ const updateWorkRequest = async ({ id, entityId, data, user }) => {
   // OCC (Spec 2.2 / R-10): version-guard the update when the client declares
   // the version it read; zero matching rows means a concurrent edit landed
   // first and is reported as 409 instead of being silently overwritten.
+  // Always bump work request version on update so CDC consumers receive monotonically increasing versions.
   const expectedVersion = resolveExpectedVersion(data);
-  if (expectedVersion !== null) {
-    updates.version = (existing.version || 1) + 1;
-  }
+  updates.version = (existing.version || 1) + 1;
 
   let query = supabaseAdmin
     .from('work_requests')
@@ -2230,10 +2229,9 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user }
 
   // OCC (Spec 2.2 / R-10): version-guard the update when the client declares
   // the version it read; zero matching rows become a 409 conflict.
+  // Always bump task version on update so CDC consumers receive monotonically increasing versions.
   const expectedVersion = resolveExpectedVersion(data);
-  if (expectedVersion !== null) {
-    updates.version = (existing.version || 1) + 1;
-  }
+  updates.version = (existing.version || 1) + 1;
 
   // B2.5: Immediately prior to writing task completion, re-verify prerequisite tasks remain in Completed status
   if (targetStatus === 'Completed' && validPredIds.length > 0) {
@@ -3458,6 +3456,7 @@ const qaReviewWorkRequest = async ({ id, entityId, results, user }) => {
       .from('tasks')
       .update({
         qa_status: qaStatus,
+        version: (task.version || 1) + 1,
         updated_at: now,
       })
       .eq('id', taskId);
@@ -3556,6 +3555,7 @@ const rerouteWorkRequest = async ({ id, entityId, toPhase, reason, user }) => {
       .update({
         status: 'In Progress',
         qa_status: 'none',
+        version: (failedTask.version || 1) + 1,
         updated_at: now,
       })
       .eq('id', failedTask.id);
@@ -3576,6 +3576,7 @@ const rerouteWorkRequest = async ({ id, entityId, toPhase, reason, user }) => {
       phase: toPhase,
       phase_entered_at: now,
       status: newStatus,
+      version: (existing.version || 1) + 1,
       updated_at: now,
     })
     .eq('id', id);
