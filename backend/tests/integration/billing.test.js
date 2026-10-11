@@ -742,4 +742,88 @@ describe('/v1/invoices', () => {
 
     expect(updateRes.body.data.linked_transmittal_id).toBe(TRANSMITTAL_ID_2);
   });
+
+  it('Task A.4: expands invoice view scoping for Work Request managers to see linked draft invoices', async () => {
+    const admin = registerUser({
+      email: 'admin-wr-inv@ata-lta.ph',
+      name: 'Admin WR Inv',
+      role: 'Admin',
+      entities: ['ATA'],
+    });
+
+    const WR_MGR_ID = '99999999-1111-2222-3333-444444444444';
+    const wrManagerToken = registerUser({
+      id: WR_MGR_ID,
+      email: 'wr-manager@ata-lta.ph',
+      name: 'WR Manager',
+      role: 'Operations',
+      entities: ['ATA'],
+    });
+
+    const otherOpsToken = registerUser({
+      id: '88888888-1111-2222-3333-444444444444',
+      email: 'other-ops@ata-lta.ph',
+      name: 'Other Ops',
+      role: 'Operations',
+      entities: ['ATA'],
+    });
+
+    const WR_MANAGED_ID = '77777777-1111-2222-3333-444444444444';
+    mockTables.work_requests.set(WR_MANAGED_ID, {
+      id: WR_MANAGED_ID,
+      entity_id: 'ent-ata',
+      client_id: CLIENT_ID,
+      title: 'Managed Work Request',
+      status: 'In Progress',
+      assigned_to: WR_MGR_ID,
+      deleted_at: null,
+    });
+
+    // Create Draft invoice linked to WR_MANAGED_ID
+    const draftRes = await request(app)
+      .post('/v1/invoices')
+      .set('Authorization', `Bearer ${admin}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({
+        ...validInvoice,
+        invoiceNumber: 'ATA-SI-2026-MGR-DRAFT',
+        workRequestId: WR_MANAGED_ID,
+        status: 'Draft',
+      })
+      .expect(201);
+
+    // 1. WR Manager lists invoices -> CAN see the draft invoice linked to their work request
+    const mgrList = await request(app)
+      .get('/v1/invoices')
+      .set('Authorization', `Bearer ${wrManagerToken}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+
+    expect(mgrList.body.data.some((i) => i.invoice_number === 'ATA-SI-2026-MGR-DRAFT')).toBe(true);
+
+    // 2. WR Manager can fetch the draft invoice directly
+    const mgrGet = await request(app)
+      .get(`/v1/invoices/${draftRes.body.data.id}`)
+      .set('Authorization', `Bearer ${wrManagerToken}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+
+    expect(mgrGet.body.data.id).toBe(draftRes.body.data.id);
+
+    // 3. Other ops user cannot see this draft invoice in list
+    const otherList = await request(app)
+      .get('/v1/invoices')
+      .set('Authorization', `Bearer ${otherOpsToken}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+
+    expect(otherList.body.data.some((i) => i.invoice_number === 'ATA-SI-2026-MGR-DRAFT')).toBe(false);
+
+    // 4. Other ops user receives 403 on direct fetch
+    await request(app)
+      .get(`/v1/invoices/${draftRes.body.data.id}`)
+      .set('Authorization', `Bearer ${otherOpsToken}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(403);
+  });
 });

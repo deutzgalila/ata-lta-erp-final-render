@@ -129,7 +129,7 @@ const createDocument = async ({ entityId, entityCode, userId, data }) => {
   if (data.linkedTaskId) {
     const { data: task, error: taskError } = await supabaseAdmin
       .from('tasks')
-      .select('id, work_request_id')
+      .select('id, work_request_id, assignee_id')
       .eq('id', data.linkedTaskId)
       .single();
 
@@ -147,6 +147,32 @@ const createDocument = async ({ entityId, entityCode, userId, data }) => {
         title: 'Validation Error',
         detail: `Linked task ${data.linkedTaskId} does not belong to work request ${data.workRequestId}`,
       });
+    }
+
+    // Role check: Admin bypasses
+    const { data: uploader } = await supabaseAdmin
+      .from('users')
+      .select('role')
+      .eq('id', userId)
+      .single();
+
+    if (uploader?.role !== 'Admin') {
+      // Check if user is task assignee or task_assignees member
+      const { data: taRows } = await supabaseAdmin
+        .from('task_assignees')
+        .select('id')
+        .eq('task_id', data.linkedTaskId)
+        .eq('user_id', userId);
+
+      const isAssigned = task.assignee_id === userId || (taRows && taRows.length > 0);
+      if (!isAssigned) {
+        throw new AppError({
+          statusCode: 403,
+          title: 'Forbidden',
+          detail: 'You are not assigned to this task and cannot attach documents to it.',
+          code: 'FORBIDDEN_TASK_ATTACHMENT',
+        });
+      }
     }
   }
 

@@ -138,7 +138,7 @@ const formatDateManila = (dateVal) => {
 
 const toApiTask = (
   row,
-  { checklist = [], timeLogs = [], taskDocuments = [], assignees = [], taskAssignees = [] } = {}
+  { checklist = [], timeLogs = [], taskDocuments = [], assignees = [], taskAssignees = [], predMap = new Map() } = {}
 ) => {
   const taskLevelLogs = timeLogs.filter((t) => !t.checklist_item_id);
 
@@ -168,6 +168,14 @@ const toApiTask = (
     taskAssignees: taskAssignees,
     task_assignees: taskAssignees,
     predecessors: row.predecessors || [],
+    predecessorDetails: (row.predecessors || []).map((pId) => {
+      const p = predMap?.get ? predMap.get(pId) : null;
+      return {
+        id: pId,
+        title: p ? p.title : pId.slice(0, 8),
+        status: p ? p.status : 'Unknown',
+      };
+    }),
     dueDate: row.due_date || null,
     requiredLinkType: row.required_link_type || null,
     displayOrder: row.display_order,
@@ -287,24 +295,59 @@ const loadTasksForWorkRequests = async (wrIds) => {
   return tasks;
 };
 
-const loadTaskExtras = async (taskIds) => {
+const loadTaskExtras = async (taskIds, knownPredIds = null) => {
   const checklist = new Map();
   const timeLogs = new Map();
   const taskDocuments = new Map();
   const assignees = new Map();
   const taskAssignees = new Map();
-  if (!taskIds.length) return { checklist, timeLogs, taskDocuments, assignees, taskAssignees };
-  const [{ data: clRows }, { data: tlRows }, { data: docRows }, { data: taRows }] =
-    await Promise.all([
-      supabaseAdmin.from('task_checklists').select('*').in('task_id', taskIds),
-      supabaseAdmin.from('task_time_logs').select('*').in('task_id', taskIds),
-      supabaseAdmin
-        .from('documents')
-        .select('*')
-        .in('linked_task_id', taskIds)
-        .is('deleted_at', null),
-      supabaseAdmin.from('task_assignees').select('*').in('task_id', taskIds),
-    ]);
+  const predMap = new Map();
+  if (!taskIds.length) return { checklist, timeLogs, taskDocuments, assignees, taskAssignees, predMap };
+
+  const queries = [
+    supabaseAdmin.from('task_checklists').select('*').in('task_id', taskIds),
+    supabaseAdmin.from('task_time_logs').select('*').in('task_id', taskIds),
+    supabaseAdmin
+      .from('documents')
+      .select('*')
+      .in('linked_task_id', taskIds)
+      .is('deleted_at', null),
+    supabaseAdmin.from('task_assignees').select('*').in('task_id', taskIds),
+  ];
+
+  if (!knownPredIds) {
+    queries.push(supabaseAdmin.from('tasks').select('id, predecessors').in('id', taskIds));
+  }
+
+  const results = await Promise.all(queries);
+  const clRows = results[0].data;
+  const tlRows = results[1].data;
+  const docRows = results[2].data;
+  const taRows = results[3].data;
+  const taskRows = knownPredIds ? null : results[4]?.data;
+
+  const allPredIds = new Set();
+  if (knownPredIds) {
+    const list = Array.isArray(knownPredIds) ? knownPredIds : [knownPredIds];
+    list.filter(isValidUUID).forEach((pId) => allPredIds.add(pId));
+  } else {
+    (taskRows || []).forEach((t) => {
+      if (Array.isArray(t.predecessors)) {
+        t.predecessors.forEach((pId) => {
+          if (pId && isValidUUID(pId)) allPredIds.add(pId);
+        });
+      }
+    });
+  }
+
+  if (allPredIds.size > 0) {
+    const { data: predTasks } = await supabaseAdmin
+      .from('tasks')
+      .select('id, title, status')
+      .in('id', Array.from(allPredIds))
+      .is('deleted_at', null);
+    (predTasks || []).forEach((p) => predMap.set(p.id, p));
+  }
 
   const checklistRows = clRows || [];
   const missingClAssigneeIds = new Set();
@@ -357,7 +400,7 @@ const loadTaskExtras = async (taskIds) => {
       assigned_at: r.assigned_at || null,
     });
   });
-  return { checklist, timeLogs, taskDocuments, assignees, taskAssignees };
+  return { checklist, timeLogs, taskDocuments, assignees, taskAssignees, predMap };
 };
 
 const canViewWorkRequest = (wr, user, taskMap) => {
@@ -505,6 +548,7 @@ const listWorkRequests = async ({
           taskDocuments: extras.taskDocuments.get(t.id) || [],
           assignees: extras.assignees ? extras.assignees.get(t.id) || [] : [],
           taskAssignees: extras.taskAssignees ? extras.taskAssignees.get(t.id) || [] : [],
+          predMap: extras.predMap || new Map(),
         })
       );
       wr.phases = {
@@ -1364,6 +1408,7 @@ const getWorkRequestById = async ({ id, entityId, user, includeTasks = false }) 
         taskDocuments: extras.taskDocuments.get(t.id) || [],
         assignees: extras.assignees ? extras.assignees.get(t.id) || [] : [],
         taskAssignees: extras.taskAssignees ? extras.taskAssignees.get(t.id) || [] : [],
+        predMap: extras.predMap || new Map(),
       })
     );
     wr.phases = {
@@ -1604,7 +1649,15 @@ const listTasks = async ({ workRequestId, entityId: _entityId }) => {
 
   const taskRows = await resolveTasksAssigneeNames(data || []);
   const taskIds = taskRows.map((t) => t.id);
-  const extras = await loadTaskExtras(taskIds);
+  const allPredIds = [];
+  taskRows.forEach((t) => {
+    if (Array.isArray(t.predecessors)) {
+      t.predecessors.forEach((pId) => {
+        if (pId && isValidUUID(pId)) allPredIds.push(pId);
+      });
+    }
+  });
+  const extras = await loadTaskExtras(taskIds, allPredIds);
   return taskRows.map((t) =>
     toApiTask(t, {
       checklist: extras.checklist.get(t.id) || [],
@@ -1612,11 +1665,12 @@ const listTasks = async ({ workRequestId, entityId: _entityId }) => {
       taskDocuments: extras.taskDocuments.get(t.id) || [],
       assignees: extras.assignees ? extras.assignees.get(t.id) || [] : [],
       taskAssignees: extras.taskAssignees ? extras.taskAssignees.get(t.id) || [] : [],
+      predMap: extras.predMap || new Map(),
     })
   );
 };
 
-const getTaskById = async ({ workRequestId, taskId, entityId: _entityId }) => {
+const getTaskById = async ({ workRequestId, taskId, entityId: _entityId, skipExtras = false }) => {
   let query = supabaseAdmin
     .from('tasks')
     .select('*')
@@ -1638,22 +1692,42 @@ const getTaskById = async ({ workRequestId, taskId, entityId: _entityId }) => {
   }
   if (!data) return null;
 
+  if (skipExtras) {
+    return toApiTask(data);
+  }
+
   if (data.assignee_id && (!data.assignee_name || isValidUUID(data.assignee_name))) {
     const resolved = await resolveAssigneeName(data.assignee_id, data.assignee_name);
     if (resolved) data.assignee_name = resolved;
   }
 
-  const extras = await loadTaskExtras([taskId]);
+  const extras = await loadTaskExtras([taskId], data.predecessors);
   return toApiTask(data, {
     checklist: extras.checklist.get(taskId) || [],
     timeLogs: extras.timeLogs.get(taskId) || [],
     taskDocuments: extras.taskDocuments.get(taskId) || [],
     assignees: extras.assignees ? extras.assignees.get(taskId) || [] : [],
     taskAssignees: extras.taskAssignees ? extras.taskAssignees.get(taskId) || [] : [],
+    predMap: extras.predMap || new Map(),
   });
 };
 
 const createTask = async ({ workRequestId, entityId, data, user: _user }) => {
+  const { data: wr } = await supabaseAdmin
+    .from('work_requests')
+    .select('phase, status')
+    .eq('id', workRequestId)
+    .maybeSingle();
+
+  if (wr?.status === 'Completed') {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'Completed Work Requests are locked: tasks cannot be added to a completed request.',
+      code: 'COMPLETED_WR_LOCKED',
+    });
+  }
+
   let phase = data.phase || null;
   if (phase && !['pre_processing', 'processing'].includes(phase)) {
     throw new AppError({
@@ -1665,11 +1739,6 @@ const createTask = async ({ workRequestId, entityId, data, user: _user }) => {
   }
 
   if (!phase) {
-    const { data: wr } = await supabaseAdmin
-      .from('work_requests')
-      .select('phase')
-      .eq('id', workRequestId)
-      .maybeSingle();
     phase = wr?.phase === 'processing' ? 'processing' : 'pre_processing';
   }
 
@@ -1993,12 +2062,32 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user }
     });
   }
 
-  const existing = await getTaskById({ workRequestId, taskId, entityId });
+  const existing = await getTaskById({ workRequestId, taskId, entityId, skipExtras: true });
   if (!existing) {
     throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Task not found' });
   }
 
   const effectiveWrId = workRequestId || existing.workRequestId || existing.work_request_id;
+
+  let parentWr = null;
+  if (effectiveWrId) {
+    const { data: wrData } = await supabaseAdmin
+      .from('work_requests')
+      .select('phase, status')
+      .eq('id', effectiveWrId)
+      .maybeSingle();
+    parentWr = wrData;
+  }
+
+  if (parentWr?.status === 'Completed') {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'Completed Work Requests are locked: tasks cannot be modified on a completed request.',
+      code: 'COMPLETED_WR_LOCKED',
+    });
+  }
+
   const isProcessingTask = existing.phase === 'processing';
   const targetStatus = data.status;
 
@@ -2041,6 +2130,15 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user }
           title: 'Conflict',
           detail: `Cannot advance processing task: ${incompletePreTasks.length} active pre-processing task(s) are incomplete: ${incompleteList}`,
           code: 'PHASE_PREREQUISITE',
+        });
+      }
+
+      if (parentWr && parentWr.phase !== 'processing' && parentWr.phase !== 'completion') {
+        throw new AppError({
+          statusCode: 409,
+          title: 'Conflict',
+          detail: `Cannot advance processing task: parent work request is currently in "${parentWr.phase || 'pre_processing'}" phase and has not been routed to Processing.`,
+          code: 'WORK_REQUEST_PHASE_NOT_ACTIVE',
         });
       }
     }
@@ -2271,10 +2369,27 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user }
 };
 
 const deleteTask = async ({ workRequestId, taskId, entityId }) => {
-  const existing = await getTaskById({ workRequestId, taskId, entityId });
+  const existing = await getTaskById({ workRequestId, taskId, entityId, skipExtras: true });
   if (!existing) return false;
 
   const effectiveWrId = workRequestId || existing.workRequestId || existing.work_request_id;
+  if (effectiveWrId) {
+    const { data: parentWr } = await supabaseAdmin
+      .from('work_requests')
+      .select('status')
+      .eq('id', effectiveWrId)
+      .maybeSingle();
+
+    if (parentWr?.status === 'Completed') {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: 'Completed Work Requests are locked: tasks cannot be deleted from a completed request.',
+        code: 'COMPLETED_WR_LOCKED',
+      });
+    }
+  }
+
   let query = supabaseAdmin
     .from('tasks')
     .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
@@ -3539,6 +3654,7 @@ module.exports = {
   createTask,
   updateTask,
   deleteTask,
+  removeTask: deleteTask,
   resolveEntityId,
   getWorkRequestRelated,
   getTaskRelated,

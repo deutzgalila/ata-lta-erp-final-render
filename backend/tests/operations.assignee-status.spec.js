@@ -237,9 +237,10 @@ describe('UAT2-9: Assignee Task Status Mutation', () => {
     expect(res.status).toBe(409);
     expect(res.body.code).toBe('PHASE_PREREQUISITE');
 
-    // Complete the pre_processing task
+    // Complete the pre_processing task and route WR to processing
     mockTables.tasks.get(TASK_PRE_ID).status = 'Completed';
     mockTables.tasks.get(TASK_LEGACY_ID).status = 'Completed';
+    mockTables.work_requests.get(WR_ID).phase = 'processing';
 
     // Now advance processing task -> 200 OK
     const res2 = await request(app)
@@ -267,13 +268,39 @@ describe('UAT2-9: Assignee Task Status Mutation', () => {
     expect(res.body.data.title).toBe('Admin Updated Title');
   });
 
-  test('11. PUT endpoint strictly rejects non-workflow:edit users (403 Forbidden)', async () => {
+  test('11. PUT endpoint rejects assignee attempting to mutate extra fields (403 Forbidden)', async () => {
     const res = await request(app)
       .put(`/v1/tasks/${TASK_PRE_ID}`)
       .set('Authorization', `Bearer ${staffToken}`)
       .set('X-Active-Entity', 'ATA')
       .send({
         title: 'Full Replacement',
+        status: 'In Progress',
+      });
+
+    expect(res.status).toBe(403);
+    expect(res.body.detail).toBe('Assignees may only update task status');
+  });
+
+  test('12. PUT endpoint allows assignee to update status only (200 OK)', async () => {
+    const res = await request(app)
+      .put(`/v1/tasks/${TASK_PRE_ID}`)
+      .set('Authorization', `Bearer ${staffToken}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({
+        status: 'In Progress',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe('In Progress');
+  });
+
+  test('13. PUT endpoint rejects non-assignee staff without workflow:edit (403 Forbidden)', async () => {
+    const res = await request(app)
+      .put(`/v1/tasks/${TASK_PRE_ID}`)
+      .set('Authorization', `Bearer ${otherStaffToken}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({
         status: 'In Progress',
       });
 

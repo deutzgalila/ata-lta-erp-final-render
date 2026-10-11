@@ -252,14 +252,18 @@ const listDisbursements = async ({ entityId, filters = {}, user }) => {
   const isAccounting =
     (user?.departments || []).includes('Accounting') || user?.role === 'Accounting';
   if (!isAdmin && !isAccounting) {
+    // Non-admin, non-accounting staff can see:
+    // 1. Released/Funded disbursements, OR
+    // 2. Any disbursement where they are the creator or employee
     if (status) {
       if (['Draft', 'Pending', 'Submitted', 'Under Review', 'Approved'].includes(status)) {
-        query = query.eq('status', '___NONE___');
+        // Only return if created by or assigned to this user
+        query = query.eq('status', status).or(`created_by.eq.${user.id},employee_id.eq.${user.id}`);
       } else {
         query = query.eq('status', status);
       }
     } else {
-      query = query.in('status', ['Released', 'Funded', 'Rejected']);
+      query = query.or(`status.in.(Released,Funded,Rejected),created_by.eq.${user.id},employee_id.eq.${user.id}`);
     }
   } else {
     if (status) query = query.eq('status', status);
@@ -488,7 +492,10 @@ const getDisbursementById = async ({ entityId, id, user }) => {
       (user.departments || []).includes('Accounting') || user.role === 'Accounting';
     const isManager =
       user.role === 'Manager' || (user.departments || []).includes('Management');
-    const isSelf = data.requested_by === user.id || data.created_by === user.id;
+    const isSelf =
+      data.requested_by === user.id ||
+      data.created_by === user.id ||
+      data.employee_id === user.id;
 
     if (!isAdmin && !isAccounting) {
       if (

@@ -356,7 +356,10 @@ describe('Adversarial Challenger Suite: PR-2 (challenger_m3)', () => {
       expect(completePreRes.status).toBe(200);
       expect(completePreRes.body.data.status).toBe('Completed');
 
-      // Now the mix is: 2 Completed, 1 Cancelled. The processing task MUST transition cleanly!
+      // Now the mix is: 2 Completed, 1 Cancelled. Advance WR to processing phase (Task A.3)
+      mockTables.work_requests.get(wr.id).phase = 'processing';
+
+      // The processing task MUST transition cleanly!
       const unblockedRes = await request(app)
         .patch(`/v1/work-requests/${wr.id}/tasks/${procTask.id}`)
         .set('Authorization', `Bearer ${adminToken}`)
@@ -543,6 +546,7 @@ describe('Adversarial Challenger Suite: PR-2 (challenger_m3)', () => {
       expect(resA.body.code).toBe('PHASE_PREREQUISITE');
 
       // WR-B proc task must succeed (200) without interference from WR-A
+      mockTables.work_requests.get(wrB.id).phase = 'processing';
       const resB = await request(app)
         .patch(`/v1/work-requests/${wrB.id}/tasks/${procTaskB.id}`)
         .set('Authorization', `Bearer ${adminToken}`)
@@ -576,7 +580,8 @@ describe('Adversarial Challenger Suite: PR-2 (challenger_m3)', () => {
         .set('X-Active-Entity', 'ATA');
       expect(delRes.status).toBe(204);
 
-      // Now processing task can advance freely because no active pre_processing tasks remain
+      // Now processing task can advance freely because no active pre_processing tasks remain (Task A.3)
+      mockTables.work_requests.get(wr.id).phase = 'processing';
       const advRes = await request(app)
         .patch(`/v1/work-requests/${wr.id}/tasks/${procTask.id}`)
         .set('Authorization', `Bearer ${adminToken}`)
