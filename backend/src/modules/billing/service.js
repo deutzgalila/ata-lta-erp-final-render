@@ -12,6 +12,7 @@ const { generatePdf } = require('../../services/pdfService');
 const auditService = require('../../services/auditService');
 const AppError = require('../../lib/AppError');
 const { resolveEntityCode } = require('../../lib/entityResolver');
+const { buildPermissionSet, hasPermission } = require('../../lib/permissions');
 
 // ============================================================
 // Invoice CRUD
@@ -368,8 +369,28 @@ const getInvoiceById = async ({ entityId, id, user }) => {
  * @param {object} params.data
  * @returns {Promise<object>}
  */
-const updateInvoice = async ({ entityId, id, userId, data }) => {
+const updateInvoice = async ({ entityId, id, userId, data, user }) => {
   const existing = await getInvoiceById({ entityId, id });
+
+  let effectiveUser = user;
+  if (!effectiveUser && userId) {
+    const { data: u } = await supabaseAdmin
+      .from('users')
+      .select('id, name, role, departments')
+      .eq('id', userId)
+      .maybeSingle();
+    effectiveUser = u;
+  }
+
+  const permissions = effectiveUser
+    ? (effectiveUser.permissions instanceof Set
+        ? effectiveUser.permissions
+        : buildPermissionSet({ role: effectiveUser.role || '', departments: effectiveUser.departments || [] }))
+    : new Set();
+  const isAdminOrBillingEditor =
+    effectiveUser?.role === 'Admin' ||
+    hasPermission(permissions, 'billing:edit') ||
+    hasPermission(permissions, 'billing:*');
 
   if (data.status !== undefined && data.status !== existing.status) {
     const targetStatus = data.status;
@@ -423,11 +444,15 @@ const updateInvoice = async ({ entityId, id, userId, data }) => {
 
     // Block direct jump from Draft to Sent/Released (without approval) or Draft/Pending directly to Paid/Partially Paid without payments
     if (currentStatus === 'Draft' && ['Sent', 'Paid', 'Partially Paid'].includes(targetStatus)) {
-      throw new AppError({
-        statusCode: 400,
-        title: 'Bad Request',
-        detail: `Cannot transition invoice directly from Draft to ${targetStatus}. Invoices must be submitted for approval first.`,
-      });
+      if (targetStatus === 'Sent' && isAdminOrBillingEditor) {
+        // Allowed: Admin or billing:edit / billing:* can transition from Draft directly to Sent
+      } else {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Bad Request',
+          detail: `Cannot transition invoice directly from Draft to ${targetStatus}. Invoices must be submitted for approval first.`,
+        });
+      }
     }
 
     if (currentStatus === 'Pending' && ['Paid', 'Partially Paid'].includes(targetStatus)) {
@@ -613,8 +638,37 @@ const updateInvoice = async ({ entityId, id, userId, data }) => {
     });
   }
 
+  if (data.status === 'Sent' && existing.status === 'Draft' && isAdminOrBillingEditor) {
+    await auditService.log({
+      action: 'billing.direct_approval',
+      table: 'invoices',
+      recordId: id,
+      entity: entityId,
+      userId,
+      details: {
+        from: 'Draft',
+        to: 'Sent',
+        note: `Directly approved and issued by Admin: ${effectiveUser?.name || userId}`,
+      },
+    });
+  }
+
   const entityCode = await resolveEntityCode(updated.entity_id);
   return { ...updated, entity_code: entityCode };
+};
+
+/**
+ * Update invoice status directly (e.g. for status transitions).
+ * @param {object} params
+ * @param {string} params.entityId
+ * @param {string} params.id
+ * @param {string} params.userId
+ * @param {string} params.status
+ * @param {object} [params.user]
+ * @returns {Promise<object>}
+ */
+const updateInvoiceStatus = async ({ entityId, id, userId, status, user }) => {
+  return updateInvoice({ entityId, id, userId, data: { status }, user });
 };
 
 /**
@@ -1359,4 +1413,5 @@ module.exports = {
   createTemplate,
   updateTemplate,
   deleteTemplate,
+  updateInvoiceStatus,
 };

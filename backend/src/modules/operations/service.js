@@ -325,7 +325,12 @@ const loadTaskExtras = async (taskIds, knownPredIds = null) => {
   if (!taskIds.length) return { checklist, timeLogs, taskDocuments, assignees, taskAssignees, predMap };
 
   const queries = [
-    supabaseAdmin.from('task_checklists').select('*').in('task_id', taskIds),
+    supabaseAdmin
+      .from('task_checklists')
+      .select('*')
+      .in('task_id', taskIds)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true }),
     supabaseAdmin.from('task_time_logs').select('*').in('task_id', taskIds),
     supabaseAdmin
       .from('documents')
@@ -408,7 +413,13 @@ const loadTaskExtras = async (taskIds, knownPredIds = null) => {
     });
   }
 
-  checklistRows.forEach((r) => {
+  const sortedChecklistRows = [...checklistRows].sort((a, b) => {
+    const sortA = a.sort_order ?? 0;
+    const sortB = b.sort_order ?? 0;
+    if (sortA !== sortB) return sortA - sortB;
+    return new Date(a.created_at || 0) - new Date(b.created_at || 0);
+  });
+  sortedChecklistRows.forEach((r) => {
     if (!checklist.has(r.task_id)) checklist.set(r.task_id, []);
     checklist.get(r.task_id).push(r);
   });
@@ -836,6 +847,11 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
 
   // 2. Dependency Validation
   const knownLocalIds = new Set(expandedTasks.map((t) => t.local_id));
+  const taskPhaseMap = new Map();
+  expandedTasks.forEach((t) => {
+    taskPhaseMap.set(t.local_id, t.phase);
+    if (t.id) taskPhaseMap.set(t.id, t.phase);
+  });
 
   for (const task of expandedTasks) {
     let deps = task.depends_on;
@@ -872,6 +888,17 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
           title: 'Validation Error',
           detail: `depends_on: Task "${task.local_id}" cannot depend on itself.`,
           code: 'INVALID_DEPENDENCY',
+        });
+      }
+
+      const taskPhase = task.phase;
+      const depPhase = taskPhaseMap.get(dep);
+      if (taskPhase === 'pre_processing' && depPhase === 'processing') {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Invalid Dependency',
+          detail: `Pre-processing task "${task.title}" cannot depend on processing task "${dep}". Upstream tasks cannot depend on downstream phases.`,
+          code: 'INVALID_PHASE_DEPENDENCY',
         });
       }
     }
@@ -918,6 +945,7 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
 
   // 3. Collect and resolve all assignees
   const allAssigneeIds = new Set();
+  (data.coAssignees || []).forEach((c) => allAssigneeIds.add(c));
   expandedTasks.forEach((t) => {
     t.assignees.forEach((a) => allAssigneeIds.add(a));
   });
@@ -945,12 +973,15 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
     }
   }
 
-  // Co-assignees to mirror into work_requests.co_assignees
-  const coAssigneeNamesSet = new Set(data.coAssignees || []);
+  // Co-assignees to mirror into work_requests.co_assignees (Task B.2: strictly deduplicated UUIDs)
+  const coAssigneeIdSet = new Set(
+    (data.coAssignees || []).map((id) => (usersMap.get(id)?.id || id))
+  );
   expandedTasks.forEach((t) => {
     t.assignees.forEach((a) => {
       const u = usersMap.get(a);
-      coAssigneeNamesSet.add(u?.name || a);
+      if (u?.id) coAssigneeIdSet.add(u.id);
+      else if (a) coAssigneeIdSet.add(a);
     });
   });
 
@@ -972,7 +1003,7 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
     priority: data.priority || 'Normal',
     requested_by: data.requestedBy || user?.id || null,
     assigned_to: data.assignedTo || null,
-    co_assignees: Array.from(coAssigneeNamesSet),
+    co_assignees: Array.from(coAssigneeIdSet),
     due_date: data.dueDate || null,
     created_at: now,
     updated_at: now,
@@ -1887,6 +1918,46 @@ const createTask = async ({ workRequestId, entityId, data, user: _user }) => {
     }
   }
 
+  const declaredPreds = (
+    Array.isArray(data.predecessors)
+      ? data.predecessors
+      : data.dependsOn
+        ? Array.isArray(data.dependsOn)
+          ? data.dependsOn
+          : [data.dependsOn]
+        : data.depends_on
+          ? Array.isArray(data.depends_on)
+            ? data.depends_on
+            : [data.depends_on]
+          : []
+  ).filter(isValidUUID);
+
+  if (phase === 'pre_processing' && declaredPreds.length > 0) {
+    const { data: predPhaseTasks, error: predPhaseErr } = await supabaseAdmin
+      .from('tasks')
+      .select('id, title, phase')
+      .in('id', declaredPreds)
+      .is('deleted_at', null);
+
+    if (predPhaseErr) {
+      throw new AppError({
+        statusCode: 500,
+        title: 'Database Error',
+        detail: `Failed to verify prerequisite task phases: ${predPhaseErr.message || predPhaseErr}`,
+      });
+    }
+
+    const invalidProcessingPred = (predPhaseTasks || []).find((p) => p.phase === 'processing');
+    if (invalidProcessingPred) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Invalid Dependency',
+        detail: `Pre-processing task "${data.title}" cannot depend on processing task "${invalidProcessingPred.title || invalidProcessingPred.id}". Upstream tasks cannot depend on downstream phases.`,
+        code: 'INVALID_PHASE_DEPENDENCY',
+      });
+    }
+  }
+
   const id = data.id && isValidUUID(data.id) ? data.id : randomUUID();
   const now = new Date().toISOString();
   let assigneeName = data.assigneeName || null;
@@ -2243,11 +2314,48 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user }
     data.predecessors !== undefined
       ? Array.isArray(data.predecessors)
         ? data.predecessors
-        : []
-      : Array.isArray(existing.predecessors)
-        ? existing.predecessors
-        : [];
+        : [data.predecessors]
+      : data.dependsOn !== undefined
+        ? Array.isArray(data.dependsOn)
+          ? data.dependsOn
+          : [data.dependsOn]
+        : data.depends_on !== undefined
+          ? Array.isArray(data.depends_on)
+            ? data.depends_on
+            : [data.depends_on]
+          : Array.isArray(existing.predecessors)
+            ? existing.predecessors
+            : [];
   const validPredIds = candidatePreds.filter(isValidUUID);
+
+  // Cross-Phase Dependency Validation (Task B.3 / Defect 3):
+  // Pre-processing tasks CANNOT depend on Processing tasks.
+  // Processing tasks CAN depend on Pre-processing tasks.
+  if (existing.phase === 'pre_processing' && validPredIds.length > 0) {
+    const { data: predPhaseTasks, error: predPhaseErr } = await supabaseAdmin
+      .from('tasks')
+      .select('id, title, phase')
+      .in('id', validPredIds)
+      .is('deleted_at', null);
+
+    if (predPhaseErr) {
+      throw new AppError({
+        statusCode: 500,
+        title: 'Database Error',
+        detail: `Failed to verify prerequisite task phases: ${predPhaseErr.message || predPhaseErr}`,
+      });
+    }
+
+    const invalidProcessingPred = (predPhaseTasks || []).find((p) => p.phase === 'processing');
+    if (invalidProcessingPred) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Invalid Dependency',
+        detail: `Pre-processing task "${existing.title}" cannot depend on processing task "${invalidProcessingPred.title || invalidProcessingPred.id}". Upstream tasks cannot depend on downstream phases.`,
+        code: 'INVALID_PHASE_DEPENDENCY',
+      });
+    }
+  }
 
   if (targetStatus === 'Completed' && validPredIds.length > 0) {
     let predQuery = supabaseAdmin
