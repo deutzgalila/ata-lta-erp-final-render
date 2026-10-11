@@ -497,6 +497,10 @@ const confirmUpload = async ({ entityId, id }) => {
 const getDownloadUrl = async ({ entityId, id }) => {
   const doc = await getDocumentById({ entityId, id });
 
+  if (doc.external_url && doc.external_url.trim()) {
+    return { url: doc.external_url.trim(), fileName: doc.original_name || doc.file_name || 'document' };
+  }
+
   if (!doc.storage_path) {
     throw new AppError({
       statusCode: 404,

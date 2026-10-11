@@ -316,4 +316,144 @@ describe('/v1/documents', () => {
     expect(allowedRes.status).toBe(201);
     expect(allowedRes.body.data.document.linked_task_id).toBe(taskId);
   });
+
+  it('returns external_url when requesting download-url for external link documents', async () => {
+    const token = registerUser({
+      email: 'admin@ata-lta.ph',
+      name: 'Admin',
+      role: 'Admin',
+      entities: ['ATA'],
+    });
+
+    const created = await request(app)
+      .post('/v1/documents')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({
+        fileName: 'google-drive-contract',
+        originalName: 'Google Drive Contract.pdf',
+        externalUrl: 'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs/view?usp=sharing',
+        category: 'CONTRACT',
+      })
+      .expect(201);
+
+    const docId = created.body.data.document.id;
+
+    const res = await request(app)
+      .get(`/v1/documents/${docId}/download-url`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+
+    expect(res.body.data.url).toBe(
+      'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs/view?usp=sharing'
+    );
+    expect(res.body.data.fileName).toBe('Google Drive Contract.pdf');
+  });
+
+  it('falls back to file_name when original_name is not provided for external link documents', async () => {
+    const token = registerUser({
+      email: 'admin@ata-lta.ph',
+      name: 'Admin',
+      role: 'Admin',
+      entities: ['ATA'],
+    });
+
+    const created = await request(app)
+      .post('/v1/documents')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({
+        fileName: 'google-sheets-tracker.xlsx',
+        externalUrl: 'https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs/edit',
+        category: 'FINANCIAL',
+      })
+      .expect(201);
+
+    const docId = created.body.data.document.id;
+
+    const res = await request(app)
+      .get(`/v1/documents/${docId}/download-url`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+
+    expect(res.body.data.url).toBe(
+      'https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs/edit'
+    );
+    expect(res.body.data.fileName).toBe('google-sheets-tracker.xlsx');
+  });
+
+  it('trims whitespace on external_url when requesting download-url', async () => {
+    const token = registerUser({
+      email: 'admin@ata-lta.ph',
+      name: 'Admin',
+      role: 'Admin',
+      entities: ['ATA'],
+    });
+
+    const created = await request(app)
+      .post('/v1/documents')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({
+        fileName: 'presentation.pptx',
+        originalName: 'Company Pitch.pptx',
+        externalUrl: '  https://docs.google.com/presentation/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs/edit  ',
+        category: 'OTHER',
+      })
+      .expect(201);
+
+    const docId = created.body.data.document.id;
+
+    const res = await request(app)
+      .get(`/v1/documents/${docId}/download-url`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+
+    expect(res.body.data.url).toBe(
+      'https://docs.google.com/presentation/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs/edit'
+    );
+    expect(res.body.data.fileName).toBe('Company Pitch.pptx');
+  });
+
+  it('throws 404 if document has empty or whitespace-only external_url and no storage_path', async () => {
+    const token = registerUser({
+      email: 'admin@ata-lta.ph',
+      name: 'Admin',
+      role: 'Admin',
+      entities: ['ATA'],
+    });
+
+    const created = await request(app)
+      .post('/v1/documents')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({
+        fileName: 'contract.pdf',
+        externalUrl: 'https://example.com/contract.pdf',
+        category: 'CONTRACT',
+      })
+      .expect(201);
+
+    const docId = created.body.data.document.id;
+
+    await request(app)
+      .put(`/v1/documents/${docId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({
+        externalUrl: '   ',
+      })
+      .expect(200);
+
+    const res = await request(app)
+      .get(`/v1/documents/${docId}/download-url`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(404);
+
+    expect(res.body.detail).toBe('Document has no associated file');
+  });
 });
