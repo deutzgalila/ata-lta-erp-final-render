@@ -187,10 +187,12 @@ export function useTaskMutations(boundWorkRequestId?: string) {
   >({
     mutationFn: async ({ workRequestId = boundWorkRequestId, taskId, data }) => {
       if (!workRequestId) throw new Error('Work request ID is required');
+      const dataKeys = Object.keys(data);
+      const isStatusOnly = dataKeys.length === 1 && dataKeys[0] === 'status';
       const res = await apiRequest<{ data: Task }>(
         `/operations/work-requests/${workRequestId}/tasks/${taskId}`,
         {
-          method: 'PUT',
+          method: isStatusOnly ? 'PATCH' : 'PUT',
           body: JSON.stringify(data),
         }
       );

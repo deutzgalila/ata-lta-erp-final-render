@@ -298,7 +298,10 @@ describe('TaskDetailModal UI Scoping Integration', () => {
     let patchedData: unknown = null;
     vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input);
-      if (url.includes('/operations/work-requests/wr-scope-1/tasks/task-scope-1') && init?.method === 'PUT') {
+      if (
+        url.includes('/operations/work-requests/wr-scope-1/tasks/task-scope-1') &&
+        (init?.method === 'PUT' || init?.method === 'PATCH')
+      ) {
         patchedData = JSON.parse(String(init.body));
         return new Response(JSON.stringify({ data: { ...mockTask, status: 'Completed' } }), { status: 200 });
       }

@@ -63,6 +63,7 @@ export function CreateDisbursementModal({
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
   const [receiptFilename, setReceiptFilename] = useState('');
+  const [customCategory, setCustomCategory] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const canFetch = React.useMemo(() => {
@@ -80,6 +81,7 @@ export function CreateDisbursementModal({
   }, [isOpen]);
 
   const activeEntity = useSessionStore((state) => state.activeEntity);
+  const currentUser = useSessionStore((state) => state.user);
   const effectiveEntity = activeEntity !== 'ALL' ? activeEntity : undefined;
 
   const { data: clientsData = [] } = useQuery<ClientSummary[]>({
@@ -103,7 +105,7 @@ export function CreateDisbursementModal({
     return (clientsData as { data?: ClientSummary[] }).data ?? [];
   }, [clientsData]);
 
-  const { data: workRequestsData } = useWorkRequests({ archived: false }, { enabled: canFetch });
+  const { data: workRequestsData } = useWorkRequests({ archived: false, limit: 200 }, { enabled: canFetch });
   const workRequests: WorkRequest[] = React.useMemo(() => {
     if (!workRequestsData) return [];
     if (Array.isArray(workRequestsData)) return workRequestsData;
@@ -125,9 +127,11 @@ export function CreateDisbursementModal({
       setLinkedWorkRequestId(prefill?.workRequestId || defaultWorkRequestId || '');
       setClientId(prefill?.clientId || defaultClientId || '');
       setSelectedTaskId(prefill?.taskId || '');
+      setEmployeeId(currentUser?.id || '');
       setErrors({});
     } else {
       setCategory(DISBURSEMENT_CATEGORIES[0]);
+      setCustomCategory('');
       setDescription('');
       setAmount('');
       setFundSource('Firm Fund');
@@ -216,7 +220,8 @@ export function CreateDisbursementModal({
 
     if (employeeId.trim()) {
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (!uuidRegex.test(employeeId.trim())) {
+      const isCurrentUser = Boolean(currentUser?.id && employeeId.trim() === currentUser.id);
+      if (!isCurrentUser && !uuidRegex.test(employeeId.trim())) {
         newErrors.employeeId = 'Invalid Employee UUID format';
       }
     }
@@ -227,6 +232,7 @@ export function CreateDisbursementModal({
 
   const resetForm = () => {
     setCategory(DISBURSEMENT_CATEGORIES[0]);
+    setCustomCategory('');
     setDescription('');
     setAmount('');
     setFundSource('Firm Fund');
@@ -245,15 +251,18 @@ export function CreateDisbursementModal({
     if (!validate()) return;
 
     // Status Anti-Forgery: Notice that `status` is NEVER defined in payload!
+    const effectiveCategory = category === 'Other' && customCategory.trim() ? customCategory.trim() : category;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const validEmployeeId = employeeId.trim() && uuidRegex.test(employeeId.trim()) ? employeeId.trim() : null;
     const payload: CreateDisbursementInput = {
-      category,
+      category: effectiveCategory,
       description: description.trim(),
       amount: parseFloat(amount),
       fundSource,
       linkedWorkRequestId: linkedWorkRequestId.trim(),
       clientId: clientId ? clientId.trim() : null,
       linkedTaskId: selectedTaskId ? selectedTaskId.trim() : null,
-      employeeId: employeeId.trim() ? employeeId.trim() : null,
+      employeeId: validEmployeeId,
       dueDate: dueDate ? dueDate : null,
       notes: notes.trim() ? notes.trim() : null,
       receiptFilename: receiptFilename.trim() ? receiptFilename.trim() : null,
@@ -384,6 +393,16 @@ export function CreateDisbursementModal({
                   </option>
                 ))}
               </select>
+              {category === 'Other' && (
+                <Input
+                  type="text"
+                  placeholder="Specify custom category name..."
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  className="mt-2 text-xs"
+                  data-testid="input-custom-category"
+                />
+              )}
               {errors.category && (
                 <span className="text-[11px] text-red-600 block">{errors.category}</span>
               )}
@@ -447,10 +466,17 @@ export function CreateDisbursementModal({
 
           {/* Employee ID */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700">Employee ID (Optional)</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-700">Employee ID (Optional)</label>
+              {currentUser?.name && (
+                <span className="text-[11px] text-slate-500 font-medium">
+                  Assigned Staff: {currentUser.name}
+                </span>
+              )}
+            </div>
             <Input
               type="text"
-              placeholder="Employee UUID"
+              placeholder={currentUser?.name ? `${currentUser.name} (${currentUser.id || 'UUID'})` : 'Employee UUID'}
               value={employeeId}
               onChange={(e) => {
                 setEmployeeId(e.target.value);

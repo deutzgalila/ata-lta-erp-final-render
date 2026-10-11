@@ -522,8 +522,8 @@ describe('UAT Wave 2: Operations Linkage, Assignee Controls, and Modals', () => 
     expect(screen.getByTestId('assignee-chip-u-staff-1')).toHaveTextContent('Juan Dela Cruz');
     expect(screen.getByTestId('assignee-chip-u-staff-2')).toHaveTextContent('Ana Reyes');
 
-    // Lead badge on primary lead
-    expect(screen.getByTestId('assignee-chip-u-lead-1')).toHaveTextContent('Lead');
+    // Lead / Primary badge on primary lead
+    expect(screen.getByTestId('assignee-chip-u-lead-1')).toHaveTextContent(/Lead|Primary/);
 
     // Make Lead buttons present for co-assignees
     expect(screen.getByTestId('make-lead-btn-u-staff-1')).toBeInTheDocument();

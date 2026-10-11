@@ -501,7 +501,7 @@ function PhaseKanbanBoardInner({
 
         <div className="flex items-center gap-2">
           {effectiveWrId && <PresenceAvatars roomId={effectiveWrId} />}
-          {activeWr && canEdit && (
+          {activeWr && canEdit && activeWr.status !== 'Completed' && activeWr.phase !== 'completion' && (
             <Button
               type="button"
               variant="outline"
