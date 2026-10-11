@@ -104,6 +104,7 @@ const updateInvoice = async (req, res, next) => {
       id: req.params.id,
       userId: req.user.id,
       data: validated,
+      user: req.user,
     });
     res.json({ data });
   } catch (err) {

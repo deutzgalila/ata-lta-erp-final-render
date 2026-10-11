@@ -342,7 +342,7 @@ describe('Parcel P0-G: Disbursement Approvals & Status Routing', () => {
       expect(secondRes.body.title).toMatch(/invalid transition|conflict/i);
     });
 
-    it('returns 409 Conflict when attempting to approve a Draft disbursement', async () => {
+    it('allows Admin to directly approve a Draft disbursement (200 OK) (Task B.5)', async () => {
       const adminToken = registerUser({
         email: 'admin@ata-lta.ph',
         name: 'Admin Approver',
@@ -360,12 +360,14 @@ describe('Parcel P0-G: Disbursement Approvals & Status Routing', () => {
 
       expect(draftRes.body.data.status).toBe('Draft');
 
-      // Approving from Draft directly must fail with 409
-      await request(app)
+      // Approving from Draft directly succeeds for Admin (Task B.5 / Defect 2)
+      const approveRes = await request(app)
         .post(`/v1/disbursements/${draftRes.body.data.id}/approve`)
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
-        .expect(409);
+        .expect(200);
+
+      expect(approveRes.body.data.status).toBe('Approved');
     });
   });
 

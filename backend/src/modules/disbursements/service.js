@@ -537,8 +537,12 @@ const getDisbursementById = async ({ entityId, id, user }) => {
  * @param {object} params.data
  * @returns {Promise<object>}
  */
-const updateDisbursement = async ({ entityId, id, userId, data }) => {
+const updateDisbursement = async ({ entityId, id, userId, data, user }) => {
   const existing = await getDisbursementById({ entityId, id });
+
+  if (data.status === 'Approved' && existing.status === 'Draft') {
+    return approveDisbursement({ entityId, id, userId, user });
+  }
 
   const contentFields = [
     'category',
@@ -784,9 +788,34 @@ const unarchiveDisbursement = async ({ entityId, id, userId }) => {
  * @param {object} [params.extraUpdates] - Additional fields to set
  * @returns {Promise<object>}
  */
-const performTransition = async ({ entityId, id, userId, action, extraUpdates = {} }) => {
+const performTransition = async ({ entityId, id, userId, action, extraUpdates = {}, user }) => {
   const transition = VALID_TRANSITIONS[action];
-  const validFrom = Array.isArray(transition.from) ? transition.from : [transition.from];
+  let validFrom = Array.isArray(transition.from) ? [...transition.from] : [transition.from];
+
+  if (action === 'approve') {
+    let effectiveUser = user;
+    if (!effectiveUser && userId) {
+      const { data: u } = await supabaseAdmin
+        .from('users')
+        .select('id, name, role, departments')
+        .eq('id', userId)
+        .maybeSingle();
+      effectiveUser = u;
+    }
+    const permissions = effectiveUser
+      ? (effectiveUser.permissions instanceof Set
+          ? effectiveUser.permissions
+          : buildPermissionSet({ role: effectiveUser.role || '', departments: effectiveUser.departments || [] }))
+      : new Set();
+    const canDirectApprove =
+      effectiveUser?.role === 'Admin' ||
+      hasPermission(permissions, 'disbursement:approve') ||
+      hasPermission(permissions, 'disbursement:*');
+
+    if (canDirectApprove && !validFrom.includes('Draft')) {
+      validFrom.push('Draft');
+    }
+  }
 
   const paymentDetails =
     action === 'release'
@@ -857,13 +886,14 @@ const submitDisbursement = async ({ entityId, id, userId }) => {
 };
 
 /**
- * Approve a disbursement. Pending → Approved.
+ * Approve a disbursement. Pending → Approved (or Draft → Approved for Admin).
  */
-const approveDisbursement = async ({ entityId, id, userId }) => {
+const approveDisbursement = async ({ entityId, id, userId, user }) => {
   const result = await performTransition({
     entityId,
     id,
     userId,
+    user,
     action: 'approve',
     extraUpdates: {
       approved_by: userId,
@@ -959,6 +989,47 @@ const rejectDisbursement = async ({ entityId, id, userId, reason }) => {
   }
 
   return result;
+};
+
+/**
+ * Update disbursement status directly.
+ * Allows transition from 'Draft' directly to 'Approved' if user.role === 'Admin' or user has disbursement:approve.
+ * @param {object} params
+ * @param {string} params.entityId
+ * @param {string} params.id
+ * @param {string} params.userId
+ * @param {string} params.status
+ * @param {object} [params.user]
+ * @param {string} [params.rejectionReason]
+ * @param {object} [params.paymentDetails]
+ * @returns {Promise<object>}
+ */
+const updateDisbursementStatus = async ({
+  entityId,
+  id,
+  userId,
+  status,
+  user,
+  rejectionReason,
+  paymentDetails,
+}) => {
+  if (status === 'Approved') {
+    return approveDisbursement({ entityId, id, userId, user });
+  }
+  if (status === 'Pending') {
+    return submitDisbursement({ entityId, id, userId });
+  }
+  if (status === 'Released') {
+    return releaseDisbursement({ entityId, id, userId, paymentDetails });
+  }
+  if (status === 'Rejected') {
+    return rejectDisbursement({ entityId, id, userId, reason: rejectionReason });
+  }
+  throw new AppError({
+    statusCode: 400,
+    title: 'Bad Request',
+    detail: `Unknown status transition target: "${status}"`,
+  });
 };
 
 // ============================================================
@@ -1118,6 +1189,7 @@ module.exports = {
   createDisbursementTemplate,
   updateDisbursementTemplate,
   deleteDisbursementTemplate,
+  updateDisbursementStatus,
 };
 
 /**
