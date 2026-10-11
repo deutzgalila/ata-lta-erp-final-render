@@ -1,3 +1,5 @@
+import { workDate } from '@/lib/workDate';
+import { DateInput } from '@/components/ui/date-input';
 import { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -37,7 +39,7 @@ export function TimeEntryEditModal({
   const updateMutation = useUpdateTimeEntry();
   const { openLoading, openSuccess, openError } = useBlockingModal();
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = workDate();
 
   useEffect(() => {
     if (entry) {
@@ -57,7 +59,7 @@ export function TimeEntryEditModal({
     e.preventDefault();
     if (!entry) return;
 
-    if (!durationMinutes || durationMinutes < 1 || durationMinutes > 1440) {
+    if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 1440) {
       setValidationError('Duration must be between 1 and 1440 minutes (24h).');
       return;
     }
@@ -74,7 +76,7 @@ export function TimeEntryEditModal({
 
     openLoading({
       title: 'Updating Time Entry',
-      message: 'Submitting updated duration and note to staging backend...',
+      message: 'Saving your changes...',
       actionName: 'update-time-entry',
     });
 
@@ -166,11 +168,12 @@ export function TimeEntryEditModal({
               <Calendar className="h-3.5 w-3.5 text-slate-500" />
               Work Date
             </label>
-            <Input
+            <DateInput
+              aria-label="Work date"
               type="date"
               max={todayStr}
               value={entryDate}
-              onChange={(e) => setEntryDate(e.target.value)}
+              onValueChange={(value) => setEntryDate(value)}
               className="text-xs h-9"
               required
               data-testid="edit-entry-date-input"

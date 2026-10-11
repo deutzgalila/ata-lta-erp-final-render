@@ -105,6 +105,8 @@ describe('Parcel OPS UAT Fix Verification Suite', () => {
         entities: ['ATA', 'LTA'],
       },
       permissions: [
+        'timelog:create',
+        'timelog:view',
         'workflow:view',
         'workflow:edit',
         'workflow:phase_transition',

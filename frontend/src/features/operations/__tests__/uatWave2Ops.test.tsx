@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { TaskDetailModal } from '../components/TaskDetailModal';
 import { WorkRequestSidePeek } from '../components/WorkRequestSidePeek';
 import { PendingApprovalsInbox } from '../components/PendingApprovalsInbox';
+import { QuickAddCard } from '../components/QuickAddCard';
 import { PhaseKanbanBoard } from '../components/PhaseKanbanBoard';
 import OperationsPage from '@/routes/operations';
 import { useSessionStore } from '@/lib/session';
@@ -466,6 +467,130 @@ describe('UAT Wave 2: Operations Linkage, Assignee Controls, and Modals', () => 
     fireEvent.click(preAddBtn);
     expect(screen.getByTestId('quick-add-form-pre_processing')).toBeInTheDocument();
     expect(screen.getByTestId('quick-add-title-input-pre_processing')).toBeInTheDocument();
+  });
+
+  it('quick-add selects scoped assignee and date and submits a standard task with Enter', async () => {
+    const onCreate = vi.fn().mockResolvedValue(undefined);
+    const onCancel = vi.fn();
+    const { wrapper } = createHarness();
+    render(<QuickAddCard phase="processing" workRequest={mockWr} onCreate={onCreate} onCancel={onCancel} />, { wrapper });
+    const title = screen.getByLabelText('Task title');
+    expect(title).toHaveFocus();
+    expect(screen.getByLabelText('Create task')).toBeDisabled();
+    expect(title).toHaveAttribute('placeholder', 'What needs to be done?');
+    const assignee = screen.getByLabelText('Lead assignee');
+    await waitFor(() => expect(within(assignee).getByText('Juan Dela Cruz')).toBeInTheDocument());
+    expect(within(assignee).queryByText('Ana Reyes')).toBeNull();
+    fireEvent.change(assignee, { target: { value: 'u-staff-1' } });
+    expect(assignee.parentElement).toHaveTextContent('JC');
+    fireEvent.click(screen.getByLabelText('Choose due date'));
+    fireEvent.change(screen.getByLabelText('Task due date', { selector: 'input' }), { target: { value: '2026-10-20' } });
+    expect(screen.getByLabelText('Choose due date')).toHaveTextContent('Oct 20');
+    fireEvent.change(title, { target: { value: '  Prepare invoice  ' } });
+    fireEvent.keyDown(title, { key: 'Enter', shiftKey: true });
+    expect(onCreate).not.toHaveBeenCalled();
+    fireEvent.keyDown(title, { key: 'Enter' });
+    await waitFor(() => expect(onCreate).toHaveBeenCalledWith({
+      title: 'Prepare invoice', phase: 'processing', status: 'Assigned', requiredLinkType: null,
+      dueDate: '2026-10-20', assigneeId: 'u-staff-1', assigneeName: 'Juan Dela Cruz', assignees: ['u-staff-1'],
+    }));
+    expect(onCancel).toHaveBeenCalledOnce();
+  });
+
+  it('quick-add submits a standard task and clears optional fields', async () => {
+    const onCreate = vi.fn().mockResolvedValue(undefined);
+    const { wrapper } = createHarness();
+    render(<QuickAddCard phase="pre_processing" workRequest={mockWr} onCreate={onCreate} onCancel={vi.fn()} />, { wrapper });
+    await screen.findByRole('option', { name: 'Juan Dela Cruz' });
+    fireEvent.change(screen.getByLabelText('Lead assignee'), { target: { value: 'u-staff-1' } });
+    fireEvent.change(screen.getByLabelText('Lead assignee'), { target: { value: '' } });
+    fireEvent.click(screen.getByLabelText('Choose due date'));
+    fireEvent.change(screen.getByLabelText('Task due date', { selector: 'input' }), { target: { value: '2026-10-20' } });
+    fireEvent.click(screen.getByLabelText('Clear due date'));
+    fireEvent.change(screen.getByLabelText('Task title'), { target: { value: 'New task' } });
+    fireEvent.click(screen.getByLabelText('Create task'));
+    await waitFor(() => expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'Draft', requiredLinkType: null, dueDate: null, assigneeId: null, assigneeName: null, assignees: [],
+    })));
+  });
+
+  it('quick-add Escape dismisses the board card and reopening clears the draft', async () => {
+    const { wrapper } = createHarness();
+    render(<PhaseKanbanBoard initialWorkRequestId="wr-w2-1" />, { wrapper });
+    fireEvent.click(await screen.findByTestId('quick-add-task-pre_processing'));
+    fireEvent.change(screen.getByLabelText('Task title'), { target: { value: 'Discard me' } });
+    fireEvent.keyDown(screen.getByLabelText('Task title'), { key: 'Escape' });
+    expect(screen.queryByTestId('quick-add-form-pre_processing')).toBeNull();
+    fireEvent.click(screen.getByTestId('quick-add-task-pre_processing'));
+    expect(screen.getByLabelText('Task title')).toHaveValue('');
+    expect(screen.getByRole('img', { name: 'Standard Task' })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Task link type' })).toBeNull();
+    expect(screen.queryByTestId('quick-add-task-quality_assurance')).toBeNull();
+    expect(screen.queryByTestId('quick-add-task-completion')).toBeNull();
+  });
+
+  it('quick-add prevents duplicate submissions and preserves fields after failure', async () => {
+    let reject!: (reason: Error) => void;
+    const onCreate = vi.fn().mockImplementation(() => new Promise<void>((_resolve, rejectPromise) => { reject = rejectPromise; }));
+    const onCancel = vi.fn();
+    const { wrapper } = createHarness();
+    render(<QuickAddCard phase="processing" workRequest={mockWr} onCreate={onCreate} onCancel={onCancel} />, { wrapper });
+    fireEvent.change(screen.getByLabelText('Task title'), { target: { value: 'Retry task' } });
+    fireEvent.keyDown(screen.getByLabelText('Task title'), { key: 'Enter' });
+    fireEvent.submit(screen.getByRole('form', { name: 'Quick-add task' }));
+    expect(onCreate).toHaveBeenCalledOnce();
+    expect(screen.getByLabelText('Create task')).toBeDisabled();
+    expect(screen.getByLabelText('Cancel quick-add task')).toBeDisabled();
+    await act(async () => reject(new Error('Server unavailable')));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unable to create task');
+    expect(screen.getByLabelText('Task title')).toHaveValue('Retry task');
+    expect(screen.getByLabelText('Create task')).toBeEnabled();
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it('a pending request from an unmounted card cannot dismiss a newer draft', async () => {
+    let resolve!: () => void;
+    const onCreate = vi.fn().mockImplementation(() => new Promise<void>((done) => { resolve = done; }));
+    const onCancel = vi.fn();
+    const { wrapper } = createHarness();
+    const { rerender } = render(<QuickAddCard key="old" phase="processing" workRequest={mockWr} onCreate={onCreate} onCancel={onCancel} />, { wrapper });
+    fireEvent.change(screen.getByLabelText('Task title'), { target: { value: 'Old request' } });
+    fireEvent.click(screen.getByLabelText('Create task'));
+    rerender(<QuickAddCard key="new" phase="pre_processing" workRequest={mockWr} onCreate={onCreate} onCancel={onCancel} />);
+    fireEvent.change(screen.getByLabelText('Task title'), { target: { value: 'New draft' } });
+    await act(async () => resolve());
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Task title')).toHaveValue('New draft');
+  });
+
+  it('quick-add falls back to eligible staff only when the work request has no team', async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ data: [
+      ...mockTeamMembers,
+      { id: 'admin', name: 'Admin User', role: 'Admin' },
+      { id: 'ops-manager', name: 'Ops Manager', role: 'Manager', departments: ['Operations'] },
+    ] }), { status: 200 }));
+    const { wrapper } = createHarness();
+    render(<QuickAddCard phase="processing" workRequest={{ ...mockWr, assignedTo: null, coAssignees: [] }} onCreate={vi.fn()} onCancel={vi.fn()} />, { wrapper });
+    await screen.findByRole('option', { name: 'Ops Manager' });
+    expect(screen.getByRole('option', { name: 'Ana Reyes' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Admin User' })).toBeNull();
+    expect(screen.queryByRole('option', { name: 'Maria Santos' })).toBeNull();
+  });
+
+  it.each(['completed', 'no-permission'])('hides board quick-add for %s', async (scenario) => {
+    const { wrapper } = createHarness();
+    if (scenario === 'no-permission') useSessionStore.setState({ permissions: new Set(['workflow:view']) });
+    else {
+      const completed = { ...mockWr, status: 'Completed' };
+      const originalFetch = vi.mocked(fetch).getMockImplementation()!;
+      vi.mocked(fetch).mockImplementation((input, init) => String(input).endsWith('/operations/work-requests/wr-w2-1')
+        ? Promise.resolve(new Response(JSON.stringify({ data: completed }), { status: 200 }))
+        : originalFetch(input, init));
+    }
+    render(<PhaseKanbanBoard initialWorkRequestId="wr-w2-1" />, { wrapper });
+    await screen.findByTestId('phase-kanban-board');
+    await waitFor(() => expect(screen.queryByTestId('quick-add-task-pre_processing')).toBeNull());
+    expect(screen.queryByTestId('quick-add-task-processing')).toBeNull();
   });
 
   // UAT2-11: Document Upload Modal Trigger

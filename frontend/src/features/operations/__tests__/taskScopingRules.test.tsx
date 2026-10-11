@@ -142,9 +142,9 @@ describe('Task Scoping Utility Unit Tests (taskScope.ts)', () => {
     expect(canMutateTaskStatus(userAccountingTeam, mockTask)).toBe(false);
   });
 
-  it('enforces time logging permissions (only assigned employee or Admin)', () => {
+  it('requires assignment for time logging, including Admins', () => {
     expect(canLogTaskTime(userAssignedStaff, mockTask)).toBe(true);
-    expect(canLogTaskTime(userAdmin, mockTask)).toBe(true);
+    expect(canLogTaskTime(userAdmin, mockTask)).toBe(false);
     expect(canLogTaskTime(userUnassignedManager, mockTask)).toBe(false);
     expect(canLogTaskTime(userAccountingTeam, mockTask)).toBe(false);
   });
@@ -320,7 +320,7 @@ describe('TaskDetailModal UI Scoping Integration', () => {
 
     // Controls present
     expect(screen.getByTestId('task-toggle-status-btn')).toBeInTheDocument();
-    expect(screen.getByTestId('open-log-time-btn')).toBeInTheDocument();
+    expect(screen.queryByTestId('open-log-time-btn')).not.toBeInTheDocument();
     expect(screen.getByTestId('task-upload-doc-btn')).toBeInTheDocument();
     expect(screen.getByTestId('link-invoice-btn')).toBeInTheDocument();
     expect(screen.getByTestId('link-disbursement-btn')).toBeInTheDocument();

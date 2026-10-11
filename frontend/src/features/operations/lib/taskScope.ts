@@ -7,9 +7,19 @@ import type { Task, WorkRequest } from '../api/types';
  */
 export function isTaskAssignee(user: UserProfile | null | undefined, task: Task | null | undefined): boolean {
   if (!user?.id || !task) return false;
-  if (task.assigneeId === user.id) return true;
-  if (Array.isArray(task.assignees) && task.assignees.includes(user.id)) return true;
-  if (Array.isArray(task.taskAssignees) && task.taskAssignees.some((ta) => (ta.userId || ta.user_id) === user.id)) return true;
+  if ((task.assigneeId || (task as Task & { assignee_id?: string }).assignee_id) === user.id) return true;
+  const aliases = task as Task & {
+    coAssignees?: unknown; co_assignees?: unknown;
+    relationalAssignees?: unknown; relational_assignees?: unknown;
+  };
+  const lists = [task.assignees, task.taskAssignees, task.task_assignees,
+    aliases.coAssignees, aliases.co_assignees, aliases.relationalAssignees, aliases.relational_assignees];
+  if (lists.some((list) => Array.isArray(list) && list.some((entry: unknown) => {
+    if (typeof entry === 'string') return entry === user.id;
+    if (!entry || typeof entry !== 'object') return false;
+    const member = entry as { userId?: string; user_id?: string; id?: string };
+    return member.userId === user.id || member.user_id === user.id || member.id === user.id;
+  }))) return true;
   return false;
 }
 
@@ -57,11 +67,10 @@ export function canMutateTaskStatus(user: UserProfile | null | undefined, task: 
 }
 
 /**
- * Only the assigned employee (or Admin) can log time to this task.
+ * Time is always attributed to the caller, who must be assigned (including Admins).
  */
 export function canLogTaskTime(user: UserProfile | null | undefined, task: Task | null | undefined): boolean {
   if (!user || !task) return false;
-  if (isUserAdmin(user)) return true;
   return isTaskAssignee(user, task);
 }
 

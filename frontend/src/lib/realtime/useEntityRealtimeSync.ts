@@ -20,6 +20,7 @@ import { isSelfOriginatedPayload, isLocalMutation } from './loopPrevention';
 import { operationsKeys } from '@/features/operations/api/queryKeys';
 import { billingKeys } from '@/features/billing/api/queryKeys';
 import { disbursementKeys } from '@/features/disbursements/api/queryKeys';
+import { dashboardKeys } from '@/features/dashboard/api/queryKeys';
 import { resolveEntityUUID, resolveEntityCodeFromUUID } from './tenantResolver';
 
 export type RealtimeTable =
@@ -255,6 +256,29 @@ export function normalizeCdcNotification(record: Record<string, unknown>): Recor
 }
 
 /**
+ * Normalizes PostgreSQL CDC task_assignees records into unified objects with both
+ * camelCase and snake_case properties.
+ */
+export function normalizeCdcTaskAssignee(record: Record<string, unknown>): Record<string, unknown> {
+  if (!record || typeof record !== 'object') return record;
+  const taskId = record.task_id ?? record.taskId;
+  const userId = record.user_id ?? record.userId;
+  const assignedBy = record.assigned_by !== undefined ? record.assigned_by : (record.assignedBy ?? null);
+  const assignedAt = record.assigned_at !== undefined ? record.assigned_at : (record.assignedAt ?? null);
+  return {
+    ...record,
+    taskId,
+    task_id: taskId,
+    userId,
+    user_id: userId,
+    assignedBy,
+    assigned_by: assignedBy,
+    assignedAt,
+    assigned_at: assignedAt,
+  };
+}
+
+/**
  * Dispatches raw incoming CDC payloads to table-specific normalizers.
  */
 export function normalizeCdcPayload(
@@ -270,6 +294,8 @@ export function normalizeCdcPayload(
       return normalizeCdcOperationsRequest(record);
     case 'notifications':
       return normalizeCdcNotification(record);
+    case 'task_assignees':
+      return normalizeCdcTaskAssignee(record);
     default:
       return record;
   }
@@ -296,6 +322,98 @@ export function isTaskListOfTargetWr(qKey: unknown, targetWrId: string): boolean
 }
 
 /**
+ * Safely compares two UUIDs or user IDs with trimming and RFC 4122 case-insensitivity.
+ * Handles both primitive strings and user object structures.
+ */
+export function isMatchingUserId(idA: unknown, idB: unknown): boolean {
+  if (!idA || !idB) return false;
+  const extractId = (val: unknown): string | undefined => {
+    if (typeof val === 'string') return val;
+    if (typeof val === 'object' && val !== null) {
+      const obj = val as { id?: unknown; userId?: unknown; user_id?: unknown };
+      if (typeof obj.id === 'string') return obj.id;
+      if (typeof obj.userId === 'string') return obj.userId;
+      if (typeof obj.user_id === 'string') return obj.user_id;
+    }
+    return undefined;
+  };
+  const strA = extractId(idA);
+  const strB = extractId(idB);
+  if (!strA || !strB) return false;
+  return strA.trim().toLowerCase() === strB.trim().toLowerCase();
+}
+
+/**
+ * Invalidates dashboard assigned tasks cache with strict user isolation (SPEC-DASHBOARD-ASSIGNED-TASKS-REALTIME-001 §R3).
+ *
+ * Scoping rules:
+ * - For tasks events: only invalidate if currentUserId matches new.assignee_id or old.assignee_id (or camelCase new.assigneeId / old.assigneeId).
+ * - For task_assignees events: only invalidate if currentUserId matches new.user_id or old.user_id (or camelCase new.userId / old.userId).
+ * - For work_requests events: invalidate on status, archive, or deletion state changes (e.g. status change, is_archived/archived, deleted_at).
+ * - Cross-user CDC events: discarded with zero invalidations to dashboardKeys.assignedTasks.all for uninvolved users.
+ * - Retrieve currentUserId synchronously via useSessionStore.getState().user?.id.
+ */
+export function triggerAssignedTasksCoInvalidation(
+  queryClient: QueryClient,
+  table: string,
+  record?: Record<string, unknown> | null,
+  oldRecord?: Record<string, unknown> | null,
+  isDelete?: boolean
+): void {
+  const currentUserId = useSessionStore.getState().user?.id;
+  if (!currentUserId) return;
+
+  if (table === 'tasks') {
+    const newAssignee = record?.assignee_id ?? record?.assigneeId;
+    const oldAssignee = oldRecord?.assignee_id ?? oldRecord?.assigneeId;
+
+    const matchesNew =
+      isMatchingUserId(newAssignee, currentUserId) ||
+      (Array.isArray(record?.assignees) &&
+        record.assignees.some((a) => isMatchingUserId(a, currentUserId)));
+    const matchesOld =
+      isMatchingUserId(oldAssignee, currentUserId) ||
+      (Array.isArray(oldRecord?.assignees) &&
+        oldRecord.assignees.some((a) => isMatchingUserId(a, currentUserId)));
+
+    if (matchesNew || matchesOld) {
+      void queryClient.invalidateQueries({ queryKey: dashboardKeys.assignedTasks.all });
+    }
+  } else if (table === 'task_assignees') {
+    const newUserId = record?.user_id ?? record?.userId;
+    const oldUserId = oldRecord?.user_id ?? oldRecord?.userId;
+
+    if (isMatchingUserId(newUserId, currentUserId) || isMatchingUserId(oldUserId, currentUserId)) {
+      void queryClient.invalidateQueries({ queryKey: dashboardKeys.assignedTasks.all });
+    }
+  } else if (table === 'work_requests') {
+    const isStatusChange = Boolean(
+      (record?.status || oldRecord?.status) &&
+      record?.status !== oldRecord?.status
+    );
+    const isArchiveChange =
+      Boolean(
+        (record?.archived !== undefined || oldRecord?.archived !== undefined) &&
+        Boolean(record?.archived) !== Boolean(oldRecord?.archived)
+      ) ||
+      Boolean(
+        (record?.is_archived !== undefined || oldRecord?.is_archived !== undefined) &&
+        Boolean(record?.is_archived) !== Boolean(oldRecord?.is_archived)
+      );
+    const isDeletionChange = Boolean(
+      isDelete ||
+      isSoftDeleteRecord(record) ||
+      (record?.deleted_at !== oldRecord?.deleted_at) ||
+      (record?.deletedAt !== oldRecord?.deletedAt)
+    );
+
+    if (isStatusChange || isArchiveChange || isDeletionChange) {
+      void queryClient.invalidateQueries({ queryKey: dashboardKeys.assignedTasks.all });
+    }
+  }
+}
+
+/**
  * Invalidates related domain queries when a task is mutated (INSERT, UPDATE, DELETE).
  * - operationsKeys.workRequestDetail(targetWrId) -> re-evaluates gate status and blockers
  * - operationsKeys.workRequestCounts(activeEntity) -> updates task & work request counts
@@ -305,7 +423,9 @@ export function triggerTaskCoInvalidations(
   queryClient: QueryClient,
   targetWrId: string,
   taskId: string,
-  activeEntity?: string | null
+  activeEntity?: string | null,
+  record?: Record<string, unknown> | null,
+  oldRecord?: Record<string, unknown> | null
 ): void {
   if (targetWrId) {
     void queryClient.invalidateQueries({ queryKey: operationsKeys.workRequestDetail(targetWrId) });
@@ -317,6 +437,9 @@ export function triggerTaskCoInvalidations(
   }
   if (taskId) {
     void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(taskId) });
+  }
+  if (record || oldRecord) {
+    triggerAssignedTasksCoInvalidation(queryClient, 'tasks', record, oldRecord);
   }
 }
 
@@ -576,7 +699,16 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
     return false;
   }
 
-  const id = incomingRecord.id ?? payloadObj.new?.id ?? payloadObj.old?.id;
+  const id =
+    incomingRecord.id ??
+    payloadObj.new?.id ??
+    payloadObj.old?.id ??
+    (options.table === 'task_assignees'
+      ? ((incomingRecord.task_id || incomingRecord.taskId) &&
+        (incomingRecord.user_id || incomingRecord.userId)
+          ? `${String(incomingRecord.task_id ?? incomingRecord.taskId)}:${String(incomingRecord.user_id ?? incomingRecord.userId)}`
+          : undefined)
+      : undefined);
   if (!id) {
     return false;
   }
@@ -1222,6 +1354,15 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
     options.table,
     incomingRecord as Record<string, unknown>,
     activeEntity
+  );
+
+  // Trigger assigned tasks co-invalidation with strict user isolation (SPEC-DASHBOARD-ASSIGNED-TASKS-REALTIME-001 §R3)
+  triggerAssignedTasksCoInvalidation(
+    queryClient,
+    options.table,
+    payloadObj.new as Record<string, unknown> | undefined,
+    payloadObj.old as Record<string, unknown> | undefined,
+    isDelete
   );
 
   return true;

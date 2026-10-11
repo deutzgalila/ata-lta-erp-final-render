@@ -1,3 +1,4 @@
+import { DateInput } from '@/components/ui/date-input';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Dialog,
@@ -829,11 +830,13 @@ export function WorkRequestModal({
             {/* Due Date */}
             <div className="space-y-1">
               <label className="text-xs font-semibold text-slate-700">Due Date</label>
-              <Input
+              <DateInput
                 type="date"
+                aria-label="Work request due date"
+                disabled={isCompleted}
                 value={dueDate}
-                onChange={(e) => {
-                  setDueDate(e.target.value);
+                onValueChange={(value) => {
+                  setDueDate(value);
                   setIsDirty(true);
                 }}
                 className="h-9 bg-white text-xs"

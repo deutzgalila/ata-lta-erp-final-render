@@ -1,3 +1,5 @@
+import { workDate } from '@/lib/workDate';
+import { DateInput } from '@/components/ui/date-input';
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   Dialog,
@@ -162,7 +164,7 @@ export function TaskDetailModal({
   }, [task?.dueDate]);
 
   // Time logging form state
-  const [logDate, setLogDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [logDate, setLogDate] = useState(() => workDate());
   const [logMinutes, setLogMinutes] = useState<number>(30);
   const [logNote, setLogNote] = useState('');
   const [showLogForm, setShowLogForm] = useState(false);
@@ -364,7 +366,7 @@ export function TaskDetailModal({
   // Task Scoping Rules:
   // 1. Only assigned employee or Admin can mutate status, log time, upload docs
   const canMutateStatus = canMutateTaskStatus(currentUser, task);
-  const canLogTime = canLogTaskTime(currentUser, task);
+  const canLogTime = hasPermission(permissions, 'timelog:create') && canLogTaskTime(currentUser, task);
   const canUploadDoc = canUploadTaskDocument(currentUser, task);
 
   // 2. Financial record linking vs requesting:
@@ -649,8 +651,13 @@ export function TaskDetailModal({
   const handleLogTimeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!task) return;
-    if (logMinutes <= 0) {
-      setLogError('Duration must be greater than 0 minutes.');
+    if (createTimeEntryMutation.isPending) return;
+    if (!Number.isInteger(logMinutes) || logMinutes < 1 || logMinutes > 1440) {
+      setLogError('Duration must be an integer between 1 and 1440 minutes.');
+      return;
+    }
+    if (!logDate || logDate > workDate()) {
+      setLogError('Entry date is required and cannot be in the future.');
       return;
     }
     setLogError(null);
@@ -658,7 +665,7 @@ export function TaskDetailModal({
     try {
       await createTimeEntryMutation.mutateAsync({
         taskId: task.id,
-        entryDate: logDate || new Date().toISOString().split('T')[0]!,
+        entryDate: logDate || workDate(),
         durationMinutes: Number(logMinutes),
         note: logNote.trim() || undefined,
       });
@@ -808,7 +815,8 @@ export function TaskDetailModal({
                   <Calendar className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                   {canEdit ? (
                     <div className="flex items-center gap-1.5">
-                      <input
+                      <DateInput
+                        aria-label="Task due date"
                         type="date"
                         value={
                           localDueDate
@@ -817,8 +825,8 @@ export function TaskDetailModal({
                               : localDueDate
                             : ''
                         }
-                        onChange={(e) => {
-                          const val = e.target.value || null;
+                        onValueChange={(value) => {
+                          const val = value || null;
                           setLocalDueDate(val);
                           if (task.workRequestId) {
                             updateTask({
@@ -836,7 +844,7 @@ export function TaskDetailModal({
                               });
                           }
                         }}
-                        className="text-xs bg-transparent border-b border-dashed border-slate-300 focus:outline-none focus:border-blue-500 py-0.5"
+                        className="h-8 w-44 text-xs"
                         data-testid="task-due-date-input"
                       />
                       {!localDueDate && <span className="text-slate-400 text-xs">Not set</span>}
@@ -1455,10 +1463,12 @@ export function TaskDetailModal({
                       <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1">
                         Date
                       </label>
-                      <Input
+                      <DateInput
+                        aria-label="Time log date"
                         type="date"
+                        max={workDate()}
                         value={logDate}
-                        onChange={(e) => setLogDate(e.target.value)}
+                        onValueChange={(value) => setLogDate(value)}
                         className="h-8 text-xs bg-white"
                         required
                         data-testid="log-time-date-input"

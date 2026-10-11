@@ -10,7 +10,8 @@
  * - Citation: docs/api-contracts/modules/time-entries.md
  */
 
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSessionStore } from '@/lib/session';
 import { apiRequest } from '@/lib/api';
 import { dashboardKeys } from './queryKeys';
 import type {
@@ -64,8 +65,10 @@ export function mapRawTimeSummary(raw: RawTimeSummaryApi): TimeSummary {
  * Single indexed query on /v1/time-entries/summary?date=YYYY-MM-DD
  */
 export function useTimeSummary(date: string, userId?: string) {
+  const viewerId = useSessionStore((state) => state.user?.id);
+  const activeEntity = useSessionStore((state) => state.activeEntity);
   return useQuery({
-    queryKey: dashboardKeys.timeEntries.summary(date, userId),
+    queryKey: [...dashboardKeys.timeEntries.summary(date, userId), { viewerId, activeEntity }],
     queryFn: async (): Promise<TimeSummary> => {
       const params = new URLSearchParams({ date });
       if (userId) {
@@ -92,8 +95,10 @@ export function useTimeSummary(date: string, userId?: string) {
  * List time entries with optional date range, task, or user filters.
  */
 export function useTimeEntriesList(filters?: TimeEntryListFilters) {
+  const viewerId = useSessionStore((state) => state.user?.id);
+  const activeEntity = useSessionStore((state) => state.activeEntity);
   return useQuery({
-    queryKey: dashboardKeys.timeEntries.list(filters),
+    queryKey: [...dashboardKeys.timeEntries.list(filters), { viewerId, activeEntity }],
     queryFn: async (): Promise<TimeEntry[]> => {
       const params = new URLSearchParams();
       if (filters?.from) params.set('from', filters.from);
@@ -108,8 +113,6 @@ export function useTimeEntriesList(filters?: TimeEntryListFilters) {
       return items.map(mapRawTimeEntry);
     },
     staleTime: 30 * 1000,
-    // Instant feel: keep previous filter range's rows while the next fetch lands.
-    placeholderData: keepPreviousData,
   });
 }
 
