@@ -749,6 +749,7 @@ const updateRequest = async ({ entityId, id, userId, data }) => {
   }
 
   const updates = {
+    version: (existing.version || 1) + 1,
     updated_at: new Date().toISOString(),
   };
 
