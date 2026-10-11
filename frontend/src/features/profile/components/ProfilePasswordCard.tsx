@@ -97,7 +97,7 @@ export function ProfilePasswordCard({ isLoading = false }: ProfilePasswordCardPr
   const passwordsMatch = confirmPassword.length > 0 && confirmPassword === newPassword;
 
   return (
-    <Card className="border border-border/80 shadow-sm" data-testid="profile-password-card">
+    <Card className="border border-[#f0f0f5] dark:border-zinc-800 shadow-xs" data-testid="profile-password-card">
       <CardHeader>
         <CardTitle className="text-lg font-bold text-foreground">Change Password</CardTitle>
         <CardDescription>Use a strong password meeting modern security complexity requirements.</CardDescription>
@@ -257,7 +257,7 @@ export function ProfilePasswordCard({ isLoading = false }: ProfilePasswordCardPr
 
           {/* Real-time Guardrails & Strength Meter */}
           <div
-            className="rounded-xl border border-border/70 bg-muted/30 p-4 space-y-3"
+            className="rounded-xl border border-[#f0f0f5] dark:border-zinc-800 bg-muted/20 p-4 space-y-3"
             data-testid="password-guardrails-container"
           >
             {/* Strength Meter Header */}
@@ -273,7 +273,7 @@ export function ProfilePasswordCard({ isLoading = false }: ProfilePasswordCardPr
                     ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
                     : evalRes.strength === 'weak'
                     ? 'bg-destructive/15 text-destructive'
-                    : 'bg-muted text-muted-foreground border border-border/80'
+                    : 'bg-muted text-muted-foreground border border-[#f0f0f5] dark:border-zinc-800'
                 }`}
                 data-testid="password-strength-badge"
               >

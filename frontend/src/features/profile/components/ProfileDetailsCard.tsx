@@ -77,7 +77,13 @@ export function ProfileDetailsCard({ profile, isLoading = false }: ProfileDetail
       setStatusMessage({ type: 'success', text: 'Details saved successfully.' });
       setSelectedFile(null);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Unable to save details.';
+      let message = 'Unable to save details.';
+      if (err instanceof Error) {
+        message = err.message;
+        if (message.includes('row-level security policy') || message.includes('Failed to create signed upload URL')) {
+          message = 'Unable to generate secure upload URL. Please try again.';
+        }
+      }
       setStatusMessage({ type: 'error', text: message });
     }
   };
@@ -87,16 +93,16 @@ export function ProfileDetailsCard({ profile, isLoading = false }: ProfileDetail
   const initials = getInitials(name || displayName);
 
   return (
-    <Card className="border border-border/80 shadow-sm" data-testid="profile-details-card">
+    <Card className="border border-[#f0f0f5] dark:border-zinc-800 shadow-xs" data-testid="profile-details-card">
       <CardHeader>
         <CardTitle className="text-lg font-bold text-foreground">Your Details</CardTitle>
         <CardDescription>Update your name and profile photo.</CardDescription>
       </CardHeader>
       <CardContent>
         {/* Avatar Upload Row */}
-        <div className="flex items-center gap-5 pb-6 border-b border-border/60">
+        <div className="flex items-center gap-5 pb-6 border-b border-[#f0f0f5] dark:border-zinc-800">
           <div
-            className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xl font-bold text-primary overflow-hidden border-2 border-border/50"
+            className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xl font-bold text-primary overflow-hidden border border-[#f0f0f5] dark:border-zinc-800"
             style={
               displayAvatar
                 ? {

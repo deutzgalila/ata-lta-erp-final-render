@@ -94,8 +94,8 @@ describe('Profile Management Challenger Suite (SPEC-PROFILE-MIGRATION-001)', () 
 
   describe('Vector 2: Full 3-Step Avatar Upload Pipeline', () => {
     it('executes pre-signed URL request, binary PUT, PATCH /v1/me, and updates session store', async () => {
-      const signedUrl = 'https://s3.storage.supabase.com/avatars/user-123.png?signed=xyz';
-      const publicUrl = 'https://s3.storage.supabase.com/avatars/user-123.png';
+      const signedUrl = 'https://s3.storage.supabase.com/entities/avatars/user-123.png?signed=xyz';
+      const publicUrl = 'https://s3.storage.supabase.com/entities/avatars/user-123.png';
 
       const apiRequestSpy = vi.spyOn(api, 'apiRequest').mockImplementation(async (path: string, options?: any) => {
         if (path === '/v1/me' && (!options || options.method === 'GET')) {
@@ -106,7 +106,7 @@ describe('Profile Management Challenger Suite (SPEC-PROFILE-MIGRATION-001)', () 
             data: {
               signedUrl,
               publicUrl,
-              path: 'avatars/user-123.png',
+              path: 'entities/avatars/user-123.png',
               maxSizeMb: 5,
             },
           };
@@ -178,6 +178,37 @@ describe('Profile Management Challenger Suite (SPEC-PROFILE-MIGRATION-001)', () 
       await waitFor(() => {
         const currentUser = useSessionStore.getState().user;
         expect(currentUser?.avatarUrl).toBe(publicUrl);
+      });
+    });
+
+    it('gracefully handles upload failure and displays friendly inline error', async () => {
+      vi.spyOn(api, 'apiRequest').mockImplementation(async (path: string, options?: any) => {
+        if (path === '/v1/me' && (!options || options.method === 'GET')) {
+          return { data: mockUserProfile };
+        }
+        if (path === '/v1/me/avatar-upload-url') {
+          throw new Error('Failed to create signed upload URL: new row violates row-level security policy');
+        }
+        return { data: {} };
+      });
+
+      render(React.createElement(ProfilePage), { wrapper: createWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('profile-details-card')).toBeInTheDocument();
+      });
+
+      const fileInput = screen.getByTestId('profile-avatar-input') as HTMLInputElement;
+      const testFile = new File(['dummy png content'], 'avatar.png', { type: 'image/png' });
+      fireEvent.change(fileInput, { target: { files: [testFile] } });
+
+      const saveBtn = screen.getByTestId('profile-save-details-btn');
+      fireEvent.click(saveBtn);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('profile-avatar-status')).toHaveTextContent(
+          'Unable to generate secure upload URL. Please try again.'
+        );
       });
     });
   });
@@ -347,43 +378,20 @@ describe('Profile Management Challenger Suite (SPEC-PROFILE-MIGRATION-001)', () 
     });
   });
 
-  describe('Vector 4: Preferences Saving & Theme Persistence', () => {
-    it('persists preferences and theme changes to localStorage and DOM', async () => {
-      const apiRequestSpy = vi.spyOn(api, 'apiRequest').mockImplementation(async (path: string, options?: any) => {
-        if (path === '/v1/me' && (!options || options.method === 'GET')) {
-          return { data: mockUserProfile };
-        }
-        if (path === '/v1/me' && options?.method === 'PATCH') {
-          const body = JSON.parse(options.body);
-          return {
-            data: {
-              ...mockUserProfile,
-              preferences: body.preferences,
-            },
-          };
-        }
+  describe('Vector 4: Preferences Section Removed from Profile', () => {
+    it('does not render preferences card on the profile page', async () => {
+      vi.spyOn(api, 'apiRequest').mockImplementation(async (path: string) => {
+        if (path === '/v1/me') return { data: mockUserProfile };
         return { data: {} };
       });
 
       render(React.createElement(ProfilePage), { wrapper: createWrapper() });
 
       await waitFor(() => {
-        expect(screen.getByTestId('profile-preferences-card')).toBeInTheDocument();
+        expect(screen.getByTestId('profile-details-card')).toBeInTheDocument();
       });
 
-      const submitBtn = screen.getByTestId('profile-save-preferences-btn');
-      fireEvent.click(submitBtn);
-
-      await waitFor(() => {
-        expect(apiRequestSpy).toHaveBeenCalledWith(
-          '/v1/me',
-          expect.objectContaining({
-            method: 'PATCH',
-          })
-        );
-      });
-
-      expect(localStorage.getItem('erp_default_view')).toBe('table');
+      expect(screen.queryByTestId('profile-preferences-card')).not.toBeInTheDocument();
     });
   });
 
