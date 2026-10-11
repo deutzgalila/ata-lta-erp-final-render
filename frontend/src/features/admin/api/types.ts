@@ -13,6 +13,8 @@
  * - Zero `any` types
  */
 
+import type { ChecklistItemData } from '@/features/operations/api/types';
+
 // ============================================================================
 // 1. Roles, Departments & Primitive Enums
 // ============================================================================
@@ -85,6 +87,7 @@ export interface RetainerTemplateTask {
   dependsOnLocalId?: string | null;
   requiredLinkType?: string | null;
   dueDate?: string | null;
+  checklist?: ChecklistItemData[];
 }
 
 export interface RetainerTemplate {

@@ -393,6 +393,51 @@ describe('Other Templates Engine & Tab Feature Tests', () => {
         expect(screen.getByTestId('task-title-input-2')).toHaveValue('Hearing Attendance');
       });
     });
+
+    it('supports bottom add task button and interactive checklist subtasks & document requirements', async () => {
+      const { wrapper } = createHarness();
+      render(
+        <OtherTemplateModal
+          template={null}
+          isOpen={true}
+          onClose={vi.fn()}
+        />,
+        { wrapper }
+      );
+
+      // Verify bottom Add task button
+      const bottomAddTaskBtn = screen.getByTestId('add-task-btn');
+      expect(bottomAddTaskBtn).toBeInTheDocument();
+      fireEvent.click(bottomAddTaskBtn);
+      expect(screen.getByTestId('task-row-1')).toBeInTheDocument();
+
+      // Add subtask on task 0
+      const addSubtaskBtn = screen.getByTestId('add-subtask-btn-0');
+      expect(addSubtaskBtn).toBeInTheDocument();
+      fireEvent.click(addSubtaskBtn);
+
+      const itemInput = screen.getByTestId('checklist-item-input-0-0');
+      expect(itemInput).toBeInTheDocument();
+      fireEvent.change(itemInput, { target: { value: 'SEC Certificate of Filing' } });
+      expect(itemInput).toHaveValue('SEC Certificate of Filing');
+
+      // Toggle to Doc category
+      const catToggle = screen.getByTestId('checklist-category-toggle-0-0');
+      expect(catToggle).toHaveTextContent(/sub-task/i);
+      fireEvent.click(catToggle);
+      expect(catToggle).toHaveTextContent(/doc/i);
+
+      // Period Year input appears for Doc
+      const periodYearInput = screen.getByTestId('checklist-period-year-0-0');
+      expect(periodYearInput).toBeInTheDocument();
+      fireEvent.change(periodYearInput, { target: { value: '2027' } });
+      expect(periodYearInput).toHaveValue(2027);
+
+      // Remove item
+      const removeBtn = screen.getByTestId('checklist-remove-btn-0-0');
+      fireEvent.click(removeBtn);
+      expect(screen.queryByTestId('checklist-item-input-0-0')).not.toBeInTheDocument();
+    });
   });
 
   describe('3. Other Template Generation Modal (OtherTemplateGenerateModal)', () => {

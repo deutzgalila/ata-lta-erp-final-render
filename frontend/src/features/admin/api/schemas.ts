@@ -109,6 +109,7 @@ export const retainerTemplateTaskSchema = z.object({
   dependsOnLocalId: z.string().optional().nullable(),
   requiredLinkType: z.string().max(50).optional().nullable(),
   dueDate: z.string().optional().nullable(),
+  checklist: z.array(z.any()).optional(),
 });
 
 export const createRetainerTemplateSchema = z.object({

@@ -330,6 +330,53 @@ describe('Retainer Template Builder & Generation Logs (Admin Gated)', () => {
       expect(screen.queryByTestId('task-row-1')).not.toBeInTheDocument();
     });
 
+    it('supports bottom add task button and interactive checklist subtasks & document requirements', async () => {
+      const { wrapper } = createHarness();
+      render(
+        <RetainerTemplateModal
+          template={null}
+          isOpen={true}
+          onClose={vi.fn()}
+        />,
+        { wrapper }
+      );
+
+      // Verify bottom Add task button is rendered
+      const bottomAddTaskBtn = screen.getByTestId('add-task-btn');
+      expect(bottomAddTaskBtn).toBeInTheDocument();
+      fireEvent.click(bottomAddTaskBtn);
+      expect(screen.getByTestId('task-row-1')).toBeInTheDocument();
+
+      // Verify Add Subtask button on task 0
+      const addSubtaskBtn = screen.getByTestId('add-subtask-btn-0');
+      expect(addSubtaskBtn).toBeInTheDocument();
+      fireEvent.click(addSubtaskBtn);
+
+      // Check checklist item input and default category (subtask)
+      const itemInput = screen.getByTestId('checklist-item-input-0-0');
+      expect(itemInput).toBeInTheDocument();
+      fireEvent.change(itemInput, { target: { value: 'Draft Board Resolution' } });
+      expect(itemInput).toHaveValue('Draft Board Resolution');
+
+      const catToggle = screen.getByTestId('checklist-category-toggle-0-0');
+      expect(catToggle).toHaveTextContent(/sub-task/i);
+
+      // Toggle category to Doc
+      fireEvent.click(catToggle);
+      expect(catToggle).toHaveTextContent(/doc/i);
+
+      // Period Year input appears for Doc
+      const periodYearInput = screen.getByTestId('checklist-period-year-0-0');
+      expect(periodYearInput).toBeInTheDocument();
+      fireEvent.change(periodYearInput, { target: { value: '2026' } });
+      expect(periodYearInput).toHaveValue(2026);
+
+      // Remove checklist item
+      const removeClBtn = screen.getByTestId('checklist-remove-btn-0-0');
+      fireEvent.click(removeClBtn);
+      expect(screen.queryByTestId('checklist-item-input-0-0')).not.toBeInTheDocument();
+    });
+
     it('blocks access if user lacks retainers:edit permission', () => {
       useSessionStore.getState().setSession({
         user: {
