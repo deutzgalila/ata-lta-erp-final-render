@@ -311,12 +311,20 @@ export interface RetainerTemplateTask {
   title: string;
   description?: string | null;
   phase: CreatablePhase;
+  assignees?: string[];
   default_assignees?: string[];
   defaultAssignees?: string[];
+  assigneeId?: string | null;
+  assigned_to?: string | null;
+  coAssignees?: string[];
+  co_assignees?: string[];
+  depends_on?: string | null;
+  dependsOn?: string | null;
   depends_on_local_id?: string | null;
   dependsOnLocalId?: string | null;
   requiredLinkType?: string | null;
   dueDate?: string | null;
+  due_date?: string | null;
 }
 
 export interface RetainerTemplate {
@@ -567,6 +575,22 @@ export interface RerouteResponse extends WorkRequest {
   reopenedTaskIds?: string[];
 }
 
+export interface RetainerGenerateTaskOverride {
+  local_id: string;
+  localId?: string;
+  id?: string;
+  title: string;
+  description?: string | null;
+  phase: CreatablePhase;
+  assignees?: string[];
+  assigneeId?: string | null;
+  coAssignees?: string[];
+  depends_on?: string | null;
+  dependsOn?: string | null;
+  dueDate?: string | null;
+  due_date?: string | null;
+}
+
 export interface RetainerGenerateOverrides {
   title?: string;
   description?: string | null;
@@ -579,6 +603,7 @@ export interface RetainerGenerateOverrides {
   co_assignees?: string[];
   dueDate?: string | null;
   due_date?: string | null;
+  tasks?: RetainerGenerateTaskOverride[];
 }
 
 export interface RetainerGenerateInput {
@@ -586,6 +611,8 @@ export interface RetainerGenerateInput {
   periodLabel?: string | null;
   overrides?: RetainerGenerateOverrides;
 }
+
+export type GenerateRetainerTemplateInput = RetainerGenerateInput;
 
 export type RetainerGenerateResponse = WorkRequest;
 
