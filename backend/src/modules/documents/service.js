@@ -52,6 +52,64 @@ const generateStoragePath = ({ entityCode, clientId, workRequestId, documentId, 
 };
 
 /**
+ * Enrich documents with uploader_name, work_request_title, and linked_task_title.
+ * @param {object[]} docs
+ * @returns {Promise<object[]>}
+ */
+const enrichDocuments = async (docs) => {
+  if (!docs || docs.length === 0) return docs;
+
+  const uploaderIds = [...new Set(docs.map((d) => d.uploader_id).filter(Boolean))];
+  const workRequestIds = [...new Set(docs.map((d) => d.work_request_id).filter(Boolean))];
+  const linkedTaskIds = [...new Set(docs.map((d) => d.linked_task_id).filter(Boolean))];
+
+  const userMap = new Map();
+  const wrMap = new Map();
+  const taskMap = new Map();
+
+  try {
+    if (uploaderIds.length > 0) {
+      const { data: users } = await supabaseAdmin
+        .from('users')
+        .select('id, name')
+        .in('id', uploaderIds);
+      (users || []).forEach((u) => {
+        if (u && u.id) userMap.set(u.id, u.name);
+      });
+    }
+
+    if (workRequestIds.length > 0) {
+      const { data: wrs } = await supabaseAdmin
+        .from('work_requests')
+        .select('id, title')
+        .in('id', workRequestIds);
+      (wrs || []).forEach((wr) => {
+        if (wr && wr.id) wrMap.set(wr.id, wr.title);
+      });
+    }
+
+    if (linkedTaskIds.length > 0) {
+      const { data: tasks } = await supabaseAdmin
+        .from('tasks')
+        .select('id, title')
+        .in('id', linkedTaskIds);
+      (tasks || []).forEach((t) => {
+        if (t && t.id) taskMap.set(t.id, t.title);
+      });
+    }
+  } catch (err) {
+    // Graceful fallback if relations cannot be fetched
+  }
+
+  return docs.map((doc) => ({
+    ...doc,
+    uploader_name: doc.uploader_id ? userMap.get(doc.uploader_id) || null : null,
+    work_request_title: doc.work_request_id ? wrMap.get(doc.work_request_id) || null : null,
+    linked_task_title: doc.linked_task_id ? taskMap.get(doc.linked_task_id) || null : null,
+  }));
+};
+
+/**
  * List documents for the active entity.
  * @param {object} params
  * @param {string} params.entityId - Entity code
@@ -113,7 +171,9 @@ const listDocuments = async ({ entityId, filters = {} }) => {
     });
   }
 
-  return { data: data || [], count: count || 0 };
+  const enriched = await enrichDocuments(data || []);
+
+  return { data: enriched, count: count || 0 };
 };
 
 /**
@@ -275,7 +335,8 @@ const getDocumentById = async ({ entityId, id }) => {
     });
   }
 
-  return data;
+  const [enriched] = await enrichDocuments([data]);
+  return enriched || data;
 };
 
 /**

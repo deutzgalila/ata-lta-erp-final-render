@@ -66,6 +66,7 @@ const createTransmittal = async (req, res, next) => {
     const validated = createTransmittalSchema.parse(req.body);
     const data = await service.createTransmittal({
       entityId: req.activeEntity,
+      entityCode: req.entityCode || req.headers['x-active-entity'],
       userId: req.user.id,
       data: validated,
     });

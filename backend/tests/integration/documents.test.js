@@ -456,4 +456,66 @@ describe('/v1/documents', () => {
 
     expect(res.body.detail).toBe('Document has no associated file');
   });
+
+  it('enriches document records with uploader_name, work_request_title, and linked_task_title', async () => {
+    const userId = '11111111-1111-1111-1111-111111111111';
+    const token = registerUser({
+      id: userId,
+      email: 'twinkle@ata-lta.ph',
+      name: 'Twinkle Documents',
+      role: 'Admin',
+      entities: ['ATA'],
+    });
+
+    const wrId = '22222222-2222-2222-2222-222222222222';
+    mockTables.work_requests.set(wrId, {
+      id: wrId,
+      entity_id: 'ent-ata',
+      title: 'Tax Compliance 2026',
+    });
+
+    const taskId = '33333333-3333-3333-3333-333333333333';
+    mockTables.tasks.set(taskId, {
+      id: taskId,
+      work_request_id: wrId,
+      title: 'Prepare BIR 1702',
+      assignee_id: userId,
+    });
+
+    const created = await request(app)
+      .post('/v1/documents')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({
+        ...validDocument,
+        workRequestId: wrId,
+        linkedTaskId: taskId,
+      })
+      .expect(201);
+
+    const docId = created.body.data.document.id;
+
+    // Verify getDocumentById enrichment
+    const singleRes = await request(app)
+      .get(`/v1/documents/${docId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+
+    expect(singleRes.body.data.uploader_name).toBe('Twinkle Documents');
+    expect(singleRes.body.data.work_request_title).toBe('Tax Compliance 2026');
+    expect(singleRes.body.data.linked_task_title).toBe('Prepare BIR 1702');
+
+    // Verify listDocuments enrichment
+    const listRes = await request(app)
+      .get(`/v1/documents?linkedTaskId=${taskId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+
+    expect(listRes.body.data).toHaveLength(1);
+    expect(listRes.body.data[0].uploader_name).toBe('Twinkle Documents');
+    expect(listRes.body.data[0].work_request_title).toBe('Tax Compliance 2026');
+    expect(listRes.body.data[0].linked_task_title).toBe('Prepare BIR 1702');
+  });
 });

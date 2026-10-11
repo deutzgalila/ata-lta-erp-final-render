@@ -22,7 +22,7 @@ const transmittalItemSchema = z.object({
 const createTransmittalSchema = z.object({
   clientId: z.string().uuid(),
   workRequestId: z.string().uuid(),
-  trackingNumber: z.string().min(1).max(50),
+  trackingNumber: z.string().min(1).max(50).optional(),
   items: z.array(transmittalItemSchema).min(1),
   notes: z.string().max(2000).optional().nullable(),
   recipientName: z.string().max(255).optional().nullable(),
@@ -36,7 +36,6 @@ const createTransmittalSchema = z.object({
 const updateTransmittalSchema = z.object({
   clientId: z.string().uuid().optional(),
   workRequestId: z.string().uuid().optional().nullable(),
-  trackingNumber: z.string().min(1).max(50).optional(),
   items: z.array(transmittalItemSchema).min(1).optional(),
   notes: z.string().max(2000).optional().nullable(),
   recipientName: z.string().max(255).optional().nullable(),

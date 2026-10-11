@@ -11,6 +11,7 @@ const { supabaseAdmin } = require('../../services/supabaseClient');
 const auditService = require('../../services/auditService');
 const AppError = require('../../lib/AppError');
 const { concurrencyConflict, resolveExpectedVersion } = require('../../lib/concurrency');
+const { resolveEntityCode } = require('../../lib/entityResolver');
 
 /**
  * List transmittals for the active entity.
@@ -161,9 +162,21 @@ const countTransmittals = async ({ entityId, user }) => {
  * @param {object} params.data
  * @returns {Promise<object>}
  */
-const createTransmittal = async ({ entityId, userId, data }) => {
+const createTransmittal = async ({ entityId, entityCode, userId, data }) => {
+  let trackingNumber = data.trackingNumber;
+  if (!trackingNumber) {
+    const rawCode = entityCode || (await resolveEntityCode(entityId)) || 'ATA';
+    const code = rawCode === 'ALL' ? 'ATA' : rawCode;
+    const year = new Date().getFullYear();
+    const prefix = `TR-${code}-${year}`;
+    const { data: seq, error: seqErr } = await supabaseAdmin.rpc('next_document_sequence', {
+      p_prefix: prefix,
+    });
+    trackingNumber = seq || `${prefix}-0001`;
+  }
+
   const row = {
-    tracking_number: data.trackingNumber,
+    tracking_number: trackingNumber,
     entity_id: entityId,
     client_id: data.clientId,
     work_request_id: data.workRequestId || null,
@@ -189,7 +202,7 @@ const createTransmittal = async ({ entityId, userId, data }) => {
       throw new AppError({
         statusCode: 409,
         title: 'Conflict',
-        detail: `Tracking number "${data.trackingNumber}" already exists for this entity`,
+        detail: `Tracking number "${trackingNumber}" already exists for this entity`,
       });
     }
     throw new AppError({
@@ -225,7 +238,7 @@ const createTransmittal = async ({ entityId, userId, data }) => {
     recordId: transmittal.id,
     entity: entityId,
     userId,
-    details: { trackingNumber: data.trackingNumber, itemCount: items.length },
+    details: { trackingNumber, itemCount: items.length },
   });
 
   return { ...transmittal, items };
@@ -300,7 +313,6 @@ const updateTransmittal = async ({ entityId, id, userId, data }) => {
     data.clientId !== undefined ||
     data.workRequestId !== undefined ||
     data.linkedTaskId !== undefined ||
-    data.trackingNumber !== undefined ||
     data.notes !== undefined ||
     data.recipientName !== undefined ||
     data.recipientDetails !== undefined ||
@@ -322,7 +334,6 @@ const updateTransmittal = async ({ entityId, id, userId, data }) => {
   if (data.clientId !== undefined) updates.client_id = data.clientId;
   if (data.workRequestId !== undefined) updates.work_request_id = data.workRequestId;
   if (data.linkedTaskId !== undefined) updates.linked_task_id = data.linkedTaskId;
-  if (data.trackingNumber !== undefined) updates.tracking_number = data.trackingNumber;
   if (data.notes !== undefined) updates.notes = data.notes;
   if (data.recipientName !== undefined) updates.recipient_name = data.recipientName;
   if (data.recipientDetails !== undefined) updates.recipient_details = data.recipientDetails;

@@ -285,4 +285,70 @@ describe('/v1/transmittals', () => {
 
     expect(res.body.data.linked_task_id).toBe(taskId);
   });
+
+  it('allocates sequential unique tracking numbers when trackingNumber is omitted', async () => {
+    const token = registerUser({
+      email: 'doc-seq@ata-lta.ph',
+      name: 'Doc Seq Staff',
+      role: 'Documentation',
+      entities: ['ATA'],
+    });
+
+    const year = new Date().getFullYear();
+    const payloadWithoutTracking = {
+      clientId: CLIENT_ID,
+      workRequestId: WORK_REQUEST_ID,
+      items: [{ description: 'Document Batch 1', documentType: 'Contract', quantity: 1 }],
+    };
+
+    const res1 = await request(app)
+      .post('/v1/transmittals')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .send(payloadWithoutTracking)
+      .expect(201);
+
+    expect(res1.body.data.tracking_number).toBe(`TR-ATA-${year}-0001`);
+
+    const res2 = await request(app)
+      .post('/v1/transmittals')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .send(payloadWithoutTracking)
+      .expect(201);
+
+    expect(res2.body.data.tracking_number).toBe(`TR-ATA-${year}-0002`);
+  });
+
+  it('disallows updating tracking_number on existing transmittal', async () => {
+    const token = registerUser({
+      email: 'doc-update@ata-lta.ph',
+      name: 'Doc Update Staff',
+      role: 'Documentation',
+      entities: ['ATA'],
+    });
+
+    const createRes = await request(app)
+      .post('/v1/transmittals')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .send(validTransmittal)
+      .expect(201);
+
+    const initialTracking = createRes.body.data.tracking_number;
+    expect(initialTracking).toBe('TR-12345');
+
+    const updateRes = await request(app)
+      .put(`/v1/transmittals/${createRes.body.data.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({
+        trackingNumber: 'TR-TAMPERED-9999',
+        notes: 'Updated notes',
+      })
+      .expect(200);
+
+    expect(updateRes.body.data.notes).toBe('Updated notes');
+    expect(updateRes.body.data.tracking_number).toBe('TR-12345');
+  });
 });
