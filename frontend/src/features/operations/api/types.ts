@@ -337,6 +337,8 @@ export interface RetainerTemplateTask {
   due_date?: string | null;
 }
 
+export type TemplateType = 'retainer' | 'other';
+
 export interface RetainerTemplate {
   id: string;
   entity_id: string;
@@ -344,6 +346,8 @@ export interface RetainerTemplate {
   name: string;
   title?: string;
   description: string | null;
+  template_type?: TemplateType;
+  templateType?: TemplateType;
   client_id: string | null;
   clientId?: string | null;
   schedule: string | null;
@@ -630,6 +634,8 @@ export interface CreateRetainerTemplateInput {
   name: string;
   title?: string;
   description?: string | null;
+  template_type?: TemplateType;
+  templateType?: TemplateType;
   clientId?: string | null;
   client_id?: string | null;
   schedule?: string | null;

@@ -50,6 +50,7 @@ export {
   useRetainerTemplates,
   useRetainerMutations,
   useRetainers,
+  getTemplates,
   type GenerateRetainerVariables,
 } from './useRetainers';
 

@@ -22,10 +22,12 @@ import { PendingApprovalsInbox } from '@/features/operations/components/PendingA
 import { OperationsArchiveTab } from '@/features/operations/components/OperationsArchiveTab';
 import { RetainerGenerateModal } from '@/features/operations/components/RetainerGenerateModal';
 import { RetainerTemplateModal } from '@/features/admin';
+import { OtherTemplateModal } from '@/features/operations/components/OtherTemplateModal';
+import { OtherTemplateGenerateModal } from '@/features/operations/components/OtherTemplateGenerateModal';
 import { BlockingActionModal } from '@/features/operations/components/BlockingActionModal';
 import { useOperationsRequestCounts } from '@/features/operations/api/usePhaseTransitions';
 import { useWorkRequestCounts } from '@/features/operations/api/useWorkRequests';
-import { useRetainerTemplates } from '@/features/operations/api/useRetainers';
+import { useRetainerTemplates, useRetainerMutations } from '@/features/operations/api/useRetainers';
 import { operationsKeys } from '@/features/operations/api/queryKeys';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
@@ -43,9 +45,11 @@ export default function OperationsPage() {
         ? 'work-requests'
         : rawTab === 'templates' || rawTab === 'retainer-templates'
           ? 'retainer-templates'
-          : rawTab === 'archived' || rawTab === 'archive'
-            ? 'archive'
-            : rawTab;
+          : rawTab === 'other-templates' || rawTab === 'other-template'
+            ? 'other-templates'
+            : rawTab === 'archived' || rawTab === 'archive'
+              ? 'archive'
+              : rawTab;
   const activeView = searchParams.get('view') || 'list';
 
   // Modal Visibility States
@@ -54,6 +58,12 @@ export default function OperationsPage() {
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<RetainerTemplate | null>(null);
+  const [isOtherTemplateModalOpen, setIsOtherTemplateModalOpen] = useState(false);
+  const [editingOtherTemplate, setEditingOtherTemplate] = useState<RetainerTemplate | null>(null);
+  const [isOtherGenerateModalOpen, setIsOtherGenerateModalOpen] = useState(false);
+  const [generateOtherTemplateId, setGenerateOtherTemplateId] = useState<string | null>(null);
+
+  const { deleteTemplate } = useRetainerMutations();
 
   // Session & RBAC
   const user = useSessionStore((state) => state.user);
@@ -93,11 +103,12 @@ export default function OperationsPage() {
   useEntityRealtimeSync({ table: 'time_entries', enabled: isTimeLoggingEnabled });
   useEntityRealtimeSync({ table: 'task_time_logs', enabled: isTimeLoggingEnabled });
 
-
   // Badge Counts Queries
   const { data: requestCounts } = useOperationsRequestCounts();
   const { data: wrCounts } = useWorkRequestCounts();
-  const { data: templates = [] } = useRetainerTemplates({ enabled: canUseRetainers });
+  const { data: retainerTemplates = [] } = useRetainerTemplates({ enabled: canUseRetainers, type: 'retainer' });
+  const { data: otherTemplates = [] } = useRetainerTemplates({ enabled: canUseRetainers, type: 'other' });
+  const templates = retainerTemplates;
 
   const toAdminTemplate = (
     tpl: RetainerTemplate | null
@@ -263,6 +274,18 @@ export default function OperationsPage() {
               <Layers className="h-4 w-4" />
               <span>Retainer Templates ({templates.length})</span>
             </TabsTrigger>
+
+            {/* Tab 2.5: Other Templates */}
+            {canUseRetainers && (
+              <TabsTrigger
+                value="other-templates"
+                className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 rounded-none px-1 pb-2 text-xs font-semibold flex items-center gap-1.5 bg-transparent shadow-none"
+                data-testid="tab-other-templates"
+              >
+                <Layers className="h-4 w-4" />
+                <span>Other Template ({otherTemplates.length})</span>
+              </TabsTrigger>
+            )}
 
             {/* Tab 3: Pending Approvals */}
             <TabsTrigger
@@ -443,6 +466,146 @@ export default function OperationsPage() {
           </div>
         </TabsContent>
 
+        {/* Tab 2.5 Content: Other Templates */}
+        {canUseRetainers && (
+          <TabsContent value="other-templates" className="mt-0" data-testid="other-templates-tab-content">
+            <div className="p-6 bg-white border border-slate-200 rounded-lg space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Other Templates Directory</h3>
+                  <p className="text-xs text-slate-500">
+                    Ad-hoc and repeatable service workflow templates without recurring subscriptions.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {canEditRetainers && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        setEditingOtherTemplate(null);
+                        setIsOtherTemplateModalOpen(true);
+                      }}
+                      className="text-xs font-semibold gap-1.5"
+                      data-testid="create-other-template-btn"
+                    >
+                      <Plus className="h-4 w-4" /> + New Other Template
+                    </Button>
+                  )}
+                  {canUseRetainers && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setGenerateOtherTemplateId(null);
+                        setIsOtherGenerateModalOpen(true);
+                      }}
+                      className="text-xs gap-1.5"
+                      data-testid="generate-other-template-btn"
+                    >
+                      <Zap className="h-3.5 w-3.5 text-amber-500" /> Generate from Other Template
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {otherTemplates.length === 0 ? (
+                <div className="text-center py-12 border border-dashed border-slate-200 rounded-lg space-y-2">
+                  <Layers className="h-8 w-8 text-slate-400 mx-auto" />
+                  <h4 className="text-xs font-semibold text-slate-700">No Other Templates Found</h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    Create reusable task blueprints for non-recurring operational workflows.
+                  </p>
+                  {canEditRetainers && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setEditingOtherTemplate(null);
+                        setIsOtherTemplateModalOpen(true);
+                      }}
+                      className="text-xs mt-2"
+                    >
+                      + New Other Template
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {otherTemplates.map((tpl) => (
+                    <div
+                      key={tpl.id}
+                      className="p-4 bg-slate-50/60 border border-slate-200 rounded-lg space-y-2 hover:border-slate-300 transition-colors"
+                      data-testid={`other-template-card-${tpl.id}`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <h4 className="font-bold text-xs text-slate-900">{tpl.name || tpl.title}</h4>
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant={(tpl.entity || tpl.entity_id) === 'LTA' ? 'lta' : 'ata'} size="compact">
+                            {tpl.entity || tpl.entity_id}
+                          </Badge>
+                        </div>
+                      </div>
+                      {tpl.description && (
+                        <p className="text-xs text-slate-600 line-clamp-2">{tpl.description}</p>
+                      )}
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-200 text-xs text-slate-500">
+                        <Badge variant="secondary" size="compact" data-testid={`task-count-pill-${tpl.id}`}>
+                          {(tpl.tasks || []).length} tasks
+                        </Badge>
+                        <div className="flex items-center gap-2">
+                          {canEditRetainers && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingOtherTemplate(tpl);
+                                  setIsOtherTemplateModalOpen(true);
+                                }}
+                                className="text-[11px] font-medium text-blue-600 hover:text-blue-800 hover:underline px-1"
+                                data-testid={`edit-other-template-btn-${tpl.id}`}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (confirm(`Delete template "${tpl.name || tpl.title}"?`)) {
+                                    await deleteTemplate(tpl.id);
+                                  }
+                                }}
+                                className="text-[11px] font-medium text-rose-600 hover:text-rose-800 hover:underline px-1"
+                                data-testid={`delete-other-template-btn-${tpl.id}`}
+                              >
+                                Delete
+                              </button>
+                            </>
+                          )}
+                          {canUseRetainers && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setGenerateOtherTemplateId(tpl.id);
+                                setIsOtherGenerateModalOpen(true);
+                              }}
+                              className="text-[11px] font-semibold text-amber-600 hover:text-amber-800 hover:underline flex items-center gap-0.5 px-1"
+                              data-testid={`generate-card-other-template-btn-${tpl.id}`}
+                            >
+                              <Zap className="h-3 w-3" /> Generate
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </TabsContent>
+        )}
+
         {/* Tab 3 Content: Pending Approvals Inbox */}
         <TabsContent value="pending-approvals" className="mt-0">
           <PendingApprovalsInbox
@@ -487,6 +650,34 @@ export default function OperationsPage() {
           onClose={() => {
             setIsTemplateModalOpen(false);
             setEditingTemplate(null);
+          }}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: operationsKeys.templates() });
+          }}
+        />
+      )}
+
+      {isOtherTemplateModalOpen && (
+        <OtherTemplateModal
+          isOpen={isOtherTemplateModalOpen}
+          template={editingOtherTemplate}
+          onClose={() => {
+            setIsOtherTemplateModalOpen(false);
+            setEditingOtherTemplate(null);
+          }}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: operationsKeys.templates() });
+          }}
+        />
+      )}
+
+      {isOtherGenerateModalOpen && (
+        <OtherTemplateGenerateModal
+          isOpen={isOtherGenerateModalOpen}
+          preselectedTemplateId={generateOtherTemplateId}
+          onClose={() => {
+            setIsOtherGenerateModalOpen(false);
+            setGenerateOtherTemplateId(null);
           }}
           onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: operationsKeys.templates() });
