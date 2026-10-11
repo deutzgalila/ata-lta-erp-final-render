@@ -191,6 +191,19 @@ const retainerTemplateSchema = z.object({
   tasks: z.array(taskTemplateSchema).optional(),
 });
 
+const generateTaskOverrideSchema = z.object({
+  local_id: z.string().optional().nullable(),
+  localId: z.string().optional().nullable(),
+  title: z.string().min(1).max(255).optional(),
+  description: z.string().max(2000).optional().nullable(),
+  phase: z.enum(['pre_processing', 'processing']).optional(),
+  assignees: z.array(z.string().uuid()).optional(),
+  depends_on: z.string().optional().nullable(),
+  dependsOn: z.string().optional().nullable(),
+  dueDate: z.string().optional().nullable(),
+  due_date: z.string().optional().nullable(),
+});
+
 const generateRetainerTemplateSchema = z.object({
   period_label: z.string().trim().min(1).max(50).optional().nullable(),
   periodLabel: z.string().trim().min(1).max(50).optional().nullable(),
@@ -203,10 +216,11 @@ const generateRetainerTemplateSchema = z.object({
       priority: z.string().max(50).optional(),
       assignedTo: nullableUuid,
       assigned_to: nullableUuid,
-      coAssignees: z.array(z.string()).optional(),
-      co_assignees: z.array(z.string()).optional(),
+      coAssignees: z.array(z.string().uuid()).optional(),
+      co_assignees: z.array(z.string().uuid()).optional(),
       dueDate: z.string().optional().nullable(),
       due_date: z.string().optional().nullable(),
+      tasks: z.array(generateTaskOverrideSchema).optional(),
     })
     .optional(),
 });
@@ -283,4 +297,5 @@ module.exports = {
   qaReviewSchema,
   rerouteSchema,
   generateRetainerTemplateSchema,
+  generateTaskOverrideSchema,
 };
