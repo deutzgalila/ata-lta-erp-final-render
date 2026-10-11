@@ -480,6 +480,29 @@ const tableQuery = (table) => {
  * Atomic RPC transition helpers for concurrency tests.
  */
 const rpcImpl = {
+  mutate_document_comment: (p) => {
+    const fail = (code, message) => ({ data: null, error: { code, message } });
+    const doc = mockTables.documents.get(p.p_document_id);
+    if (!doc || doc.entity_id !== p.p_entity_id || doc.deleted_at) return fail('P0002', 'Document not found');
+    const actor = mockTables.users.get(p.p_user_id);
+    if (!actor?.is_active) return fail('42501', 'Active user required');
+    const comments = [...(doc.comments || [])];
+    if (p.p_action === 'add') {
+      comments.push({ id: require('crypto').randomUUID(), userId: actor.id,
+        userName: actor.name, date: nowIso(), text: p.p_text.trim() });
+    } else {
+      const index = comments.findIndex((c) => c.id === p.p_comment_id);
+      if (index < 0) return fail('P0002', 'Comment not found');
+      const target = comments[index];
+      if ((target.userId || target.user_id) !== actor.id && !(p.p_action === 'delete' && actor.role === 'Admin')) {
+        return fail('42501', 'You cannot modify this comment');
+      }
+      if (p.p_action === 'delete') comments.splice(index, 1);
+      else comments[index] = { ...target, text: p.p_text.trim(), edited: true, edited_at: nowIso() };
+    }
+    Object.assign(doc, { comments, updated_by: actor.id, updated_at: nowIso() });
+    return { data: JSON.parse(JSON.stringify(doc)), error: null };
+  },
   disbursement_transition: (params) => {
     const row = mockTables.disbursements.get(params.p_id);
     if (!row) return { data: [], error: null };
