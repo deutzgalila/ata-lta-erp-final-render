@@ -123,6 +123,43 @@ describe('Other Templates API & Engine Integration Tests', () => {
       expect(res.body.data.tasks).toHaveLength(2);
     });
 
+    it('creates an Other Template with tasks containing checklist items (subtask and document)', async () => {
+      const res = await request(app)
+        .post('/v1/operations/templates')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          title: 'SEC Amendment with Checklists',
+          templateType: 'other',
+          tasks: [
+            {
+              title: 'Draft Board Resolution',
+              phase: 'pre_processing',
+              checklist: [
+                {
+                  text: 'Confirm quorum with corporate secretary',
+                  category: 'subtask',
+                  completed: false,
+                },
+                {
+                  text: 'Articles of Incorporation',
+                  category: 'document',
+                  periodYear: 2026,
+                  completed: false,
+                },
+              ],
+            },
+          ],
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.tasks).toHaveLength(1);
+      expect(res.body.data.tasks[0].checklist).toHaveLength(2);
+      expect(res.body.data.tasks[0].checklist[0].category).toBe('subtask');
+      expect(res.body.data.tasks[0].checklist[1].category).toBe('document');
+      expect(Number(res.body.data.tasks[0].checklist[1].periodYear)).toBe(2026);
+    });
+
     it('rejects Other Template creation without title', async () => {
       const res = await request(app)
         .post('/v1/operations/templates')
@@ -383,6 +420,73 @@ describe('Other Templates API & Engine Integration Tests', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.code).toBe('TASK_ASSIGNEE_NOT_IN_TEAM');
+    });
+
+    it('generates a Work Request materializing checklist items into task_checklists table', async () => {
+      // 1. Create template with checklist
+      const tplRes = await request(app)
+        .post('/v1/operations/templates')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          title: 'BIR Audit Template with Checklist',
+          templateType: 'other',
+          tasks: [
+            {
+              local_id: 'task-bir-1',
+              title: 'Gather Audit Docs',
+              phase: 'pre_processing',
+              checklist: [
+                {
+                  text: 'Request bank reconciliation',
+                  category: 'subtask',
+                },
+                {
+                  text: 'BIR Form 1702-RT',
+                  category: 'document',
+                  periodYear: 2025,
+                },
+              ],
+            },
+          ],
+        });
+      expect(tplRes.status).toBe(201);
+      const tplId = tplRes.body.data.id;
+
+      // 2. Generate Work Request
+      const genRes = await request(app)
+        .post(`/v1/operations/templates/${tplId}/generate`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          overrides: {
+            clientId: testClient.id,
+            assignedTo: MANAGER_ID,
+          },
+        });
+
+      expect(genRes.status).toBe(201);
+      const wr = genRes.body.data;
+      expect(wr.id).toBeDefined();
+
+      // Check task_checklists table
+      const clRows = Array.from(mockTables.task_checklists.values());
+      const subtaskRow = clRows.find((r) => r.text === 'Request bank reconciliation');
+      const docRow = clRows.find((r) => r.text === 'BIR Form 1702-RT');
+
+      expect(subtaskRow).toBeDefined();
+      expect(subtaskRow.category).toBe('subtask');
+      expect(subtaskRow.completed).toBe(false);
+
+      expect(docRow).toBeDefined();
+      expect(docRow.category).toBe('document');
+      expect(docRow.period_year).toBe(2025);
+
+      // Check returned apiTasks checklist
+      const preTasks = wr.phases?.pre_processing?.tasks || wr.tasks;
+      const targetTask = preTasks.find((t) => t.title === 'Gather Audit Docs');
+      expect(targetTask).toBeDefined();
+      expect(targetTask.checklist).toHaveLength(2);
     });
   });
 });
