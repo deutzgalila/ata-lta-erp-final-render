@@ -654,7 +654,7 @@ export function DocumentViewerModal({
             <div ref={attachCommentsRef} data-testid="comments-scroll-container"
               onScroll={(e) => {
                 const el = e.currentTarget;
-                followComments.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+                followComments.current = el.scrollHeight - el.scrollTop - el.clientHeight <= 80;
               }} className="flex-1 p-3 overflow-y-auto space-y-3">
               {doc?.comments && doc.comments.length > 0 ? (
                 doc.comments.map((comment, index) => {
