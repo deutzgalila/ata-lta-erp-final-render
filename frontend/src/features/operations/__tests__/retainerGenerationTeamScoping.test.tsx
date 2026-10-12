@@ -439,8 +439,8 @@ describe('Retainer Template Generation & Team Scoping Parity (Requirement R2)', 
       id: 'tpl-raw-uuid-test',
       entity: undefined,
       entity_id: 'e83dc90b-d9b5-4854-8adf-7fe21c2e6822',
-      name: 'Clean Monthly Compliance',
-      recurrence: 'monthly',
+      name: 'Clean Annual Compliance',
+      recurrence: 'annual',
     };
 
     global.fetch = vi.fn().mockImplementation((url: string) => {
@@ -473,7 +473,7 @@ describe('Retainer Template Generation & Team Scoping Parity (Requirement R2)', 
     // Should resolve to ATA and not display raw UUID
     expect(
       await screen.findByRole('option', {
-        name: 'Clean Monthly Compliance (ATA • monthly)',
+        name: 'Clean Annual Compliance (ATA • annual)',
       })
     ).toBeInTheDocument();
     expect(screen.queryByText(/e83dc90b/i)).not.toBeInTheDocument();
