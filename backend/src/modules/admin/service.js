@@ -702,6 +702,23 @@ const getAuditLogCount = async ({ entityCode }) => {
   return count || 0;
 };
 
+const MODULE_TABLE_MAP = {
+  operations: ['work_requests', 'tasks'],
+  billing: ['invoices', 'invoice_line_items', 'invoice_payments'],
+  disbursements: ['disbursements', 'disbursement_templates'],
+  documents: ['documents'],
+  transmittals: ['transmittals', 'transmittal_items'],
+  admin: [
+    'users',
+    'user_roles',
+    'clients',
+    'entities',
+    'stages',
+    'retainer_templates',
+    'operations_requests',
+  ],
+};
+
 /**
  * List audit log entries with optional filters and pagination.
  * @param {object} params
@@ -710,7 +727,23 @@ const getAuditLogCount = async ({ entityCode }) => {
  * @returns {Promise<{ data: object[], meta: object }>}
  */
 const getAuditLogs = async ({ entityCode, filters = {} }) => {
-  const { userId, action, table, from, to, limit = 20, offset = 0 } = filters;
+  const {
+    userId,
+    action,
+    table,
+    module: moduleFilter,
+    actor,
+    date,
+    from,
+    to,
+    page: pageParam,
+    limit = 20,
+    offset: offsetParam = 0,
+  } = filters;
+
+  const limitNum = Number(limit);
+  const page = pageParam ? Number(pageParam) : Math.floor(Number(offsetParam) / limitNum) + 1;
+  const offset = pageParam ? (page - 1) * limitNum : Number(offsetParam);
 
   let query = supabaseAdmin.from('audit_logs').select('*', { count: 'exact' });
 
@@ -723,7 +756,33 @@ const getAuditLogs = async ({ entityCode, filters = {} }) => {
     }
   }
 
-  if (userId) {
+  // Actor / User filter
+  if (actor) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(actor);
+    if (isUuid) {
+      query = query.eq('user_id', actor);
+    } else {
+      const { data: matchedUsers } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .or(`email.ilike.%${actor}%,name.ilike.%${actor}%`);
+      const matchedIds = (matchedUsers || []).map((u) => u.id);
+      if (matchedIds.length > 0) {
+        query = query.in('user_id', matchedIds);
+      } else {
+        return {
+          data: [],
+          meta: {
+            total: 0,
+            page,
+            limit: limitNum,
+            offset,
+            hasMore: false,
+          },
+        };
+      }
+    }
+  } else if (userId) {
     query = query.eq('user_id', userId);
   }
 
@@ -733,19 +792,30 @@ const getAuditLogs = async ({ entityCode, filters = {} }) => {
 
   if (table) {
     query = query.eq('table_name', table);
+  } else if (moduleFilter) {
+    const modKey = moduleFilter.toLowerCase();
+    const tables = MODULE_TABLE_MAP[modKey];
+    if (tables && tables.length > 0) {
+      query = query.in('table_name', tables);
+    }
   }
 
-  if (from) {
-    query = query.gte('created_at', from);
-  }
-
-  if (to) {
-    query = query.lte('created_at', to);
+  if (date) {
+    const dateStr = date.includes('T') ? date.split('T')[0] : date;
+    query = query.gte('created_at', `${dateStr}T00:00:00.000Z`);
+    query = query.lte('created_at', `${dateStr}T23:59:59.999Z`);
+  } else {
+    if (from) {
+      query = query.gte('created_at', from);
+    }
+    if (to) {
+      query = query.lte('created_at', to);
+    }
   }
 
   const { data, error, count } = await query
     .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1);
+    .range(offset, offset + limitNum - 1);
 
   if (error) {
     throw new AppError({
@@ -758,20 +828,47 @@ const getAuditLogs = async ({ entityCode, filters = {} }) => {
   const rows = data || [];
   const total = count !== undefined && count !== null ? count : rows.length;
 
+  // Enrich actor metadata
+  const userIds = Array.from(new Set(rows.map((r) => r.user_id).filter(Boolean)));
+  const userMap = new Map();
+  if (userIds.length > 0) {
+    const { data: usersData } = await supabaseAdmin
+      .from('users')
+      .select('id, name, email, role')
+      .in('id', userIds);
+    (usersData || []).forEach((u) => userMap.set(u.id, u));
+  }
+
   return {
-    data: rows.map((row) => ({
-      id: row.id,
-      action: row.action,
-      tableName: row.table_name,
-      recordId: row.record_id,
-      entity: row.entity,
-      userId: row.user_id,
-      details: row.details,
-      createdAt: row.created_at,
-    })),
+    data: rows.map((row) => {
+      const user = userMap.get(row.user_id) || null;
+      return {
+        id: row.id,
+        action: row.action,
+        tableName: row.table_name,
+        recordId: row.record_id,
+        entity: row.entity,
+        userId: row.user_id,
+        actor: user
+          ? {
+              id: user.id,
+              name: user.name,
+              email: user.email,
+              role: user.role,
+            }
+          : row.user_id
+          ? { id: row.user_id }
+          : null,
+        userName: user?.name || null,
+        userEmail: user?.email || null,
+        details: row.details,
+        createdAt: row.created_at,
+      };
+    }),
     meta: {
       total,
-      limit,
+      page,
+      limit: limitNum,
       offset,
       hasMore: offset + rows.length < total,
     },

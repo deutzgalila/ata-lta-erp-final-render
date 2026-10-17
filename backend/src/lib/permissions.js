@@ -47,6 +47,14 @@ const DEPARTMENT_PERMISSIONS = {
     'approve_change:*',
     'users:view',
     'audit:view_all',
+    // P0-A additions (enterprise migration)
+    'workflow:transition_request',
+    'retainers:use',
+    'billing:edit_client_address',
+    'timelog:view',
+    'timelog:create',
+    'timelog:edit_own',
+    'notifications:view',
   ],
   Accounting: [
     'clients:view',
@@ -65,6 +73,12 @@ const DEPARTMENT_PERMISSIONS = {
     'reports:view',
     'approve_change:invoices',
     'approve_change:disbursements',
+    // P0-A additions (enterprise migration)
+    'billing:edit_client_address',
+    'timelog:view',
+    'timelog:create',
+    'timelog:edit_own',
+    'notifications:view',
   ],
   Operations: [
     'clients:view',
@@ -79,6 +93,12 @@ const DEPARTMENT_PERMISSIONS = {
     'transmittal:view',
     'transmittal:request',
     'reports:view',
+    // P0-A additions (enterprise migration)
+    'disbursement:create',
+    'timelog:view',
+    'timelog:create',
+    'timelog:edit_own',
+    'notifications:view',
   ],
   Documentation: [
     'clients:view',
@@ -95,6 +115,12 @@ const DEPARTMENT_PERMISSIONS = {
     'transmittal:edit',
     'transmittal:mark',
     'reports:view',
+    // P0-A additions (enterprise migration)
+    'disbursement:create',
+    'timelog:view',
+    'timelog:create',
+    'timelog:edit_own',
+    'notifications:view',
   ],
   HR: [
     'clients:view',
@@ -109,6 +135,12 @@ const DEPARTMENT_PERMISSIONS = {
     'transmittal:view',
     'transmittal:request',
     'reports:view',
+    // P0-A additions (enterprise migration)
+    'disbursement:create',
+    'timelog:view',
+    'timelog:create',
+    'timelog:edit_own',
+    'notifications:view',
   ],
 };
 
@@ -169,6 +201,13 @@ const buildPermissionSet = ({ role, departments = [] }) => {
     granted.add('users:manage');
     granted.add('clients:edit');
     granted.add('transmittal:approve');
+    // P0-A additions: Admin-only keys cannot come from the department union
+    // (granting them to a department map would leak them to staff).
+    granted.add('workflow:phase_transition');
+    granted.add('workflow:qa_review');
+    granted.add('retainers:edit');
+    granted.add('disbursement:approve');
+    granted.add('timelog:edit_all');
   }
 
   return granted;

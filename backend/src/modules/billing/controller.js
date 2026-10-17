@@ -43,6 +43,7 @@ const listInvoices = async (req, res, next) => {
     const filters = {
       status: req.query.status,
       clientId: req.query.clientId,
+      taskId: req.query.taskId || req.query.task_id,
       linkedTaskId: req.query.linkedTaskId,
       linkedTransmittalId: req.query.linkedTransmittalId,
       search: req.query.search,
@@ -103,6 +104,7 @@ const updateInvoice = async (req, res, next) => {
       id: req.params.id,
       userId: req.user.id,
       data: validated,
+      user: req.user,
     });
     res.json({ data });
   } catch (err) {

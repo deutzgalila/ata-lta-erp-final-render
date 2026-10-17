@@ -27,7 +27,7 @@ const DISBURSEMENT_CATEGORIES = [
 /**
  * Schema for creating a disbursement.
  */
-const createDisbursementSchema = z.object({
+const createDisbursementBaseSchema = z.object({
   category: z.string().min(1).max(50),
   description: z.string().min(1).max(2000),
   amount: z.number().positive(),
@@ -35,19 +35,36 @@ const createDisbursementSchema = z.object({
   clientId: z.string().uuid().optional().nullable(),
   employeeId: z.string().uuid().optional().nullable(),
   linkedInvoiceId: z.string().uuid().optional().nullable(),
-  linkedWorkRequestId: z.string().uuid(),
+  linkedWorkRequestId: z.string().uuid().optional(),
+  workRequestId: z.string().uuid().optional(),
+  work_request_id: z.string().uuid().optional(),
+  taskId: z.string().uuid().optional().nullable(),
+  task_id: z.string().uuid().optional().nullable(),
   linkedTaskId: z.string().uuid().optional().nullable(),
   linkedTransmittalId: z.string().uuid().optional().nullable(),
   dueDate: z.string().optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
   receiptS3Key: z.string().max(500).optional().nullable(),
   receiptFilename: z.string().max(255).optional().nullable(),
+  status: z.never({
+    message: 'Explicit status cannot be set on creation; status forgery is prohibited',
+  }).optional(),
+});
+
+const createDisbursementSchema = createDisbursementBaseSchema.superRefine((data, ctx) => {
+  if (!data.linkedWorkRequestId && !data.workRequestId && !data.work_request_id) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Work request ID is required (linkedWorkRequestId or workRequestId)',
+      path: ['linkedWorkRequestId'],
+    });
+  }
 });
 
 /**
  * Schema for updating a disbursement.
  */
-const updateDisbursementSchema = createDisbursementSchema.partial().extend({
+const updateDisbursementSchema = createDisbursementBaseSchema.partial().extend({
   archived: z.boolean().optional(),
   // OCC guard (Spec 2.2 / R-10): update applies only if the stored version matches.
   expectedVersion: z.number().int().positive().optional(),
@@ -57,7 +74,7 @@ const updateDisbursementSchema = createDisbursementSchema.partial().extend({
  * Schema for rejecting a disbursement.
  */
 const rejectSchema = z.object({
-  reason: z.string().min(1).max(500),
+  reason: z.string().trim().min(1, 'Rejection reason is required').max(500),
 });
 
 /**

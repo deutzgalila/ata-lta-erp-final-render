@@ -21,7 +21,30 @@ const VALID_TRANSITIONS = {
   approve: { from: 'Pending', to: 'Approved' },
   release: { from: 'Approved', to: 'Released' },
   fund: { from: 'Released', to: 'Funded' },
-  reject: { from: ['Pending', 'Approved'], to: 'Rejected' },
+  reject: { from: 'Pending', to: 'Rejected' },
+};
+
+/**
+ * Non-blocking notification dispatch helper (P0-B / Rule R5).
+ * Swallows any error to preserve caller operation success.
+ */
+const safeNotify = async (userIds, type, payload) => {
+  try {
+    let notifyModule = null;
+    try {
+      notifyModule = require('../../services/notify');
+    } catch (_err) {
+      notifyModule = null;
+    }
+
+    if (notifyModule && typeof notifyModule.notify === 'function') {
+      await notifyModule.notify(userIds, type, payload);
+    }
+  } catch (err) {
+    // Non-blocking: swallow error per Rule R5 / P0-B R3
+    // eslint-disable-next-line no-console
+    console.warn('[NOTIFY] Failed to dispatch notification:', err?.message || err);
+  }
 };
 
 /**
@@ -199,6 +222,8 @@ const listDisbursements = async ({ entityId, filters = {}, user }) => {
     category,
     fundSource,
     linkedTaskId,
+    taskId,
+    task_id,
     linkedTransmittalId,
     search,
     archived,
@@ -227,14 +252,18 @@ const listDisbursements = async ({ entityId, filters = {}, user }) => {
   const isAccounting =
     (user?.departments || []).includes('Accounting') || user?.role === 'Accounting';
   if (!isAdmin && !isAccounting) {
+    // Non-admin, non-accounting staff can see:
+    // 1. Released/Funded disbursements, OR
+    // 2. Any disbursement where they are the creator or employee
     if (status) {
       if (['Draft', 'Pending', 'Submitted', 'Under Review', 'Approved'].includes(status)) {
-        query = query.eq('status', '___NONE___');
+        // Only return if created by or assigned to this user
+        query = query.eq('status', status).or(`created_by.eq.${user.id},employee_id.eq.${user.id}`);
       } else {
         query = query.eq('status', status);
       }
     } else {
-      query = query.in('status', ['Released', 'Funded', 'Rejected']);
+      query = query.or(`status.in.(Released,Funded,Rejected),created_by.eq.${user.id},employee_id.eq.${user.id}`);
     }
   } else {
     if (status) query = query.eq('status', status);
@@ -242,7 +271,10 @@ const listDisbursements = async ({ entityId, filters = {}, user }) => {
 
   if (category) query = query.eq('category', category);
   if (fundSource) query = query.eq('fund_source', fundSource);
-  if (linkedTaskId) query = query.eq('linked_task_id', linkedTaskId);
+  const effectiveFilterTaskId = taskId || task_id || linkedTaskId;
+  if (effectiveFilterTaskId) {
+    query = query.or(`task_id.eq.${effectiveFilterTaskId},linked_task_id.eq.${effectiveFilterTaskId}`);
+  }
   if (linkedTransmittalId) query = query.eq('linked_transmittal_id', linkedTransmittalId);
   if (search) {
     query = query.or(`description.ilike.%${search}%,disbursement_number.ilike.%${search}%`);
@@ -294,7 +326,68 @@ const listDisbursements = async ({ entityId, filters = {}, user }) => {
  * @returns {Promise<object>}
  */
 const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
+  // Reject client-supplied status forgery (AC-1, R1)
+  if (data.status !== undefined && data.status !== null) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'Explicit status cannot be set on creation; status forgery is prohibited',
+      code: 'STATUS_FORGERY_PROHIBITED',
+    });
+  }
+
+  // Determine initial status based on creator's role (AC-1)
+  // Staff roles (HR, Operations, Documentation) -> 201 with 'Pending'
+  // Management, Accounting, Admin -> 201 with 'Draft' (unchanged behavior)
+  let isStaff = false;
+  if (userId) {
+    const { data: userRecord } = await supabaseAdmin
+      .from('users')
+      .select('id, role')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (userRecord) {
+      const role = userRecord.role;
+      if (['Operations', 'Documentation', 'HR'].includes(role)) {
+        isStaff = true;
+      }
+    }
+  }
+
+  const initialStatus = isStaff ? 'Pending' : 'Draft';
   const MAX_RETRIES = 5;
+
+  const effectiveTaskId = data.taskId || data.task_id || data.linkedTaskId || null;
+  const effectiveWrId =
+    data.linkedWorkRequestId || data.workRequestId || data.work_request_id || null;
+
+  // Validation: Task existence & WR association (UAT2-6/12)
+  if (effectiveTaskId) {
+    const { data: task, error: taskErr } = await supabaseAdmin
+      .from('tasks')
+      .select('id, work_request_id')
+      .eq('id', effectiveTaskId)
+      .maybeSingle();
+
+    if (taskErr || !task) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: `Linked task "${effectiveTaskId}" was not found`,
+        code: 'TASK_NOT_FOUND',
+      });
+    }
+
+    if (effectiveWrId && task.work_request_id !== effectiveWrId) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: 'Task does not belong to work request',
+        code: 'TASK_WR_MISMATCH',
+      });
+    }
+  }
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     const disbursementNumber = await generateDisbursementNumber(
@@ -310,12 +403,13 @@ const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
       description: data.description,
       amount: data.amount,
       fund_source: data.fundSource,
-      status: 'Draft',
+      status: initialStatus,
       client_id: data.clientId || null,
       employee_id: data.employeeId || null,
       linked_invoice_id: data.linkedInvoiceId || null,
-      linked_work_request_id: data.linkedWorkRequestId || null,
-      linked_task_id: data.linkedTaskId || null,
+      linked_work_request_id: effectiveWrId,
+      linked_task_id: effectiveTaskId,
+      task_id: effectiveTaskId,
       linked_transmittal_id: data.linkedTransmittalId || null,
       requested_by: userId,
       due_date: data.dueDate || null,
@@ -371,13 +465,17 @@ const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
  * @returns {Promise<object>}
  */
 const getDisbursementById = async ({ entityId, id, user }) => {
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('disbursements')
     .select('*, clients(name)')
     .eq('id', id)
-    .eq('entity_id', entityId)
-    .is('deleted_at', null)
-    .single();
+    .is('deleted_at', null);
+
+  if (entityId && entityId !== 'ALL') {
+    query = query.eq('entity_id', entityId);
+  }
+
+  const { data, error } = await query.single();
 
   if (error || !data) {
     throw new AppError({
@@ -394,7 +492,10 @@ const getDisbursementById = async ({ entityId, id, user }) => {
       (user.departments || []).includes('Accounting') || user.role === 'Accounting';
     const isManager =
       user.role === 'Manager' || (user.departments || []).includes('Management');
-    const isSelf = data.requested_by === user.id || data.created_by === user.id;
+    const isSelf =
+      data.requested_by === user.id ||
+      data.created_by === user.id ||
+      data.employee_id === user.id;
 
     if (!isAdmin && !isAccounting) {
       if (
@@ -436,8 +537,12 @@ const getDisbursementById = async ({ entityId, id, user }) => {
  * @param {object} params.data
  * @returns {Promise<object>}
  */
-const updateDisbursement = async ({ entityId, id, userId, data }) => {
+const updateDisbursement = async ({ entityId, id, userId, data, user }) => {
   const existing = await getDisbursementById({ entityId, id });
+
+  if (data.status === 'Approved' && existing.status === 'Draft') {
+    return approveDisbursement({ entityId, id, userId, user });
+  }
 
   const contentFields = [
     'category',
@@ -448,7 +553,11 @@ const updateDisbursement = async ({ entityId, id, userId, data }) => {
     'employeeId',
     'linkedInvoiceId',
     'linkedWorkRequestId',
+    'workRequestId',
+    'work_request_id',
     'linkedTaskId',
+    'taskId',
+    'task_id',
     'linkedTransmittalId',
     'dueDate',
     'notes',
@@ -463,6 +572,74 @@ const updateDisbursement = async ({ entityId, id, userId, data }) => {
     });
   }
 
+  const effectiveTaskId =
+    data.taskId !== undefined
+      ? data.taskId
+      : data.task_id !== undefined
+      ? data.task_id
+      : data.linkedTaskId !== undefined
+      ? data.linkedTaskId
+      : undefined;
+
+  const effectiveWrId =
+    data.linkedWorkRequestId !== undefined
+      ? data.linkedWorkRequestId
+      : data.workRequestId !== undefined
+      ? data.workRequestId
+      : data.work_request_id !== undefined
+      ? data.work_request_id
+      : existing.linked_work_request_id;
+
+  // Validation: Task existence & WR association (UAT2-6/12)
+  if (effectiveTaskId) {
+    const { data: task, error: taskErr } = await supabaseAdmin
+      .from('tasks')
+      .select('id, work_request_id')
+      .eq('id', effectiveTaskId)
+      .maybeSingle();
+
+    if (taskErr || !task) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: `Linked task "${effectiveTaskId}" was not found`,
+        code: 'TASK_NOT_FOUND',
+      });
+    }
+
+    if (effectiveWrId && task.work_request_id !== effectiveWrId) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: 'Task does not belong to work request',
+        code: 'TASK_WR_MISMATCH',
+      });
+    }
+  } else if (
+    effectiveTaskId === undefined &&
+    (data.linkedWorkRequestId !== undefined ||
+      data.workRequestId !== undefined ||
+      data.work_request_id !== undefined)
+  ) {
+    // If only WR is updated, check existing linked task against new WR
+    const existingTaskId = existing.task_id || existing.linked_task_id;
+    if (existingTaskId && effectiveWrId) {
+      const { data: task } = await supabaseAdmin
+        .from('tasks')
+        .select('id, work_request_id')
+        .eq('id', existingTaskId)
+        .maybeSingle();
+      if (task && task.work_request_id !== effectiveWrId) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Bad Request',
+          detail: 'Task does not belong to work request',
+          code: 'TASK_WR_MISMATCH',
+        });
+      }
+    }
+  }
+
   const updates = {
     updated_by: userId,
     updated_at: new Date().toISOString(),
@@ -475,9 +652,17 @@ const updateDisbursement = async ({ entityId, id, userId, data }) => {
   if (data.clientId !== undefined) updates.client_id = data.clientId;
   if (data.employeeId !== undefined) updates.employee_id = data.employeeId;
   if (data.linkedInvoiceId !== undefined) updates.linked_invoice_id = data.linkedInvoiceId;
-  if (data.linkedWorkRequestId !== undefined)
-    updates.linked_work_request_id = data.linkedWorkRequestId;
-  if (data.linkedTaskId !== undefined) updates.linked_task_id = data.linkedTaskId;
+  if (
+    data.linkedWorkRequestId !== undefined ||
+    data.workRequestId !== undefined ||
+    data.work_request_id !== undefined
+  ) {
+    updates.linked_work_request_id = effectiveWrId;
+  }
+  if (effectiveTaskId !== undefined) {
+    updates.linked_task_id = effectiveTaskId;
+    updates.task_id = effectiveTaskId;
+  }
   if (data.linkedTransmittalId !== undefined)
     updates.linked_transmittal_id = data.linkedTransmittalId;
   if (data.dueDate !== undefined) updates.due_date = data.dueDate;
@@ -603,9 +788,34 @@ const unarchiveDisbursement = async ({ entityId, id, userId }) => {
  * @param {object} [params.extraUpdates] - Additional fields to set
  * @returns {Promise<object>}
  */
-const performTransition = async ({ entityId, id, userId, action, extraUpdates = {} }) => {
+const performTransition = async ({ entityId, id, userId, action, extraUpdates = {}, user }) => {
   const transition = VALID_TRANSITIONS[action];
-  const validFrom = Array.isArray(transition.from) ? transition.from : [transition.from];
+  let validFrom = Array.isArray(transition.from) ? [...transition.from] : [transition.from];
+
+  if (action === 'approve') {
+    let effectiveUser = user;
+    if (!effectiveUser && userId) {
+      const { data: u } = await supabaseAdmin
+        .from('users')
+        .select('id, name, role, departments')
+        .eq('id', userId)
+        .maybeSingle();
+      effectiveUser = u;
+    }
+    const permissions = effectiveUser
+      ? (effectiveUser.permissions instanceof Set
+          ? effectiveUser.permissions
+          : buildPermissionSet({ role: effectiveUser.role || '', departments: effectiveUser.departments || [] }))
+      : new Set();
+    const canDirectApprove =
+      effectiveUser?.role === 'Admin' ||
+      hasPermission(permissions, 'disbursement:approve') ||
+      hasPermission(permissions, 'disbursement:*');
+
+    if (canDirectApprove && !validFrom.includes('Draft')) {
+      validFrom.push('Draft');
+    }
+  }
 
   const paymentDetails =
     action === 'release'
@@ -676,19 +886,32 @@ const submitDisbursement = async ({ entityId, id, userId }) => {
 };
 
 /**
- * Approve a disbursement. Pending → Approved.
+ * Approve a disbursement. Pending → Approved (or Draft → Approved for Admin).
  */
-const approveDisbursement = async ({ entityId, id, userId }) => {
-  return performTransition({
+const approveDisbursement = async ({ entityId, id, userId, user }) => {
+  const result = await performTransition({
     entityId,
     id,
     userId,
+    user,
     action: 'approve',
     extraUpdates: {
       approved_by: userId,
       approved_at: new Date().toISOString(),
     },
   });
+
+  const creatorId = result.requested_by || result.created_by;
+  if (creatorId) {
+    await safeNotify([creatorId], 'pending_request.resolved', {
+      request_id: result.id,
+      table_name: 'disbursements',
+      outcome: 'approved',
+      title: result.disbursement_number || result.description,
+    });
+  }
+
+  return result;
 };
 
 /**
@@ -729,10 +952,20 @@ const fundDisbursement = async ({ entityId, id, userId }) => {
 };
 
 /**
- * Reject a disbursement. Pending/Approved → Rejected.
+ * Reject a disbursement. Pending → Rejected.
  */
 const rejectDisbursement = async ({ entityId, id, userId, reason }) => {
-  return performTransition({
+  if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'Rejection reason is required',
+      code: 'REJECTION_REASON_REQUIRED',
+    });
+  }
+
+  const trimmedReason = reason.trim();
+  const result = await performTransition({
     entityId,
     id,
     userId,
@@ -740,8 +973,62 @@ const rejectDisbursement = async ({ entityId, id, userId, reason }) => {
     extraUpdates: {
       rejected_by: userId,
       rejected_at: new Date().toISOString(),
-      rejection_reason: reason,
+      rejection_reason: trimmedReason,
     },
+  });
+
+  const creatorId = result.requested_by || result.created_by;
+  if (creatorId) {
+    await safeNotify([creatorId], 'pending_request.resolved', {
+      request_id: result.id,
+      table_name: 'disbursements',
+      outcome: 'rejected',
+      reason: trimmedReason,
+      title: result.disbursement_number || result.description,
+    });
+  }
+
+  return result;
+};
+
+/**
+ * Update disbursement status directly.
+ * Allows transition from 'Draft' directly to 'Approved' if user.role === 'Admin' or user has disbursement:approve.
+ * @param {object} params
+ * @param {string} params.entityId
+ * @param {string} params.id
+ * @param {string} params.userId
+ * @param {string} params.status
+ * @param {object} [params.user]
+ * @param {string} [params.rejectionReason]
+ * @param {object} [params.paymentDetails]
+ * @returns {Promise<object>}
+ */
+const updateDisbursementStatus = async ({
+  entityId,
+  id,
+  userId,
+  status,
+  user,
+  rejectionReason,
+  paymentDetails,
+}) => {
+  if (status === 'Approved') {
+    return approveDisbursement({ entityId, id, userId, user });
+  }
+  if (status === 'Pending') {
+    return submitDisbursement({ entityId, id, userId });
+  }
+  if (status === 'Released') {
+    return releaseDisbursement({ entityId, id, userId, paymentDetails });
+  }
+  if (status === 'Rejected') {
+    return rejectDisbursement({ entityId, id, userId, reason: rejectionReason });
+  }
+  throw new AppError({
+    statusCode: 400,
+    title: 'Bad Request',
+    detail: `Unknown status transition target: "${status}"`,
   });
 };
 
@@ -756,12 +1043,17 @@ const rejectDisbursement = async ({ entityId, id, userId, reason }) => {
  * @returns {Promise<object[]>}
  */
 const listDisbursementTemplates = async ({ entityId }) => {
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('disbursement_templates')
     .select('*, entities(code)')
-    .eq('entity_id', entityId)
     .is('deleted_at', null)
     .order('name', { ascending: true });
+
+  if (entityId && entityId !== 'ALL') {
+    query = query.eq('entity_id', entityId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw new AppError({
@@ -897,6 +1189,7 @@ module.exports = {
   createDisbursementTemplate,
   updateDisbursementTemplate,
   deleteDisbursementTemplate,
+  updateDisbursementStatus,
 };
 
 /**

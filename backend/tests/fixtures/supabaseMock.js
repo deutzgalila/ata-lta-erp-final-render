@@ -19,6 +19,8 @@ const mockTables = {
   tasks: new Map(),
   task_checklists: new Map(),
   task_time_logs: new Map(),
+  task_assignees: new Map(),
+  time_entries: new Map(),
   pending_changes: new Map(),
   operations_requests: new Map(),
   invoices: new Map(),
@@ -31,6 +33,7 @@ const mockTables = {
   documents: new Map(),
   disbursement_templates: new Map(),
   retainer_templates: new Map(),
+  retainer_template_generations: new Map(),
   ground_workers: new Map(),
   standard_task_templates: new Map(),
   idempotency_keys: new Map(),
@@ -128,7 +131,13 @@ const tableQuery = (table) => {
       return value === null ? rowValue === null || rowValue === undefined : rowValue === value;
     }
     if (fop === 'in') {
-      return Array.isArray(value) && value.includes(rowValue);
+      const arr = Array.isArray(value) ? value : [value];
+      return arr.includes(rowValue);
+    }
+    if (fop === 'cs') {
+      const rowArr = Array.isArray(rowValue) ? rowValue : [];
+      const checkVals = Array.isArray(value) ? value : [value];
+      return checkVals.some((v) => rowArr.includes(v));
     }
     if (fop === 'neq') {
       return rowValue !== value;
@@ -183,7 +192,15 @@ const tableQuery = (table) => {
     }
     const m = part.match(/^([^.]+)\.([^.]+)\.%?(.+)%?$/);
     if (!m) return null;
-    return { column: m[1], value: m[3], op: m[2] };
+    const col = m[1];
+    const fop = m[2];
+    let val = m[3];
+    if (fop === 'in' && val.startsWith('(') && val.endsWith(')')) {
+      val = val.slice(1, -1).split(',').map((s) => s.trim());
+    } else if (fop === 'cs' && val.startsWith('{') && val.endsWith('}')) {
+      val = val.slice(1, -1).split(',').map((s) => s.trim());
+    }
+    return { column: col, value: val, op: fop };
   };
 
   const applyFilters = () => {
@@ -226,6 +243,9 @@ const tableQuery = (table) => {
         const stored = { ...rec, id };
         if (VERSIONED_TABLES.has(table) && stored.version === undefined) {
           stored.version = 1;
+        }
+        if (table === 'retainer_templates' && stored.template_type === undefined) {
+          stored.template_type = 'retainer';
         }
         rows.set(id, stored);
         inserted.push(stored);
@@ -314,7 +334,21 @@ const tableQuery = (table) => {
       return builder;
     },
     or: (expression) => {
-      const parts = expression.split(',');
+      const parts = [];
+      let current = '';
+      let depth = 0;
+      for (let i = 0; i < expression.length; i++) {
+        const char = expression[i];
+        if (char === '(' || char === '{') depth++;
+        else if (char === ')' || char === '}') depth--;
+        if (char === ',' && depth === 0) {
+          parts.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      if (current.trim()) parts.push(current.trim());
       filters.push({ op: 'or', parts });
       return builder;
     },
@@ -362,6 +396,21 @@ const tableQuery = (table) => {
             builder._insertError = {
               message:
                 'duplicate key value violates unique constraint "disbursements_entity_id_disbursement_number_key"',
+              code: '23505',
+            };
+            return builder;
+          }
+        }
+        if (table === 'retainer_template_generations' && stored.template_id && stored.period_label) {
+          const dup = Array.from(rows.values()).find(
+            (r) =>
+              r.template_id === stored.template_id &&
+              r.period_label === stored.period_label
+          );
+          if (dup) {
+            builder._insertError = {
+              message:
+                'duplicate key value violates unique constraint "uq_retainer_template_generations_period"',
               code: '23505',
             };
             return builder;
@@ -431,6 +480,29 @@ const tableQuery = (table) => {
  * Atomic RPC transition helpers for concurrency tests.
  */
 const rpcImpl = {
+  mutate_document_comment: (p) => {
+    const fail = (code, message) => ({ data: null, error: { code, message } });
+    const doc = mockTables.documents.get(p.p_document_id);
+    if (!doc || doc.entity_id !== p.p_entity_id || doc.deleted_at) return fail('P0002', 'Document not found');
+    const actor = mockTables.users.get(p.p_user_id);
+    if (!actor?.is_active) return fail('42501', 'Active user required');
+    const comments = [...(doc.comments || [])];
+    if (p.p_action === 'add') {
+      comments.push({ id: require('crypto').randomUUID(), userId: actor.id,
+        userName: actor.name, date: nowIso(), text: p.p_text.trim() });
+    } else {
+      const index = comments.findIndex((c) => c.id === p.p_comment_id);
+      if (index < 0) return fail('P0002', 'Comment not found');
+      const target = comments[index];
+      if ((target.userId || target.user_id) !== actor.id && !(p.p_action === 'delete' && actor.role === 'Admin')) {
+        return fail('42501', 'You cannot modify this comment');
+      }
+      if (p.p_action === 'delete') comments.splice(index, 1);
+      else comments[index] = { ...target, text: p.p_text.trim(), edited: true, edited_at: nowIso() };
+    }
+    Object.assign(doc, { comments, updated_by: actor.id, updated_at: nowIso() });
+    return { data: JSON.parse(JSON.stringify(doc)), error: null };
+  },
   disbursement_transition: (params) => {
     const row = mockTables.disbursements.get(params.p_id);
     if (!row) return { data: [], error: null };
@@ -627,6 +699,7 @@ const rpcImpl = {
       client_id: d.clientId || null,
       work_request_id: d.workRequestId || null,
       linked_task_id: d.linkedTaskId || null,
+      task_id: d.taskId || d.task_id || d.linkedTaskId || null,
       linked_transmittal_id: d.linkedTransmittalId || null,
       invoice_number: d.invoiceNumber,
       issue_date: d.issueDate,
@@ -841,6 +914,8 @@ const supabaseAdmin = {
   },
   storage: {
     listBuckets: () => Promise.resolve({ data: [{ name: 'test-bucket' }], error: null }),
+    createBucket: () => Promise.resolve({ data: { name: 'avatars' }, error: null }),
+    updateBucket: () => Promise.resolve({ data: { name: 'avatars' }, error: null }),
     from: () => ({
       createSignedUploadUrl: () =>
         Promise.resolve({ data: { signedUrl: 'https://storage.example.com/upload' }, error: null }),

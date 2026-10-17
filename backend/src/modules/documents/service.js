@@ -52,6 +52,64 @@ const generateStoragePath = ({ entityCode, clientId, workRequestId, documentId, 
 };
 
 /**
+ * Enrich documents with uploader_name, work_request_title, and linked_task_title.
+ * @param {object[]} docs
+ * @returns {Promise<object[]>}
+ */
+const enrichDocuments = async (docs) => {
+  if (!docs || docs.length === 0) return docs;
+
+  const uploaderIds = [...new Set(docs.map((d) => d.uploader_id).filter(Boolean))];
+  const workRequestIds = [...new Set(docs.map((d) => d.work_request_id).filter(Boolean))];
+  const linkedTaskIds = [...new Set(docs.map((d) => d.linked_task_id).filter(Boolean))];
+
+  const userMap = new Map();
+  const wrMap = new Map();
+  const taskMap = new Map();
+
+  try {
+    if (uploaderIds.length > 0) {
+      const { data: users } = await supabaseAdmin
+        .from('users')
+        .select('id, name')
+        .in('id', uploaderIds);
+      (users || []).forEach((u) => {
+        if (u && u.id) userMap.set(u.id, u.name);
+      });
+    }
+
+    if (workRequestIds.length > 0) {
+      const { data: wrs } = await supabaseAdmin
+        .from('work_requests')
+        .select('id, title')
+        .in('id', workRequestIds);
+      (wrs || []).forEach((wr) => {
+        if (wr && wr.id) wrMap.set(wr.id, wr.title);
+      });
+    }
+
+    if (linkedTaskIds.length > 0) {
+      const { data: tasks } = await supabaseAdmin
+        .from('tasks')
+        .select('id, title')
+        .in('id', linkedTaskIds);
+      (tasks || []).forEach((t) => {
+        if (t && t.id) taskMap.set(t.id, t.title);
+      });
+    }
+  } catch (err) {
+    // Graceful fallback if relations cannot be fetched
+  }
+
+  return docs.map((doc) => ({
+    ...doc,
+    uploader_name: doc.uploader_id ? userMap.get(doc.uploader_id) || null : null,
+    work_request_title: doc.work_request_id ? wrMap.get(doc.work_request_id) || null : null,
+    linked_task_title: doc.linked_task_id ? taskMap.get(doc.linked_task_id) || null : null,
+  }));
+};
+
+/**
  * List documents for the active entity.
  * @param {object} params
  * @param {string} params.entityId - Entity code
@@ -113,7 +171,9 @@ const listDocuments = async ({ entityId, filters = {} }) => {
     });
   }
 
-  return { data: data || [], count: count || 0 };
+  const enriched = await enrichDocuments(data || []);
+
+  return { data: enriched, count: count || 0 };
 };
 
 /**
@@ -129,7 +189,7 @@ const createDocument = async ({ entityId, entityCode, userId, data }) => {
   if (data.linkedTaskId) {
     const { data: task, error: taskError } = await supabaseAdmin
       .from('tasks')
-      .select('id, work_request_id')
+      .select('id, work_request_id, assignee_id')
       .eq('id', data.linkedTaskId)
       .single();
 
@@ -147,6 +207,32 @@ const createDocument = async ({ entityId, entityCode, userId, data }) => {
         title: 'Validation Error',
         detail: `Linked task ${data.linkedTaskId} does not belong to work request ${data.workRequestId}`,
       });
+    }
+
+    // Role check: Admin bypasses
+    const { data: uploader } = await supabaseAdmin
+      .from('users')
+      .select('role')
+      .eq('id', userId)
+      .single();
+
+    if (uploader?.role !== 'Admin') {
+      // Check if user is task assignee or task_assignees member
+      const { data: taRows } = await supabaseAdmin
+        .from('task_assignees')
+        .select('id')
+        .eq('task_id', data.linkedTaskId)
+        .eq('user_id', userId);
+
+      const isAssigned = task.assignee_id === userId || (taRows && taRows.length > 0);
+      if (!isAssigned) {
+        throw new AppError({
+          statusCode: 403,
+          title: 'Forbidden',
+          detail: 'You are not assigned to this task and cannot attach documents to it.',
+          code: 'FORBIDDEN_TASK_ATTACHMENT',
+        });
+      }
     }
   }
 
@@ -229,13 +315,17 @@ const createDocument = async ({ entityId, entityCode, userId, data }) => {
  * @returns {Promise<object>}
  */
 const getDocumentById = async ({ entityId, id }) => {
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('documents')
     .select('*')
     .eq('id', id)
-    .eq('entity_id', entityId)
-    .is('deleted_at', null)
-    .single();
+    .is('deleted_at', null);
+
+  if (entityId && entityId !== 'ALL') {
+    query = query.eq('entity_id', entityId);
+  }
+
+  const { data, error } = await query.single();
 
   if (error || !data) {
     throw new AppError({
@@ -245,7 +335,8 @@ const getDocumentById = async ({ entityId, id }) => {
     });
   }
 
-  return data;
+  const [enriched] = await enrichDocuments([data]);
+  return enriched || data;
 };
 
 /**
@@ -276,7 +367,7 @@ const updateDocument = async ({ entityId, id, userId, data }) => {
   if (data.storedLocation !== undefined) updates.stored_location = data.storedLocation;
   if (data.handoverLog !== undefined) updates.handover_log = data.handoverLog;
   if (data.archived !== undefined) updates.archived = data.archived;
-  if (data.comments !== undefined) updates.comments = data.comments;
+
   if (data.versions !== undefined) updates.versions = data.versions;
 
   const { data: updated, error } = await supabaseAdmin
@@ -467,6 +558,10 @@ const confirmUpload = async ({ entityId, id }) => {
 const getDownloadUrl = async ({ entityId, id }) => {
   const doc = await getDocumentById({ entityId, id });
 
+  if (doc.external_url && doc.external_url.trim()) {
+    return { url: doc.external_url.trim(), fileName: doc.original_name || doc.file_name || 'document' };
+  }
+
   if (!doc.storage_path) {
     throw new AppError({
       statusCode: 404,
@@ -535,7 +630,35 @@ const updateLifecycle = async ({ entityId, id, userId, lifecycle }) => {
   return updated;
 };
 
+// Authorization and mutation run together under a PostgreSQL row lock. Never
+// read/replace the thread in JavaScript: separate API workers must serialize too.
+const mutateDocumentComment = async ({ entityId, id, commentId, user, text, action }) => {
+  const { data, error } = await supabaseAdmin.rpc('mutate_document_comment', {
+    p_entity_id: entityId,
+    p_document_id: id,
+    p_comment_id: commentId || null,
+    p_user_id: user.id,
+    p_text: text || null,
+    p_action: action,
+  });
+  if (error) {
+    const statusCode = { P0002: 404, '42501': 403, '22023': 400, '22P02': 400 }[error.code] || 500;
+    throw new AppError({
+      statusCode,
+      title: { 404: 'Not Found', 403: 'Forbidden', 400: 'Validation Error' }[statusCode] || 'Database Error',
+      detail: statusCode === 500 ? 'Failed to save document comment' : error.message,
+    });
+  }
+  return data;
+};
+const addDocumentComment = (params) => mutateDocumentComment({ ...params, action: 'add' });
+const updateDocumentComment = (params) => mutateDocumentComment({ ...params, action: 'edit' });
+const deleteDocumentComment = (params) => mutateDocumentComment({ ...params, action: 'delete' });
+
 module.exports = {
+  addDocumentComment,
+  updateDocumentComment,
+  deleteDocumentComment,
   sanitizeFileName,
   generateStoragePath,
   listDocuments,

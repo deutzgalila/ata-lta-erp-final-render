@@ -8,9 +8,43 @@
 const express = require('express');
 const router = express.Router();
 const { disbursementsController } = require('./controller');
-const { requirePermission } = require('../../middleware/rbac');
+const { requirePermission, computePermissions } = require('../../middleware/rbac');
+const { hasPermission } = require('../../lib/permissions');
 const { audit } = require('../../middleware/audit');
 const { resolveEntity } = require('../../middleware/resolveEntity');
+const AppError = require('../../lib/AppError');
+
+/**
+ * Guard POST /v1/disbursements/:id/approve and /reject with disbursement:approve (Admin only).
+ * Per R3: disbursement:approve cannot be held by any non-Admin role.
+ */
+const requireDisbursementApprove = (req, res, next) => {
+  if (!req.user) {
+    return next(
+      new AppError({
+        statusCode: 401,
+        title: 'Unauthorized',
+        detail: 'Authentication required',
+      })
+    );
+  }
+
+  const permissions = computePermissions(req.user);
+  // disbursement:approve resolves from the P0-A manifest (Admin-only grant).
+  req.userPermissions = permissions;
+
+  if (!hasPermission(permissions, 'disbursement:approve')) {
+    return next(
+      new AppError({
+        statusCode: 403,
+        title: 'Forbidden',
+        detail: 'Permission disbursement:approve is required',
+      })
+    );
+  }
+
+  next();
+};
 
 // --- Badge Counts (before resolveEntity so ALL can be summed) ---
 router.get(
@@ -20,15 +54,30 @@ router.get(
   disbursementsController.getDisbursementCounts
 );
 
-// Resolve entity code → UUID for all remaining routes in this module
-router.use(resolveEntity());
-
-// --- Disbursement Templates (must come before /:id routes) ---
+// --- Listing and Read Endpoints (allowAll: true) ---
 router.get(
   '/templates',
+  resolveEntity({ allowAll: true }),
   requirePermission('disbursement:view'),
   disbursementsController.listDisbursementTemplates
 );
+router.get(
+  '/',
+  resolveEntity({ allowAll: true }),
+  requirePermission('disbursement:view'),
+  disbursementsController.listDisbursements
+);
+router.get(
+  '/:id',
+  resolveEntity({ allowAll: true }),
+  requirePermission('disbursement:view'),
+  disbursementsController.getDisbursement
+);
+
+// Resolve entity code → UUID for all remaining mutation routes in this module
+router.use(resolveEntity());
+
+// --- Disbursement Templates Mutations ---
 router.post(
   '/templates',
   requirePermission('disbursement:create'),
@@ -48,16 +97,13 @@ router.delete(
   disbursementsController.deleteDisbursementTemplate
 );
 
-router.get('/', requirePermission('disbursement:view'), disbursementsController.listDisbursements);
-
+// --- Disbursement Mutations ---
 router.post(
   '/',
   requirePermission('disbursement:create'),
   audit('disbursement.create', { table: 'disbursements' }),
   disbursementsController.createDisbursement
 );
-
-router.get('/:id', requirePermission('disbursement:view'), disbursementsController.getDisbursement);
 
 router.put(
   '/:id',
@@ -89,7 +135,7 @@ router.post(
 
 router.post(
   '/:id/approve',
-  requirePermission('disbursement:mark_released'),
+  requireDisbursementApprove,
   audit('disbursement.approve', { table: 'disbursements' }),
   disbursementsController.approveDisbursement
 );
@@ -110,7 +156,7 @@ router.post(
 
 router.post(
   '/:id/reject',
-  requirePermission('disbursement:mark_released'),
+  requireDisbursementApprove,
   audit('disbursement.reject', { table: 'disbursements' }),
   disbursementsController.rejectDisbursement
 );

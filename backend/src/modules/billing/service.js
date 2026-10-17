@@ -12,6 +12,7 @@ const { generatePdf } = require('../../services/pdfService');
 const auditService = require('../../services/auditService');
 const AppError = require('../../lib/AppError');
 const { resolveEntityCode } = require('../../lib/entityResolver');
+const { buildPermissionSet, hasPermission } = require('../../lib/permissions');
 
 // ============================================================
 // Invoice CRUD
@@ -28,6 +29,8 @@ const listInvoices = async ({ entityId, filters = {}, user }) => {
   const {
     status,
     clientId,
+    taskId,
+    task_id,
     linkedTaskId,
     linkedTransmittalId,
     search,
@@ -55,26 +58,49 @@ const listInvoices = async ({ entityId, filters = {}, user }) => {
     query = query.eq('archived', false).neq('status', 'Cancelled');
   }
 
-  // Role restriction: non-admin and non-accounting cannot see Draft or Pending invoices.
+  // Role restriction: non-admin and non-accounting scoping.
   const isAdmin = user?.role === 'Admin';
   const isAccounting =
     (user?.departments || []).includes('Accounting') || user?.role === 'Accounting';
+
   if (!isAdmin && !isAccounting) {
+    // Determine Work Requests where the user is manager (assigned_to) or co-assignee
+    const { data: userWrs } = await supabaseAdmin
+      .from('work_requests')
+      .select('id')
+      .or(`assigned_to.eq.${user.id},co_assignees.cs.{${user.id}}`)
+      .is('deleted_at', null);
+    const userWrIds = (userWrs || []).map((w) => w.id);
+
     if (status) {
       if (['Draft', 'Pending'].includes(status)) {
-        query = query.eq('status', '___NONE___');
+        if (userWrIds.length > 0) {
+          query = query.eq('status', status).in('work_request_id', userWrIds);
+        } else {
+          query = query.eq('status', '___NONE___');
+        }
       } else {
         query = query.eq('status', status);
       }
     } else {
-      query = query.in('status', ['Sent', 'Approved', 'Partially Paid', 'Paid', 'Overdue']);
+      if (userWrIds.length > 0) {
+        // Allow viewing released invoices OR draft/pending invoices linked to their work requests
+        query = query.or(
+          `status.in.(Sent,Approved,Partially Paid,Paid,Overdue),work_request_id.in.(${userWrIds.join(',')})`
+        );
+      } else {
+        query = query.in('status', ['Sent', 'Approved', 'Partially Paid', 'Paid', 'Overdue']);
+      }
     }
   } else {
     if (status) query = query.eq('status', status);
   }
 
   if (clientId) query = query.eq('client_id', clientId);
-  if (linkedTaskId) query = query.eq('linked_task_id', linkedTaskId);
+  const effectiveFilterTaskId = taskId || task_id || linkedTaskId;
+  if (effectiveFilterTaskId) {
+    query = query.or(`task_id.eq.${effectiveFilterTaskId},linked_task_id.eq.${effectiveFilterTaskId}`);
+  }
   if (linkedTransmittalId) query = query.eq('linked_transmittal_id', linkedTransmittalId);
   if (search) {
     query = query.or(`invoice_number.ilike.%${search}%,notes.ilike.%${search}%`);
@@ -138,6 +164,36 @@ const createInvoice = async ({ entityId, userId, data }) => {
     });
   }
 
+  const effectiveTaskId = data.taskId || data.task_id || data.linkedTaskId || null;
+  const effectiveWrId = data.workRequestId || data.work_request_id || null;
+
+  // Validation: Task existence & WR association (UAT2-6/12)
+  if (effectiveTaskId) {
+    const { data: task, error: taskErr } = await supabaseAdmin
+      .from('tasks')
+      .select('id, work_request_id')
+      .eq('id', effectiveTaskId)
+      .maybeSingle();
+
+    if (taskErr || !task) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: `Linked task "${effectiveTaskId}" was not found`,
+        code: 'TASK_NOT_FOUND',
+      });
+    }
+
+    if (effectiveWrId && task.work_request_id !== effectiveWrId) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: 'Task does not belong to work request',
+        code: 'TASK_WR_MISMATCH',
+      });
+    }
+  }
+
   // Atomic create (Spec 2.3 / R-11): the invoice row and its line items are
   // inserted by invoice_create_transactional() inside a single PostgreSQL
   // function transaction. The previous two-round-trip flow attempted a
@@ -155,8 +211,10 @@ const createInvoice = async ({ entityId, userId, data }) => {
     {
       p_invoice_data: {
         clientId: data.clientId,
-        workRequestId: data.workRequestId || null,
-        linkedTaskId: data.linkedTaskId || null,
+        workRequestId: effectiveWrId,
+        linkedTaskId: effectiveTaskId,
+        taskId: effectiveTaskId,
+        task_id: effectiveTaskId,
         linkedTransmittalId: data.linkedTransmittalId || null,
         invoiceNumber: data.invoiceNumber,
         issueDate: data.issueDate,
@@ -215,13 +273,17 @@ const createInvoice = async ({ entityId, userId, data }) => {
  * @returns {Promise<object>}
  */
 const getInvoiceById = async ({ entityId, id, user }) => {
-  const { data: invoice, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('invoices')
     .select('*, clients(name, tin, address)')
     .eq('id', id)
-    .eq('entity_id', entityId)
-    .is('deleted_at', null)
-    .single();
+    .is('deleted_at', null);
+
+  if (entityId && entityId !== 'ALL') {
+    query = query.eq('entity_id', entityId);
+  }
+
+  const { data: invoice, error } = await query.single();
 
   if (error || !invoice) {
     throw new AppError({
@@ -237,11 +299,29 @@ const getInvoiceById = async ({ entityId, id, user }) => {
     const isAccounting =
       (user.departments || []).includes('Accounting') || user.role === 'Accounting';
     if (!isAdmin && !isAccounting && ['Draft', 'Pending'].includes(invoice.status)) {
-      throw new AppError({
-        statusCode: 403,
-        title: 'Forbidden',
-        detail: 'You do not have permission to view this invoice in its current status.',
-      });
+      let isWrManagerOrCoAssignee = false;
+      if (invoice.work_request_id) {
+        const { data: wr } = await supabaseAdmin
+          .from('work_requests')
+          .select('id, assigned_to, co_assignees')
+          .eq('id', invoice.work_request_id)
+          .is('deleted_at', null)
+          .maybeSingle();
+        if (
+          wr &&
+          (wr.assigned_to === user.id ||
+            (Array.isArray(wr.co_assignees) && wr.co_assignees.includes(user.id)))
+        ) {
+          isWrManagerOrCoAssignee = true;
+        }
+      }
+      if (!isWrManagerOrCoAssignee) {
+        throw new AppError({
+          statusCode: 403,
+          title: 'Forbidden',
+          detail: 'You do not have permission to view this invoice in its current status.',
+        });
+      }
     }
 
     if (!isAdmin && !isAccounting) {
@@ -289,8 +369,28 @@ const getInvoiceById = async ({ entityId, id, user }) => {
  * @param {object} params.data
  * @returns {Promise<object>}
  */
-const updateInvoice = async ({ entityId, id, userId, data }) => {
+const updateInvoice = async ({ entityId, id, userId, data, user }) => {
   const existing = await getInvoiceById({ entityId, id });
+
+  let effectiveUser = user;
+  if (!effectiveUser && userId) {
+    const { data: u } = await supabaseAdmin
+      .from('users')
+      .select('id, name, role, departments')
+      .eq('id', userId)
+      .maybeSingle();
+    effectiveUser = u;
+  }
+
+  const permissions = effectiveUser
+    ? (effectiveUser.permissions instanceof Set
+        ? effectiveUser.permissions
+        : buildPermissionSet({ role: effectiveUser.role || '', departments: effectiveUser.departments || [] }))
+    : new Set();
+  const isAdminOrBillingEditor =
+    effectiveUser?.role === 'Admin' ||
+    hasPermission(permissions, 'billing:edit') ||
+    hasPermission(permissions, 'billing:*');
 
   if (data.status !== undefined && data.status !== existing.status) {
     const targetStatus = data.status;
@@ -344,11 +444,15 @@ const updateInvoice = async ({ entityId, id, userId, data }) => {
 
     // Block direct jump from Draft to Sent/Released (without approval) or Draft/Pending directly to Paid/Partially Paid without payments
     if (currentStatus === 'Draft' && ['Sent', 'Paid', 'Partially Paid'].includes(targetStatus)) {
-      throw new AppError({
-        statusCode: 400,
-        title: 'Bad Request',
-        detail: `Cannot transition invoice directly from Draft to ${targetStatus}. Invoices must be submitted for approval first.`,
-      });
+      if (targetStatus === 'Sent' && isAdminOrBillingEditor) {
+        // Allowed: Admin or billing:edit / billing:* can transition from Draft directly to Sent
+      } else {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Bad Request',
+          detail: `Cannot transition invoice directly from Draft to ${targetStatus}. Invoices must be submitted for approval first.`,
+        });
+      }
     }
 
     if (currentStatus === 'Pending' && ['Paid', 'Partially Paid'].includes(targetStatus)) {
@@ -357,6 +461,70 @@ const updateInvoice = async ({ entityId, id, userId, data }) => {
         title: 'Bad Request',
         detail: `Cannot transition invoice directly from Pending to ${targetStatus}. Payments can only be recorded on released invoices.`,
       });
+    }
+  }
+
+  const effectiveTaskId =
+    data.taskId !== undefined
+      ? data.taskId
+      : data.task_id !== undefined
+      ? data.task_id
+      : data.linkedTaskId !== undefined
+      ? data.linkedTaskId
+      : undefined;
+
+  const effectiveWrId =
+    data.workRequestId !== undefined
+      ? data.workRequestId
+      : data.work_request_id !== undefined
+      ? data.work_request_id
+      : existing.work_request_id;
+
+  // Validation: Task existence & WR association (UAT2-6/12)
+  if (effectiveTaskId) {
+    const { data: task, error: taskErr } = await supabaseAdmin
+      .from('tasks')
+      .select('id, work_request_id')
+      .eq('id', effectiveTaskId)
+      .maybeSingle();
+
+    if (taskErr || !task) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: `Linked task "${effectiveTaskId}" was not found`,
+        code: 'TASK_NOT_FOUND',
+      });
+    }
+
+    if (effectiveWrId && task.work_request_id !== effectiveWrId) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: 'Task does not belong to work request',
+        code: 'TASK_WR_MISMATCH',
+      });
+    }
+  } else if (
+    effectiveTaskId === undefined &&
+    (data.workRequestId !== undefined || data.work_request_id !== undefined)
+  ) {
+    // If only workRequestId is updated, check existing linked task against new WR
+    const existingTaskId = existing.task_id || existing.linked_task_id;
+    if (existingTaskId && effectiveWrId) {
+      const { data: task } = await supabaseAdmin
+        .from('tasks')
+        .select('id, work_request_id')
+        .eq('id', existingTaskId)
+        .maybeSingle();
+      if (task && task.work_request_id !== effectiveWrId) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Bad Request',
+          detail: 'Task does not belong to work request',
+          code: 'TASK_WR_MISMATCH',
+        });
+      }
     }
   }
 
@@ -372,8 +540,13 @@ const updateInvoice = async ({ entityId, id, userId, data }) => {
 
   const rpcUpdates = {};
   if (data.clientId !== undefined) rpcUpdates.client_id = data.clientId;
-  if (data.workRequestId !== undefined) rpcUpdates.work_request_id = data.workRequestId;
-  if (data.linkedTaskId !== undefined) rpcUpdates.linked_task_id = data.linkedTaskId;
+  if (data.workRequestId !== undefined || data.work_request_id !== undefined) {
+    rpcUpdates.work_request_id = effectiveWrId;
+  }
+  if (effectiveTaskId !== undefined) {
+    rpcUpdates.linked_task_id = effectiveTaskId;
+    rpcUpdates.task_id = effectiveTaskId;
+  }
   if (data.linkedTransmittalId !== undefined)
     rpcUpdates.linked_transmittal_id = data.linkedTransmittalId;
   if (data.invoiceNumber !== undefined) rpcUpdates.invoice_number = data.invoiceNumber;
@@ -383,6 +556,12 @@ const updateInvoice = async ({ entityId, id, userId, data }) => {
   if (data.notes !== undefined) rpcUpdates.notes = data.notes;
   if (data.terms !== undefined) rpcUpdates.terms = data.terms;
   if (data.archived !== undefined) rpcUpdates.archived = data.archived;
+
+  const hasAddress = data.address !== undefined || data.clientAddress !== undefined;
+  if (hasAddress) {
+    const newAddress = data.address !== undefined ? data.address : data.clientAddress;
+    rpcUpdates.address = newAddress;
+  }
 
   const rpcLineItems = data.lineItems
     ? data.lineItems.map((item, idx) => ({
@@ -429,8 +608,67 @@ const updateInvoice = async ({ entityId, id, userId, data }) => {
     });
   }
 
+  // Field-level audit logging for client address update on billing record (AC-4, R4).
+  // Master clients table row is NOT mutated.
+  if (hasAddress) {
+    const newAddress = data.address !== undefined ? data.address : data.clientAddress;
+    let oldAddress = existing.address || existing.clients?.address || null;
+    if (!oldAddress && (existing.client_id || existing.clientId)) {
+      const clientId = existing.client_id || existing.clientId;
+      const { data: clientRow } = await supabaseAdmin
+        .from('clients')
+        .select('address')
+        .eq('id', clientId)
+        .maybeSingle();
+      if (clientRow?.address) {
+        oldAddress = clientRow.address;
+      }
+    }
+    await auditService.log({
+      action: 'billing.address_update',
+      table: 'invoices',
+      recordId: id,
+      entity: entityId,
+      userId,
+      details: {
+        field: 'address',
+        from: oldAddress,
+        to: newAddress,
+      },
+    });
+  }
+
+  if (data.status === 'Sent' && existing.status === 'Draft' && isAdminOrBillingEditor) {
+    await auditService.log({
+      action: 'billing.direct_approval',
+      table: 'invoices',
+      recordId: id,
+      entity: entityId,
+      userId,
+      details: {
+        from: 'Draft',
+        to: 'Sent',
+        note: `Directly approved and issued by Admin: ${effectiveUser?.name || userId}`,
+      },
+    });
+  }
+
   const entityCode = await resolveEntityCode(updated.entity_id);
   return { ...updated, entity_code: entityCode };
+};
+
+/**
+ * Update invoice status directly (e.g. for status transitions).
+ * @param {object} params
+ * @param {string} params.entityId
+ * @param {string} params.id
+ * @param {string} params.userId
+ * @param {string} params.status
+ * @param {object} [params.user]
+ * @returns {Promise<object>}
+ */
+const updateInvoiceStatus = async ({ entityId, id, userId, status, user }) => {
+  return updateInvoice({ entityId, id, userId, data: { status }, user });
 };
 
 /**
@@ -753,12 +991,17 @@ const buildVoucherHtml = (invoice, entityId) => {
  * @returns {Promise<{ summary: object, details: object[] }>}
  */
 const getAgingReport = async ({ entityId }) => {
-  const { data: invoices, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('invoices')
     .select('*, clients(name)')
-    .eq('entity_id', entityId)
     .is('deleted_at', null)
     .gt('balance', 0);
+
+  if (entityId && entityId !== 'ALL') {
+    query = query.eq('entity_id', entityId);
+  }
+
+  const { data: invoices, error } = await query;
 
   if (error) {
     throw new AppError({
@@ -968,13 +1211,18 @@ const getInvoiceCounts = async ({ entityId, user }) => {
  * @returns {Promise<object[]>}
  */
 const listTemplates = async ({ entityId }) => {
-  const { data, error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('billing_templates')
     .select('*, entities(code), clients(name)')
-    .eq('entity_id', entityId)
     .is('deleted_at', null)
     .eq('active', true)
     .order('name', { ascending: true });
+
+  if (entityId && entityId !== 'ALL') {
+    query = query.eq('entity_id', entityId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw new AppError({
@@ -1165,4 +1413,5 @@ module.exports = {
   createTemplate,
   updateTemplate,
   deleteTemplate,
+  updateInvoiceStatus,
 };

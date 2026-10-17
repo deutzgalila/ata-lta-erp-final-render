@@ -24,6 +24,8 @@ const lineItemSchema = z.object({
 const createInvoiceSchema = z.object({
   clientId: z.string().uuid(),
   workRequestId: z.string().uuid(),
+  taskId: z.string().uuid().optional().nullable(),
+  task_id: z.string().uuid().optional().nullable(),
   linkedTaskId: z.string().uuid().optional().nullable(),
   linkedTransmittalId: z.string().uuid().optional().nullable(),
   invoiceNumber: z.string().min(1).max(50),
@@ -41,6 +43,9 @@ const createInvoiceSchema = z.object({
 const updateInvoiceSchema = z.object({
   clientId: z.string().uuid().optional(),
   workRequestId: z.string().uuid().optional().nullable(),
+  work_request_id: z.string().uuid().optional().nullable(),
+  taskId: z.string().uuid().optional().nullable(),
+  task_id: z.string().uuid().optional().nullable(),
   linkedTaskId: z.string().uuid().optional().nullable(),
   linkedTransmittalId: z.string().uuid().optional().nullable(),
   invoiceNumber: z.string().min(1).max(50).optional(),
@@ -50,6 +55,8 @@ const updateInvoiceSchema = z.object({
   lineItems: z.array(lineItemSchema).min(1).optional(),
   notes: z.string().max(2000).optional().nullable(),
   terms: z.string().max(2000).optional().nullable(),
+  address: z.string().max(500).optional().nullable(),
+  clientAddress: z.string().max(500).optional().nullable(),
   archived: z.boolean().optional(),
   // OCC guard (Spec 2.2 / R-10): update applies only if the stored version matches.
   expectedVersion: z.number().int().positive().optional(),

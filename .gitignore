@@ -9,6 +9,7 @@ coverage/
 dist/
 build/
 *.log
+*.tsbuildinfo
 .DS_Store
 
 # Runtime environment configs copied from .env.*.example templates
@@ -27,3 +28,6 @@ erp_prototype/.build-tmp/
 .playwright-mcp/
 __pycache__/
 *.pyc
+.agents/
+backfill-report.json
+p2-operations-board.png

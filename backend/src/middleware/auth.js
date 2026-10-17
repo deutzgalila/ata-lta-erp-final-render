@@ -50,7 +50,7 @@ const loadUserProfile = async (authUserId) => {
   const { data: user, error: userError } = await supabaseAdmin
     .from('users')
     .select(
-      'id, auth_user_id, email, name, role, entities, is_active, user_departments(departments(name))'
+      'id, auth_user_id, email, name, role, entities, is_active, avatar_url, user_departments(departments(name))'
     )
     .eq('auth_user_id', authUserId)
     .maybeSingle();
@@ -70,6 +70,7 @@ const loadUserProfile = async (authUserId) => {
     entities: user.entities || [],
     departments,
     isActive: user.is_active,
+    avatarUrl: user.avatar_url || null,
   };
 
   // Store in cache

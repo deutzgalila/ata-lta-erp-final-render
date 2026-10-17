@@ -209,7 +209,38 @@ Temporary endpoints used during data cutover:
 
 ---
 
+## Permission-Key Manifest (P0-A, frozen 2026-10-03)
+
+Source of truth: `backend/src/lib/permissions.js`. Resolution: `buildPermissionSet` (union of assigned departments + legacy role shim; Admin = full union + Admin-only keys below). Wildcards (`module:*`) match any `module:action` via `hasPermission`.
+
+### New keys (additions only)
+
+| Key | Granted To |
+| :--- | :--- |
+| `workflow:phase_transition` | Admin only |
+| `workflow:transition_request` | Management, Admin |
+| `workflow:qa_review` | Admin only |
+| `retainers:use` | Management, Admin |
+| `retainers:edit` | Admin only |
+| `disbursement:approve` | Admin only |
+| `billing:edit_client_address` | Management, Accounting, Admin |
+| `timelog:view` / `timelog:create` / `timelog:edit_own` | all five departments, Admin |
+| `timelog:edit_all` | Admin only |
+| `notifications:view` | all five departments, Admin (every authenticated user) |
+
+### Changed grants
+
+- `disbursement:create` now granted to ALL five departments (was Management + Accounting only). The admin **approval gate** replaces the old create-restriction (wired in P0-G).
+
+### `GET /v1/me`
+
+`data.permissions` is a **sorted** array of the resolved key set (same set as `GET /v1/me/permissions`, embedded so the React shell needs one round-trip). `/v1/me/permissions` response shape unchanged.
+
+---
+
 ## Change Log
+
+- 2026-10-03 — P0-A permission-key manifest frozen; `/v1/me` permissions embed sorted.
 
 - 2026-07-12 — Phase 2 clients contract published.
 - 2026-07-12 — Phase 4 operations contract drafted.

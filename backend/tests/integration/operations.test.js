@@ -9,7 +9,7 @@ jest.mock('../../src/services/supabaseClient', () => {
 
 const request = require('supertest');
 const { app } = require('../helpers/testServer');
-const { registerUser, seedDefaults, resetMock } = require('../fixtures/supabaseMock');
+const { registerUser, seedDefaults, resetMock, mockTables } = require('../fixtures/supabaseMock');
 
 const createClient = async (token, entity, overrides = {}) => {
   const res = await request(app)
@@ -86,9 +86,20 @@ describe('/v1/work-requests', () => {
   });
 
   it('rejects invalid status transitions', async () => {
+    // Admins intentionally bypass the transition matrix (a0b229c0 permits
+    // unconstrained admin updates); the constraint is asserted on a Manager,
+    // whose legacy role maps to the Management department (workflow:edit)
+    // and therefore reaches the VALID_TRANSITIONS check. The client fixture
+    // needs clients:edit, which Management lacks, so an admin creates it.
+    const manager = registerUser({
+      email: 'manager-wr-transitions@ata-lta.ph',
+      name: 'Manager WR Transitions',
+      role: 'Manager',
+      entities: ['ATA'],
+    });
     const admin = registerUser({
-      email: 'admin@ata-lta.ph',
-      name: 'Admin',
+      email: 'admin-wr-transitions@ata-lta.ph',
+      name: 'Admin WR Transitions',
       role: 'Admin',
       entities: ['ATA'],
     });
@@ -96,14 +107,14 @@ describe('/v1/work-requests', () => {
 
     const wr = await request(app)
       .post('/v1/work-requests')
-      .set('Authorization', `Bearer ${admin}`)
+      .set('Authorization', `Bearer ${manager}`)
       .set('X-Active-Entity', 'ATA')
       .send({ title: 'Tax Filing', clientId: client.id, entity: 'ATA' })
       .expect(201);
 
     await request(app)
       .put(`/v1/work-requests/${wr.body.data.id}`)
-      .set('Authorization', `Bearer ${admin}`)
+      .set('Authorization', `Bearer ${manager}`)
       .set('X-Active-Entity', 'ATA')
       .send({ status: 'Completed' })
       .expect(400);
@@ -225,6 +236,7 @@ describe('/v1/work-requests', () => {
 
   it('supports logging time under a task via POST /time-logs', async () => {
     const admin = registerUser({
+      id: 'aaaabbbb-0001-4000-8000-000000000001',
       email: 'admin-tl@ata-lta.ph',
       name: 'Admin TL',
       role: 'Admin',
@@ -244,6 +256,7 @@ describe('/v1/work-requests', () => {
       .set('X-Active-Entity', 'ATA')
       .send({
         title: 'Task with time log',
+        assigneeId: 'aaaabbbb-0001-4000-8000-000000000001',
         checklist: [
           { id: '9a217645-7399-4893-99d0-9a2451b11c74', text: 'Subtask 1', completed: false },
         ],
@@ -275,7 +288,7 @@ describe('/v1/work-requests', () => {
     expect(updatedTask.body.data.checklist[0].timeLogs).toHaveLength(1);
     expect(updatedTask.body.data.checklist[0].timeLogs[0].startTime).toBe('09:00');
     expect(updatedTask.body.data.checklist[0].timeLogs[0].endTime).toBe('17:00');
-    expect(updatedTask.body.data.checklist[0].timeLogs[0].workerName).toBe('Integration Tester');
+    expect(updatedTask.body.data.checklist[0].timeLogs[0].workerName).toBe('Admin TL');
   });
 
   it('forbids workflow:edit for staff without permission', async () => {
@@ -752,6 +765,143 @@ describe('/v1/work-requests', () => {
       })
       .expect(400);
     expect(invalidMemberRes.body.title).toBe('Invalid Team Member');
+  });
+
+  it('Task A.1: mounts GET /v1/operations/tasks/:id/related and returns related records', async () => {
+    const admin = registerUser({
+      email: 'admin-related@ata-lta.ph',
+      name: 'Admin Related',
+      role: 'Admin',
+      entities: ['ATA'],
+    });
+    const client = await createClient(admin, 'ATA');
+    const wr = await request(app)
+      .post('/v1/work-requests')
+      .set('Authorization', `Bearer ${admin}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({ title: 'WR Related Test', clientId: client.id, entity: 'ATA' })
+      .expect(201);
+
+    const task = await request(app)
+      .post(`/v1/work-requests/${wr.body.data.id}/tasks`)
+      .set('Authorization', `Bearer ${admin}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({ title: 'Task Related Test' })
+      .expect(201);
+
+    // Call /v1/operations/tasks/:id/related
+    const relRes = await request(app)
+      .get(`/v1/operations/tasks/${task.body.data.id}/related`)
+      .set('Authorization', `Bearer ${admin}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+
+    expect(relRes.body.data).toBeDefined();
+    expect(relRes.body.data.invoices).toBeDefined();
+    expect(relRes.body.data.disbursements).toBeDefined();
+    expect(relRes.body.data.transmittals).toBeDefined();
+  });
+
+  it('Task A.2: locks task creation, modification, and deletion on Completed work requests (COMPLETED_WR_LOCKED)', async () => {
+    const admin = registerUser({
+      email: 'admin-locked@ata-lta.ph',
+      name: 'Admin Locked',
+      role: 'Admin',
+      entities: ['ATA'],
+    });
+    const client = await createClient(admin, 'ATA');
+    const wr = await request(app)
+      .post('/v1/work-requests')
+      .set('Authorization', `Bearer ${admin}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({ title: 'WR Completed Lock Test', clientId: client.id, entity: 'ATA' })
+      .expect(201);
+
+    const task = await request(app)
+      .post(`/v1/work-requests/${wr.body.data.id}/tasks`)
+      .set('Authorization', `Bearer ${admin}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({ title: 'Task to be locked' })
+      .expect(201);
+
+    // Mark WR as Completed in DB
+    mockTables.work_requests.get(wr.body.data.id).status = 'Completed';
+
+    // 1. Try to create task on Completed WR -> 400 COMPLETED_WR_LOCKED
+    const createRes = await request(app)
+      .post(`/v1/work-requests/${wr.body.data.id}/tasks`)
+      .set('Authorization', `Bearer ${admin}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({ title: 'Disallowed New Task' });
+    expect(createRes.status).toBe(400);
+    expect(createRes.body.code).toBe('COMPLETED_WR_LOCKED');
+
+    // 2. Try to update task on Completed WR -> 400 COMPLETED_WR_LOCKED
+    const updateRes = await request(app)
+      .put(`/v1/work-requests/${wr.body.data.id}/tasks/${task.body.data.id}`)
+      .set('Authorization', `Bearer ${admin}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({ title: 'Disallowed Renamed Task' });
+    expect(updateRes.status).toBe(400);
+    expect(updateRes.body.code).toBe('COMPLETED_WR_LOCKED');
+
+    // 3. Try to delete task on Completed WR -> 400 COMPLETED_WR_LOCKED
+    const deleteRes = await request(app)
+      .delete(`/v1/work-requests/${wr.body.data.id}/tasks/${task.body.data.id}`)
+      .set('Authorization', `Bearer ${admin}`)
+      .set('X-Active-Entity', 'ATA');
+    expect(deleteRes.status).toBe(400);
+    expect(deleteRes.body.code).toBe('COMPLETED_WR_LOCKED');
+  });
+
+  it('Task A.7: populates predecessorDetails with id, title, and status in toApiTask', async () => {
+    const admin = registerUser({
+      email: 'admin-preds@ata-lta.ph',
+      name: 'Admin Preds',
+      role: 'Admin',
+      entities: ['ATA'],
+    });
+    const client = await createClient(admin, 'ATA');
+    const wr = await request(app)
+      .post('/v1/work-requests')
+      .set('Authorization', `Bearer ${admin}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({ title: 'WR Predecessor Resolution Test', clientId: client.id, entity: 'ATA' })
+      .expect(201);
+
+    // Create Pred Task
+    const predTask = await request(app)
+      .post(`/v1/work-requests/${wr.body.data.id}/tasks`)
+      .set('Authorization', `Bearer ${admin}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({ title: 'Prerequisite Filing Task', status: 'Assigned' })
+      .expect(201);
+
+    // Create Dependent Task with predecessor
+    const depTask = await request(app)
+      .post(`/v1/work-requests/${wr.body.data.id}/tasks`)
+      .set('Authorization', `Bearer ${admin}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({
+        title: 'Dependent Execution Task',
+        predecessors: [predTask.body.data.id],
+      })
+      .expect(201);
+
+    // Fetch dependent task
+    const getDepRes = await request(app)
+      .get(`/v1/work-requests/${wr.body.data.id}/tasks/${depTask.body.data.id}`)
+      .set('Authorization', `Bearer ${admin}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+
+    expect(getDepRes.body.data.predecessorDetails).toBeDefined();
+    expect(getDepRes.body.data.predecessorDetails).toHaveLength(1);
+    expect(getDepRes.body.data.predecessorDetails[0]).toEqual({
+      id: predTask.body.data.id,
+      title: 'Prerequisite Filing Task',
+      status: 'Assigned',
+    });
   });
 });
 

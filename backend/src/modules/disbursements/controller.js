@@ -37,6 +37,7 @@ const listDisbursements = async (req, res, next) => {
       status: req.query.status,
       category: req.query.category,
       fundSource: req.query.fundSource,
+      taskId: req.query.taskId || req.query.task_id,
       linkedTaskId: req.query.linkedTaskId,
       linkedTransmittalId: req.query.linkedTransmittalId,
       search: req.query.search,
@@ -97,6 +98,7 @@ const updateDisbursement = async (req, res, next) => {
       id: req.params.id,
       userId: req.user.id,
       data: validated,
+      user: req.user,
     });
     res.json({ data });
   } catch (err) {
@@ -153,6 +155,7 @@ const approveDisbursement = async (req, res, next) => {
       entityId: req.activeEntity,
       id: req.params.id,
       userId: req.user.id,
+      user: req.user,
     });
     res.json({ data });
   } catch (err) {

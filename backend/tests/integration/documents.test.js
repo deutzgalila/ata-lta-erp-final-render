@@ -231,7 +231,62 @@ describe('/v1/documents', () => {
       .expect(200);
   });
 
-  it('persists document comments through update and get round-trip', async () => {
+  it('rejects legacy whole-thread replacement', async () => {
+    const token = registerUser({ email: 'admin@example.test', name: 'Admin', role: 'Admin', entities: ['ATA'] });
+    const created = await request(app).post('/v1/documents')
+      .set('Authorization', `Bearer ${token}`).set('X-Active-Entity', 'ATA').send(validDocument).expect(201);
+    await request(app).put(`/v1/documents/${created.body.data.document.id}`)
+      .set('Authorization', `Bearer ${token}`).set('X-Active-Entity', 'ATA')
+      .send({ comments: [] }).expect(400);
+  });
+
+  it('Task A.8: enforces server-side task assignee authorization on POST /v1/documents (FORBIDDEN_TASK_ATTACHMENT)', async () => {
+    const assigneeStaff = registerUser({
+      id: '11111111-2222-3333-4444-555555555555',
+      email: 'assignee@ata-lta.ph',
+      name: 'Assignee Staff',
+      role: 'Operations',
+      entities: ['ATA'],
+    });
+
+    const nonAssigneeStaff = registerUser({
+      id: '66666666-7777-8888-9999-000000000000',
+      email: 'non-assignee@ata-lta.ph',
+      name: 'Non Assignee Staff',
+      role: 'Operations',
+      entities: ['ATA'],
+    });
+
+    const taskId = 'aaaaaaaa-1111-2222-3333-444444444444';
+    mockTables.tasks.set(taskId, {
+      id: taskId,
+      work_request_id: null,
+      assignee_id: '11111111-2222-3333-4444-555555555555',
+    });
+
+    // 1. Non-assignee staff receives 403 FORBIDDEN_TASK_ATTACHMENT
+    const forbiddenRes = await request(app)
+      .post('/v1/documents')
+      .set('Authorization', `Bearer ${nonAssigneeStaff}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({ ...validDocument, linkedTaskId: taskId });
+
+    expect(forbiddenRes.status).toBe(403);
+    expect(forbiddenRes.body.code).toBe('FORBIDDEN_TASK_ATTACHMENT');
+    expect(forbiddenRes.body.detail).toMatch(/not assigned to this task/i);
+
+    // 2. Assignee staff succeeds with 201 Created
+    const allowedRes = await request(app)
+      .post('/v1/documents')
+      .set('Authorization', `Bearer ${assigneeStaff}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({ ...validDocument, linkedTaskId: taskId });
+
+    expect(allowedRes.status).toBe(201);
+    expect(allowedRes.body.data.document.linked_task_id).toBe(taskId);
+  });
+
+  it('returns external_url when requesting download-url for external link documents', async () => {
     const token = registerUser({
       email: 'admin@ata-lta.ph',
       name: 'Admin',
@@ -243,31 +298,193 @@ describe('/v1/documents', () => {
       .post('/v1/documents')
       .set('Authorization', `Bearer ${token}`)
       .set('X-Active-Entity', 'ATA')
-      .send(validDocument)
+      .send({
+        fileName: 'google-drive-contract',
+        originalName: 'Google Drive Contract.pdf',
+        externalUrl: 'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs/view?usp=sharing',
+        category: 'CONTRACT',
+      })
       .expect(201);
 
     const docId = created.body.data.document.id;
-    const comments = [
-      { id: 'comment-1', userId: 'user-a', date: new Date().toISOString(), text: 'First comment' },
-      { id: 'comment-2', userId: 'user-b', date: new Date().toISOString(), text: 'Second comment' },
-    ];
+
+    const res = await request(app)
+      .get(`/v1/documents/${docId}/download-url`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+
+    expect(res.body.data.url).toBe(
+      'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs/view?usp=sharing'
+    );
+    expect(res.body.data.fileName).toBe('Google Drive Contract.pdf');
+  });
+
+  it('falls back to file_name when original_name is not provided for external link documents', async () => {
+    const token = registerUser({
+      email: 'admin@ata-lta.ph',
+      name: 'Admin',
+      role: 'Admin',
+      entities: ['ATA'],
+    });
+
+    const created = await request(app)
+      .post('/v1/documents')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({
+        fileName: 'google-sheets-tracker.xlsx',
+        externalUrl: 'https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs/edit',
+        category: 'FINANCIAL',
+      })
+      .expect(201);
+
+    const docId = created.body.data.document.id;
+
+    const res = await request(app)
+      .get(`/v1/documents/${docId}/download-url`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+
+    expect(res.body.data.url).toBe(
+      'https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs/edit'
+    );
+    expect(res.body.data.fileName).toBe('google-sheets-tracker.xlsx');
+  });
+
+  it('trims whitespace on external_url when requesting download-url', async () => {
+    const token = registerUser({
+      email: 'admin@ata-lta.ph',
+      name: 'Admin',
+      role: 'Admin',
+      entities: ['ATA'],
+    });
+
+    const created = await request(app)
+      .post('/v1/documents')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({
+        fileName: 'presentation.pptx',
+        originalName: 'Company Pitch.pptx',
+        externalUrl: '  https://docs.google.com/presentation/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs/edit  ',
+        category: 'OTHER',
+      })
+      .expect(201);
+
+    const docId = created.body.data.document.id;
+
+    const res = await request(app)
+      .get(`/v1/documents/${docId}/download-url`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+
+    expect(res.body.data.url).toBe(
+      'https://docs.google.com/presentation/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs/edit'
+    );
+    expect(res.body.data.fileName).toBe('Company Pitch.pptx');
+  });
+
+  it('throws 404 if document has empty or whitespace-only external_url and no storage_path', async () => {
+    const token = registerUser({
+      email: 'admin@ata-lta.ph',
+      name: 'Admin',
+      role: 'Admin',
+      entities: ['ATA'],
+    });
+
+    const created = await request(app)
+      .post('/v1/documents')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({
+        fileName: 'contract.pdf',
+        externalUrl: 'https://example.com/contract.pdf',
+        category: 'CONTRACT',
+      })
+      .expect(201);
+
+    const docId = created.body.data.document.id;
 
     await request(app)
       .put(`/v1/documents/${docId}`)
       .set('Authorization', `Bearer ${token}`)
       .set('X-Active-Entity', 'ATA')
-      .send({ comments })
+      .send({
+        externalUrl: '   ',
+      })
       .expect(200);
 
-    const docRes = await request(app)
+    const res = await request(app)
+      .get(`/v1/documents/${docId}/download-url`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(404);
+
+    expect(res.body.detail).toBe('Document has no associated file');
+  });
+
+  it('enriches document records with uploader_name, work_request_title, and linked_task_title', async () => {
+    const userId = '11111111-1111-1111-1111-111111111111';
+    const token = registerUser({
+      id: userId,
+      email: 'twinkle@ata-lta.ph',
+      name: 'Twinkle Documents',
+      role: 'Admin',
+      entities: ['ATA'],
+    });
+
+    const wrId = '22222222-2222-2222-2222-222222222222';
+    mockTables.work_requests.set(wrId, {
+      id: wrId,
+      entity_id: 'ent-ata',
+      title: 'Tax Compliance 2026',
+    });
+
+    const taskId = '33333333-3333-3333-3333-333333333333';
+    mockTables.tasks.set(taskId, {
+      id: taskId,
+      work_request_id: wrId,
+      title: 'Prepare BIR 1702',
+      assignee_id: userId,
+    });
+
+    const created = await request(app)
+      .post('/v1/documents')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({
+        ...validDocument,
+        workRequestId: wrId,
+        linkedTaskId: taskId,
+      })
+      .expect(201);
+
+    const docId = created.body.data.document.id;
+
+    // Verify getDocumentById enrichment
+    const singleRes = await request(app)
       .get(`/v1/documents/${docId}`)
       .set('Authorization', `Bearer ${token}`)
       .set('X-Active-Entity', 'ATA')
       .expect(200);
 
-    expect(docRes.body.data.comments).toHaveLength(2);
-    expect(docRes.body.data.comments[0].text).toBe('First comment');
-    expect(docRes.body.data.comments[1].text).toBe('Second comment');
-    expect(docRes.body.data.comments[0].id).toBe('comment-1');
+    expect(singleRes.body.data.uploader_name).toBe('Twinkle Documents');
+    expect(singleRes.body.data.work_request_title).toBe('Tax Compliance 2026');
+    expect(singleRes.body.data.linked_task_title).toBe('Prepare BIR 1702');
+
+    // Verify listDocuments enrichment
+    const listRes = await request(app)
+      .get(`/v1/documents?linkedTaskId=${taskId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+
+    expect(listRes.body.data).toHaveLength(1);
+    expect(listRes.body.data[0].uploader_name).toBe('Twinkle Documents');
+    expect(listRes.body.data[0].work_request_title).toBe('Tax Compliance 2026');
+    expect(listRes.body.data[0].linked_task_title).toBe('Prepare BIR 1702');
   });
 });

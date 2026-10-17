@@ -5,6 +5,7 @@
 
 const { computePermissions } = require('../../middleware/rbac');
 const meService = require('./service');
+const notificationsService = require('../notifications/service');
 const AppError = require('../../lib/AppError');
 
 /**
@@ -14,14 +15,17 @@ const AppError = require('../../lib/AppError');
  */
 const getMe = async (req, res, next) => {
   try {
-    const permissions = Array.from(computePermissions(req.user));
+    // Sorted per P0-A contract §3.3 (React-ready, deterministic).
+    const permissions = Array.from(computePermissions(req.user)).sort();
     const profile = await meService.getProfile(req.user.id);
+    const unread_notifications = await notificationsService.getUnreadCount(req.user.id);
 
     res.status(200).json({
       data: {
         ...profile,
         activeEntity: req.activeEntity,
         permissions,
+        unread_notifications,
       },
     });
   } catch (err) {
@@ -61,13 +65,15 @@ const updateMe = async (req, res, next) => {
     }
 
     const profile = await meService.updateProfile({ userId: req.user.id, data: payload });
-    const permissions = Array.from(computePermissions(req.user));
+    const permissions = Array.from(computePermissions(req.user)).sort();
+    const unread_notifications = await notificationsService.getUnreadCount(req.user.id);
 
     res.status(200).json({
       data: {
         ...profile,
         activeEntity: req.activeEntity,
         permissions,
+        unread_notifications,
       },
     });
   } catch (err) {
@@ -104,7 +110,11 @@ const changePassword = async (req, res, next) => {
  */
 const getAvatarUploadUrl = async (req, res, next) => {
   try {
-    const result = await meService.getAvatarUploadUrl({ userId: req.user.id });
+    const { contentType = 'image/png' } = req.body || {};
+    const result = await meService.getAvatarUploadUrl({
+      userId: req.user.id,
+      contentType,
+    });
     res.status(200).json({ data: result });
   } catch (err) {
     next(err);
