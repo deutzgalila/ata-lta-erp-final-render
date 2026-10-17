@@ -100,3 +100,10 @@ body {
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
 }
+
+/* DatePicker popup font inheritance & styling */
+.erp-date-picker-popup,
+.erp-date-picker-popup * {
+  font-family: var(--font-sans) !important;
+}
+

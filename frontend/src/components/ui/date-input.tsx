@@ -87,7 +87,11 @@ export const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function D
         readOnly={readOnly}
         autoFocus={autoFocus}
         name={name}
-        className={cn('h-9 w-full min-w-0 text-sm', className)}
+        className={cn(
+          'h-9 w-full min-w-0 text-sm font-sans',
+          type === 'month' ? 'sm:min-w-[184px]' : 'sm:min-w-[176px]',
+          className
+        )}
         inputRef={(element: HTMLInputElement | null) => {
           inputRef.current = element;
           if (typeof forwardedRef === 'function') forwardedRef(element);
@@ -104,20 +108,136 @@ export const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function D
             },
           },
           field: { clearable: !required },
-          popper: { container: portalContainer, className: 'erp-date-picker-popup' },
-          dialog: { container: portalContainer, className: 'erp-date-picker-popup' },
+          popper: {
+            container: portalContainer,
+            className: 'erp-date-picker-popup font-sans',
+            sx: {
+              '& .MuiPaper-root': {
+                fontFamily: 'var(--font-sans)',
+                borderRadius: '12px',
+                boxShadow: '0 15px 35px rgba(0, 0, 0, 0.08), 0 5px 15px rgba(0, 0, 0, 0.04)',
+                border: '1px solid #e2e8f0',
+              },
+              '& *': {
+                fontFamily: 'var(--font-sans) !important',
+              },
+              '& .MuiPickersCalendarHeader-label': {
+                fontSize: '14px',
+                fontWeight: 600,
+                color: '#1e293b',
+              },
+              '& .MuiDayCalendar-weekDayLabel': {
+                fontSize: '12px',
+                fontWeight: 500,
+                color: '#64748b',
+              },
+              '& .MuiPickersDay-root': {
+                fontSize: '13px',
+                fontWeight: 400,
+                color: '#1e293b',
+                fontVariantNumeric: 'tabular-nums',
+                '&:hover': {
+                  backgroundColor: '#f1f5f9',
+                },
+                '&.Mui-selected': {
+                  backgroundColor: '#2563eb !important',
+                  color: '#ffffff !important',
+                  fontWeight: 600,
+                  '&:hover': {
+                    backgroundColor: '#1d4ed8 !important',
+                  },
+                },
+                '&.MuiPickersDay-today': {
+                  borderColor: '#2563eb',
+                  fontWeight: 600,
+                },
+              },
+              '& .MuiMonthCalendar-root .MuiPickersMonth-monthButton, & .MuiYearCalendar-root .MuiPickersYear-yearButton': {
+                fontSize: '13px',
+                fontFamily: 'var(--font-sans)',
+                '&.Mui-selected': {
+                  backgroundColor: '#2563eb !important',
+                  color: '#ffffff !important',
+                  fontWeight: 600,
+                },
+              },
+              '& .MuiDialogActions-root button': {
+                fontFamily: 'var(--font-sans)',
+                fontSize: '13px',
+                fontWeight: 500,
+                textTransform: 'none',
+              },
+            },
+          },
+          dialog: {
+            container: portalContainer,
+            className: 'erp-date-picker-popup font-sans',
+            sx: {
+              '& .MuiPaper-root': {
+                fontFamily: 'var(--font-sans)',
+                borderRadius: '12px',
+              },
+              '& *': {
+                fontFamily: 'var(--font-sans) !important',
+              },
+              '& .MuiPickersDay-root.Mui-selected': {
+                backgroundColor: '#2563eb !important',
+                color: '#ffffff !important',
+              },
+            },
+          },
           actionBar: { actions: required ? ['cancel', 'accept'] : ['clear', 'cancel', 'accept'] },
         }}
         sx={{
+          height: '100%',
           '& .MuiPickersInputBase-root': {
             height: '100%',
-            minHeight: 28,
+            minHeight: 'inherit',
+            fontFamily: 'var(--font-sans)',
             fontSize: 'inherit',
-            borderRadius: '6px',
+            borderRadius: '8px',
             backgroundColor: 'white',
+            color: '#1e293b',
+            boxSizing: 'border-box',
           },
-          '& .MuiPickersOutlinedInput-notchedOutline': { borderColor: '#f0f0f5' },
-          '& .MuiIconButton-root': { padding: '4px' },
+          '& .MuiPickersSectionList-root': {
+            fontFamily: 'var(--font-sans)',
+            fontSize: 'inherit',
+            letterSpacing: 'normal',
+          },
+          '& .MuiPickersSectionList-section': {
+            fontFamily: 'var(--font-sans)',
+            fontSize: 'inherit',
+          },
+          '& .MuiPickersSectionList-sectionContent': {
+            fontFamily: 'var(--font-sans)',
+            fontSize: 'inherit',
+            fontVariantNumeric: 'tabular-nums',
+          },
+          '& .MuiPickersSectionList-sectionSeparator': {
+            fontFamily: 'var(--font-sans)',
+            fontSize: 'inherit',
+            color: '#94a3b8',
+          },
+          '& .MuiPickersOutlinedInput-notchedOutline': {
+            borderColor: '#e2e8f0',
+            transition: 'border-color 0.15s ease',
+          },
+          '&:hover .MuiPickersOutlinedInput-notchedOutline': {
+            borderColor: '#cbd5e1',
+          },
+          '&.Mui-focused .MuiPickersOutlinedInput-notchedOutline, & .MuiPickersInputBase-root.Mui-focused .MuiPickersOutlinedInput-notchedOutline': {
+            borderColor: '#2563eb',
+            borderWidth: '1.5px',
+          },
+          '& .MuiIconButton-root': {
+            padding: '4px',
+            color: '#64748b',
+            '&:hover': {
+              color: '#1e293b',
+              backgroundColor: '#f1f5f9',
+            },
+          },
           '& .MuiSvgIcon-root': { fontSize: '18px' },
         }}
       />

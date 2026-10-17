@@ -1,16 +1,5 @@
 import { useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import {
-  BarChart3,
-  TrendingUp,
-  Calendar,
-  CalendarRange,
-  Clock,
-  Receipt,
-  AlertTriangle,
-  Building2,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Forbidden } from '@/components/common/Forbidden';
 import { BlockingActionModal } from '@/features/operations/components/BlockingActionModal';
@@ -20,6 +9,7 @@ import {
   WeeklySummaryTab,
   MonthlyPendingTab,
   AgingReportTab,
+  ReportScopePrompt,
 } from '@/features/reports';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
@@ -46,7 +36,7 @@ export default function ReportsPage() {
   const availableTabs = useMemo(() => {
     const tabs: string[] = [];
     if (canViewReports) {
-      tabs.push('analytics', 'daily', 'weekly', 'monthly');
+      tabs.push('overview', 'daily', 'weekly', 'monthly');
     }
     if (canViewBilling) {
       tabs.push('aging');
@@ -54,16 +44,26 @@ export default function ReportsPage() {
     return tabs;
   }, [canViewReports, canViewBilling]);
 
-  // Determine current active tab
+  // Normalize incoming tab parameter to support ?tab=analytics alias for overview
+  const normalizeTab = (tab: string | null): string => {
+    if (!tab) return '';
+    if (tab === 'analytics' || tab === 'overview') return 'overview';
+    return tab;
+  };
+
   const requestedTab = searchParams.get('tab');
-  const defaultTab = canViewReports ? 'analytics' : 'aging';
+  const normalizedRequestedTab = normalizeTab(requestedTab);
+  const defaultTab = canViewReports ? 'overview' : 'aging';
   const activeTab =
-    requestedTab && availableTabs.includes(requestedTab) ? requestedTab : defaultTab;
+    normalizedRequestedTab && availableTabs.includes(normalizedRequestedTab)
+      ? normalizedRequestedTab
+      : defaultTab;
 
   // Sync URL if requested tab is invalid or missing
   useEffect(() => {
     if (!canViewReports && !canViewBilling) return;
-    if (!requestedTab || !availableTabs.includes(requestedTab)) {
+    const isOverviewAlias = requestedTab === 'analytics' && canViewReports;
+    if (!requestedTab || (!availableTabs.includes(requestedTab) && !isOverviewAlias)) {
       setSearchParams(
         (prev) => {
           const next = new URLSearchParams(prev);
@@ -88,40 +88,41 @@ export default function ReportsPage() {
     });
   };
 
-  const isSingleEntityTab = ['daily', 'weekly', 'monthly', 'aging'].includes(activeTab);
-  const showAllEntityWarning = activeEntity === 'ALL' && isSingleEntityTab;
-
-  const tabLabels: Record<string, string> = {
-    analytics: 'Overview & Analytics',
-    daily: 'Daily Activity Report',
-    weekly: 'Weekly Summary Report',
-    monthly: 'Monthly Pending Report',
-    aging: 'Accounts Receivable Aging',
+  const tabDisplayTitles: Record<string, string> = {
+    overview: 'Overview',
+    daily: 'Daily activity',
+    weekly: 'Weekly summary',
+    monthly: 'Monthly pending',
+    aging: 'AR aging',
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6" data-testid="reports-page">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6" data-testid="reports-page">
       {/* 1. Page Header & Breadcrumbs */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="text-xs font-medium text-slate-500 flex items-center gap-1.5 pb-1">
+          <nav
+            aria-label="Breadcrumb"
+            className="text-xs font-medium text-slate-500 flex items-center gap-1.5 pb-1"
+          >
             <span>Modules</span>
-            <span>/</span>
+            <span aria-hidden="true">/</span>
             <span className="text-slate-500 font-semibold">Reports</span>
-            <span>/</span>
-            <span className="text-slate-900 font-semibold">{tabLabels[activeTab]}</span>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
-            <BarChart3 className="w-6 h-6 text-blue-600" />
-            <span>Reports & Analytics</span>
+            <span aria-hidden="true">/</span>
+            <span className="text-slate-900 font-semibold">
+              {tabDisplayTitles[activeTab] || 'Overview'}
+            </span>
+          </nav>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+            Reports
           </h1>
-          <p className="text-xs text-slate-500 pt-0.5">
-            Financial analytics, operational metrics, activity audits, and accounts receivable tracking.
+          <p className="text-sm text-slate-500 pt-0.5">
+            Review activity, balances, and pending items.
           </p>
         </div>
 
         {/* Header Controls: Entity Switcher */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 self-start sm:self-auto">
           <div
             className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200"
             data-testid="entity-switcher"
@@ -131,10 +132,10 @@ export default function ReportsPage() {
                 key={ent}
                 type="button"
                 onClick={() => setActiveEntity(ent)}
-                className={`px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                className={`px-3 py-1 rounded-md text-xs transition-all cursor-pointer ${
                   activeEntity === ent
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-900'
+                    ? 'bg-white text-slate-900 shadow-2xs font-semibold'
+                    : 'text-slate-500 hover:text-slate-900 font-medium'
                 }`}
                 data-testid={`entity-btn-${ent.toLowerCase()}`}
               >
@@ -145,85 +146,41 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* 2. Entity Warning Banner for Single-Entity Scoped Tabs */}
-      {showAllEntityWarning && (
-        <div
-          className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-900"
-          data-testid="entity-all-warning"
-        >
-          <div className="flex items-center gap-2.5">
-            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
-            <div className="text-xs">
-              <span className="font-bold block sm:inline">
-                Single-Entity Scope Required:{' '}
-              </span>
-              <span>
-                The <strong>{tabLabels[activeTab]}</strong> is scoped to a concrete entity. When viewing consolidated <strong>ALL</strong>, itemized records are empty. Please switch to ATA or LTA to view this report.
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setActiveEntity('ATA')}
-              className="text-xs h-7 bg-white border-amber-300 text-amber-800 hover:bg-amber-100 cursor-pointer"
-            >
-              <Building2 className="w-3 h-3 mr-1" />
-              Switch to ATA
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setActiveEntity('LTA')}
-              className="text-xs h-7 bg-white border-amber-300 text-amber-800 hover:bg-amber-100 cursor-pointer"
-            >
-              <Building2 className="w-3 h-3 mr-1" />
-              Switch to LTA
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* 3. Main Navigation Tabs */}
+      {/* 2. Main Navigation Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-        <TabsList className="bg-slate-100 p-1 border border-slate-200 rounded-xl">
+        <TabsList className="w-full justify-start rounded-none bg-transparent p-0 border-b border-slate-200 gap-6 h-auto overflow-x-auto scrollbar-none">
           {canViewReports && (
             <>
               <TabsTrigger
-                value="analytics"
-                className="text-xs gap-1.5 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-xs rounded-lg cursor-pointer"
-                data-testid="tab-trigger-analytics"
+                value="overview"
+                className="rounded-none bg-transparent px-1 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 shadow-none data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:shadow-none -mb-px transition-colors cursor-pointer"
+                data-testid="tab-trigger-overview"
               >
-                <TrendingUp className="w-3.5 h-3.5" />
-                <span>Overview & Analytics</span>
+                Overview
               </TabsTrigger>
 
               <TabsTrigger
                 value="daily"
-                className="text-xs gap-1.5 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-xs rounded-lg cursor-pointer"
+                className="rounded-none bg-transparent px-1 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 shadow-none data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:shadow-none -mb-px transition-colors cursor-pointer"
                 data-testid="tab-trigger-daily"
               >
-                <Calendar className="w-3.5 h-3.5" />
-                <span>Daily Activity</span>
+                Daily activity
               </TabsTrigger>
 
               <TabsTrigger
                 value="weekly"
-                className="text-xs gap-1.5 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-xs rounded-lg cursor-pointer"
+                className="rounded-none bg-transparent px-1 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 shadow-none data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:shadow-none -mb-px transition-colors cursor-pointer"
                 data-testid="tab-trigger-weekly"
               >
-                <CalendarRange className="w-3.5 h-3.5" />
-                <span>Weekly Summary</span>
+                Weekly summary
               </TabsTrigger>
 
               <TabsTrigger
                 value="monthly"
-                className="text-xs gap-1.5 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-xs rounded-lg cursor-pointer"
+                className="rounded-none bg-transparent px-1 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 shadow-none data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:shadow-none -mb-px transition-colors cursor-pointer"
                 data-testid="tab-trigger-monthly"
               >
-                <Clock className="w-3.5 h-3.5" />
-                <span>Monthly Pending</span>
+                Monthly pending
               </TabsTrigger>
             </>
           )}
@@ -231,39 +188,38 @@ export default function ReportsPage() {
           {canViewBilling && (
             <TabsTrigger
               value="aging"
-              className="text-xs gap-1.5 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-xs rounded-lg cursor-pointer"
+              className="rounded-none bg-transparent px-1 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 shadow-none data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:shadow-none -mb-px transition-colors cursor-pointer"
               data-testid="tab-trigger-aging"
             >
-              <Receipt className="w-3.5 h-3.5" />
-              <span>AR Aging Report</span>
+              AR aging
             </TabsTrigger>
           )}
         </TabsList>
 
-        {/* Tab Contents */}
+        {/* Tab Contents: Detail Tabs in ALL Scope Render ReportScopePrompt */}
         {canViewReports && (
           <>
-            <TabsContent value="analytics" className="mt-4 focus-visible:outline-hidden">
+            <TabsContent value="overview" className="mt-4 focus-visible:outline-hidden">
               <AnalyticsOverviewTab />
             </TabsContent>
 
             <TabsContent value="daily" className="mt-4 focus-visible:outline-hidden">
-              <DailyActivityTab />
+              {activeEntity === 'ALL' ? <ReportScopePrompt /> : <DailyActivityTab />}
             </TabsContent>
 
             <TabsContent value="weekly" className="mt-4 focus-visible:outline-hidden">
-              <WeeklySummaryTab />
+              {activeEntity === 'ALL' ? <ReportScopePrompt /> : <WeeklySummaryTab />}
             </TabsContent>
 
             <TabsContent value="monthly" className="mt-4 focus-visible:outline-hidden">
-              <MonthlyPendingTab />
+              {activeEntity === 'ALL' ? <ReportScopePrompt /> : <MonthlyPendingTab />}
             </TabsContent>
           </>
         )}
 
         {canViewBilling && (
           <TabsContent value="aging" className="mt-4 focus-visible:outline-hidden">
-            <AgingReportTab />
+            {activeEntity === 'ALL' ? <ReportScopePrompt /> : <AgingReportTab />}
           </TabsContent>
         )}
       </Tabs>
