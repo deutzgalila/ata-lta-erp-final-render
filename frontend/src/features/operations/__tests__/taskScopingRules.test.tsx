@@ -142,9 +142,9 @@ describe('Task Scoping Utility Unit Tests (taskScope.ts)', () => {
     expect(canMutateTaskStatus(userAccountingTeam, mockTask)).toBe(false);
   });
 
-  it('enforces time logging permissions (only assigned employee or Admin)', () => {
+  it('requires assignment for time logging, including Admins', () => {
     expect(canLogTaskTime(userAssignedStaff, mockTask)).toBe(true);
-    expect(canLogTaskTime(userAdmin, mockTask)).toBe(true);
+    expect(canLogTaskTime(userAdmin, mockTask)).toBe(false);
     expect(canLogTaskTime(userUnassignedManager, mockTask)).toBe(false);
     expect(canLogTaskTime(userAccountingTeam, mockTask)).toBe(false);
   });
@@ -298,7 +298,10 @@ describe('TaskDetailModal UI Scoping Integration', () => {
     let patchedData: unknown = null;
     vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input);
-      if (url.includes('/operations/work-requests/wr-scope-1/tasks/task-scope-1') && init?.method === 'PUT') {
+      if (
+        url.includes('/operations/work-requests/wr-scope-1/tasks/task-scope-1') &&
+        (init?.method === 'PUT' || init?.method === 'PATCH')
+      ) {
         patchedData = JSON.parse(String(init.body));
         return new Response(JSON.stringify({ data: { ...mockTask, status: 'Completed' } }), { status: 200 });
       }
@@ -317,7 +320,7 @@ describe('TaskDetailModal UI Scoping Integration', () => {
 
     // Controls present
     expect(screen.getByTestId('task-toggle-status-btn')).toBeInTheDocument();
-    expect(screen.getByTestId('open-log-time-btn')).toBeInTheDocument();
+    expect(screen.queryByTestId('open-log-time-btn')).not.toBeInTheDocument();
     expect(screen.getByTestId('task-upload-doc-btn')).toBeInTheDocument();
     expect(screen.getByTestId('link-invoice-btn')).toBeInTheDocument();
     expect(screen.getByTestId('link-disbursement-btn')).toBeInTheDocument();

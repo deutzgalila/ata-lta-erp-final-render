@@ -2,7 +2,7 @@
  * TanStack Query Hooks for Documents (DMS) Module (Module #7)
  *
  * Citation: Frozen API Contract documents@2.0.0 (docs/api-contracts/modules/documents.md)
- * Doctrine: Zero Optimistic Updates — non-dismissible blocking execution, verbatim RFC 7807 error surfacing.
+ * Metadata actions use blocking execution; collaborative comments use inline async state.
  */
 
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
@@ -10,6 +10,7 @@ import { apiRequest, ApiError } from '@/lib/api';
 import { useSessionStore } from '@/lib/session';
 import { runBlockingAction } from '@/features/operations/components/BlockingActionModal';
 import { documentKeys } from './queryKeys';
+import { operationsKeys } from '@/features/operations/api/queryKeys';
 import {
   MAX_FILE_SIZE_BYTES,
   createDocumentSchema,
@@ -163,7 +164,7 @@ export function useUploadDocument() {
         linkedTaskId: metadata.linkedTaskId,
         clientId: metadata.clientId,
         documentType: metadata.documentType,
-        category: metadata.category ?? 'OTHER',
+        category: metadata.category ?? 'Others',
         description: metadata.description,
         externalUrl: metadata.externalUrl,
       };
@@ -403,3 +404,30 @@ export function useDeleteDocument() {
     },
   });
 }
+
+// Comments use inline pending/error states; they never open BlockingActionModal.
+type CommentVariables = { id: string; text?: string; commentId?: string };
+function useDocumentCommentMutation<T extends CommentVariables>(method: 'POST' | 'PUT' | 'DELETE') {
+  const queryClient = useQueryClient();
+  return useMutation<DmsDocument, ApiError, T>({
+    mutationFn: async ({ id, commentId, text }) => {
+      const suffix = method === 'POST' ? '' : `/${encodeURIComponent(commentId!)}`;
+      const result = await apiRequest<DocumentDetailResponse>(
+        `/documents/${id}/comments${suffix}`,
+        { method, ...(method !== 'DELETE' ? { body: JSON.stringify({ text }) } : {}) }
+      );
+      return result.data;
+    },
+    onSuccess: async (_document, { id }) => {
+      // Refetch instead of replacing with a response that may precede a newer CDC event.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: documentKeys.detail(id) }),
+        queryClient.invalidateQueries({ queryKey: documentKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: operationsKeys.documents() }),
+      ]);
+    },
+  });
+}
+export function useAddDocumentComment() { return useDocumentCommentMutation<{ id: string; text: string }>('POST'); }
+export function useEditDocumentComment() { return useDocumentCommentMutation<{ id: string; commentId: string; text: string }>('PUT'); }
+export function useDeleteDocumentComment() { return useDocumentCommentMutation<{ id: string; commentId: string }>('DELETE'); }

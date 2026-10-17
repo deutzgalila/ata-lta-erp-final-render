@@ -5,14 +5,14 @@
  * - Direct native DmsDocument typing
  * - Enlarged windowed modal sizing (max-w-6xl w-[95vw] h-[88vh])
  * - Full-page view mode (full-viewport overlay) with toggle button
- * - Native DMS query hooks (useDocumentDownloadUrl, useUpdateDocument, useUploadDocument)
+ * - Native DMS query hooks (useDocumentDownloadUrl, dedicated comment mutations, useUploadDocument)
  * - PDF inline iframe, image preview, text preview, fallback download cards
  * - Comments pane (view, add, edit, delete)
  * - File replace/upload with 50 MB limit guard
  * - Shared design tokens (#f0f0f5, #f0f1f3, #2563eb, #1e293b, #9494a0)
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -34,19 +34,37 @@ import {
   FileQuestion,
   Maximize2,
   Minimize2,
+  ExternalLink,
 } from 'lucide-react';
 import {
   useDocumentDownloadUrl,
-  useUpdateDocument,
+  useDocumentDetail,
+  useAddDocumentComment,
+  useEditDocumentComment,
+  useDeleteDocumentComment,
   useUploadDocument,
 } from '../api/useDocuments';
 import { MAX_FILE_SIZE_BYTES } from '../api/schemas';
-import type { DmsDocument, DmsDocumentComment } from '../api/types';
+import type { DmsDocument } from '../api/types';
 import { useSessionStore } from '@/lib/session';
+import { parseExternalUrl } from '../utils/googleDrive';
+import { useEntityRealtimeSync } from '@/lib/realtime/useEntityRealtimeSync';
+import { useTeam } from '@/features/operations/api/useTeam';
+
+function commentTime(value: string) {
+  const time = new Date(value).getTime();
+  if (!Number.isFinite(time)) return '';
+  const minutes = Math.max(0, Math.floor((Date.now() - time) / 60000));
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`;
+  return new Date(time).toLocaleDateString();
+}
 
 export interface ViewerWorkRequest {
   id: string;
   clientId?: string | null;
+  title?: string;
   status?: string;
   archived?: boolean;
 }
@@ -54,8 +72,10 @@ export interface ViewerWorkRequest {
 export interface DocumentViewerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  document: DmsDocument | null;
+  document?: DmsDocument | null;
+  doc?: DmsDocument | null;
   workRequest?: ViewerWorkRequest | null;
+  workRequests?: ViewerWorkRequest[] | null;
   onUploadSuccess?: (doc: DmsDocument) => void;
   readOnly?: boolean;
 }
@@ -63,12 +83,30 @@ export interface DocumentViewerModalProps {
 export function DocumentViewerModal({
   isOpen,
   onClose,
-  document: initialDoc,
-  workRequest,
+  document: propDocument,
+  doc: propDoc,
+  workRequest: propWorkRequest,
+  workRequests: propWorkRequests,
   onUploadSuccess,
   readOnly = false,
 }: DocumentViewerModalProps) {
-  const [doc, setDoc] = useState<DmsDocument | null>(initialDoc);
+  const initialDoc = propDocument ?? propDoc ?? null;
+  const workRequest = propWorkRequest ?? (propWorkRequests && propWorkRequests[0]) ?? null;
+  const [selectedDoc, setDoc] = useState<DmsDocument | null>(initialDoc);
+  const { data: liveDoc } = useDocumentDetail(selectedDoc?.id, { enabled: isOpen });
+  const doc = liveDoc ?? selectedDoc;
+  useEntityRealtimeSync({ table: 'documents', enabled: isOpen && Boolean(doc?.id) });
+  const commentsRef = useRef<HTMLDivElement | null>(null);
+  const followComments = useRef(true);
+  // Radix mounts portal content after the parent's effects on some opens.
+  const attachCommentsRef = useCallback((node: HTMLDivElement | null) => {
+    commentsRef.current = node;
+    if (node) node.scrollTop = node.scrollHeight;
+  }, []);
+  const sending = useRef(false);
+  const currentDocumentId = useRef(doc?.id);
+  currentDocumentId.current = doc?.id;
+  const [commentError, setCommentError] = useState<string | null>(null);
   const [isFullPage, setIsFullPage] = useState(false);
   const [newCommentText, setNewCommentText] = useState('');
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
@@ -77,16 +115,53 @@ export function DocumentViewerModal({
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const currentUserId = useSessionStore((state) => state.user?.id);
-  const currentUserName = useSessionStore((state) => state.user?.name || 'User');
+  const isAdmin = useSessionStore((state) => state.user?.role?.toLowerCase() === 'admin');
+
+  const { data: rawTeam } = useTeam();
+  const teamMap = useMemo(() => {
+    const list = Array.isArray(rawTeam)
+      ? rawTeam
+      : rawTeam && typeof rawTeam === 'object' && 'data' in rawTeam && Array.isArray((rawTeam as { data: unknown[] }).data)
+      ? (rawTeam as { data: Array<{ id: string; name?: string }> }).data
+      : [];
+    const map = new Map<string, string>();
+    list.forEach((m) => {
+      if (m && m.id && m.name) map.set(m.id, m.name);
+    });
+    return map;
+  }, [rawTeam]);
+
+  const formattedUploadDate = useMemo(() => {
+    const rawDate = doc?.upload_date || doc?.created_at;
+    if (!rawDate) return 'Unknown';
+    try {
+      const d = new Date(rawDate);
+      return Number.isNaN(d.getTime()) ? rawDate : d.toLocaleString();
+    } catch {
+      return rawDate;
+    }
+  }, [doc?.upload_date, doc?.created_at]);
 
   // Keep doc synced with initialDoc
   useEffect(() => {
     setDoc(initialDoc);
+  }, [initialDoc]);
+
+  useEffect(() => {
+    followComments.current = true;
+    setCommentError(null);
     setUploadError(null);
     setEditingCommentId(null);
     setEditingCommentText('');
     setNewCommentText('');
-  }, [initialDoc]);
+  }, [doc?.id, isOpen]);
+
+  useEffect(() => {
+    const container = commentsRef.current;
+    if (isOpen && container && followComments.current) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [isOpen, doc?.id, doc?.comments]);
 
   // Reset full page view when modal closes
   useEffect(() => {
@@ -115,7 +190,9 @@ export function DocumentViewerModal({
   const { data: downloadData, isLoading: isDownloadLoading } =
     useDocumentDownloadUrl(documentId, { enabled: Boolean(documentId) });
 
-  const updateMutation = useUpdateDocument();
+  const addComment = useAddDocumentComment();
+  const editComment = useEditDocumentComment();
+  const deleteComment = useDeleteDocumentComment();
   const uploadMutation = useUploadDocument();
 
   const isReadOnly =
@@ -132,7 +209,18 @@ export function DocumentViewerModal({
     doc?.fileName ||
     'Document';
   const contentType = doc?.contentType || doc?.content_type || '';
-  const downloadUrl = downloadData?.url || doc?.external_url || null;
+  const effectiveExternalUrl =
+    (doc?.external_url && doc.external_url.trim()) ||
+    (doc?.externalUrl && doc.externalUrl.trim()) ||
+    null;
+  const rawUrl = effectiveExternalUrl || downloadData?.url || null;
+  const parsedExternal = parseExternalUrl(rawUrl || '', fileName);
+  const previewUrl = parsedExternal.isGoogleDrive ? parsedExternal.previewUrl : rawUrl;
+  const isExternal = Boolean(
+    effectiveExternalUrl ||
+    parsedExternal.isGoogleDrive
+  );
+  const downloadUrl = isExternal ? null : rawUrl;
 
   // File Upload Handler (3-step signed upload)
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -170,78 +258,48 @@ export function DocumentViewerModal({
     }
   };
 
-  // Add Comment
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!doc || !newCommentText.trim() || isReadOnly) return;
-
-    const existingComments: DmsDocumentComment[] = doc.comments || [];
-    const newComment: DmsDocumentComment = {
-      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `comm-${Date.now()}`,
-      userId: currentUserId || 'system',
-      userName: currentUserName,
-      date: new Date().toISOString(),
-      text: newCommentText.trim(),
-    };
-
-    const updatedComments = [...existingComments, newComment];
-
+    if (!doc || !newCommentText.trim() || isReadOnly || sending.current || addComment.isPending) return;
+    const id = doc.id;
+    const submitted = newCommentText;
+    sending.current = true;
+    setCommentError(null);
     try {
-      const updated = await updateMutation.mutateAsync({
-        id: doc.id,
-        data: {
-          comments: updatedComments,
-        },
-      });
-      if (updated) setDoc(updated);
-      setNewCommentText('');
-    } catch {
-      // Handled by updateMutation
+      await addComment.mutateAsync({ id, text: submitted.trim() });
+      if (currentDocumentId.current === id) {
+        setNewCommentText((current) => current === submitted ? '' : current);
+      }
+    } catch (err) {
+      if (currentDocumentId.current === id) setCommentError(err instanceof Error ? err.message : 'Failed to post comment');
+    } finally {
+      sending.current = false;
     }
   };
 
-  // Edit Comment
   const handleSaveEditComment = async (commentId: string) => {
-    if (!doc || !editingCommentText.trim() || isReadOnly) return;
-
-    const existingComments: DmsDocumentComment[] = doc.comments || [];
-    const updatedComments = existingComments.map((c) =>
-      c.id === commentId ? { ...c, text: editingCommentText.trim() } : c
-    );
-
+    if (!doc || !editingCommentText.trim() || isReadOnly || editComment.isPending) return;
+    const id = doc.id;
+    setCommentError(null);
     try {
-      const updated = await updateMutation.mutateAsync({
-        id: doc.id,
-        data: {
-          comments: updatedComments,
-        },
-      });
-      if (updated) setDoc(updated);
-      setEditingCommentId(null);
-      setEditingCommentText('');
-    } catch {
-      // Handled by updateMutation
+      await editComment.mutateAsync({ id, commentId, text: editingCommentText.trim() });
+      if (currentDocumentId.current === id) {
+        setEditingCommentId(null);
+        setEditingCommentText('');
+      }
+    } catch (err) {
+      if (currentDocumentId.current === id) setCommentError(err instanceof Error ? err.message : 'Failed to edit comment');
     }
   };
 
-  // Delete Comment
   const handleDeleteComment = async (commentId: string) => {
-    if (!doc || isReadOnly) return;
-    if (typeof window !== 'undefined' && !window.confirm('Are you sure you want to delete this comment?')) return;
-
-    const existingComments: DmsDocumentComment[] = doc.comments || [];
-    const updatedComments = existingComments.filter((c) => c.id !== commentId);
-
+    if (!doc || isReadOnly || deleteComment.isPending) return;
+    const id = doc.id;
+    setCommentError(null);
     try {
-      const updated = await updateMutation.mutateAsync({
-        id: doc.id,
-        data: {
-          comments: updatedComments,
-        },
-      });
-      if (updated) setDoc(updated);
-    } catch {
-      // Handled by updateMutation
+      await deleteComment.mutateAsync({ id, commentId });
+    } catch (err) {
+      if (currentDocumentId.current === id) setCommentError(err instanceof Error ? err.message : 'Failed to delete comment');
     }
   };
 
@@ -265,10 +323,58 @@ export function DocumentViewerModal({
       );
     }
 
-    if (isDownloadLoading) {
+    if (isDownloadLoading && !doc?.external_url && !doc?.externalUrl) {
       return (
         <div className="h-full flex items-center justify-center text-[#9494a0] text-sm">
           Loading document preview...
+        </div>
+      );
+    }
+
+    if (parsedExternal.isGoogleDrive && previewUrl) {
+      return (
+        <div className="w-full h-full flex flex-col">
+          <div className="bg-blue-50 border-b border-blue-100 px-4 py-2 flex items-center justify-between text-xs text-blue-800">
+            <span>Google Drive Document Preview</span>
+            <a
+              href={parsedExternal.originalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium underline hover:text-blue-950 flex items-center gap-1"
+            >
+              Open Original <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
+          <iframe
+            src={previewUrl}
+            className="w-full flex-1 border-0"
+            title={fileName}
+            allow="autoplay"
+            data-testid="doc-preview-gdrive"
+          />
+        </div>
+      );
+    }
+
+    // External Document Non-Embeddable Card (Architecture Spec Section 2 RENDER -> FALLBACK)
+    if (isExternal) {
+      const openUrl = effectiveExternalUrl || parsedExternal.originalUrl;
+      return (
+        <div className="h-full flex flex-col items-center justify-center p-8 space-y-4 text-center">
+          <ExternalLink className="h-16 w-16 text-[#2563eb]" />
+          <div className="space-y-1">
+            <h4 className="font-semibold text-[#1e293b] text-sm">{fileName}</h4>
+            <p className="text-xs text-[#9494a0] max-w-sm">
+              This external document cannot be embedded inline. You can open the external link directly in your browser.
+            </p>
+          </div>
+          {openUrl && (
+            <a href={openUrl} target="_blank" rel="noopener noreferrer">
+              <Button type="button" size="sm" className="gap-2 bg-[#2563eb] hover:bg-[#1d4ed8] text-white">
+                <ExternalLink className="h-4 w-4" /> Open External Link
+              </Button>
+            </a>
+          )}
         </div>
       );
     }
@@ -286,10 +392,10 @@ export function DocumentViewerModal({
       fileName.toLowerCase().endsWith('.docx');
     const isLegacyDoc = fileName.toLowerCase().endsWith('.doc');
 
-    if (downloadUrl && isPdf) {
+    if (previewUrl && isPdf) {
       return (
         <iframe
-          src={downloadUrl}
+          src={previewUrl}
           className="w-full h-full border-0 rounded-md"
           title={fileName}
           data-testid="doc-preview-pdf"
@@ -297,11 +403,11 @@ export function DocumentViewerModal({
       );
     }
 
-    if (downloadUrl && isImage) {
+    if (previewUrl && isImage) {
       return (
         <div className="w-full h-full flex items-center justify-center p-4">
           <img
-            src={downloadUrl}
+            src={previewUrl}
             alt={fileName}
             className="max-w-full max-h-full object-contain shadow-xs rounded"
             data-testid="doc-preview-image"
@@ -310,10 +416,10 @@ export function DocumentViewerModal({
       );
     }
 
-    if (isText && downloadUrl) {
+    if (isText && previewUrl) {
       return (
         <iframe
-          src={downloadUrl}
+          src={previewUrl}
           className="w-full h-full border-0 p-4 font-mono text-xs bg-white rounded"
           title={fileName}
           data-testid="doc-preview-text"
@@ -447,7 +553,18 @@ export function DocumentViewerModal({
                 <Upload className="h-3.5 w-3.5" /> Replace / Upload
               </Button>
             )}
-            {downloadUrl && (
+            {isExternal ? (
+              <a
+                href={effectiveExternalUrl || parsedExternal.originalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Button variant="outline" size="xs" className="gap-1.5 text-xs text-[#2563eb]">
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  {parsedExternal.isGoogleDrive ? 'Open in Google Drive' : 'Open External Link'}
+                </Button>
+              </a>
+            ) : downloadUrl ? (
               <a href={downloadUrl} download={fileName} target="_blank" rel="noreferrer">
                 <Button
                   type="button"
@@ -459,7 +576,7 @@ export function DocumentViewerModal({
                   <Download className="h-3.5 w-3.5" /> Download
                 </Button>
               </a>
-            )}
+            ) : null}
           </div>
         </DialogHeader>
 
@@ -480,17 +597,71 @@ export function DocumentViewerModal({
 
           {/* Right: Threaded Comments */}
           <div className="w-80 sm:w-96 flex flex-col bg-white">
+            {/* Document Details Metadata Panel */}
+            <div
+              className="p-3 border-b border-[#f0f0f5] bg-[#f8fafc] text-xs space-y-2 shrink-0"
+              data-testid="document-details-panel"
+            >
+              <div className="font-semibold text-[#1e293b] text-xs">
+                Document Details
+              </div>
+              <div className="space-y-1.5 text-[11px]">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-[#9494a0] shrink-0">Uploader:</span>
+                  <span
+                    className="font-medium text-[#1e293b] text-right truncate"
+                    data-testid="doc-uploader-name"
+                  >
+                    {doc?.uploader_name || doc?.uploaderName || (doc?.uploader_id ? teamMap.get(doc.uploader_id) : undefined) || 'Unknown User'}
+                  </span>
+                </div>
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-[#9494a0] shrink-0">Date Uploaded:</span>
+                  <span
+                    className="font-medium text-[#1e293b] text-right truncate"
+                    data-testid="doc-upload-date"
+                  >
+                    {formattedUploadDate}
+                  </span>
+                </div>
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-[#9494a0] shrink-0">Work Request:</span>
+                  <span
+                    className="font-medium text-[#1e293b] text-right truncate"
+                    data-testid="doc-work-request"
+                  >
+                    {doc?.work_request_title || workRequest?.title || 'None / Not Linked'}
+                  </span>
+                </div>
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-[#9494a0] shrink-0">Linked Task:</span>
+                  <span
+                    className="font-medium text-[#1e293b] text-right truncate"
+                    data-testid="doc-linked-task"
+                  >
+                    {doc?.linked_task_title || 'None / Not Linked'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
             <div className="p-3 border-b border-[#f0f0f5] flex items-center gap-1.5 text-xs font-semibold text-[#1e293b]">
               <MessageSquare className="h-3.5 w-3.5 text-[#2563eb]" />
               <span>Comments ({doc?.comments?.length || 0})</span>
             </div>
 
             {/* Comments List */}
-            <div className="flex-1 p-3 overflow-y-auto space-y-3">
+            <div ref={attachCommentsRef} data-testid="comments-scroll-container"
+              onScroll={(e) => {
+                const el = e.currentTarget;
+                followComments.current = el.scrollHeight - el.scrollTop - el.clientHeight <= 80;
+              }} className="flex-1 p-3 overflow-y-auto space-y-3">
               {doc?.comments && doc.comments.length > 0 ? (
                 doc.comments.map((comment, index) => {
                   const commentId = comment.id || `comm-${index}`;
                   const isEditing = editingCommentId === commentId;
+                  const isAuthor = Boolean(currentUserId) && (comment.userId || comment.user_id) === currentUserId;
+                  const sender = comment.userName || comment.user_name || comment.author || teamMap.get(comment.userId) || 'Author';
 
                   return (
                     <div
@@ -500,12 +671,14 @@ export function DocumentViewerModal({
                     >
                       <div className="flex items-center justify-between text-[11px] text-[#9494a0]">
                         <span className="font-semibold text-[#1e293b]">
-                          {comment.userName || comment.user_name || comment.author || 'Author'}
+                          <span aria-hidden="true" className="mr-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-blue-800">
+                            {sender.split(' ').map((part) => part[0]).slice(0, 2).join('')}
+                          </span>{sender}
                         </span>
                         <span>
                           {comment.date || comment.created_at
-                            ? new Date(comment.date || comment.created_at || '').toLocaleDateString()
-                            : ''}
+                            ? commentTime(comment.date || comment.created_at || '')
+                            : ''}{comment.edited && ' · edited'}
                         </span>
                       </div>
 
@@ -514,6 +687,8 @@ export function DocumentViewerModal({
                           <textarea
                             value={editingCommentText}
                             onChange={(e) => setEditingCommentText(e.target.value)}
+                            maxLength={4000}
+                            aria-label="Edit comment"
                             rows={2}
                             className="w-full text-xs p-1.5 border border-[#f0f0f5] rounded bg-white text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
                           />
@@ -530,6 +705,7 @@ export function DocumentViewerModal({
                             <Button
                               type="button"
                               size="xs"
+                              disabled={editComment.isPending || !editingCommentText.trim()}
                               onClick={() => handleSaveEditComment(commentId)}
                               className="h-5 text-[10px] bg-[#2563eb] hover:bg-[#1d4ed8] text-white"
                             >
@@ -543,9 +719,9 @@ export function DocumentViewerModal({
                         </p>
                       )}
 
-                      {!isReadOnly && !isEditing && (
+                      {!isReadOnly && !isEditing && Boolean(comment.id) && (isAuthor || isAdmin) && (
                         <div className="flex justify-end gap-2 pt-1 border-t border-[#f0f0f5] text-[10px] text-[#9494a0]">
-                          <button
+                          {isAuthor && <button
                             type="button"
                             onClick={() => {
                               setEditingCommentId(commentId);
@@ -554,9 +730,10 @@ export function DocumentViewerModal({
                             className="hover:text-[#2563eb] flex items-center gap-0.5 cursor-pointer"
                           >
                             <Edit2 className="h-2.5 w-2.5" /> Edit
-                          </button>
+                          </button>}
                           <button
                             type="button"
+                            disabled={deleteComment.isPending}
                             onClick={() => handleDeleteComment(commentId)}
                             className="hover:text-rose-600 flex items-center gap-0.5 cursor-pointer"
                           >
@@ -574,10 +751,18 @@ export function DocumentViewerModal({
               )}
             </div>
 
+            {commentError && <p role="alert" className="px-3 py-2 text-xs text-rose-700">{commentError}</p>}
             {/* Add Comment Box */}
             {!isReadOnly && (
               <form onSubmit={handleAddComment} className="p-3 border-t border-[#f0f0f5] space-y-2">
                 <textarea
+                  maxLength={4000}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                      e.preventDefault();
+                      void handleAddComment(e);
+                    }
+                  }}
                   value={newCommentText}
                   onChange={(e) => setNewCommentText(e.target.value)}
                   placeholder="Add a comment or review note..."
@@ -589,11 +774,11 @@ export function DocumentViewerModal({
                   <Button
                     type="submit"
                     size="xs"
-                    disabled={!newCommentText.trim() || updateMutation.isPending}
+                    disabled={!newCommentText.trim() || addComment.isPending}
                     data-testid="post-comment-btn"
                     className="text-xs bg-[#2563eb] hover:bg-[#1d4ed8] text-white"
                   >
-                    Post Comment
+                    {addComment.isPending ? 'Sending...' : 'Post Comment'}
                   </Button>
                 </div>
               </form>

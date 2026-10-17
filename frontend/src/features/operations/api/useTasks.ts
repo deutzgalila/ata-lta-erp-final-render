@@ -1,3 +1,4 @@
+import { dashboardKeys } from '@/features/dashboard/api/queryKeys';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { apiRequest, ApiError } from '@/lib/api';
 import { useSessionStore } from '@/lib/session';
@@ -45,10 +46,13 @@ export function useTaskDetail(
     queryKey: operationsKeys.taskDetail(workRequestId ?? '', taskId ?? ''),
     queryFn: async () => {
       if (!workRequestId || !taskId) throw new Error('IDs are required');
-      const res = await apiRequest<{ data: Task }>(
+      const res = await apiRequest<{ data: Task | Task[] }>(
         `/operations/work-requests/${workRequestId}/tasks/${taskId}`
       );
-      return res.data;
+      if (Array.isArray(res?.data)) {
+        return (res.data.find((t) => t?.id === taskId) || res.data[0] || null) as Task | null;
+      }
+      return (res?.data ?? null) as Task | null;
     },
     enabled: Boolean(workRequestId && taskId) && (options?.enabled ?? true),
     // Instant feel: seed from the work request's task list cache while the
@@ -164,6 +168,8 @@ export function useTaskMutations(boundWorkRequestId?: string) {
       return res.data;
     },
     onSuccess: (task, variables) => {
+      queryClient.invalidateQueries({ queryKey: dashboardKeys.assignedTasks.all });
+      queryClient.invalidateQueries({ queryKey: dashboardKeys.timeEntries.all });
       const wrId = variables.workRequestId || boundWorkRequestId || task.workRequestId;
       queryClient.invalidateQueries({ queryKey: operationsKeys.workRequestDetail(wrId) });
       queryClient.invalidateQueries({ queryKey: operationsKeys.tasks(wrId) });
@@ -184,10 +190,12 @@ export function useTaskMutations(boundWorkRequestId?: string) {
   >({
     mutationFn: async ({ workRequestId = boundWorkRequestId, taskId, data }) => {
       if (!workRequestId) throw new Error('Work request ID is required');
+      const dataKeys = Object.keys(data);
+      const isStatusOnly = dataKeys.length === 1 && dataKeys[0] === 'status';
       const res = await apiRequest<{ data: Task }>(
         `/operations/work-requests/${workRequestId}/tasks/${taskId}`,
         {
-          method: 'PUT',
+          method: isStatusOnly ? 'PATCH' : 'PUT',
           body: JSON.stringify(data),
         }
       );
@@ -264,6 +272,7 @@ export function useTaskMutations(boundWorkRequestId?: string) {
       });
     },
     onSettled: (task, _err, variables) => {
+      queryClient.invalidateQueries({ queryKey: dashboardKeys.assignedTasks.all });
       const wrId = variables.workRequestId || boundWorkRequestId || task?.workRequestId;
       if (!wrId) return;
       // Invalidate ONLY secondary queries (parent WR detail, counters).
@@ -334,6 +343,8 @@ export function useTaskMutations(boundWorkRequestId?: string) {
       return res.data;
     },
     onSuccess: (task, variables) => {
+      queryClient.invalidateQueries({ queryKey: dashboardKeys.assignedTasks.all });
+      queryClient.invalidateQueries({ queryKey: dashboardKeys.timeEntries.all });
       const wrId = variables.workRequestId || boundWorkRequestId || task.workRequestId;
       queryClient.invalidateQueries({ queryKey: operationsKeys.workRequestDetail(wrId) });
       queryClient.invalidateQueries({ queryKey: operationsKeys.tasks(wrId) });

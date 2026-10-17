@@ -12,11 +12,19 @@ import {
   CheckSquare,
   Edit3,
   Plus,
-  X,
+  MoreVertical,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -24,6 +32,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 import { PresenceAvatars } from '@/components/common/PresenceAvatars';
 import {
   useWorkRequests,
@@ -36,13 +50,15 @@ import { runBlockingAction } from './BlockingActionModal';
 import { RerouteModal } from './RerouteModal';
 import { WorkRequestModal } from './WorkRequestModal';
 import { TaskDetailModal } from './TaskDetailModal';
+import { QuickAddCard } from './QuickAddCard';
 import { operationsKeys } from '../api/queryKeys';
 import { getPhaseBadgeInfo, getStatusBadgeInfo } from '../lib/statusBadges';
+import { useSearchParams, useInRouterContext } from 'react-router-dom';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
+import { isUserAdmin } from '../lib/taskScope';
 import type {
   Phase,
-  CreatablePhase,
   Task,
   WorkRequest,
   AdvancePhaseTarget,
@@ -60,13 +76,22 @@ export interface PhaseKanbanBoardProps {
   onEditWorkRequest?: (wr: WorkRequest) => void;
 }
 
-export function PhaseKanbanBoard({
+interface PhaseKanbanBoardInnerProps extends PhaseKanbanBoardProps {
+  searchParams: URLSearchParams;
+  setSearchParams: (setter: (prev: URLSearchParams) => URLSearchParams) => void;
+}
+
+function PhaseKanbanBoardInner({
   initialWorkRequestId,
   onEditWorkRequest,
-}: PhaseKanbanBoardProps) {
+  searchParams,
+  setSearchParams,
+}: PhaseKanbanBoardInnerProps) {
   // Session & RBAC
   const permissions = useSessionStore((state) => state.permissions);
   const activeEntity = useSessionStore((state) => state.activeEntity);
+  const currentUser = useSessionStore((state) => state.user);
+  const isAdmin = isUserAdmin(currentUser);
   const canAdvance = hasPermission(permissions, 'workflow:phase_transition');
   const canRequestTransition =
     hasPermission(permissions, 'workflow:transition_request') ||
@@ -84,16 +109,42 @@ export function PhaseKanbanBoard({
   }, [rawRequests]);
 
   const [selectedWrId, setSelectedWrId] = useState<string>(() => {
-    if (initialWorkRequestId) return initialWorkRequestId;
-    return '';
+    return searchParams.get('wrId') || initialWorkRequestId || '';
   });
 
-  // Keep selected ID in sync if empty
+  const urlWrId = searchParams.get('wrId');
   React.useEffect(() => {
-    if (!selectedWrId && workRequests.length > 0 && workRequests[0]) {
-      setSelectedWrId(workRequests[0].id);
+    if (urlWrId && urlWrId !== selectedWrId && workRequests.some((w) => w.id === urlWrId)) {
+      setSelectedWrId(urlWrId);
     }
-  }, [selectedWrId, workRequests]);
+  }, [urlWrId, selectedWrId, workRequests]);
+
+  // Keep selected ID in sync if empty or invalid for active entity (e.g. after entity switch)
+  React.useEffect(() => {
+    if (workRequests.length > 0) {
+      const exists = workRequests.some((w) => w.id === selectedWrId);
+      if (!selectedWrId || !exists) {
+        const fallbackId = workRequests[0]?.id || '';
+        if (fallbackId) {
+          setSelectedWrId(fallbackId);
+          setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            next.set('wrId', fallbackId);
+            return next;
+          });
+        }
+      }
+    }
+  }, [selectedWrId, workRequests, setSearchParams]);
+
+  const handleSelectWr = (id: string) => {
+    setSelectedWrId(id);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('wrId', id);
+      return next;
+    });
+  };
 
   const effectiveWrId = selectedWrId || (workRequests[0]?.id ?? '');
 
@@ -106,38 +157,40 @@ export function PhaseKanbanBoard({
   // Mutations
   const { advancePhase, requestTransition } = usePhaseTransitions(effectiveWrId);
   const { submitQaReview } = useQaReview(effectiveWrId);
-  const { createTask } = useTaskMutations(effectiveWrId);
+  const { createTask, deleteTask } = useTaskMutations(effectiveWrId);
   const canAddTask =
     hasPermission(permissions, 'workflow:task_add') ||
     hasPermission(permissions, 'workflow:edit');
 
-  // Quick-Add Task State (UAT2-10)
-  const [quickAddPhase, setQuickAddPhase] = useState<Phase | null>(null);
-  const [quickAddTitle, setQuickAddTitle] = useState('');
-  const [quickAddDescription, setQuickAddDescription] = useState('');
-  const [isQuickAdding, setIsQuickAdding] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<{
+    id: string;
+    title: string;
+    assigneeName?: string | null;
+  } | null>(null);
+  const [isDeletingTask, setIsDeletingTask] = useState(false);
 
-  const handleQuickAddSubmit = async (phase: Phase) => {
-    if (!quickAddTitle.trim() || !effectiveWrId) return;
-    setIsQuickAdding(true);
+  const handleConfirmDeleteTask = async () => {
+    if (!taskToDelete) return;
+    setIsDeletingTask(true);
     try {
-      await createTask({
-        workRequestId: effectiveWrId,
-        data: {
-          title: quickAddTitle.trim(),
-          description: quickAddDescription.trim() || null,
-          phase: phase as CreatablePhase,
-        },
-      });
-      setQuickAddTitle('');
-      setQuickAddDescription('');
-      setQuickAddPhase(null);
+      await deleteTask(taskToDelete.id);
+      if (selectedTask?.id === taskToDelete.id) {
+        setSelectedTask(null);
+      }
+      setTaskToDelete(null);
     } catch (err) {
-      console.error('Failed to quick-add task', err);
+      console.error('Failed to delete task:', err);
     } finally {
-      setIsQuickAdding(false);
+      setIsDeletingTask(false);
     }
   };
+
+  // Quick-Add Task State (UAT2-10)
+  const [quickAddPhase, setQuickAddPhase] = useState<Phase | null>(null);
+  // Dismiss drafts when the board context changes; each card owns its input state.
+  useEffect(() => {
+    setQuickAddPhase(null);
+  }, [effectiveWrId, activeEntity, canAddTask, currentWr?.status]);
 
   // Modal States
   const [isRerouteOpen, setIsRerouteOpen] = useState(false);
@@ -146,14 +199,56 @@ export function PhaseKanbanBoard({
   // Task Detail Modal State (UAT-OPS4)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
-  // Support deep link ?taskId=xxx
+  // Keep selectedTask synchronized with live TanStack Query cache
+  useEffect(() => {
+    if (selectedTask?.id && tasks.length > 0) {
+      const latest = tasks.find((t) => t.id === selectedTask.id);
+      if (!latest) {
+        // If task was purged from tasks list while belonging to this WR, deselect
+        if (selectedTask.workRequestId === effectiveWrId) {
+          setSelectedTask(null);
+        }
+        return;
+      }
+
+      const recLatest = (latest as unknown as Record<string, unknown>) || {};
+      const recSelected = (selectedTask as unknown as Record<string, unknown>) || {};
+
+      // If task was soft-deleted, deselect immediately
+      if (recLatest.deletedAt || recLatest.deleted_at) {
+        setSelectedTask(null);
+        return;
+      }
+
+      // Synchronize if version, status, QA status, or attributes have mutated
+      if (
+        latest.version !== selectedTask.version ||
+        latest.qaStatus !== selectedTask.qaStatus ||
+        latest.status !== selectedTask.status ||
+        recLatest.qa_status !== recSelected.qa_status ||
+        latest.assigneeId !== selectedTask.assigneeId ||
+        latest.assigneeName !== selectedTask.assigneeName ||
+        latest.title !== selectedTask.title ||
+        latest.description !== selectedTask.description ||
+        latest.dueDate !== selectedTask.dueDate ||
+        latest.phase !== selectedTask.phase
+      ) {
+        setSelectedTask(latest);
+      }
+    }
+  }, [tasks, selectedTask, effectiveWrId]);
+
+  // Support deep link ?taskId=xxx with soft-delete exclusion
   useEffect(() => {
     try {
       if (typeof window !== 'undefined' && window.location) {
         const urlParams = new URLSearchParams(window.location.search);
         const taskIdParam = urlParams.get('taskId');
         if (taskIdParam && tasks.length > 0) {
-          const found = tasks.find((t) => t.id === taskIdParam);
+          const found = tasks.find((t) => {
+            const rec = (t as unknown as Record<string, unknown>) || {};
+            return t.id === taskIdParam && !rec.deletedAt && !rec.deleted_at;
+          });
           if (found) {
             setSelectedTask(found);
           }
@@ -169,16 +264,23 @@ export function PhaseKanbanBoard({
 
   // Task Gate & Blocker Logic
   const gateInfo = useMemo(() => {
-    const activeTasks = tasks.filter((t) => t.status !== 'Cancelled');
+    const activeTasks = tasks.filter((t) => {
+      const rec = (t as unknown as Record<string, unknown>) || {};
+      return t.status !== 'Cancelled' && !rec.deletedAt && !rec.deleted_at;
+    });
     const preTasks = activeTasks.filter((t) => t.phase === 'pre_processing');
     const procTasks = activeTasks.filter((t) => t.phase === 'processing');
 
     const preIncomplete = preTasks.filter((t) => t.status !== 'Completed');
     const procIncomplete = procTasks.filter((t) => t.status !== 'Completed');
-    const qaIncomplete = activeTasks.filter(
-      (t) => t.status !== 'Completed' || t.qaStatus !== 'passed'
-    );
-    const qaFailed = activeTasks.filter((t) => t.qaStatus === 'failed');
+    const qaIncomplete = activeTasks.filter((t) => {
+      const rec = (t as unknown as Record<string, unknown>) || {};
+      return t.status !== 'Completed' || (t.qaStatus !== 'passed' && rec.qa_status !== 'passed');
+    });
+    const qaFailed = activeTasks.filter((t) => {
+      const rec = (t as unknown as Record<string, unknown>) || {};
+      return t.qaStatus === 'failed' || rec.qa_status === 'failed';
+    });
 
     return {
       pre: {
@@ -315,7 +417,7 @@ export function PhaseKanbanBoard({
             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
               Select Work Request
             </label>
-            <Select value={effectiveWrId} onValueChange={setSelectedWrId}>
+            <Select value={effectiveWrId} onValueChange={handleSelectWr}>
               <SelectTrigger
                 className="h-9 text-xs bg-slate-50 font-medium"
                 data-testid="kanban-wr-select"
@@ -347,7 +449,7 @@ export function PhaseKanbanBoard({
                 }
                 size="compact"
               >
-                {activeWr.priority} Priority
+                {activeWr.priority.endsWith('Priority') ? activeWr.priority : `${activeWr.priority} Priority`}
               </Badge>
               {(() => {
                 const phaseInfo = getPhaseBadgeInfo(activeWr.phase);
@@ -372,6 +474,12 @@ export function PhaseKanbanBoard({
                       <StatusIcon className="w-3 h-3 shrink-0" />
                       <span>{statusInfo.label}</span>
                     </span>
+                    {activeWr.dueDate && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                        <Calendar className="w-3 h-3 text-slate-500" />
+                        <span>Due: {new Date(activeWr.dueDate).toLocaleDateString()}</span>
+                      </span>
+                    )}
                   </>
                 );
               })()}
@@ -381,7 +489,7 @@ export function PhaseKanbanBoard({
 
         <div className="flex items-center gap-2">
           {effectiveWrId && <PresenceAvatars roomId={effectiveWrId} />}
-          {activeWr && canEdit && (
+          {activeWr && canEdit && activeWr.status !== 'Completed' && activeWr.phase !== 'completion' && (
             <Button
               type="button"
               variant="outline"
@@ -407,6 +515,10 @@ export function PhaseKanbanBoard({
 
           // Filter tasks belonging to this phase zone
           const phaseTasks = tasks.filter((t) => {
+            const rec = (t as unknown as Record<string, unknown>) || {};
+            if (t.status === 'Cancelled' || rec.deletedAt || rec.deleted_at) {
+              return false;
+            }
             if (col.id === 'pre_processing') return t.phase === 'pre_processing';
             if (col.id === 'processing') return t.phase === 'processing';
             if (col.id === 'quality_assurance') {
@@ -469,7 +581,7 @@ export function PhaseKanbanBoard({
                         Current
                       </Badge>
                     )}
-                    {canAddTask && (col.id === 'pre_processing' || col.id === 'processing') && (
+                    {canAddTask && activeWr && activeWr.status !== 'Completed' && (col.id === 'pre_processing' || col.id === 'processing') && (
                       <Button
                         type="button"
                         variant="ghost"
@@ -479,8 +591,6 @@ export function PhaseKanbanBoard({
                             setQuickAddPhase(null);
                           } else {
                             setQuickAddPhase(col.id);
-                            setQuickAddTitle('');
-                            setQuickAddDescription('');
                           }
                         }}
                         className="h-5 w-5 p-0 text-slate-500 hover:text-blue-600 hover:bg-blue-50"
@@ -542,67 +652,17 @@ export function PhaseKanbanBoard({
               {/* Tasks List Drop Area */}
               <div className="flex-1 space-y-2 overflow-y-auto min-h-36">
                 {/* Inline Quick-Add Form (UAT2-10) */}
-                {quickAddPhase === col.id && (
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      handleQuickAddSubmit(col.id);
+                {quickAddPhase === col.id && canAddTask && activeWr && activeWr.status !== 'Completed' &&
+                  (col.id === 'pre_processing' || col.id === 'processing') && (
+                  <QuickAddCard
+                    key={`${activeEntity}-${effectiveWrId}-${col.id}`}
+                    phase={col.id}
+                    workRequest={activeWr}
+                    onCancel={() => setQuickAddPhase(null)}
+                    onCreate={async (data) => {
+                      await createTask({ workRequestId: effectiveWrId, data });
                     }}
-                    className="p-2.5 bg-white border border-blue-300 rounded-md shadow-xs space-y-2 text-xs"
-                    data-testid={`quick-add-form-${col.id}`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-800 text-[11px]">
-                        Add {col.label} Task
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setQuickAddPhase(null)}
-                        className="text-slate-400 hover:text-slate-600"
-                        data-testid={`quick-add-cancel-${col.id}`}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                    <Input
-                      type="text"
-                      placeholder="Task title..."
-                      value={quickAddTitle}
-                      onChange={(e) => setQuickAddTitle(e.target.value)}
-                      className="h-7 text-xs bg-slate-50"
-                      autoFocus
-                      required
-                      data-testid={`quick-add-title-input-${col.id}`}
-                    />
-                    <Input
-                      type="text"
-                      placeholder="Description (optional)..."
-                      value={quickAddDescription}
-                      onChange={(e) => setQuickAddDescription(e.target.value)}
-                      className="h-7 text-xs bg-slate-50"
-                      data-testid={`quick-add-desc-input-${col.id}`}
-                    />
-                    <div className="flex justify-end gap-1.5 pt-0.5">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="xs"
-                        onClick={() => setQuickAddPhase(null)}
-                        className="h-6 text-[10px]"
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        type="submit"
-                        size="xs"
-                        disabled={isQuickAdding || !quickAddTitle.trim()}
-                        className="h-6 text-[10px] font-semibold bg-blue-600 hover:bg-blue-700"
-                        data-testid={`quick-add-submit-btn-${col.id}`}
-                      >
-                        {isQuickAdding ? 'Adding...' : 'Add Task'}
-                      </Button>
-                    </div>
-                  </form>
+                  />
                 )}
                 {phaseTasks.length === 0 ? (
                   <div className="p-6 text-center text-xs text-slate-400 italic">
@@ -633,13 +693,50 @@ export function PhaseKanbanBoard({
                             {task.title}
                           </span>
 
-                          <Badge
-                            variant={task.status === 'Completed' ? 'success' : 'secondary'}
-                            size="compact"
-                            className="text-[10px]"
-                          >
-                            {task.status}
-                          </Badge>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Badge
+                              variant={task.status === 'Completed' ? 'success' : 'secondary'}
+                              size="compact"
+                              className="text-[10px]"
+                            >
+                              {task.status}
+                            </Badge>
+
+                            {(canEdit || isAdmin) && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="xs"
+                                    className="h-5 w-5 p-0 text-slate-400 hover:text-slate-600 focus:outline-none"
+                                    onClick={(e) => e.stopPropagation()}
+                                    data-testid={`task-menu-btn-${task.id}`}
+                                    aria-label="Task options"
+                                  >
+                                    <MoreVertical className="h-3.5 w-3.5" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                                  <DropdownMenuItem
+                                    className="text-xs text-red-600 focus:text-red-700 focus:bg-red-50 cursor-pointer gap-1.5"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setTaskToDelete({
+                                        id: task.id,
+                                        title: task.title,
+                                        assigneeName: task.assigneeName,
+                                      });
+                                    }}
+                                    data-testid={`menu-delete-task-btn-${task.id}`}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                    Delete Task
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                          </div>
                         </div>
 
                         {task.description && (
@@ -693,6 +790,7 @@ export function PhaseKanbanBoard({
                                   type="button"
                                   size="xs"
                                   variant={task.qaStatus === 'passed' ? 'default' : 'outline'}
+                                  disabled={task.qaStatus === 'passed'}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleQaReview(task.id, 'passed');
@@ -737,7 +835,7 @@ export function PhaseKanbanBoard({
                   {col.id === 'pre_processing' && (
                     <div className="space-y-1.5">
                       {/* Manager Action: Notify Admin */}
-                      {canRequestTransition && (
+                      {canRequestTransition && !isAdmin && (
                         <Button
                           type="button"
                           variant="outline"
@@ -776,7 +874,7 @@ export function PhaseKanbanBoard({
                   {/* Processing -> Quality Assurance */}
                   {col.id === 'processing' && (
                     <div className="space-y-1.5">
-                      {canRequestTransition && (
+                      {canRequestTransition && !isAdmin && (
                         <Button
                           type="button"
                           variant="outline"
@@ -895,6 +993,88 @@ export function PhaseKanbanBoard({
           }}
         />
       )}
+
+      {/* Delete Task Confirmation Modal (Task OA.4) */}
+      <Dialog
+        open={Boolean(taskToDelete)}
+        onOpenChange={(open) => !open && setTaskToDelete(null)}
+      >
+        <DialogContent
+          className="max-w-md"
+          data-testid="delete-task-modal"
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600 text-base">
+              <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
+              Delete Task
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500 pt-1">
+              Are you sure you want to delete this task? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          {taskToDelete && (
+            <div className="p-3 bg-red-50/50 border border-red-100 rounded-md text-xs space-y-1.5">
+              <div className="text-slate-800">
+                <span className="font-semibold">Task: </span>
+                <span className="font-medium text-slate-900">{taskToDelete.title}</span>
+              </div>
+              {taskToDelete.assigneeName && (
+                <div className="text-slate-600">
+                  <span className="font-semibold">Assignee: </span>
+                  <span>{taskToDelete.assigneeName}</span>
+                </div>
+              )}
+              <div className="text-[11px] text-amber-700 font-medium pt-0.5">
+                Warning: Any dependencies or records linked to this task will be affected.
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setTaskToDelete(null)}
+              disabled={isDeletingTask}
+              data-testid="cancel-delete-task-btn"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={handleConfirmDeleteTask}
+              disabled={isDeletingTask}
+              data-testid="confirm-delete-task-btn"
+            >
+              {isDeletingTask ? 'Deleting...' : 'Delete Task'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
+}
+
+function PhaseKanbanBoardWithRouter(props: PhaseKanbanBoardProps) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  return <PhaseKanbanBoardInner {...props} searchParams={searchParams} setSearchParams={setSearchParams} />;
+}
+
+function PhaseKanbanBoardWithoutRouter(props: PhaseKanbanBoardProps) {
+  const [searchParams, setSearchParams] = useState<URLSearchParams>(
+    () => new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
+  );
+  return <PhaseKanbanBoardInner {...props} searchParams={searchParams} setSearchParams={setSearchParams} />;
+}
+
+export function PhaseKanbanBoard(props: PhaseKanbanBoardProps) {
+  const inRouter = useInRouterContext();
+  if (inRouter) {
+    return <PhaseKanbanBoardWithRouter {...props} />;
+  }
+  return <PhaseKanbanBoardWithoutRouter {...props} />;
 }

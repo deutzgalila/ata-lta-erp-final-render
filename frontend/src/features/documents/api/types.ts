@@ -5,8 +5,21 @@
  */
 
 export const DOCUMENT_CATEGORIES = [
+  'Owner Details',
+  'Business Details',
   'SEC',
+  'City Hall',
   'BIR',
+  'SSS',
+  'PhilHealth',
+  'Pag-IBIG',
+  'IPO',
+  'FDA',
+  'Labor',
+  'Others',
+] as const;
+
+export const LEGACY_DOCUMENT_CATEGORIES = [
   'CONTRACT',
   'PERMIT',
   'FINANCIAL',
@@ -16,7 +29,14 @@ export const DOCUMENT_CATEGORIES = [
   'OTHER',
 ] as const;
 
-export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number];
+export const ALL_DOCUMENT_CATEGORIES = [
+  ...DOCUMENT_CATEGORIES,
+  ...LEGACY_DOCUMENT_CATEGORIES,
+] as const;
+
+export type DocumentCategory =
+  | (typeof DOCUMENT_CATEGORIES)[number]
+  | (typeof LEGACY_DOCUMENT_CATEGORIES)[number];
 
 export const DOCUMENT_LIFECYCLE_STAGES = [
   'collected',
@@ -40,6 +60,8 @@ export interface HandoverEntry {
 }
 
 export interface DmsDocumentComment {
+  edited?: boolean;
+  edited_at?: string;
   id?: string;
   userId: string;
   user_id?: string;
@@ -85,6 +107,9 @@ export interface DmsDocument {
   handover_log?: HandoverEntry[];
   comments: DmsDocumentComment[];
   versions: DmsDocumentVersion[];
+  uploader_name?: string | null;
+  work_request_title?: string | null;
+  linked_task_title?: string | null;
   upload_date?: string | null;
   created_by?: string | null;
   updated_by?: string | null;
@@ -95,6 +120,7 @@ export interface DmsDocument {
   // Compatibility aliases
   fileName?: string;
   originalName?: string;
+  uploaderName?: string | null;
   workRequestId?: string | null;
   linkedTaskId?: string | null;
   clientId?: string | null;

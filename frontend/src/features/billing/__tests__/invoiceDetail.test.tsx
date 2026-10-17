@@ -79,10 +79,10 @@ describe('InvoiceDetailModal Component', () => {
     useBlockingModalStore.getState().reset();
     useSessionStore.getState().setSession({
       user: {
-        id: 'user-admin',
-        email: 'admin@ata-lta.ph',
-        name: 'Admin User',
-        role: 'Admin',
+        id: 'user-staff',
+        email: 'staff@ata-lta.ph',
+        name: 'Staff User',
+        role: 'Staff',
         departments: ['Accounting'],
         entities: ['ATA', 'LTA'],
       },
@@ -237,5 +237,82 @@ describe('InvoiceDetailModal Component', () => {
     expect(onOpenRecordPayment).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'inv-detail-1' })
     );
+  });
+
+  it('allows Admin to directly Approve & Issue Draft invoice to Sent', async () => {
+    useSessionStore.getState().setSession({
+      user: {
+        id: 'user-admin',
+        email: 'admin@ata-lta.ph',
+        name: 'Admin User',
+        role: 'Admin',
+        departments: ['Accounting'],
+        entities: ['ATA', 'LTA'],
+      },
+      permissions: ['billing:view', 'billing:edit'],
+      activeEntity: 'ATA',
+    });
+
+    const { wrapper } = createHarness();
+    render(
+      <InvoiceDetailModal
+        isOpen={true}
+        onClose={vi.fn()}
+        invoiceId="inv-detail-1"
+        initialInvoice={mockDetailInvoice}
+      />,
+      { wrapper }
+    );
+
+    expect(screen.queryByTestId('btn-submit-for-approval')).toBeNull();
+    const approveBtn = screen.getByTestId('btn-approve-and-issue');
+    expect(approveBtn).toBeInTheDocument();
+
+    fireEvent.click(approveBtn);
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/invoices/inv-detail-1'),
+        expect.objectContaining({
+          method: 'PATCH',
+          body: expect.stringContaining('"status":"Sent"'),
+        })
+      );
+    });
+  });
+
+  it('allows Admin or user with edit permissions to Approve or Reject Pending invoice', async () => {
+    const pendingInvoice: Invoice = {
+      ...mockDetailInvoice,
+      status: 'Pending',
+    };
+
+    const { wrapper } = createHarness();
+    render(
+      <InvoiceDetailModal
+        isOpen={true}
+        onClose={vi.fn()}
+        invoiceId="inv-detail-1"
+        initialInvoice={pendingInvoice}
+      />,
+      { wrapper }
+    );
+
+    const approveBtn = screen.getByTestId('btn-approve-and-issue');
+    const rejectBtn = screen.getByTestId('btn-reject-to-draft');
+    expect(approveBtn).toBeInTheDocument();
+    expect(rejectBtn).toBeInTheDocument();
+
+    fireEvent.click(rejectBtn);
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/invoices/inv-detail-1'),
+        expect.objectContaining({
+          method: 'PATCH',
+          body: expect.stringContaining('"status":"Draft"'),
+        })
+      );
+    });
   });
 });

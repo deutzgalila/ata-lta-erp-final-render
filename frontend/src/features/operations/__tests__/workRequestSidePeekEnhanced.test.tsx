@@ -317,6 +317,146 @@ describe('WorkRequestSidePeek Enhanced Notion-like Features', () => {
     });
   });
 
+  it('renders attached Google Drive document with /preview iframe and Open in Drive link inside sidepeek', async () => {
+    const mockGdriveDoc: DmsDocument = {
+      ...mockDoc,
+      id: 'doc-peek-gdrive',
+      fileName: 'Master_Contract.pdf',
+      originalName: 'Master_Contract.pdf',
+      external_url: 'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs/view?usp=sharing',
+      storage_path: null,
+    };
+
+    // Override fetch for this test
+    vi.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes('/operations/work-requests/wr-peek-1/tasks')) {
+        return new Response(JSON.stringify({ data: [mockTask] }), { status: 200 });
+      }
+      if (url.includes('/operations/work-requests/wr-peek-1')) {
+        return new Response(JSON.stringify({ data: mockWr }), { status: 200 });
+      }
+      if (url.includes('/documents/doc-peek-gdrive/download-url')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              url: 'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs/view?usp=sharing',
+              fileName: 'Master_Contract.pdf',
+            },
+          }),
+          { status: 200 }
+        );
+      }
+      if (url.includes('/documents')) {
+        return new Response(JSON.stringify({ data: [mockGdriveDoc] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
+    });
+
+    useSessionStore.getState().setSession({
+      user: userAdmin,
+      permissions: ['workflow:view'],
+      activeEntity: 'ATA',
+    });
+
+    const { wrapper } = createTestHarness();
+    render(
+      <WorkRequestSidePeek
+        isOpen={true}
+        workRequestId="wr-peek-1"
+        onClose={vi.fn()}
+      />,
+      { wrapper }
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Master_Contract.pdf')).toBeInTheDocument();
+    });
+
+    // Click Preview button
+    const previewBtn = screen.getByRole('button', { name: /Preview/i });
+    fireEvent.click(previewBtn);
+
+    // Verify Google Drive iframe and Open in Drive link
+    await waitFor(() => {
+      const iframe = screen.getByTestId('inline-doc-preview-gdrive');
+      expect(iframe).toBeInTheDocument();
+      expect(iframe).toHaveAttribute(
+        'src',
+        'https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs/preview'
+      );
+      expect(screen.getByText('Open in Drive')).toBeInTheDocument();
+    });
+  });
+
+  it('renders attached generic external document with Open External Link fallback in sidepeek', async () => {
+    const mockGenericExtDoc: DmsDocument = {
+      ...mockDoc,
+      id: 'doc-peek-generic-ext',
+      fileName: 'Government_Notice.pdf',
+      originalName: 'Government_Notice.pdf',
+      external_url: 'https://sec.gov.ph/notices/notice-999.pdf',
+      storage_path: null,
+      contentType: 'application/pdf',
+    };
+
+    vi.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes('/operations/work-requests/wr-peek-1/tasks')) {
+        return new Response(JSON.stringify({ data: [mockTask] }), { status: 200 });
+      }
+      if (url.includes('/operations/work-requests/wr-peek-1')) {
+        return new Response(JSON.stringify({ data: mockWr }), { status: 200 });
+      }
+      if (url.includes('/documents/doc-peek-generic-ext/download-url')) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              url: 'https://sec.gov.ph/notices/notice-999.pdf',
+              fileName: 'Government_Notice.pdf',
+            },
+          }),
+          { status: 200 }
+        );
+      }
+      if (url.includes('/documents')) {
+        return new Response(JSON.stringify({ data: [mockGenericExtDoc] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
+    });
+
+    useSessionStore.getState().setSession({
+      user: userAdmin,
+      permissions: ['workflow:view'],
+      activeEntity: 'ATA',
+    });
+
+    const { wrapper } = createTestHarness();
+    render(
+      <WorkRequestSidePeek
+        isOpen={true}
+        workRequestId="wr-peek-1"
+        onClose={vi.fn()}
+      />,
+      { wrapper }
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Government_Notice.pdf')).toBeInTheDocument();
+    });
+
+    const previewBtn = screen.getByRole('button', { name: /Preview/i });
+    fireEvent.click(previewBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/This external link cannot be embedded inline/i)).toBeInTheDocument();
+      expect(screen.queryByTestId('inline-doc-preview-frame')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('inline-doc-preview-gdrive')).not.toBeInTheDocument();
+      expect(screen.getByText('Open Link')).toBeInTheDocument();
+      expect(screen.getByText('Open External Link')).toBeInTheDocument();
+    });
+  });
+
   it('allows clicking tasks or details to open TaskDetailModal', async () => {
     useSessionStore.getState().setSession({
       user: userAdmin,

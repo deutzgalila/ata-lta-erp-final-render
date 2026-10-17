@@ -1,3 +1,4 @@
+import { DateInput } from '@/components/ui/date-input';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Dialog,
@@ -28,6 +29,7 @@ import { operationsKeys } from '../api/queryKeys';
 import { validateDependencies } from '../utils/dependencyValidator';
 import { parseTaskDelimiterInput } from '../hooks/useTokenizer';
 import { useSessionStore } from '@/lib/session';
+import { Lock } from 'lucide-react';
 import type {
   WorkRequest,
   Priority,
@@ -35,6 +37,11 @@ import type {
   UpdateWorkRequestInput,
   PhaseTaskInput,
 } from '../api/types';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function isValidUUID(id?: string | null): boolean {
+  return typeof id === 'string' && UUID_REGEX.test(id);
+}
 
 export interface WorkRequestModalProps {
   isOpen: boolean;
@@ -51,6 +58,7 @@ const DEFAULT_TASKS: TaskItemData[] = [
     coAssignees: [],
     checklist: [],
     dependsOn: null,
+    dueDate: null,
   },
   {
     localId: 'tmp-2',
@@ -59,6 +67,7 @@ const DEFAULT_TASKS: TaskItemData[] = [
     coAssignees: [],
     checklist: [],
     dependsOn: null,
+    dueDate: null,
   },
 ];
 
@@ -69,6 +78,7 @@ export function WorkRequestModal({
   onSuccess,
 }: WorkRequestModalProps) {
   const isEditMode = Boolean(workRequest?.id);
+  const isCompleted = workRequest?.status === 'Completed';
   const activeSessionEntity = useSessionStore((state) => state.activeEntity);
 
   // Queries
@@ -133,6 +143,7 @@ export function WorkRequestModal({
               t.assignees ||
               [],
             dependsOn: t.predecessors?.length ? t.predecessors : null,
+            dueDate: t.dueDate ? t.dueDate.split('T')[0] : null,
             checklist: t.checklist?.map((c) => ({
               id: c.id,
               text: c.text,
@@ -290,6 +301,7 @@ export function WorkRequestModal({
   // Form Submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isCompleted) return;
 
     // 1. Title Validation
     if (!title.trim()) {
@@ -362,37 +374,52 @@ export function WorkRequestModal({
             }
           }
 
-          // 2. Create or update tasks
+          // 2. Maintain ID map for dependency resolution (F4.1)
+          const tempToRealIdMap = new Map<string, string>();
+          for (const ext of existingTasks) {
+            tempToRealIdMap.set(ext.id, ext.id);
+          }
+          for (const t of tasks) {
+            if (t.id && existingTasks.some((ext) => ext.id === t.id)) {
+              tempToRealIdMap.set(t.id, t.id);
+              if (t.localId) {
+                tempToRealIdMap.set(t.localId, t.id);
+              }
+            }
+          }
+
+          const resolvePredecessors = (
+            dependsOn: string | string[] | null | undefined
+          ): string[] => {
+            if (!dependsOn) return [];
+            const rawList = Array.isArray(dependsOn) ? dependsOn : [dependsOn];
+            return rawList
+              .map((id) => tempToRealIdMap.get(id) || id)
+              .filter((id) => Boolean(id) && !id.startsWith('tmp-'));
+          };
+
+          // 3. First pass: Create all new tasks so they obtain real server UUIDs
+          const newlyCreatedTasks: Array<{
+            realId: string;
+            task: TaskItemData;
+            assignees: string[];
+            initialPredecessors: string[];
+          }> = [];
+
           for (const t of tasks) {
             if (!t.title.trim()) continue;
-            const assignees = Array.from(
-              new Set([
-                ...(t.assigneeId ? [t.assigneeId] : []),
-                ...t.coAssignees,
-              ])
-            ).filter(Boolean);
+            const isExisting = Boolean(t.id && existingTasks.some((ext) => ext.id === t.id));
+            if (!isExisting) {
+              const assignees = Array.from(
+                new Set([
+                  ...(t.assigneeId ? [t.assigneeId] : []),
+                  ...t.coAssignees,
+                ])
+              ).filter(Boolean);
 
-            if (t.id && existingTasks.some((ext) => ext.id === t.id)) {
-              await updateTask({
-                workRequestId: workRequest.id,
-                taskId: t.id,
-                data: {
-                  title: t.title.trim(),
-                  description: t.description?.trim() || null,
-                  assigneeId: t.assigneeId || null,
-                  assignees,
-                  checklist: t.checklist?.map((c) => ({
-                    id: c.id,
-                    text: c.text,
-                    completed: c.completed,
-                    category: c.category,
-                    periodYear: c.periodYear ? String(c.periodYear) : null,
-                    dependsOn: c.dependsOn || null,
-                  })),
-                },
-              });
-            } else {
-              await createTask({
+              const initialPredecessors = resolvePredecessors(t.dependsOn);
+
+              const createdTask = await createTask({
                 workRequestId: workRequest.id,
                 data: {
                   title: t.title.trim(),
@@ -400,6 +427,8 @@ export function WorkRequestModal({
                   phase: t.phase,
                   assigneeId: t.assigneeId || null,
                   assignees,
+                  predecessors: initialPredecessors,
+                  dueDate: t.dueDate || null,
                   checklist: t.checklist
                     ?.filter((c) => c.text.trim())
                     .map((c) => ({
@@ -408,6 +437,87 @@ export function WorkRequestModal({
                       category: c.category,
                       periodYear: c.periodYear ? String(c.periodYear) : null,
                     })),
+                },
+              });
+
+              const returnedId =
+                (createdTask as { id?: string })?.id ||
+                (createdTask as { data?: { id?: string } })?.data?.id;
+
+              if (returnedId) {
+                if (t.localId) tempToRealIdMap.set(t.localId, returnedId);
+                if (t.id) tempToRealIdMap.set(t.id, returnedId);
+                newlyCreatedTasks.push({
+                  realId: returnedId,
+                  task: t,
+                  assignees,
+                  initialPredecessors,
+                });
+              }
+            }
+          }
+
+          // 4. Second pass: Update existing tasks with resolved predecessors
+          for (const t of tasks) {
+            if (!t.title.trim()) continue;
+            const isExisting = Boolean(t.id && existingTasks.some((ext) => ext.id === t.id));
+            if (isExisting && t.id) {
+              const assignees = Array.from(
+                new Set([
+                  ...(t.assigneeId ? [t.assigneeId] : []),
+                  ...t.coAssignees,
+                ])
+              ).filter(Boolean);
+
+              await updateTask({
+                workRequestId: workRequest.id,
+                taskId: t.id,
+                data: {
+                  title: t.title.trim(),
+                  description: t.description?.trim() || null,
+                  assigneeId: t.assigneeId || null,
+                  assignees,
+                  predecessors: resolvePredecessors(t.dependsOn),
+                  dueDate: t.dueDate || null,
+                  checklist: t.checklist?.map((c) => ({
+                    id: isValidUUID(c.id) ? c.id : undefined,
+                    text: c.text,
+                    completed: c.completed,
+                    category: c.category,
+                    periodYear: c.periodYear ? String(c.periodYear) : null,
+                    dependsOn: c.dependsOn || null,
+                  })),
+                },
+              });
+            }
+          }
+
+          // 5. Update dependencies for newly created tasks if predecessors were resolved after creation
+          for (const item of newlyCreatedTasks) {
+            const finalPredecessors = resolvePredecessors(item.task.dependsOn);
+            const needsUpdate =
+              finalPredecessors.length !== item.initialPredecessors.length ||
+              finalPredecessors.some((p, idx) => p !== item.initialPredecessors[idx]);
+
+            if (needsUpdate) {
+              await updateTask({
+                workRequestId: workRequest.id,
+                taskId: item.realId,
+                data: {
+                  title: item.task.title.trim(),
+                  description: item.task.description?.trim() || null,
+                  assigneeId: item.task.assigneeId || null,
+                  assignees: item.assignees,
+                  predecessors: finalPredecessors,
+                  dueDate: item.task.dueDate || null,
+                  checklist: item.task.checklist?.map((c) => ({
+                    id: isValidUUID(c.id) ? c.id : undefined,
+                    text: c.text,
+                    completed: c.completed,
+                    category: c.category,
+                    periodYear: c.periodYear ? String(c.periodYear) : null,
+                    dependsOn: c.dependsOn || null,
+                  })),
                 },
               });
             }
@@ -426,12 +536,26 @@ export function WorkRequestModal({
               ...t.coAssignees,
             ];
 
-            const taskInput: PhaseTaskInput = {
+            const taskInput: PhaseTaskInput & {
+              checklist?: Array<{
+                text: string;
+                completed?: boolean;
+                category?: string | null;
+                periodYear?: string | null;
+              }>;
+            } = {
               title: t.title.trim(),
               description: t.description?.trim() || null,
               local_id: t.localId,
               assignees,
               depends_on: t.dependsOn || undefined,
+              dueDate: t.dueDate || null,
+              checklist: t.checklist?.filter((c) => c.text?.trim()).map((c) => ({
+                text: c.text.trim(),
+                completed: c.completed,
+                category: c.category || null,
+                periodYear: c.periodYear ? String(c.periodYear) : null,
+              })),
             };
 
             if (t.phase === 'processing') {
@@ -554,6 +678,17 @@ export function WorkRequestModal({
           </div>
         </DialogHeader>
 
+        {/* Completed Work Request Locked Banner */}
+        {isCompleted && (
+          <div
+            className="px-6 py-2.5 bg-slate-100 border-b border-slate-200 flex items-center gap-2 text-xs text-slate-700 font-medium"
+            data-testid="completed-wr-locked-banner"
+          >
+            <Lock className="h-4 w-4 text-slate-500 shrink-0" />
+            <span>This Work Request is completed and locked. Modifications are disabled.</span>
+          </div>
+        )}
+
         {/* Draft Restore Alert Banner */}
         {hasDraftBanner && (
           <div
@@ -585,7 +720,8 @@ export function WorkRequestModal({
         )}
 
         {/* Scrollable Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-4">
+          <fieldset disabled={isCompleted} className="space-y-5">
           {/* Work Request Title */}
           <div className="space-y-1">
             <label className="text-xs font-semibold text-slate-700">
@@ -701,11 +837,13 @@ export function WorkRequestModal({
             {/* Due Date */}
             <div className="space-y-1">
               <label className="text-xs font-semibold text-slate-700">Due Date</label>
-              <Input
+              <DateInput
                 type="date"
+                aria-label="Work request due date"
+                disabled={isCompleted}
                 value={dueDate}
-                onChange={(e) => {
-                  setDueDate(e.target.value);
+                onValueChange={(value) => {
+                  setDueDate(value);
                   setIsDirty(true);
                 }}
                 className="h-9 bg-white text-xs"
@@ -766,8 +904,11 @@ export function WorkRequestModal({
               setIsDirty(true);
             }}
             projectTeam={projectTeam}
+            disabled={isCompleted}
             isEditMode={isEditMode}
+            defaultPhase={workRequest?.phase === 'processing' ? 'processing' : 'pre_processing'}
           />
+          </fieldset>
         </form>
 
         <DialogFooter className="px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
@@ -785,6 +926,7 @@ export function WorkRequestModal({
             variant="default"
             size="sm"
             onClick={handleSubmit}
+            disabled={isCompleted}
             data-testid="wr-modal-submit-btn"
             className="text-xs font-semibold"
           >

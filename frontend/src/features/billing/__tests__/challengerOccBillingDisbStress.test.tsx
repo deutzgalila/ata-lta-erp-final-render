@@ -107,10 +107,10 @@ describe('Adversarial OCC & Conflict Resolution Modal Stress Harness (Parcels 2B
     useBlockingModalStore.getState().reset();
     useSessionStore.getState().setSession({
       user: {
-        id: 'u-stress-admin',
-        email: 'admin@ata-lta.ph',
-        name: 'Stress Admin',
-        role: 'Admin',
+        id: 'u-stress-staff',
+        email: 'staff@ata-lta.ph',
+        name: 'Stress Staff',
+        role: 'Staff',
         departments: ['Accounting', 'Operations'],
         entities: ['ATA', 'LTA'],
       },

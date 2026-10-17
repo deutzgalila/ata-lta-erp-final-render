@@ -51,7 +51,8 @@ export const createTransmittalSchema = z
     trackingNumber: z
       .string()
       .min(1, 'Tracking number is required')
-      .max(50, 'Tracking number must be at most 50 characters'),
+      .max(50, 'Tracking number must be at most 50 characters')
+      .optional(),
     items: z.array(transmittalItemSchema).min(1, 'At least 1 item is required'),
     notes: z.string().max(2000, 'Notes must be at most 2000 characters').optional().nullable(),
     recipientName: z

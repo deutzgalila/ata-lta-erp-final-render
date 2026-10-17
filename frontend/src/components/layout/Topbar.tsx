@@ -1,4 +1,5 @@
-import { LogOut, Building2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { LogOut, Building2, User } from 'lucide-react';
 import { useSessionStore } from '@/lib/session';
 import { signOut } from '@/lib/api';
 import { useNavigate } from 'react-router-dom';
@@ -19,10 +20,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useProfile } from '@/features/profile/api/useProfile';
 
 export function Topbar() {
   const { user, activeEntity, setActiveEntity } = useSessionStore();
+  const { data: profile } = useProfile();
   const navigate = useNavigate();
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
 
   const handleSignOut = () => {
     signOut();
@@ -32,8 +36,15 @@ export function Topbar() {
   const entities = user?.entities && user.entities.length > 0 ? user.entities : ['ATA', 'LTA'];
   const entityOptions = Array.from(new Set([...entities, 'ALL']));
 
-  const initials = user?.name
-    ? user.name
+  const avatarUrl = user?.avatarUrl || profile?.avatarUrl || null;
+  const displayName = profile?.name || user?.name || 'User';
+
+  useEffect(() => {
+    setAvatarLoadFailed(false);
+  }, [user?.avatarUrl, avatarUrl]);
+
+  const initials = displayName
+    ? displayName
         .split(' ')
         .map((n) => n[0])
         .join('')
@@ -86,8 +97,28 @@ export function Topbar() {
               className="flex items-center gap-3 rounded-lg p-1.5 hover:bg-[#f0f1f3] transition-colors cursor-pointer outline-none"
               data-testid="user-menu-button"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#2563eb] text-xs font-semibold text-white">
-                {initials}
+              <div
+                className="relative flex h-8 w-8 items-center justify-center rounded-full bg-[#2563eb] text-xs font-semibold text-white overflow-hidden shrink-0 border border-black/5"
+                style={
+                  avatarUrl && !avatarLoadFailed
+                    ? {
+                        backgroundImage: `url('${avatarUrl}')`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                      }
+                    : undefined
+                }
+                data-testid="topbar-user-avatar"
+              >
+                {(!avatarUrl || avatarLoadFailed) && initials}
+                {avatarUrl && !avatarLoadFailed && (
+                  <img
+                    src={avatarUrl}
+                    alt=""
+                    className="hidden"
+                    onError={() => setAvatarLoadFailed(true)}
+                  />
+                )}
               </div>
               <div className="hidden sm:flex flex-col text-left">
                 <span className="text-xs font-semibold text-[#1e293b] leading-tight">
@@ -111,6 +142,15 @@ export function Topbar() {
                 Role: {user?.role === 'Admin' || user?.email === 'lorein@ata-lta.ph' ? 'Admin' : user?.role}
               </Badge>
             </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => navigate('/profile')}
+              className="cursor-pointer text-[#1e293b] hover:bg-[#f0f1f3]"
+              data-testid="my-profile-menu-item"
+            >
+              <User className="mr-2 h-4 w-4" />
+              <span>My Profile</span>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={handleSignOut}

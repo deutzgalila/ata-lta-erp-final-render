@@ -1,4 +1,5 @@
 import { useSessionStore } from '@/lib/session';
+import { useEntityRealtimeSync } from '@/lib/realtime';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ShieldCheck, Building2, Bell, Clock } from 'lucide-react';
@@ -11,6 +12,13 @@ export default function DashboardPage() {
   const { user, permissions, activeEntity, unreadCount } = useSessionStore();
   const todayStr = new Date().toISOString().slice(0, 10);
   const { data: summary } = useTimeSummary(todayStr);
+
+  // Collaborative Realtime CDC Subscriptions for Dashboard Live Sync (SPEC-DASHBOARD-ASSIGNED-TASKS-REALTIME-001 §R3 & SPEC-REALTIME-TIME-LOGGING-001)
+  useEntityRealtimeSync({ table: 'tasks' });
+  useEntityRealtimeSync({ table: 'task_assignees' });
+  useEntityRealtimeSync({ table: 'work_requests' });
+  useEntityRealtimeSync({ table: 'time_entries' });
+  useEntityRealtimeSync({ table: 'task_time_logs' });
 
   const totalTodayMinutes = summary?.totalMinutes ?? 0;
   const hours = Math.floor(totalTodayMinutes / 60);

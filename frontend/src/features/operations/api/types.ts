@@ -83,8 +83,18 @@ export type RequestStatus = 'pending' | 'fulfilled' | 'rejected' | 'cancelled';
 export type RecurrenceType = 'none' | 'annual';
 
 export type DocumentCategory =
+  | 'Owner Details'
+  | 'Business Details'
   | 'SEC'
+  | 'City Hall'
   | 'BIR'
+  | 'SSS'
+  | 'PhilHealth'
+  | 'Pag-IBIG'
+  | 'IPO'
+  | 'FDA'
+  | 'Labor'
+  | 'Others'
   | 'CONTRACT'
   | 'PERMIT'
   | 'FINANCIAL'
@@ -131,6 +141,15 @@ export interface ChecklistItem {
   dependsOn?: string | null;
   periodYear?: string | null;
   timeLogs?: TaskTimeLog[];
+}
+
+export interface ChecklistItemData {
+  id: string;
+  text: string;
+  completed: boolean;
+  category?: 'subtask' | 'document';
+  periodYear?: number | null;
+  dependsOn?: string | null;
 }
 
 export interface TaskTimeLog {
@@ -311,13 +330,24 @@ export interface RetainerTemplateTask {
   title: string;
   description?: string | null;
   phase: CreatablePhase;
+  assignees?: string[];
   default_assignees?: string[];
   defaultAssignees?: string[];
+  assigneeId?: string | null;
+  assigned_to?: string | null;
+  coAssignees?: string[];
+  co_assignees?: string[];
+  depends_on?: string | null;
+  dependsOn?: string | null;
   depends_on_local_id?: string | null;
   dependsOnLocalId?: string | null;
   requiredLinkType?: string | null;
   dueDate?: string | null;
+  due_date?: string | null;
+  checklist?: ChecklistItemData[];
 }
+
+export type TemplateType = 'retainer' | 'other';
 
 export interface RetainerTemplate {
   id: string;
@@ -326,6 +356,8 @@ export interface RetainerTemplate {
   name: string;
   title?: string;
   description: string | null;
+  template_type?: TemplateType;
+  templateType?: TemplateType;
   client_id: string | null;
   clientId?: string | null;
   schedule: string | null;
@@ -491,6 +523,7 @@ export interface CreateTaskInput {
   }>;
   coAssignees?: string[] | null;
   requiredLinkType?: string | null;
+  predecessors?: string[] | null;
 }
 
 export interface UpdateTaskInput {
@@ -501,6 +534,7 @@ export interface UpdateTaskInput {
   assigneeId?: string | null;
   assigneeName?: string | null;
   assignees?: string[];
+  predecessors?: string[] | null;
   dueDate?: string | null;
   displayOrder?: number;
   expectedVersion?: number;
@@ -565,6 +599,22 @@ export interface RerouteResponse extends WorkRequest {
   reopenedTaskIds?: string[];
 }
 
+export interface RetainerGenerateTaskOverride {
+  local_id: string;
+  localId?: string;
+  id?: string;
+  title: string;
+  description?: string | null;
+  phase: CreatablePhase;
+  assignees?: string[];
+  assigneeId?: string | null;
+  coAssignees?: string[];
+  depends_on?: string | null;
+  dependsOn?: string | null;
+  dueDate?: string | null;
+  due_date?: string | null;
+}
+
 export interface RetainerGenerateOverrides {
   title?: string;
   description?: string | null;
@@ -577,6 +627,7 @@ export interface RetainerGenerateOverrides {
   co_assignees?: string[];
   dueDate?: string | null;
   due_date?: string | null;
+  tasks?: RetainerGenerateTaskOverride[];
 }
 
 export interface RetainerGenerateInput {
@@ -585,12 +636,16 @@ export interface RetainerGenerateInput {
   overrides?: RetainerGenerateOverrides;
 }
 
+export type GenerateRetainerTemplateInput = RetainerGenerateInput;
+
 export type RetainerGenerateResponse = WorkRequest;
 
 export interface CreateRetainerTemplateInput {
   name: string;
   title?: string;
   description?: string | null;
+  template_type?: TemplateType;
+  templateType?: TemplateType;
   clientId?: string | null;
   client_id?: string | null;
   schedule?: string | null;

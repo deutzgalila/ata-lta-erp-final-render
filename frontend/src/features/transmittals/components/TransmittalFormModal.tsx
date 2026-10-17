@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, FileText, AlertCircle, Building, Briefcase, User, Hash } from 'lucide-react';
+import { Plus, Trash2, FileText, AlertCircle, Building, Briefcase, User, Lock } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -152,8 +152,7 @@ export function TransmittalFormModal({
         }
       } else {
         // Create defaults
-        const autoTracking = `TR-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-        setTrackingNumber(autoTracking);
+        setTrackingNumber('Auto-generated on Save');
         setWorkRequestId(prefill?.workRequestId || '');
         setClientId(prefill?.clientId || '');
         setSelectedTaskId(prefill?.taskId || '');
@@ -267,9 +266,6 @@ export function TransmittalFormModal({
     if (!workRequestId && !isEditMode) {
       newErrors.workRequestId = 'Please select a work request';
     }
-    if (!trackingNumber.trim()) {
-      newErrors.trackingNumber = 'Tracking number is required';
-    }
     if (items.length === 0) {
       newErrors.items = 'At least 1 document row is required';
     }
@@ -298,7 +294,7 @@ export function TransmittalFormModal({
             clientId,
             workRequestId: workRequestId || null,
             linkedTaskId: selectedTaskId || null,
-            trackingNumber: trackingNumber.trim(),
+            trackingNumber: (transmittalToEdit.tracking_number || transmittalToEdit.trackingNumber || trackingNumber || '').trim(),
             items: sanitizedItems,
             recipientName: recipientName.trim() || null,
             recipientDetails: recipientDetails.trim() || null,
@@ -311,7 +307,6 @@ export function TransmittalFormModal({
           clientId,
           workRequestId,
           linkedTaskId: selectedTaskId || null,
-          trackingNumber: trackingNumber.trim(),
           items: sanitizedItems,
           recipientName: recipientName.trim() || null,
           recipientDetails: recipientDetails.trim() || null,
@@ -346,23 +341,27 @@ export function TransmittalFormModal({
                 htmlFor="trackingNumber"
                 className="text-xs font-semibold flex items-center gap-1 text-slate-700"
               >
-                <Hash className="h-3.5 w-3.5" />
-                Tracking Number *
+                <Lock className="h-3.5 w-3.5 text-slate-400" />
+                Tracking Number
               </Label>
               <Input
                 id="trackingNumber"
-                value={trackingNumber}
-                onChange={(e) => setTrackingNumber(e.target.value)}
-                placeholder="e.g. TR-ATA-2026-0001"
-                className="font-mono text-xs"
+                value={
+                  isEditMode
+                    ? transmittalToEdit?.tracking_number || transmittalToEdit?.trackingNumber || trackingNumber
+                    : 'Auto-generated on Save'
+                }
+                disabled={true}
+                readOnly={true}
+                placeholder="Auto-generated on Save"
+                className="font-mono text-xs bg-slate-50 text-slate-500 cursor-not-allowed"
                 data-testid="tracking-number-input"
               />
-              {errors.trackingNumber && (
-                <p className="text-[11px] text-rose-600 flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3" />
-                  {errors.trackingNumber}
-                </p>
-              )}
+              <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                {isEditMode
+                  ? 'Tracking number cannot be modified once created.'
+                  : 'Auto-generated on Save'}
+              </p>
             </div>
 
             {/* Client Picker */}

@@ -13,16 +13,26 @@ import type {
 // Queries
 // ============================================================================
 
-export function useRetainerTemplates(options?: { enabled?: boolean }) {
+export async function getTemplates(params?: {
+  type?: 'retainer' | 'other';
+}): Promise<RetainerTemplate[]> {
+  const url = params?.type
+    ? `/operations/templates?type=${encodeURIComponent(params.type)}`
+    : '/operations/templates';
+  const res = await apiRequest<{ data: RetainerTemplate[] }>(url);
+  return res.data;
+}
+
+export function useRetainerTemplates(options?: {
+  enabled?: boolean;
+  type?: 'retainer' | 'other';
+}) {
   const activeEntity = useSessionStore((state) => state.activeEntity);
 
   return useQuery({
-    queryKey: operationsKeys.templatesList(activeEntity),
+    queryKey: operationsKeys.templatesList(activeEntity, options?.type),
     queryFn: async () => {
-      const res = await apiRequest<{ data: RetainerTemplate[] }>(
-        '/operations/templates'
-      );
-      return res.data;
+      return getTemplates(options?.type ? { type: options.type } : undefined);
     },
     enabled: options?.enabled ?? true,
     // Instant feel: keep previous entity's rows while the next fetch lands.
@@ -153,6 +163,7 @@ export function useRetainers() {
 
   return {
     useTemplates: useRetainerTemplates,
+    getTemplates,
     ...mutations,
   };
 }

@@ -7,11 +7,17 @@
 import { z } from 'zod';
 import {
   DOCUMENT_CATEGORIES,
+  ALL_DOCUMENT_CATEGORIES,
   DOCUMENT_LIFECYCLE_STAGES,
   DOCUMENT_STATUSES,
 } from './types';
 
-export { DOCUMENT_CATEGORIES, DOCUMENT_LIFECYCLE_STAGES, DOCUMENT_STATUSES };
+export {
+  DOCUMENT_CATEGORIES,
+  ALL_DOCUMENT_CATEGORIES,
+  DOCUMENT_LIFECYCLE_STAGES,
+  DOCUMENT_STATUSES,
+};
 
 export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB (52,428,800 bytes)
 
@@ -59,14 +65,14 @@ export const createDocumentSchema = z.object({
   linkedTaskId: z.string().uuid('Invalid task ID').nullable().optional(),
   clientId: z.string().uuid('Invalid client ID').nullable().optional(),
   documentType: z.string().max(100).optional(),
-  category: z.enum(DOCUMENT_CATEGORIES).optional(),
+  category: z.enum(ALL_DOCUMENT_CATEGORIES).optional(),
   description: z.string().max(2000).optional(),
   externalUrl: z.string().max(2000).nullable().optional(),
 });
 
 export const updateDocumentSchema = z.object({
   documentType: z.string().max(100).optional(),
-  category: z.enum(DOCUMENT_CATEGORIES).optional(),
+  category: z.enum(ALL_DOCUMENT_CATEGORIES).optional(),
   description: z.string().max(2000).optional(),
   linkedTaskId: z.string().uuid('Invalid task ID').nullable().optional(),
   externalUrl: z.string().max(2000).nullable().optional(),
@@ -84,7 +90,7 @@ export const lifecycleSchema = z.object({
 });
 
 export const documentFilterParamsSchema = z.object({
-  category: z.enum(DOCUMENT_CATEGORIES).optional(),
+  category: z.enum(ALL_DOCUMENT_CATEGORIES).optional(),
   status: z.enum(DOCUMENT_STATUSES).optional(),
   lifecycle: z.enum(DOCUMENT_LIFECYCLE_STAGES).optional(),
   clientId: z.string().uuid().optional(),
@@ -111,7 +117,7 @@ export const documentItemSchema = z.object({
   linked_task_id: z.string().uuid().nullable().optional(),
   client_id: z.string().uuid().nullable().optional(),
   document_type: z.string().nullable().optional(),
-  category: z.enum(DOCUMENT_CATEGORIES).nullable().optional(),
+  category: z.enum(ALL_DOCUMENT_CATEGORIES).nullable().optional(),
   uploader_id: z.string(),
   description: z.string().nullable().optional(),
   entity_id: z.string(),

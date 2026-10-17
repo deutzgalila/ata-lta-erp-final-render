@@ -1,156 +1,116 @@
-# TEST_READY: Parcel P2 Module #1 (Operations) E2E Test Suite
+# TEST_READY — Real-Time Caching & CDC Synchronization Remediation Sign-Off
 
-**Date:** 2026-10-04  
-**Author:** E2E Test Writer (Dual Track)  
-**Parent Orchestrator:** `e15dd0e4-287a-4ea0-944b-cbeab3c51655`  
-**Working Repository:** `/home/javvii/FreelanceProject/ata-lta-erp-v2`  
-**Test Directory:** `frontend/src/features/operations/__tests__/e2e/`  
-**Status:** **READY (100% PASS)**
+**Date**: 2026-10-10T15:52:00Z
+**Agent**: `teamwork_preview_test_writer_e2e_1`
+**Milestone**: Dual-Track E2E Test Suite Creation (Parcels 2, 3, 4, 5 & Spec §5.2 Scenarios)
+**Parent Orchestrator ID**: `9bc04058-2e4a-4b8e-9746-882544d4e80b`
+**Status**: **READY FOR MILESTONES M1-M6 IMPLEMENTATION & AUDIT**
 
 ---
 
 ## 1. Executive Summary
 
-A comprehensive, requirement-driven, opaque-box E2E test suite has been designed and implemented in the React 19 Enterprise-v2 frontend repository. The suite covers all 20 inventory features, edge cases, cross-feature interactions, and real-world user workflows derived strictly from `ORIGINAL_REQUEST.md`, `P2-module-migration-playbook.md`, and frozen API contract `operations@2.0.0`.
+All automated unit, integration, and end-to-end multi-user test suites for the Real-Time Caching & CDC Synchronization Remediation specification (`SPEC-REALTIME-SYNC-001`) have been authored, verified, and integrated into the ATA/LTA ERP test repository:
 
-All tests are verified and passing cleanly with Vitest and `@testing-library/react`.
-
-```
-========================================================================================
-Test Files: 13 passed (13 total, including 8 E2E suite files)
-Tests:      285 passed (285 total, including 230 newly created E2E tests)
-Duration:   2.33s
-Typecheck:  Clean (tsc --noEmit, noUncheckedIndexedAccess: true, zero errors)
-Linter:     Clean (ESLint zero warnings, zero errors)
-========================================================================================
-```
+- **Total Test Files**: 100 passed out of 100 (100% file pass rate)
+- **Total Passing Tests**: 1,470 passed out of 1,470 (100% test pass rate, 0 failures, 0 regressions)
+  - Baseline tests: 1,384 tests passing
+  - Newly authored tests: +86 tests passing across 4 dedicated test files
+- **Baseline Test Requirement**: Exceeds `ORIGINAL_REQUEST.md` requirement of `>= 1,295` passing tests (+175 additional tests).
+- **TypeScript Compilation**: 0 diagnostic errors (`npm run typecheck` / `tsc -b` exits cleanly with code 0).
+- **Playwright Prohibition**: 100% compliant. Under no circumstances was Playwright or any headless browser runner configured, called, or launched.
+- **Zero Secrets**: Zero hardcoded secrets, API keys, or tokens in test or source files.
 
 ---
 
-## 2. Test Architecture & Tier Distribution
+## 2. Test Deliverables Inventory
 
-The E2E test suite is structured across the 4 required tiers:
-
-| Tier | Category | File | Tests | Status |
-|:---|:---|:---|:---:|:---:|
-| **Tier 1** | Feature Coverage (Features 1–5) | `src/features/operations/__tests__/e2e/tier1-features-1-to-5.test.ts` | 25 | ✅ PASS |
-| **Tier 1** | Feature Coverage (Features 6–10) | `src/features/operations/__tests__/e2e/tier1-features-6-to-10.test.ts` | 25 | ✅ PASS |
-| **Tier 1** | Feature Coverage (Features 11–15) | `src/features/operations/__tests__/e2e/tier1-features-11-to-15.test.tsx` | 25 | ✅ PASS |
-| **Tier 1** | Feature Coverage (Features 16–20) | `src/features/operations/__tests__/e2e/tier1-features-16-to-20.test.tsx` | 25 | ✅ PASS |
-| **Tier 2** | Boundary & Corner Cases (Features 1–10) | `src/features/operations/__tests__/e2e/tier2-boundaries-1-to-10.test.ts` | 50 | ✅ PASS |
-| **Tier 2** | Boundary & Corner Cases (Features 11–20) | `src/features/operations/__tests__/e2e/tier2-boundaries-11-to-20.test.tsx` | 50 | ✅ PASS |
-| **Tier 3** | Cross-Feature Interactions | `src/features/operations/__tests__/e2e/tier3-cross-feature.test.tsx` | 20 | ✅ PASS |
-| **Tier 4** | Real-World Workloads | `src/features/operations/__tests__/e2e/tier4-real-world-workloads.test.tsx` | 10 | ✅ PASS |
-| **Support**| Authoritative Contracts & Harnesses | `e2e-contracts.ts`, `e2e-test-harness.tsx`, `e2e-test-utils.ts` | — | ✅ PASS |
-| **TOTAL**  | **New Operations E2E Suite** | | **230** | **✅ 100% PASS** |
+| # | Deliverable | Target Path | Test Count | Status |
+|---|-------------|-------------|------------|--------|
+| 1 | Normalization Engine Tests | `frontend/src/lib/realtime/__tests__/cdcNormalization.test.ts` | 31 tests | **PASSED** (100%) |
+| 2 | Soft-Delete & Scoping Tests | `frontend/src/lib/realtime/__tests__/cdcSoftDeleteAndScope.test.ts` | 22 tests | **PASSED** (100%) |
+| 3 | Notifications Realtime Tests | `frontend/src/features/dashboard/__tests__/notificationRealtime.test.tsx` | 13 tests | **PASSED** (100%) |
+| 4 | Operations Sync & E2E Scenarios | `frontend/src/features/operations/__tests__/operationsRealtimeSync.test.tsx` | 20 tests | **PASSED** (100%) |
+| 5 | Test Infrastructure Framework | `/home/javvii/FreelanceProject/ata-lta-erp-v2/TEST_INFRA.md` | Doc artifact | **DELIVERED** |
+| 6 | Test Readiness Sign-Off | `/home/javvii/FreelanceProject/ata-lta-erp-v2/TEST_READY.md` | Sign-off artifact | **DELIVERED** |
 
 ---
 
-## 3. Detailed Tier Breakdown & Covered Invariants
+## 3. Verified Functional Capabilities Across 4 Tiers
 
-### Tier 1: Feature Coverage (100 Tests)
-- **Feature 1 (TS Types & Zod Schemas):** Full payload validation, phases structure parsing, task schema, QA review evaluations, reroute target phase and audit reason.
-- **Feature 2 (TanStack Query & Blocking Flow):** 30s `staleTime`, non-dismissible blocking overlay, query cache invalidation, zero optimistic updates doctrine, automatic `Idempotency-Key` injection.
-- **Feature 3 (Verbatim Error Modal Display):** RFC 7807 `error.code` in header badge, `error.detail` in body, 400 `VALIDATION_ERROR`, 409 `PHASE_PREREQUISITE`, clean state restoration upon dismissal.
-- **Feature 4 (Work Request List & Filters):** Multi-column table rendering, debounced text search, status filtering, priority filtering, pagination controls.
-- **Feature 5 (Work Request Create/Edit Modal):** Clean default values, ATA/LTA entity switching, mandatory Manager selection, non-manager co-assignees, editing population.
-- **Feature 6 (Task CRUD & Line Items):** Task creation under WR, title/description editing, confirmation on deletion, 5-stage status lifecycle, checklist item gating.
-- **Feature 7 (Task Dependency Prevention):** Valid DAG validation, wildcard `*` dependency, 2-node cycle detection, 3-node cycle detection, self-dependency detection.
-- **Feature 8 (Blocking Archive / Cancel / Restore):** Blocking modal archive flow, exclusion from active list, restoration to active view, mandatory cancellation reason, immutability of cancelled requests.
-- **Feature 9 (Document Upload & Inline Preview):** 3-step presigned S3 protocol, PDF inline preview, image inline preview, threaded comments fetch, comment append.
-- **Feature 10 (Pending Approvals Inbox):** Transition requests listing, Admin fulfillment with phase advancement, Admin rejection requiring reason, submitter rejection inspection, resubmission flow.
-- **Feature 11 (Phase Kanban Board - 4 Columns):** Columns `pre_processing`, `processing`, `quality_assurance`, `completion`; gate progress fraction `n/m completed`; incomplete tasks tooltip; phase card scoping; completion column rendering.
-- **Feature 12 (Scoped Swimlane D&D):** Intra-phase swimlane drop handling, cross-phase drag prohibition, dragOver `dropEffect = 'none'`, midpoint `first / 2` order, midpoint `(before + after) / 2` order.
-- **Feature 13 (Manager Transition Trigger):** Role visibility for Managers, disabled state when tasks incomplete, blocker tooltip, enabled state when gate satisfied, operations request dispatch.
-- **Feature 14 (Admin Direct Advance):** Direct advance button visibility, advance from `pre_processing` to `processing`, advance to `quality_assurance`, 409 gate prerequisite failure, 409 phase skip prevention.
-- **Feature 15 (QA Review Controls):** Pass/Fail switches in `quality_assurance`, switch pass style, switch fail style, header evaluations counter badge (`x Passed, y Failed`), bulk review submission.
-- **Feature 16 (Server-True Reroute):** Reroute button enablement on >=1 failed task, target phase selector, failed tasks list, mandatory audit reason, resetting failed tasks to In Progress with `qa_status = 'none'` while preserving passed tasks.
-- **Feature 17 (Delimiter Tokenization):** Single task passthrough, comma splitting, semicolon splitting, newline splitting, period-space splitting (`. `).
-- **Feature 18 (Assigner Multi-Select):** Manager-only primary selector, exclusion of selected staff from co-assignees, "Assign all" batch selector, chip removal, attribution join metadata display.
-- **Feature 19 (Retainer Generation Entry Point):** Visibility gated by `retainers:use`, template selection, mandatory `period_label` prompt for annual recurrence, optional period label for 'none', generation mutation redirect.
-- **Feature 20 (Flag Activation & Operations Route):** Auth requirement, `workflow:view` permission check, `isModuleEnabled('Operations')` flag check, placeholder rendering when disabled, 4 operations tab routes.
+### 3.1 Tier 1: Feature Coverage (>=5 Tests Per Feature)
+1. **F-NORM (Dual-Case Normalization)**:
+   - `normalizeCdcTask`: Translates PostgreSQL `snake_case` attributes (`work_request_id`, `qa_status`, `due_date`, `display_order`, `assignee_id`, etc.) to `camelCase` with dual-write properties and robust defaults.
+   - `normalizeCdcWorkRequest`: Dual-writes `work_request_no`, `client_id`, `on_hold`, `co_assignees`, `due_date`.
+   - `normalizeCdcOperationsRequest`: Normalizes `request_type` -> `type`, `work_request_id` -> `workRequestId`, `linked_task_id` -> `linkedTaskId`, `rejection_reason` -> `rejectionReason`.
+   - `normalizeCdcNotification`: Normalizes `user_id` -> `userId`, `read_at` -> `readAt`, `created_at` -> `createdAt`.
+   - `normalizeCdcPayload`: Dispatches incoming payloads across table channels.
+2. **F-DEL (Soft-Delete Eviction)**:
+   - Classifies `deleted_at != null` or `deletedAt != null` as `isDelete = true`.
+   - Evicts record from detail query cache, filters list caches (`item.id !== id`), and purges embedded task objects from parent work request `phases` containers.
+3. **F-SCOPE (Query Scoping)**:
+   - Enforces `isTaskListOfTargetWr` so task mutations under `wr-A` never pollute sibling `wr-B` task lists.
+4. **F-COINV (Co-Invalidations)**:
+   - Task mutations co-invalidate `workRequestDetail(wrId)`, `workRequestCounts(entity)`, and `taskRelated(taskId)`.
+   - Invoices, disbursements, transmittals, and documents co-invalidate `taskRelated(taskId)`.
+   - Operations requests co-invalidate `requests()`, `requestCounts()`, and parent `workRequestDetail(wrId)`.
+5. **F-NOTIF (Real-Time Notifications)**:
+   - Subscribes via `useNotificationRealtimeSync` to table `notifications` filtered by `user_id=eq.${user.id}`.
+   - Prepend incoming notification to `dashboardKeys.notifications.all`.
+   - Increments `unreadCount` in `useSessionStore` immediately on INSERT.
+   - Live badge counter renders in `NotificationBellPanel.tsx`.
+6. **F-OPS & F-KANBAN (Operations & Kanban Sync)**:
+   - Real-time subscription to `operations_requests` mounted in `operations.tsx`.
+   - Reactive inbox updates in `PendingApprovalsInbox.tsx`.
+   - `selectedTask` synchronization with live query cache in `PhaseKanbanBoard.tsx`.
+   - Soft-deleted tasks excluded from Kanban active view and gate status calculations (`!t.deletedAt && !t.deleted_at`).
+   - `TaskDetailModal.tsx` bound to live task query cache.
+   - Linked child modal closures invalidate `operationsKeys.taskRelated(taskId)`.
 
-### Tier 2: Boundary & Corner Cases (100 Tests)
-- Empty strings, whitespace-only titles, and 255-character limits.
-- Task phase immutability (`TASK_PHASE_IMMUTABLE`) on update schemas.
-- Consecutive rapid clicks blocked by pointer-events lock.
-- 504 Gateway Timeout and 401 Unauthorized handling.
-- XSS prevention in error detail formatting and 5000-character payload resilience.
-- Search queries with regex metacharacters (`*+?()[]`) and pagination edge boundaries.
-- Mandatory Manager role validation on project team.
-- Task completion blocked by open checklist items.
-- Dependency identifiers `"0"`, `""`, unknown UUIDs, diamond DAG patterns, and 30-task deep chains.
-- Double-archive and double-restore idempotency.
-- Document upload size ceiling (50 MB limit and 0-byte rejection).
-- Unsupported binary MIME types falling back to download card.
-- Pending approvals resolution idempotency (409 conflict).
-- Cancelled tasks strictly excluded from advancement gate calculations.
-- Cross-phase drag-and-drop physical denial in DOM.
-- Dense consecutive midpoint order calculations without float underflow.
-- Period without space (`v2.0.1`) prohibited from splitting.
-- Delimiter input exceeding 50 tasks displaying red warning and disabling submit.
-- Multi-assignee exclusions strictly filtering out Admins and Managers.
-- Duplicate period label submission catching RFC 7807 409 `DUPLICATE_PERIOD_GENERATION`.
-- Wildcard permission `workflow:*` satisfying required keys.
+### 3.2 Tier 2: Boundary & Corner Cases
+- Null/undefined record resilience, prototype pollution immunity, conflicting mixed key precedence, numeric boundaries (`displayOrder: -1`, `displayOrder: 999999999`), multi-byte unicode and HTML character escaping, unauthenticated user bypass (`user: null`), "99+" badge overflow, and zero-leak channel teardowns on unmount.
 
-### Tier 3: Cross-Feature Interactions (20 Tests)
-1. Delimiter Tokenization + Project Team Governance.
-2. Phase Gates + Task Cancellation.
-3. QA Reroute + Task Status Reopen.
-4. Retainer Generation + Duplicate Period Conflict.
-5. Delimiter Tokenization + Dependency DAG Validation.
-6. Blocking Archive + Pending Approvals Queue Sync.
-7. Multi-Assignee Attribution + Task CRUD Mutations.
-8. Document Upload + Task Checklist Verification.
-9. Manager Transition Request + Admin Direct Advance Override.
-10. Scoped Swimlane D&D + Task Phase Immutability.
-11. Zero Optimistic Updates + Error Modal Recovery.
-12. Flag Inactive + Workflow View Permission Interaction.
-13. QA Review Compliance Switches + Header Counter Badge Sync.
-14. Retainer Template Generation + 4-Phase Kanban Architecture.
-15. Task Time Logging + In-Progress Task Status.
-16. Work Request Search + Active Entity Scoping.
-17. Work Request Edit OCC + Blocking Modal Flow.
-18. Delimiter 50-Task Cap + Blocking Form Submit Prevention.
-19. QA Reroute Recovery + Manager Transition Trigger Re-lock.
-20. Unassigned Permissions + Action Button Visibility Denial.
+### 3.3 Tier 3: Cross-Feature Pairwise Interactions
+- Snake_case payload normalization combined with soft-delete eviction.
+- Scoped task update combined with parent work request detail invalidation.
+- Real-time notification insert combined with instantaneous bell badge counter update and unread filtering toggle.
+- Operations request approval combined with parent work request detail cache invalidation.
 
-### Tier 4: Real-World Workloads (10 Scenarios)
-1. **Scenario 1:** Complete 4-Phase Work Request Lifecycle (`pre_processing` -> `processing` -> `quality_assurance` -> `completion`).
-2. **Scenario 2:** QA Defect Detection, Server-True Reroute, Task Repair, and Final Completion.
-3. **Scenario 3:** Bulk Task Delimiter Ingestion with Live Chip Preview and Team Assignment.
-4. **Scenario 4:** Annual Retainer Recurrence, Duplicate Period Conflict, and Recovery via New Fiscal Year.
-5. **Scenario 5:** Collaborative Multi-Assignee Workflow with Join Attribution.
-6. **Scenario 6:** Document Evidence Upload, Threaded Comments, and Checklist Verification.
-7. **Scenario 7:** Scope Reduction / Obsolete Task Cancellation under Phase Gate.
-8. **Scenario 8:** Concurrency Conflict (OCC 409) Detection and Authoritative Recovery.
-9. **Scenario 9:** Blocking Archive Flow, Audit Logging, and Active Restoration.
-10. **Scenario 10:** Multi-Entity Governance (`ATA` vs `LTA`) and Strict Role Segregation (Staff vs Manager vs Admin).
+### 3.4 Tier 4: Real-World Multi-User Application Scenarios (Spec §5.2)
+- **E2E-RT-1**: User A advances task to `In Progress` in Browser 1 -> Browser 2 Kanban board immediately shifts task card to `In Progress`.
+- **E2E-RT-2**: User A marks task `Completed` in Browser 1 -> Browser 2 immediately shifts card to `Completed` and unlocks advancement gate.
+- **E2E-RT-3**: User A evaluates QA review: marks task `failed` in Browser 1 -> Browser 2 displays red `Failed QA` badge on task card instantly.
+- **E2E-RT-4**: User A triggers phase reroute from QA to `processing` -> Browser 2 shifts work request phase back to `processing` and resets failed task to `In Progress` with `qaStatus: none`.
+- **E2E-RT-5**: User A removes task lead in `TaskDetailModal` -> Browser 2 Kanban card and open `TaskDetailModal` immediately update lead to `Unassigned`.
+- **E2E-RT-6**: User A soft-deletes task in Browser 1 (`deleted_at = now()`) -> Browser 2 removes task card from Kanban board immediately.
+- **E2E-RT-7**: User A links invoice or disbursement to task -> Browser 2 `TaskDetailModal` immediately shows the new linked financial record.
+- **E2E-RT-8**: Admin approves transition request in Browser 1 -> Requester Browser 2 immediately increments notification bell count and removes item from pending tab.
 
 ---
 
-## 4. How to Run the Tests
+## 4. Verification & Execution Guide
 
-From the frontend repository directory (`/home/javvii/FreelanceProject/ata-lta-erp-v2/frontend`):
-
+### 4.1 TypeScript Compilation
 ```bash
-# Run all operations E2E test suites
-npx vitest run src/features/operations/__tests__/e2e
-
-# Run the complete test suite (all unit and E2E tests)
-npm test
-
-# Run strict TypeScript compilation check
+cd frontend
 npm run typecheck
-
-# Run ESLint check
-npx eslint src/features/operations/__tests__/e2e
 ```
+*Result*: Exit code 0, 0 diagnostic errors (`tsc -b`).
 
----
+### 4.2 Running Real-Time & CDC Test Suites (86 tests)
+```bash
+cd frontend
+npx vitest run \
+  src/lib/realtime/__tests__/cdcNormalization.test.ts \
+  src/lib/realtime/__tests__/cdcSoftDeleteAndScope.test.ts \
+  src/features/dashboard/__tests__/notificationRealtime.test.tsx \
+  src/features/operations/__tests__/operationsRealtimeSync.test.tsx
+```
+*Result*: 4 test files passed, 86 passed, 0 failures.
 
-## 5. Implementation Status & Integration Verification
-
-- **Exclusive File Ownership:** Only test files in `frontend/src/features/operations/__tests__/e2e/` were created. No implementation files in `api/` or `components/` were modified.
-- **Concurrent Execution:** All E2E tests co-exist seamlessly with newly landed unit tests (`useWorkRequests.test.ts`, `blockingActionModal.test.tsx`), achieving a 100% green suite across all 285 tests.
-- **Zero Drift:** All test expectations are backed by explicit authoritative sources (`operations@2.0.0`, `operationsRequests@2.0.0`, `retainer-templates@2.0.0`, RFC 7807, `P2-module-migration-playbook.md`).
+### 4.3 Running Complete Repository Test Suite
+```bash
+cd frontend
+npm test
+```
+*Result*: 100 test files passed, 1,470 passed, 0 failures, 0 regressions.

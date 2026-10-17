@@ -4,7 +4,7 @@
  * Subscribes to PostgreSQL CDC changes on public schema tables via Supabase Realtime.
  * Enforces three mandatory safety guards:
  * 1. Tenant Isolation Guard: Discards cross-tenant payloads when activeEntity !== 'ALL'.
- * 2. Stale Version Rejection Guard: Discards payloads where payload.new.version <= localCachedVersion.
+ * 2. Stale Version Rejection Guard: Discards duplicate INSERTs when version <= localCachedVersion, and stale UPDATEs when version < localCachedVersion.
  * 3. Loop Prevention Guard: Discards payloads originated by current browser tab or local mutation registry.
  *
  * Reconciles TanStack Query detail and list caches via queryClient.setQueryData.
@@ -17,9 +17,11 @@ import { supabase } from '@/lib/supabase';
 import { isFeatureEnabled } from '@/lib/flags';
 import { useSessionStore } from '@/lib/session';
 import { isSelfOriginatedPayload, isLocalMutation } from './loopPrevention';
+import { documentKeys } from '@/features/documents/api/queryKeys';
 import { operationsKeys } from '@/features/operations/api/queryKeys';
 import { billingKeys } from '@/features/billing/api/queryKeys';
 import { disbursementKeys } from '@/features/disbursements/api/queryKeys';
+import { dashboardKeys } from '@/features/dashboard/api/queryKeys';
 import { resolveEntityUUID, resolveEntityCodeFromUUID } from './tenantResolver';
 
 export type RealtimeTable =
@@ -27,6 +29,8 @@ export type RealtimeTable =
   | 'tasks'
   | 'invoices'
   | 'disbursements'
+  | 'time_entries'
+  | 'task_time_logs'
   | string;
 
 export interface UseEntityRealtimeSyncOptions<T = Record<string, unknown>> {
@@ -59,6 +63,9 @@ interface GenericListResponse {
     total?: number;
     page?: number;
     limit?: number;
+    unreadCount?: number;
+    unread_count?: number;
+    [key: string]: unknown;
   };
 }
 
@@ -81,6 +88,13 @@ export function getDefaultDetailQueryKey(
       return billingKeys.invoiceDetail(id);
     case 'disbursements':
       return disbursementKeys.detail(id);
+    case 'operations_requests':
+      return operationsKeys.requestDetail(id);
+    case 'documents':
+      return documentKeys.detail(id);
+    case 'time_entries':
+    case 'task_time_logs':
+      return dashboardKeys.timeEntries.detail(id);
     default:
       return [table, 'detail', id];
   }
@@ -94,13 +108,493 @@ export function getDefaultListRootKey(table: string): readonly unknown[] {
     case 'work_requests':
       return operationsKeys.workRequests();
     case 'tasks':
-      return ['operations', 'workRequests'];
+      return ['operations', 'tasks'];
     case 'invoices':
       return billingKeys.invoices();
     case 'disbursements':
       return disbursementKeys.lists();
+    case 'operations_requests':
+      return operationsKeys.requests();
+    case 'documents':
+      return operationsKeys.documents();
+    case 'time_entries':
+    case 'task_time_logs':
+      return dashboardKeys.timeEntries.all;
     default:
       return [table, 'list'];
+  }
+}
+
+// ============================================================================
+// Model Normalization Engine (Spec SPEC-REALTIME-SYNC-001 §4 Parcel 2)
+// ============================================================================
+
+/**
+ * Normalizes PostgreSQL CDC task records into unified objects with both
+ * camelCase and snake_case properties to ensure full TanStack Query and UI compatibility.
+ */
+export function normalizeCdcTask(record: Record<string, unknown>): Record<string, unknown> {
+  if (!record || typeof record !== 'object') return record;
+  const workRequestId = record.work_request_id ?? record.workRequestId;
+  const qaStatus = record.qa_status ?? record.qaStatus ?? 'none';
+  const dueDate = record.due_date ?? record.dueDate ?? null;
+  const displayOrder = record.display_order ?? record.displayOrder ?? 0;
+  const assigneeId = record.assignee_id !== undefined ? record.assignee_id : (record.assigneeId ?? null);
+  const assigneeName = record.assignee_name !== undefined ? record.assignee_name : (record.assigneeName ?? null);
+  const requiredLinkType = record.required_link_type !== undefined ? record.required_link_type : (record.requiredLinkType ?? null);
+  const phaseEnteredAt = record.phase_entered_at ?? record.phaseEnteredAt ?? null;
+  const assignedBy = record.assigned_by ?? record.assignedBy ?? null;
+  const assignedAt = record.assigned_at ?? record.assignedAt ?? null;
+  const deletedAt = record.deleted_at ?? record.deletedAt ?? null;
+
+  return {
+    ...record,
+    workRequestId,
+    work_request_id: workRequestId,
+    qaStatus,
+    qa_status: qaStatus,
+    dueDate,
+    due_date: dueDate,
+    displayOrder,
+    display_order: displayOrder,
+    assigneeId,
+    assignee_id: assigneeId,
+    assigneeName,
+    assignee_name: assigneeName,
+    requiredLinkType,
+    required_link_type: requiredLinkType,
+    phaseEnteredAt,
+    phase_entered_at: phaseEnteredAt,
+    assignedBy,
+    assigned_by: assignedBy,
+    assignedAt,
+    assigned_at: assignedAt,
+    deletedAt,
+    deleted_at: deletedAt,
+  };
+}
+
+/**
+ * Normalizes PostgreSQL CDC work_request records into unified objects with both
+ * camelCase and snake_case properties.
+ */
+export function normalizeCdcWorkRequest(record: Record<string, unknown>): Record<string, unknown> {
+  if (!record || typeof record !== 'object') return record;
+  const workRequestNo = record.work_request_no ?? record.workRequestNo;
+  const clientId = record.client_id ?? record.clientId;
+  const clientName = record.client_name ?? record.clientName;
+  const onHold = record.on_hold ?? record.onHold ?? false;
+  const phaseEnteredAt = record.phase_entered_at ?? record.phaseEnteredAt ?? null;
+  const requestedBy = record.requested_by ?? record.requestedBy ?? null;
+  const assignedTo = record.assigned_to ?? record.assignedTo ?? null;
+  const coAssignees = record.co_assignees ?? record.coAssignees ?? [];
+  const dueDate = record.due_date ?? record.dueDate ?? null;
+  const deletedAt = record.deleted_at ?? record.deletedAt ?? null;
+
+  return {
+    ...record,
+    workRequestNo,
+    work_request_no: workRequestNo,
+    clientId,
+    client_id: clientId,
+    clientName,
+    client_name: clientName,
+    onHold,
+    on_hold: onHold,
+    phaseEnteredAt,
+    phase_entered_at: phaseEnteredAt,
+    requestedBy,
+    requested_by: requestedBy,
+    assignedTo,
+    assigned_to: assignedTo,
+    coAssignees,
+    co_assignees: coAssignees,
+    dueDate,
+    due_date: dueDate,
+    deletedAt,
+    deleted_at: deletedAt,
+  };
+}
+
+/**
+ * Normalizes PostgreSQL CDC operations_request records into unified objects with both
+ * camelCase and snake_case properties.
+ */
+export function normalizeCdcOperationsRequest(record: Record<string, unknown>): Record<string, unknown> {
+  if (!record || typeof record !== 'object') return record;
+  const type = record.request_type ?? record.type;
+  const workRequestId = record.work_request_id ?? record.workRequestId;
+  const linkedTaskId = record.linked_task_id ?? record.linkedTaskId;
+  const clientId = record.client_id ?? record.clientId;
+  const rejectionReason = record.rejection_reason ?? record.rejectionReason;
+
+  return {
+    ...record,
+    type,
+    request_type: type,
+    workRequestId,
+    work_request_id: workRequestId,
+    linkedTaskId,
+    linked_task_id: linkedTaskId,
+    clientId,
+    client_id: clientId,
+    rejectionReason,
+    rejection_reason: rejectionReason,
+  };
+}
+
+/**
+ * Normalizes PostgreSQL CDC notification records into unified objects with both
+ * camelCase and snake_case properties.
+ */
+export function normalizeCdcNotification(record: Record<string, unknown>): Record<string, unknown> {
+  if (!record || typeof record !== 'object') return record;
+  const userId = record.user_id ?? record.userId;
+  const readAt = record.read_at ?? record.readAt ?? null;
+  const createdAt = record.created_at ?? record.createdAt;
+
+  return {
+    ...record,
+    userId,
+    user_id: userId,
+    readAt,
+    read_at: readAt,
+    createdAt,
+    created_at: createdAt,
+  };
+}
+
+/**
+ * Normalizes PostgreSQL CDC task_assignees records into unified objects with both
+ * camelCase and snake_case properties.
+ */
+export function normalizeCdcTaskAssignee(record: Record<string, unknown>): Record<string, unknown> {
+  if (!record || typeof record !== 'object') return record;
+  const taskId = record.task_id ?? record.taskId;
+  const userId = record.user_id ?? record.userId;
+  const assignedBy = record.assigned_by !== undefined ? record.assigned_by : (record.assignedBy ?? null);
+  const assignedAt = record.assigned_at !== undefined ? record.assigned_at : (record.assignedAt ?? null);
+  return {
+    ...record,
+    taskId,
+    task_id: taskId,
+    userId,
+    user_id: userId,
+    assignedBy,
+    assigned_by: assignedBy,
+    assignedAt,
+    assigned_at: assignedAt,
+  };
+}
+
+/**
+ * Normalizes PostgreSQL CDC time_entries records into unified objects with both
+ * camelCase and snake_case properties to ensure full TanStack Query and UI compatibility.
+ */
+export function normalizeCdcTimeEntry(record: Record<string, unknown>): Record<string, unknown> {
+  if (!record || typeof record !== 'object') return record;
+  const durationMinutes = record.duration_minutes ?? record.durationMinutes ?? 0;
+  const taskId = record.task_id ?? record.taskId;
+  const userId = record.user_id ?? record.userId;
+  const entryDate = record.entry_date ?? record.entryDate;
+  const note = record.note ?? null;
+  return {
+    ...record,
+    durationMinutes: Number(durationMinutes),
+    duration_minutes: Number(durationMinutes),
+    taskId,
+    task_id: taskId,
+    userId,
+    user_id: userId,
+    entryDate,
+    entry_date: entryDate,
+    note,
+  };
+}
+
+/**
+ * Normalizes PostgreSQL CDC task_time_logs records into unified objects with both
+ * camelCase and snake_case properties converting legacy hours to durationMinutes.
+ */
+export function normalizeCdcTaskTimeLog(record: Record<string, unknown>): Record<string, unknown> {
+  if (!record || typeof record !== 'object') return record;
+  const hours = Number(record.hours ?? 0);
+  const durationMinutes = Math.round(hours * 60);
+  const taskId = record.task_id ?? record.taskId ?? record.linked_task_id;
+  const userId = record.user_id ?? record.userId;
+  const entryDate = record.date ?? record.entry_date ?? record.entryDate;
+  const note = record.note ?? null;
+  return {
+    ...record,
+    durationMinutes,
+    duration_minutes: durationMinutes,
+    taskId,
+    task_id: taskId,
+    userId,
+    user_id: userId,
+    entryDate,
+    entry_date: entryDate,
+    note,
+  };
+}
+
+/**
+ * Dispatches raw incoming CDC payloads to table-specific normalizers.
+ */
+export function normalizeCdcPayload(
+  table: string,
+  record: Record<string, unknown>
+): Record<string, unknown> {
+  switch (table) {
+    case 'tasks':
+      return normalizeCdcTask(record);
+    case 'work_requests':
+      return normalizeCdcWorkRequest(record);
+    case 'operations_requests':
+      return normalizeCdcOperationsRequest(record);
+    case 'notifications':
+      return normalizeCdcNotification(record);
+    case 'task_assignees':
+      return normalizeCdcTaskAssignee(record);
+    case 'time_entries':
+      return normalizeCdcTimeEntry(record);
+    case 'task_time_logs':
+      return normalizeCdcTaskTimeLog(record);
+    default:
+      return record;
+  }
+}
+
+/**
+ * Checks whether an incoming CDC record represents a soft-deleted entity.
+ */
+export function isSoftDeleteRecord(record: Record<string, unknown> | null | undefined): boolean {
+  if (!record || typeof record !== 'object') return false;
+  return Boolean(record.deleted_at) || Boolean(record.deletedAt);
+}
+
+/**
+ * Scoped query matcher ensuring tasks are only prepended to the matching parent work request.
+ * Checks that the query key is an array, includes 'tasks', and includes targetWrId.
+ */
+export function isTaskListOfTargetWr(qKey: unknown, targetWrId: string): boolean {
+  return (
+    Array.isArray(qKey) &&
+    qKey.includes('tasks') &&
+    qKey.includes(targetWrId)
+  );
+}
+
+/**
+ * Safely compares two UUIDs or user IDs with trimming and RFC 4122 case-insensitivity.
+ * Handles both primitive strings and user object structures.
+ */
+export function isMatchingUserId(idA: unknown, idB: unknown): boolean {
+  if (!idA || !idB) return false;
+  const extractId = (val: unknown): string | undefined => {
+    if (typeof val === 'string') return val;
+    if (typeof val === 'object' && val !== null) {
+      const obj = val as { id?: unknown; userId?: unknown; user_id?: unknown };
+      if (typeof obj.id === 'string') return obj.id;
+      if (typeof obj.userId === 'string') return obj.userId;
+      if (typeof obj.user_id === 'string') return obj.user_id;
+    }
+    return undefined;
+  };
+  const strA = extractId(idA);
+  const strB = extractId(idB);
+  if (!strA || !strB) return false;
+  return strA.trim().toLowerCase() === strB.trim().toLowerCase();
+}
+
+/**
+ * Invalidates dashboard assigned tasks cache with strict user isolation (SPEC-DASHBOARD-ASSIGNED-TASKS-REALTIME-001 §R3).
+ *
+ * Scoping rules:
+ * - For tasks events: only invalidate if currentUserId matches new.assignee_id or old.assignee_id (or camelCase new.assigneeId / old.assigneeId).
+ * - For task_assignees events: only invalidate if currentUserId matches new.user_id or old.user_id (or camelCase new.userId / old.userId).
+ * - For work_requests events: invalidate on status, archive, or deletion state changes (e.g. status change, is_archived/archived, deleted_at).
+ * - Cross-user CDC events: discarded with zero invalidations to dashboardKeys.assignedTasks.all for uninvolved users.
+ * - Retrieve currentUserId synchronously via useSessionStore.getState().user?.id.
+ */
+export function triggerAssignedTasksCoInvalidation(
+  queryClient: QueryClient,
+  table: string,
+  record?: Record<string, unknown> | null,
+  oldRecord?: Record<string, unknown> | null,
+  isDelete?: boolean
+): void {
+  const currentUserId = useSessionStore.getState().user?.id;
+  if (!currentUserId) return;
+
+  if (table === 'tasks') {
+    const newAssignee = record?.assignee_id ?? record?.assigneeId;
+    const oldAssignee = oldRecord?.assignee_id ?? oldRecord?.assigneeId;
+
+    const matchesNew =
+      isMatchingUserId(newAssignee, currentUserId) ||
+      (Array.isArray(record?.assignees) &&
+        record.assignees.some((a) => isMatchingUserId(a, currentUserId)));
+    const matchesOld =
+      isMatchingUserId(oldAssignee, currentUserId) ||
+      (Array.isArray(oldRecord?.assignees) &&
+        oldRecord.assignees.some((a) => isMatchingUserId(a, currentUserId)));
+
+    if (matchesNew || matchesOld) {
+      void queryClient.invalidateQueries({ queryKey: dashboardKeys.assignedTasks.all });
+    }
+  } else if (table === 'task_assignees') {
+    const newUserId = record?.user_id ?? record?.userId;
+    const oldUserId = oldRecord?.user_id ?? oldRecord?.userId;
+
+    if (isMatchingUserId(newUserId, currentUserId) || isMatchingUserId(oldUserId, currentUserId)) {
+      void queryClient.invalidateQueries({ queryKey: dashboardKeys.assignedTasks.all });
+    }
+  } else if (table === 'work_requests') {
+    const isStatusChange = Boolean(
+      (record?.status || oldRecord?.status) &&
+      record?.status !== oldRecord?.status
+    );
+    const isArchiveChange =
+      Boolean(
+        (record?.archived !== undefined || oldRecord?.archived !== undefined) &&
+        Boolean(record?.archived) !== Boolean(oldRecord?.archived)
+      ) ||
+      Boolean(
+        (record?.is_archived !== undefined || oldRecord?.is_archived !== undefined) &&
+        Boolean(record?.is_archived) !== Boolean(oldRecord?.is_archived)
+      );
+    const isDeletionChange = Boolean(
+      isDelete ||
+      isSoftDeleteRecord(record) ||
+      (record?.deleted_at !== oldRecord?.deleted_at) ||
+      (record?.deletedAt !== oldRecord?.deletedAt)
+    );
+
+    if (isStatusChange || isArchiveChange || isDeletionChange) {
+      void queryClient.invalidateQueries({ queryKey: dashboardKeys.assignedTasks.all });
+    }
+  }
+}
+
+/**
+ * Invalidates related domain queries when a task is mutated (INSERT, UPDATE, DELETE).
+ * - operationsKeys.workRequestDetail(targetWrId) -> re-evaluates gate status and blockers
+ * - operationsKeys.workRequestCounts(activeEntity) -> updates task & work request counts
+ * - operationsKeys.taskRelated(taskId) -> updates linked financial & document records
+ */
+export function triggerTaskCoInvalidations(
+  queryClient: QueryClient,
+  targetWrId: string,
+  taskId: string,
+  activeEntity?: string | null,
+  record?: Record<string, unknown> | null,
+  oldRecord?: Record<string, unknown> | null
+): void {
+  if (targetWrId) {
+    void queryClient.invalidateQueries({ queryKey: operationsKeys.workRequestDetail(targetWrId) });
+  }
+  if (activeEntity) {
+    void queryClient.invalidateQueries({ queryKey: operationsKeys.workRequestCounts(activeEntity) });
+  } else {
+    void queryClient.invalidateQueries({ queryKey: ['operations', 'workRequests', 'counts'] });
+  }
+  if (taskId) {
+    void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(taskId) });
+  }
+  if (record || oldRecord) {
+    triggerAssignedTasksCoInvalidation(queryClient, 'tasks', record, oldRecord);
+  }
+}
+
+/**
+ * Propagates real-time events across domain boundaries:
+ * - invoices / disbursements with task_id -> invalidate operationsKeys.taskRelated(taskId)
+ * - transmittals with linked_task_id -> invalidate operationsKeys.taskRelated(taskId)
+ * - documents -> invalidate operationsKeys.documents(); if linked_task_id -> invalidate operationsKeys.taskRelated(taskId)
+ * - operations_requests -> invalidate operationsKeys.requests(), operationsKeys.requestCounts(activeEntity),
+ *   and if work_request_id exists -> invalidate operationsKeys.workRequestDetail(workRequestId)
+ * - task_assignees with task_id -> invalidate ['operations', 'tasks', taskId]
+ */
+export function triggerCrossDomainCoInvalidations(
+  queryClient: QueryClient,
+  table: string,
+  record: Record<string, unknown>,
+  activeEntity?: string | null
+): void {
+  const taskId = (
+    record?.task_id ??
+    record?.taskId ??
+    record?.linked_task_id ??
+    record?.linkedTaskId
+  ) as string | undefined;
+
+  switch (table) {
+    case 'invoices':
+    case 'disbursements':
+      if (taskId) {
+        void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(taskId) });
+      }
+      break;
+    case 'transmittals':
+      if (taskId) {
+        void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(taskId) });
+      }
+      break;
+    case 'documents':
+      void queryClient.invalidateQueries({ queryKey: documentKeys.lists() });
+      if (record?.id) {
+        void queryClient.invalidateQueries({ queryKey: documentKeys.detail(String(record.id)) });
+        void queryClient.invalidateQueries({ queryKey: operationsKeys.documentDetail(String(record.id)) });
+      }
+      void queryClient.invalidateQueries({ queryKey: operationsKeys.documents() });
+      if (taskId) {
+        void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(taskId) });
+      }
+      break;
+    case 'operations_requests': {
+      void queryClient.invalidateQueries({ queryKey: operationsKeys.requests() });
+      if (activeEntity) {
+        void queryClient.invalidateQueries({ queryKey: operationsKeys.requestCounts(activeEntity) });
+      } else {
+        void queryClient.invalidateQueries({ queryKey: ['operations', 'requests', 'counts'] });
+      }
+      const wrId = (record?.work_request_id ?? record?.workRequestId) as string | undefined;
+      if (wrId) {
+        void queryClient.invalidateQueries({ queryKey: operationsKeys.workRequestDetail(wrId) });
+      }
+      break;
+    }
+    case 'task_assignees':
+      if (taskId) {
+        void queryClient.invalidateQueries({ queryKey: ['operations', 'tasks', taskId] });
+      }
+      break;
+  }
+}
+
+/**
+ * Invalidates time entries and task-related caches on CDC events (SPEC-REALTIME-TIME-LOGGING-001 §4.1).
+ */
+export function triggerTimeEntryCoInvalidation(
+  queryClient: QueryClient,
+  _table: string,
+  record?: Record<string, unknown> | null,
+  oldRecord?: Record<string, unknown> | null
+): void {
+  // Invalidate all time entries queries (task lists, date lists, daily summaries)
+  void queryClient.invalidateQueries({ queryKey: dashboardKeys.timeEntries.all });
+
+  // If taskId is present, also invalidate operations task-related details
+  const taskId = (
+    record?.task_id ??
+    record?.taskId ??
+    oldRecord?.task_id ??
+    oldRecord?.taskId
+  ) as string | undefined;
+
+  if (taskId) {
+    void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(taskId) });
   }
 }
 
@@ -122,6 +616,12 @@ function invalidateCounts(queryClient: QueryClient, table: string): void {
       break;
     case 'disbursements':
       void queryClient.invalidateQueries({ queryKey: ['disbursements', 'counts'] });
+      break;
+    case 'operations_requests':
+      void queryClient.invalidateQueries({ queryKey: ['operations', 'requests', 'counts'] });
+      break;
+    case 'notifications':
+      void queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] });
       break;
     default:
       void queryClient.invalidateQueries({ queryKey: [table, 'counts'] });
@@ -170,6 +670,63 @@ function patchTaskInPhases(
 }
 
 /**
+ * Scans the TanStack Query cache to locate the parent work_request_id for a given taskId
+ * when CDC DELETE or soft-delete payloads lack parent foreign keys.
+ */
+export function findWrIdForTaskFromCache(queryClient: QueryClient, taskId: string): string | undefined {
+  if (!taskId) return undefined;
+
+  const allQueries = queryClient.getQueryCache().getAll();
+
+  // 1. Inspect task detail query keys: ['operations', 'workRequests', 'detail', wrId, 'tasks', taskId]
+  for (const query of allQueries) {
+    const qKey = query.queryKey;
+    if (Array.isArray(qKey) && qKey.includes(taskId)) {
+      const qData = query.state.data as GenericEntityRecord | undefined;
+      const wrId = qData?.work_request_id ?? qData?.workRequestId;
+      if (typeof wrId === 'string' && wrId) {
+        return wrId;
+      }
+      const tasksIdx = qKey.indexOf('tasks');
+      if (tasksIdx > 0 && typeof qKey[tasksIdx - 1] === 'string') {
+        return qKey[tasksIdx - 1] as string;
+      }
+    }
+  }
+
+  // 2. Inspect cached task lists and work requests with phases
+  for (const query of allQueries) {
+    const qData = query.state.data;
+    if (!qData) continue;
+
+    if (Array.isArray(qData)) {
+      const found = qData.find((item: GenericEntityRecord) => item?.id === taskId);
+      const wrId = found?.work_request_id ?? found?.workRequestId;
+      if (typeof wrId === 'string' && wrId) return wrId;
+    } else if (typeof qData === 'object' && 'data' in qData && Array.isArray((qData as GenericListResponse).data)) {
+      const found = (qData as GenericListResponse).data.find((item) => item?.id === taskId);
+      const wrId = found?.work_request_id ?? found?.workRequestId;
+      if (typeof wrId === 'string' && wrId) return wrId;
+    }
+
+    if (typeof qData === 'object' && (qData as GenericEntityRecord).phases) {
+      const phases = (qData as GenericEntityRecord).phases!;
+      for (const phaseKey of Object.keys(phases)) {
+        const container = phases[phaseKey];
+        if (container?.tasks && Array.isArray(container.tasks)) {
+          if (container.tasks.some((t) => t?.id === taskId)) {
+            const wrId = (qData as GenericEntityRecord).id;
+            if (typeof wrId === 'string' && wrId) return wrId;
+          }
+        }
+      }
+    }
+  }
+
+  return undefined;
+}
+
+/**
  * Core event handler for PostgreSQL CDC payloads.
  * Returns true if event was processed, false if dropped by one of the guards.
  */
@@ -182,15 +739,53 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
     return false;
   }
 
-  const payloadObj = payload as {
+  const rawPayload = payload as {
     eventType?: string;
     event?: string;
     new?: GenericEntityRecord;
     old?: GenericEntityRecord;
+    commit_timestamp?: string;
   };
 
-  const rawEventType = payloadObj.eventType || payloadObj.event;
+  const rawEventType = rawPayload.eventType || rawPayload.event;
   const eventType = rawEventType ? String(rawEventType).toUpperCase() : '';
+
+  const payloadObj = {
+    ...rawPayload,
+    new:
+      rawPayload.new &&
+      typeof rawPayload.new === 'object' &&
+      Object.keys(rawPayload.new).length > 0
+        ? (normalizeCdcPayload(
+            options.table,
+            rawPayload.new as Record<string, unknown>
+          ) as GenericEntityRecord)
+        : rawPayload.new,
+    old:
+      rawPayload.old &&
+      typeof rawPayload.old === 'object' &&
+      Object.keys(rawPayload.old).length > 0
+        ? (normalizeCdcPayload(
+            options.table,
+            rawPayload.old as Record<string, unknown>
+          ) as GenericEntityRecord)
+        : rawPayload.old,
+  };
+
+  if (rawPayload.new && typeof rawPayload.new === 'object') {
+    try {
+      rawPayload.new = payloadObj.new;
+    } catch {
+      // ignore non-extensible payload
+    }
+  }
+  if (rawPayload.old && typeof rawPayload.old === 'object') {
+    try {
+      rawPayload.old = payloadObj.old;
+    } catch {
+      // ignore non-extensible payload
+    }
+  }
 
   const incomingRecord =
     payloadObj.new && Object.keys(payloadObj.new).length > 0 ? payloadObj.new : payloadObj.old;
@@ -198,9 +793,36 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
     return false;
   }
 
-  const id = incomingRecord.id ?? payloadObj.new?.id ?? payloadObj.old?.id;
+  const id =
+    incomingRecord.id ??
+    payloadObj.new?.id ??
+    payloadObj.old?.id ??
+    (options.table === 'task_assignees'
+      ? ((incomingRecord.task_id || incomingRecord.taskId) &&
+        (incomingRecord.user_id || incomingRecord.userId)
+          ? `${String(incomingRecord.task_id ?? incomingRecord.taskId)}:${String(incomingRecord.user_id ?? incomingRecord.userId)}`
+          : undefined)
+      : undefined);
   if (!id) {
     return false;
+  }
+
+  // User Isolation Guard for Notifications
+  if (options.table === 'notifications') {
+    const currentUserId = useSessionStore.getState().user?.id;
+    const payloadUserId = incomingRecord.user_id ?? incomingRecord.userId;
+
+    if (!payloadUserId || !currentUserId) {
+      return false; // Discard: unassigned, null user, or unauthenticated
+    }
+
+    const matchesUser =
+      String(payloadUserId).trim().toLowerCase() ===
+      String(currentUserId).trim().toLowerCase();
+
+    if (!matchesUser) {
+      return false; // Discard: notification belongs to another user
+    }
   }
 
   // =========================================================================
@@ -273,15 +895,31 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
   }
 
   // =========================================================================
-  // Guard 2: Stale Version Rejection Guard
+  // Query Keys & Soft-Delete Detection (Pre-Guard 2)
   // =========================================================================
-  const incomingVersion = payloadObj.new?.version;
-  const detailKey = options.detailQueryKey
+  let detailKey = options.detailQueryKey
     ? options.detailQueryKey(id, incomingRecord as T)
     : getDefaultDetailQueryKey(options.table, id, incomingRecord);
   const listRootKey = options.listRootKey ?? getDefaultListRootKey(options.table);
 
-  if (typeof incomingVersion === 'number') {
+  // Soft-delete detection and event classification (executed before Guard 2)
+  const isSoftDeleted = isSoftDeleteRecord(incomingRecord);
+  const isDelete =
+    eventType === 'DELETE' ||
+    isSoftDeleted ||
+    (eventType !== 'UPDATE' && !payloadObj.new && Boolean(payloadObj.old));
+  const isInsert =
+    !isDelete &&
+    (eventType === 'INSERT' ||
+      (eventType !== 'UPDATE' && Boolean(payloadObj.new) && !payloadObj.old));
+
+  // =========================================================================
+  // Guard 2: Stale Version Rejection Guard
+  // =========================================================================
+  const incomingVersion = payloadObj.new?.version;
+
+  // Soft-deletes and hard deletes bypass Guard 2 version checks so they are never dropped by version equality
+  if (!isDelete && typeof incomingVersion === 'number') {
     let localCachedVersion: number | undefined = undefined;
 
     // 1. Inspect detail cache
@@ -321,9 +959,13 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
       }
     }
 
-    if (typeof localCachedVersion === 'number' && incomingVersion <= localCachedVersion) {
-      // Discard: stale or equal version
-      return false;
+    if (typeof localCachedVersion === 'number') {
+      const isStale = isInsert
+        ? incomingVersion <= localCachedVersion
+        : incomingVersion < localCachedVersion;
+      if (isStale) {
+        return false;
+      }
     }
   }
 
@@ -343,13 +985,36 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
   // =========================================================================
   // Guards Passed: TanStack Query Cache Reconciliation
   // =========================================================================
-  const isDelete = eventType === 'DELETE' || (eventType !== 'UPDATE' && !payloadObj.new && Boolean(payloadObj.old));
-  const isInsert = eventType === 'INSERT' || (eventType !== 'UPDATE' && Boolean(payloadObj.new) && !payloadObj.old);
-
   if (isDelete) {
+    // Resolve targetWrId for tasks with fallback scan across TanStack query cache
+    let targetWrId = (
+      payloadObj.new?.work_request_id ??
+      payloadObj.new?.workRequestId ??
+      payloadObj.old?.work_request_id ??
+      payloadObj.old?.workRequestId ??
+      incomingRecord.work_request_id ??
+      incomingRecord.workRequestId
+    ) as string | undefined;
+
+    if (options.table === 'tasks' && !targetWrId) {
+      targetWrId = findWrIdForTaskFromCache(queryClient, id);
+    }
+
+    // If detailKey was undefined due to missing work_request_id in bare DELETE payload, reconstruct it
+    const effectiveDetailKey =
+      detailKey ?? (options.table === 'tasks' && targetWrId ? operationsKeys.taskDetail(targetWrId, id) : undefined);
+
     // Remove detail cache
-    if (detailKey) {
-      queryClient.removeQueries({ queryKey: detailKey });
+    if (effectiveDetailKey) {
+      queryClient.removeQueries({ queryKey: effectiveDetailKey });
+    } else if (options.table === 'tasks') {
+      // Fallback: remove any taskDetail query matching this taskId
+      queryClient.removeQueries({
+        predicate: (query) => {
+          const qKey = query.queryKey;
+          return Array.isArray(qKey) && qKey.includes('tasks') && qKey.includes(id);
+        },
+      });
     }
 
     // Filter out from matching list caches
@@ -357,6 +1022,7 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
       const matchingQueries = queryClient.getQueriesData<GenericListResponse | GenericEntityRecord[]>({
         queryKey: listRootKey,
       });
+      let deletedUnreadNotification = false;
       for (const [qKey, listData] of matchingQueries) {
         if (!listData) continue;
 
@@ -369,6 +1035,15 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
           }
         } else if (Array.isArray(listData?.data)) {
           if (listData.data.some((item) => item?.id === id)) {
+            const deletedItem = listData.data.find((item) => item?.id === id);
+            const wasUnread =
+              options.table === 'notifications' &&
+              Boolean(deletedItem && !deletedItem.read_at && !deletedItem.readAt);
+
+            if (wasUnread) {
+              deletedUnreadNotification = true;
+            }
+
             queryClient.setQueryData(qKey, {
               ...listData,
               data: listData.data.filter((item) => item?.id !== id),
@@ -376,6 +1051,14 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
                 ? {
                     ...listData.meta,
                     total: Math.max(0, (listData.meta.total ?? listData.data.length) - 1),
+                    unreadCount:
+                      wasUnread && typeof listData.meta.unreadCount === 'number'
+                        ? Math.max(0, listData.meta.unreadCount - 1)
+                        : listData.meta.unreadCount,
+                    unread_count:
+                      wasUnread && typeof listData.meta.unread_count === 'number'
+                        ? Math.max(0, listData.meta.unread_count - 1)
+                        : listData.meta.unread_count,
                   }
                 : listData.meta,
             });
@@ -402,6 +1085,73 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
           }
         }
       }
+
+      if (options.table === 'tasks') {
+        const wrQueries = queryClient.getQueriesData<GenericListResponse | GenericEntityRecord[]>({
+          queryKey: operationsKeys.workRequests(),
+        });
+        for (const [wrQKey, wrListData] of wrQueries) {
+          if (!wrListData) continue;
+          if (!Array.isArray(wrListData) && typeof wrListData === 'object' && 'phases' in wrListData) {
+            const candidateRecord = wrListData as unknown as GenericEntityRecord;
+            queryClient.setQueryData(wrQKey, patchTaskInPhases(candidateRecord, id, undefined));
+          } else if (
+            typeof wrListData === 'object' &&
+            'data' in wrListData &&
+            Array.isArray((wrListData as GenericListResponse).data)
+          ) {
+            const resp = wrListData as GenericListResponse;
+            const hasPhases = resp.data.some((item) => Boolean(item?.phases));
+            if (hasPhases) {
+              queryClient.setQueryData(wrQKey, {
+                ...resp,
+                data: resp.data.map((wr) => patchTaskInPhases(wr, id, undefined)),
+              });
+            }
+          }
+        }
+      }
+
+      if (options.table === 'notifications') {
+        const wasUnread =
+          deletedUnreadNotification ||
+          Boolean(
+            payloadObj.old &&
+              (payloadObj.old.read_at !== undefined || payloadObj.old.readAt !== undefined) &&
+              !payloadObj.old.read_at &&
+              !payloadObj.old.readAt
+          );
+        if (wasUnread) {
+          const deleteTimestamp =
+            payloadObj.new?.deleted_at ??
+            payloadObj.new?.deletedAt ??
+            payloadObj.old?.deleted_at ??
+            payloadObj.old?.deletedAt ??
+            rawPayload.commit_timestamp ??
+            'deleted';
+          const eventToken = `notifications:delete:${id}:${deleteTimestamp}`;
+          if (recordNotificationEvent(eventToken)) {
+            const currentUnread = useSessionStore.getState().unreadCount;
+            useSessionStore.getState().setUnreadCount(Math.max(0, currentUnread - 1));
+          }
+        }
+      }
+    }
+
+    // Purge embedded task objects from workRequestDetail if targetWrId is known
+    if (options.table === 'tasks') {
+      if (!targetWrId) {
+        targetWrId = findWrIdForTaskFromCache(queryClient, id);
+      }
+
+      if (targetWrId) {
+        const wrDetailKey = operationsKeys.workRequestDetail(targetWrId);
+        const wrData = queryClient.getQueryData<GenericEntityRecord>(wrDetailKey);
+        if (wrData?.phases) {
+          queryClient.setQueryData(wrDetailKey, patchTaskInPhases(wrData, id, undefined));
+        }
+        triggerTaskCoInvalidations(queryClient, targetWrId, id, activeEntity);
+      }
     }
   } else if (isInsert) {
     // Populate detail cache
@@ -411,28 +1161,113 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
 
     // Prepend to matching list caches
     if (listRootKey && payloadObj.new) {
+      const targetWrId = (
+        payloadObj.new.work_request_id ??
+        payloadObj.new.workRequestId ??
+        incomingRecord.work_request_id ??
+        incomingRecord.workRequestId
+      ) as string | undefined;
+
       const matchingQueries = queryClient.getQueriesData<GenericListResponse | GenericEntityRecord[]>({
         queryKey: listRootKey,
       });
-      for (const [qKey, listData] of matchingQueries) {
-        if (!listData) continue;
 
-        if (Array.isArray(listData)) {
-          if (!listData.some((item) => item?.id === id)) {
-            queryClient.setQueryData(qKey, [payloadObj.new, ...listData]);
+      // Deduplication check: for notifications, verify whether notification ID already exists in query list
+      let alreadyExistsInList = false;
+      if (options.table === 'notifications') {
+        for (const [, listData] of matchingQueries) {
+          if (!listData) continue;
+          if (Array.isArray(listData)) {
+            if (listData.some((item) => item?.id === id)) {
+              alreadyExistsInList = true;
+              break;
+            }
+          } else if (Array.isArray(listData?.data)) {
+            if (listData.data.some((item) => item?.id === id)) {
+              alreadyExistsInList = true;
+              break;
+            }
           }
-        } else if (Array.isArray(listData?.data)) {
-          if (!listData.data.some((item) => item?.id === id)) {
-            queryClient.setQueryData(qKey, {
-              ...listData,
-              data: [payloadObj.new, ...listData.data],
-              meta: listData.meta
-                ? {
-                    ...listData.meta,
-                    total: (listData.meta.total ?? listData.data.length) + 1,
-                  }
-                : listData.meta,
-            });
+        }
+      }
+
+      if (!alreadyExistsInList) {
+        for (const [qKey, listData] of matchingQueries) {
+          if (!listData) continue;
+
+          // Scoped matcher for tasks: only prepend to matching parent work request query
+          if (options.table === 'tasks') {
+            // Guard: Never prepend task records to work request list queries
+            if (
+              Array.isArray(qKey) &&
+              qKey.length >= 3 &&
+              qKey[0] === 'operations' &&
+              qKey[1] === 'workRequests' &&
+              qKey[2] === 'list'
+            ) {
+              continue;
+            }
+            if (!targetWrId || !isTaskListOfTargetWr(qKey, targetWrId)) {
+              continue;
+            }
+          }
+
+          // Scoped matcher for time entries: only prepend to matching task query if query is filtered by taskId
+          if (options.table === 'time_entries' || options.table === 'task_time_logs') {
+            const entryTaskId = (payloadObj.new?.task_id ?? payloadObj.new?.taskId) as string | undefined;
+            const filterObj = Array.isArray(qKey)
+              ? (qKey.find((k) => k && typeof k === 'object' && ('taskId' in k || 'task_id' in k)) as { taskId?: string; task_id?: string } | undefined)
+              : undefined;
+            const filterTaskId = filterObj?.taskId ?? filterObj?.task_id;
+            if (filterTaskId && entryTaskId && filterTaskId !== entryTaskId) {
+              continue;
+            }
+          }
+
+          if (Array.isArray(listData)) {
+            if (!listData.some((item) => item?.id === id)) {
+              queryClient.setQueryData(qKey, [payloadObj.new, ...listData]);
+            }
+          } else if (Array.isArray(listData?.data)) {
+            if (!listData.data.some((item) => item?.id === id)) {
+              const isUnread =
+                options.table === 'notifications' &&
+                !payloadObj.new.read_at &&
+                !payloadObj.new.readAt;
+
+              queryClient.setQueryData(qKey, {
+                ...listData,
+                data: [payloadObj.new, ...listData.data],
+                meta: listData.meta
+                  ? {
+                      ...listData.meta,
+                      total: (listData.meta.total ?? listData.data.length) + 1,
+                      unreadCount:
+                        isUnread
+                          ? (listData.meta.unreadCount ?? 0) + 1
+                          : listData.meta.unreadCount,
+                      unread_count:
+                        isUnread
+                          ? (listData.meta.unread_count ?? 0) + 1
+                          : listData.meta.unread_count,
+                    }
+                  : listData.meta,
+              });
+            }
+          }
+        }
+
+        // If notification insert is unread, increment sessionStore unreadCount in real time (deduplicated)
+        if (options.table === 'notifications' && !payloadObj.new.read_at && !payloadObj.new.readAt) {
+          const createTimestamp =
+            payloadObj.new.created_at ??
+            payloadObj.new.createdAt ??
+            rawPayload.commit_timestamp ??
+            'created';
+          const eventToken = `notifications:insert:${id}:${createTimestamp}`;
+          if (recordNotificationEvent(eventToken)) {
+            const currentUnread = useSessionStore.getState().unreadCount;
+            useSessionStore.getState().setUnreadCount(currentUnread + 1);
           }
         }
       }
@@ -454,6 +1289,7 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
       const matchingQueries = queryClient.getQueriesData<GenericListResponse | GenericEntityRecord[]>({
         queryKey: listRootKey,
       });
+      let transitionedToRead = false;
       for (const [qKey, listData] of matchingQueries) {
         if (!listData) continue;
 
@@ -466,11 +1302,38 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
           }
         } else if (Array.isArray(listData?.data)) {
           if (listData.data.some((item) => item?.id === id)) {
+            const oldItem = listData.data.find((item) => item?.id === id);
+            const wasUnread =
+              options.table === 'notifications' &&
+              Boolean(oldItem && !oldItem.read_at && !oldItem.readAt);
+            const isNowRead =
+              options.table === 'notifications' &&
+              Boolean(payloadObj.new.read_at || payloadObj.new.readAt);
+            const isTransitionToRead = wasUnread && isNowRead;
+
+            if (isTransitionToRead) {
+              transitionedToRead = true;
+            }
+
             queryClient.setQueryData(qKey, {
               ...listData,
               data: listData.data.map((item) =>
                 item?.id === id ? { ...item, ...payloadObj.new } : item
               ),
+              meta:
+                listData.meta && isTransitionToRead
+                  ? {
+                      ...listData.meta,
+                      unreadCount:
+                        typeof listData.meta.unreadCount === 'number'
+                          ? Math.max(0, listData.meta.unreadCount - 1)
+                          : listData.meta.unreadCount,
+                      unread_count:
+                        typeof listData.meta.unread_count === 'number'
+                          ? Math.max(0, listData.meta.unread_count - 1)
+                          : listData.meta.unread_count,
+                    }
+                  : listData.meta,
             });
           }
         }
@@ -495,11 +1358,128 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
           }
         }
       }
+
+      if (options.table === 'tasks') {
+        const wrQueries = queryClient.getQueriesData<GenericListResponse | GenericEntityRecord[]>({
+          queryKey: operationsKeys.workRequests(),
+        });
+        for (const [wrQKey, wrListData] of wrQueries) {
+          if (!wrListData) continue;
+          if (!Array.isArray(wrListData) && typeof wrListData === 'object' && 'phases' in wrListData) {
+            const candidateRecord = wrListData as unknown as GenericEntityRecord;
+            queryClient.setQueryData(wrQKey, patchTaskInPhases(candidateRecord, id, payloadObj.new));
+          } else if (
+            typeof wrListData === 'object' &&
+            'data' in wrListData &&
+            Array.isArray((wrListData as GenericListResponse).data)
+          ) {
+            const resp = wrListData as GenericListResponse;
+            const hasPhases = resp.data.some((item) => Boolean(item?.phases));
+            if (hasPhases) {
+              queryClient.setQueryData(wrQKey, {
+                ...resp,
+                data: resp.data.map((wr) => patchTaskInPhases(wr, id, payloadObj.new)),
+              });
+            }
+          }
+        }
+      }
+
+      if (options.table === 'notifications') {
+        const wasTransitionToRead =
+          transitionedToRead ||
+          Boolean(
+            payloadObj.old &&
+              (payloadObj.old.read_at !== undefined || payloadObj.old.readAt !== undefined) &&
+              !payloadObj.old.read_at &&
+              !payloadObj.old.readAt &&
+              (payloadObj.new.read_at || payloadObj.new.readAt)
+          );
+        if (wasTransitionToRead) {
+          const readTimestamp =
+            payloadObj.new.read_at ??
+            payloadObj.new.readAt ??
+            payloadObj.new.updated_at ??
+            payloadObj.new.updatedAt ??
+            rawPayload.commit_timestamp ??
+            'read';
+          const eventToken = `notifications:read:${id}:${readTimestamp}`;
+          if (recordNotificationEvent(eventToken)) {
+            const currentUnread = useSessionStore.getState().unreadCount;
+            useSessionStore.getState().setUnreadCount(Math.max(0, currentUnread - 1));
+          }
+        }
+      }
+    }
+
+    // Update phases in workRequestDetail directly if targetWrId is known
+    if (options.table === 'tasks' && payloadObj.new) {
+      const targetWrId = (
+        payloadObj.new?.work_request_id ??
+        payloadObj.new?.workRequestId ??
+        incomingRecord.work_request_id ??
+        incomingRecord.workRequestId
+      ) as string | undefined;
+
+      if (targetWrId) {
+        const wrDetailKey = operationsKeys.workRequestDetail(targetWrId);
+        const wrData = queryClient.getQueryData<GenericEntityRecord>(wrDetailKey);
+        if (wrData?.phases) {
+          queryClient.setQueryData(wrDetailKey, patchTaskInPhases(wrData, id, payloadObj.new));
+        }
+      }
     }
   }
 
   // Invalidate domain counter queries
   invalidateCounts(queryClient, options.table);
+
+  // Trigger task mutation co-invalidations
+  if (options.table === 'tasks') {
+    let targetWrId = (
+      payloadObj.new?.work_request_id ??
+      payloadObj.new?.workRequestId ??
+      payloadObj.old?.work_request_id ??
+      payloadObj.old?.workRequestId ??
+      incomingRecord.work_request_id ??
+      incomingRecord.workRequestId
+    ) as string | undefined;
+
+    if (!targetWrId) {
+      targetWrId = findWrIdForTaskFromCache(queryClient, id);
+    }
+
+    if (targetWrId) {
+      triggerTaskCoInvalidations(queryClient, targetWrId, id, activeEntity);
+    }
+  }
+
+  // Trigger cross-domain co-invalidations
+  triggerCrossDomainCoInvalidations(
+    queryClient,
+    options.table,
+    incomingRecord as Record<string, unknown>,
+    activeEntity
+  );
+
+  // Trigger assigned tasks co-invalidation with strict user isolation (SPEC-DASHBOARD-ASSIGNED-TASKS-REALTIME-001 §R3)
+  triggerAssignedTasksCoInvalidation(
+    queryClient,
+    options.table,
+    payloadObj.new as Record<string, unknown> | undefined,
+    payloadObj.old as Record<string, unknown> | undefined,
+    isDelete
+  );
+
+  // Trigger time entries co-invalidation (SPEC-REALTIME-TIME-LOGGING-001)
+  if (options.table === 'time_entries' || options.table === 'task_time_logs') {
+    triggerTimeEntryCoInvalidation(
+      queryClient,
+      options.table,
+      payloadObj.new as Record<string, unknown> | undefined,
+      payloadObj.old as Record<string, unknown> | undefined
+    );
+  }
 
   return true;
 }
@@ -513,6 +1493,27 @@ interface ChannelSubscriptionEntry {
 }
 
 /**
+ * Module-level tracking of processed notification counter mutation tokens
+ * to prevent duplicate increments/decrements across multiple subscribers and replayed events.
+ */
+const MAX_PROCESSED_NOTIFICATION_EVENTS = 2000;
+const processedNotificationEvents = new Set<string>();
+
+function recordNotificationEvent(token: string): boolean {
+  if (processedNotificationEvents.has(token)) {
+    return false;
+  }
+  if (processedNotificationEvents.size >= MAX_PROCESSED_NOTIFICATION_EVENTS) {
+    const oldest = processedNotificationEvents.keys().next().value;
+    if (oldest !== undefined) {
+      processedNotificationEvents.delete(oldest);
+    }
+  }
+  processedNotificationEvents.add(token);
+  return true;
+}
+
+/**
  * Module-level channel subscription registry for reference counting and
  * preventing cross-component unmount teardown collision.
  */
@@ -523,6 +1524,14 @@ const activeChannelRegistry = new Map<string, ChannelSubscriptionEntry>();
  */
 export function clearChannelRegistryForTesting(): void {
   activeChannelRegistry.clear();
+  processedNotificationEvents.clear();
+}
+
+/**
+ * Testing helper to inspect active channel registry size.
+ */
+export function getActiveChannelRegistrySizeForTesting(): number {
+  return activeChannelRegistry.size;
 }
 
 /**
@@ -584,17 +1593,24 @@ export function useEntityRealtimeSync<T = Record<string, unknown>>(
       );
 
       channel.subscribe((status, err) => {
-        if (status === 'CHANNEL_ERROR') {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           const errObj = err as { message?: string; cause?: { code?: number; wasClean?: boolean } } | undefined;
           const isCleanClose =
-            errObj?.cause?.code === 1000 ||
-            errObj?.cause?.code === 1001 ||
-            errObj?.cause?.wasClean === true ||
-            errObj?.message?.includes('socket closed: 1000') ||
-            errObj?.message?.includes('socket closed: 1001');
+            status === 'CLOSED' &&
+            (errObj?.cause?.code === 1000 ||
+              errObj?.cause?.code === 1001 ||
+              errObj?.cause?.wasClean === true ||
+              errObj?.message?.includes('socket closed: 1000') ||
+              errObj?.message?.includes('socket closed: 1001'));
 
           if (!isCleanClose) {
-            console.warn(`[Realtime] Subscription error on ${options.table}:`, err);
+            console.warn(`[Realtime] Subscription error (${status}) on ${options.table}:`, err);
+            // Evict dead channel from activeChannelRegistry so subsequent mounts establish a fresh channel
+            const currentEntry = activeChannelRegistry.get(registryKey);
+            if (currentEntry && currentEntry.channel === channel) {
+              activeChannelRegistry.delete(registryKey);
+              void supabase.removeChannel(channel);
+            }
           }
         }
       });

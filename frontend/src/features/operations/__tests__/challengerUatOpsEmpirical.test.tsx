@@ -745,7 +745,10 @@ describe('Empirical Adversarial Challenge Suite: Parcel OPS UAT Fixes', () => {
       let patchedStatus = '';
       vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
         const url = String(input);
-        if (url.includes('/operations/work-requests/wr-uat-100/tasks/task-201') && init?.method === 'PUT') {
+        if (
+          url.includes('/operations/work-requests/wr-uat-100/tasks/task-201') &&
+          (init?.method === 'PUT' || init?.method === 'PATCH')
+        ) {
           const body = JSON.parse(String(init.body));
           patchedStatus = body.status;
           return new Response(

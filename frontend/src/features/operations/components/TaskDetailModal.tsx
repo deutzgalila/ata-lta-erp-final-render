@@ -1,4 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import { workDate } from '@/lib/workDate';
+import { DateInput } from '@/components/ui/date-input';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -36,15 +38,18 @@ import {
   ExternalLink,
   Link as LinkIcon,
   X,
+  Pencil,
+  Lock,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useEntityRealtimeSync } from '@/lib/realtime';
 import { useTimeEntriesList, useCreateTimeEntry } from '@/features/dashboard/api/useTimeEntries';
 import { InvoiceCreateModal } from '@/features/billing';
 import { CreateDisbursementModal } from '@/features/disbursements';
 import { TransmittalFormModal } from '@/features/transmittals';
 import { DocumentUploadModal, DocumentViewerModal } from '@/features/documents';
 import { useDocuments } from '../api/useDocuments';
-import { useTaskMutations, useTaskRelated, useWorkRequestTasks } from '../api/useTasks';
+import { useTaskMutations, useTaskRelated, useWorkRequestTasks, useTaskDetail } from '../api/useTasks';
 import { useCreateOperationsRequest, useOperationsRequests } from '../api/usePhaseTransitions';
 import { useTeam } from '../api/useTeam';
 import { useSessionStore } from '@/lib/session';
@@ -75,12 +80,94 @@ export interface TaskDetailModalProps {
 export function TaskDetailModal({
   isOpen,
   onClose,
-  task,
+  task: initialTask,
   workRequest,
   onTaskUpdated,
 }: TaskDetailModalProps) {
+  // Live query binding for task details with multi-case workRequestId fallback
+  const effectiveWrId =
+    initialTask?.workRequestId ||
+    (initialTask as { work_request_id?: string } | null | undefined)?.work_request_id ||
+    workRequest?.id;
+  const effectiveTaskId = initialTask?.id;
+
+  const { data: rawLiveTask } = useTaskDetail(effectiveWrId, effectiveTaskId, {
+    enabled: Boolean(effectiveWrId && effectiveTaskId && isOpen),
+  });
+  const liveTask = Array.isArray(rawLiveTask)
+    ? rawLiveTask.find((t) => t?.id === effectiveTaskId) || rawLiveTask[0]
+    : rawLiveTask;
+
+  const currentTask = useMemo<Task | null>(() => {
+    if (!liveTask || !liveTask.id) return initialTask;
+    if (!initialTask) return liveTask as Task;
+
+    // 1. Explicit unassignment check (applies across all versions):
+    // Authoritative live unassignment must completely clear lead and co-assignees,
+    // preventing static initialTask props from resurrecting stale assignees.
+    const isLiveExplicitlyUnassigned =
+      liveTask.assigneeId === null ||
+      (liveTask as { assignee_id?: string | null }).assignee_id === null ||
+      liveTask.assigneeId === '';
+
+    if (isLiveExplicitlyUnassigned) {
+      return {
+        ...initialTask,
+        ...liveTask,
+        assigneeId: null,
+        assigneeName: null,
+        assignees: [],
+        taskAssignees: [],
+        task_assignees: [],
+      } as Task;
+    }
+
+    const initialVersion = typeof initialTask.version === 'number' ? initialTask.version : 0;
+    const liveVersion = typeof liveTask.version === 'number' ? liveTask.version : 0;
+
+    // 2. If live query has an explicitly higher version, live CDC update takes precedence
+    if (liveVersion > initialVersion) {
+      return { ...initialTask, ...liveTask } as Task;
+    }
+
+    // 3. When versions are equal (or unversioned):
+    // Check if initialTask has richer assignee information (e.g. multi-assignees in test suites or optimistic props)
+    const initialAssigneeCount = Math.max(
+      initialTask.assignees?.length ?? 0,
+      initialTask.taskAssignees?.length ?? 0,
+      (initialTask as unknown as { task_assignees?: unknown[] }).task_assignees?.length ?? 0
+    );
+    const liveAssigneeCount = Math.max(
+      liveTask.assignees?.length ?? 0,
+      liveTask.taskAssignees?.length ?? 0,
+      (liveTask as unknown as { task_assignees?: unknown[] }).task_assignees?.length ?? 0
+    );
+
+    if (initialAssigneeCount > liveAssigneeCount) {
+      return {
+        ...initialTask,
+        ...liveTask,
+        assigneeId: initialTask.assigneeId ?? liveTask.assigneeId,
+        assigneeName: initialTask.assigneeName ?? liveTask.assigneeName,
+        assignees: initialTask.assignees ?? liveTask.assignees,
+        taskAssignees: initialTask.taskAssignees ?? liveTask.taskAssignees,
+      } as Task;
+    }
+
+    // Authoritative liveTask fields always override static initialTask prop
+    return { ...initialTask, ...liveTask } as Task;
+  }, [initialTask, liveTask]);
+
+  const task = currentTask;
+
+  // Instant reactive local state for due date (Task B.7)
+  const [localDueDate, setLocalDueDate] = useState<string | null>(task?.dueDate ?? null);
+  useEffect(() => {
+    setLocalDueDate(task?.dueDate ?? null);
+  }, [task?.dueDate]);
+
   // Time logging form state
-  const [logDate, setLogDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [logDate, setLogDate] = useState(() => workDate());
   const [logMinutes, setLogMinutes] = useState<number>(30);
   const [logNote, setLogNote] = useState('');
   const [showLogForm, setShowLogForm] = useState(false);
@@ -92,6 +179,17 @@ export function TaskDetailModal({
   // Key state to reset select dropdowns after an action
   const [addSelectKey, setAddSelectKey] = useState(0);
   const [reassignSelectKey, setReassignSelectKey] = useState(0);
+  const [newChecklistText, setNewChecklistText] = useState('');
+
+  // Live Collaborative Real-Time CDC Subscriptions for Task Time Logs (SPEC-REALTIME-TIME-LOGGING-001)
+  useEntityRealtimeSync({
+    table: 'time_entries',
+    enabled: isOpen && Boolean(task?.id),
+  });
+  useEntityRealtimeSync({
+    table: 'task_time_logs',
+    enabled: isOpen && Boolean(task?.id),
+  });
 
   // Time entries for this task
   const { data: timeEntries = [], isLoading: isLoadingTime } = useTimeEntriesList(
@@ -106,12 +204,10 @@ export function TaskDetailModal({
 
   const linkedDocs: DmsDocument[] = useMemo(() => {
     const docs = Array.isArray(rawDocs) ? rawDocs : rawDocs?.data ?? [];
-    if (!task) return docs;
-    // Return docs explicitly linked to this task or all WR docs if none specific
-    const taskSpecific = docs.filter(
-      (d) => d.linkedTaskId === task.id || d.linked_task_id === task.id
+    if (!task?.id) return [];
+    return docs.filter(
+      (d) => (d.linkedTaskId ?? d.linked_task_id) === task.id
     );
-    return taskSpecific.length > 0 ? taskSpecific : docs;
   }, [rawDocs, task]);
 
   // Mutations
@@ -122,7 +218,37 @@ export function TaskDetailModal({
   const permissions = useSessionStore((state) => state.permissions);
   const currentUser = useSessionStore((state) => state.user);
   const isAdmin = isUserAdmin(currentUser);
-  const canEdit = hasPermission(permissions, 'workflow:edit');
+  const isCompletedWr = workRequest?.status === 'Completed';
+  const canEdit = !isCompletedWr && hasPermission(permissions, 'workflow:edit');
+
+  // Task description editing state (OA.5)
+  const [isEditingDesc, setIsEditingDesc] = useState(false);
+  const [descText, setDescText] = useState(task?.description || '');
+  const [isSavingDesc, setIsSavingDesc] = useState(false);
+
+  useEffect(() => {
+    setDescText(task?.description || '');
+  }, [task?.description]);
+
+  const handleSaveDescription = async () => {
+    if (!task || !task.workRequestId) return;
+    setIsSavingDesc(true);
+    try {
+      const res = await updateTask({
+        workRequestId: task.workRequestId,
+        taskId: task.id,
+        data: { description: descText.trim() || null },
+      });
+      if (res && onTaskUpdated) {
+        onTaskUpdated(res as Task);
+      }
+      setIsEditingDesc(false);
+    } catch (err) {
+      console.error('Failed to update task description:', err);
+    } finally {
+      setIsSavingDesc(false);
+    }
+  };
 
   // RBAC permissions for linked financial creation (UAT2-7)
   const canCreateInvoice =
@@ -140,6 +266,23 @@ export function TaskDetailModal({
     enabled: Boolean(task?.workRequestId),
   });
   const siblingTasks = siblingTasksData || [];
+
+  // Task B.5: Graceful prerequisite blocker handling
+  const incompletePredecessors = useMemo(() => {
+    if (!task?.predecessors?.length) return [];
+    const predIds = new Set(task.predecessors);
+    return siblingTasks.filter((t) => predIds.has(t.id) && t.status !== 'Completed');
+  }, [task?.predecessors, siblingTasks]);
+
+  const isPrereqBlocked = incompletePredecessors.length > 0;
+  const prereqBlockedTooltip = isPrereqBlocked
+    ? `Blocked by prerequisite task(s): ${incompletePredecessors.map((p) => p.title).join(', ')}`
+    : undefined;
+
+  // Task B.4: Client-side phase gate for processing tasks
+  const isPhaseBlocked = task?.phase === 'processing' && workRequest?.phase === 'pre_processing';
+  const phaseBlockedTooltip =
+    'Parent Work Request is in Pre-processing. Must be routed to Processing before advancing processing tasks.';
 
   // Check pending operations requests for this task
   const { data: rawPendingReqs } = useOperationsRequests(
@@ -191,6 +334,20 @@ export function TaskDetailModal({
     return [];
   }, [rawTeam]);
 
+  const allowedWrTeamIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (workRequest?.assignedTo) ids.add(workRequest.assignedTo);
+    if (Array.isArray(workRequest?.coAssignees)) {
+      workRequest.coAssignees.forEach((id) => ids.add(id));
+    }
+    return ids;
+  }, [workRequest]);
+
+  const scopedTeamList = useMemo(() => {
+    if (allowedWrTeamIds.size === 0) return teamList;
+    return teamList.filter((m) => allowedWrTeamIds.has(m.id));
+  }, [teamList, allowedWrTeamIds]);
+
   const currentAssigneeIds = useMemo(() => {
     const ids = new Set<string>();
     if (task?.assigneeId) ids.add(task.assigneeId);
@@ -207,15 +364,15 @@ export function TaskDetailModal({
   }, [task]);
 
   const availableTeamMembers = useMemo(() => {
-    return teamList.filter((m) => {
+    return scopedTeamList.filter((m) => {
       if (!m || !m.id || currentAssigneeIds.has(m.id)) return false;
       if (m.role === 'Admin') return false;
-      if (m.role === 'Manager' && !(m.departments && m.departments.includes('Operations'))) {
+      if (m.role === 'Manager' && !allowedWrTeamIds.has(m.id) && !(m.departments && m.departments.includes('Operations'))) {
         return false;
       }
       return true;
     });
-  }, [teamList, currentAssigneeIds]);
+  }, [scopedTeamList, currentAssigneeIds, allowedWrTeamIds]);
 
   // Comprehensive assigned team members (lead + all co-assignees)
   const assignedTeamMembers = useMemo(() => {
@@ -249,17 +406,17 @@ export function TaskDetailModal({
 
   // Task Scoping Rules:
   // 1. Only assigned employee or Admin can mutate status, log time, upload docs
-  const canMutateStatus = canMutateTaskStatus(currentUser, task);
-  const canLogTime = canLogTaskTime(currentUser, task);
-  const canUploadDoc = canUploadTaskDocument(currentUser, task);
+  const canMutateStatus = !isCompletedWr && canMutateTaskStatus(currentUser, task);
+  const canLogTime = !isCompletedWr && hasPermission(permissions, 'timelog:create') && canLogTaskTime(currentUser, task);
+  const canUploadDoc = !isCompletedWr && canUploadTaskDocument(currentUser, task);
 
   // 2. Financial record linking vs requesting:
-  const canLinkInv = canLinkInvoice(currentUser, task, workRequest, siblingTasks) && canCreateInvoice;
-  const canLinkTrans = canLinkTransmittal(currentUser, task, workRequest, siblingTasks) && canCreateTransmittal;
-  const canLinkDisb = canLinkDisbursement(currentUser, task, canCreateDisbursement);
+  const canLinkInv = !isCompletedWr && canLinkInvoice(currentUser, task, workRequest, siblingTasks) && canCreateInvoice;
+  const canLinkTrans = !isCompletedWr && canLinkTransmittal(currentUser, task, workRequest, siblingTasks) && canCreateTransmittal;
+  const canLinkDisb = !isCompletedWr && canLinkDisbursement(currentUser, task, canCreateDisbursement);
 
-  const canReqInv = canRequestInvoice(currentUser, task, workRequest, siblingTasks);
-  const canReqTrans = canRequestTransmittal(currentUser, task, workRequest, siblingTasks);
+  const canReqInv = !isCompletedWr && canRequestInvoice(currentUser, task, workRequest, siblingTasks);
+  const canReqTrans = !isCompletedWr && canRequestTransmittal(currentUser, task, workRequest, siblingTasks);
 
   // Handle adding a co-assignee (UAT2-8 + multi-assignee)
   const handleAddCoAssignee = async (employeeId: string) => {
@@ -388,34 +545,38 @@ export function TaskDetailModal({
     });
   };
 
-  // Handle setting task status (UAT2-9-frontend)
+  // Handle setting task status (UAT2-9-frontend, Task B.5)
   const handleSetTaskStatus = async (nextStatus: TaskStatus) => {
     if (!task || !task.workRequestId) return;
 
-    await runBlockingAction({
-      title: 'Updating Task Status',
-      message: `Setting status of "${task.title}" to ${nextStatus}...`,
-      apiCall: async () => {
-        return await updateTask({
-          workRequestId: task.workRequestId,
-          taskId: task.id,
-          data: { status: nextStatus },
-        });
-      },
-      successTitle: 'Task Updated',
-      successMessage: isAdmin
-        ? `Task "${task.title}" status changed to ${nextStatus} (Directly approved by Admin).`
-        : `Task "${task.title}" status changed to ${nextStatus}.`,
-      onSuccess: (updated) => {
-        if (updated && onTaskUpdated) {
-          onTaskUpdated(updated as Task);
-        }
-      },
-      invalidateQueries: [
-        operationsKeys.tasks(task.workRequestId),
-        operationsKeys.workRequestDetail(task.workRequestId),
-      ],
-    });
+    try {
+      await runBlockingAction({
+        title: 'Updating Task Status',
+        message: `Setting status of "${task.title}" to ${nextStatus}...`,
+        apiCall: async () => {
+          return await updateTask({
+            workRequestId: task.workRequestId,
+            taskId: task.id,
+            data: { status: nextStatus },
+          });
+        },
+        successTitle: 'Task Updated',
+        successMessage: isAdmin
+          ? `Task "${task.title}" status changed to ${nextStatus} (Directly approved by Admin).`
+          : `Task "${task.title}" status changed to ${nextStatus}.`,
+        onSuccess: (updated) => {
+          if (updated && onTaskUpdated) {
+            onTaskUpdated(updated as Task);
+          }
+        },
+        invalidateQueries: [
+          operationsKeys.tasks(task.workRequestId),
+          operationsKeys.workRequestDetail(task.workRequestId),
+        ],
+      });
+    } catch {
+      // Gracefully handled by BlockingActionModal presentation
+    }
   };
 
   // Handle requesting billing invoice from accounting
@@ -460,6 +621,61 @@ export function TaskDetailModal({
     });
   };
 
+  const handleToggleChecklist = async (itemId: string, completed: boolean) => {
+    if (!task || !task.workRequestId) return;
+    const currentList = task.checklist || [];
+    const updated = currentList.map((c) =>
+      c.id === itemId ? { ...c, completed } : c
+    );
+    await updateTask({
+      workRequestId: task.workRequestId,
+      taskId: task.id,
+      data: {
+        checklist: updated.map((c) => ({
+          id: c.id,
+          text: c.text,
+          completed: c.completed,
+          category: c.category,
+          periodYear: c.periodYear ? String(c.periodYear) : null,
+          dependsOn: c.dependsOn || null,
+        })),
+      },
+    });
+  };
+
+  const handleAddChecklistItem = async () => {
+    if (!newChecklistText.trim() || !task || !task.workRequestId) return;
+    const currentList = task.checklist || [];
+    const generateChecklistId = (): string => {
+      if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+      }
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      });
+    };
+
+    const newItem = {
+      id: generateChecklistId(),
+      text: newChecklistText.trim(),
+      completed: false,
+    };
+    await updateTask({
+      workRequestId: task.workRequestId,
+      taskId: task.id,
+      data: {
+        checklist: [...currentList, newItem].map((c) => ({
+          id: c.id,
+          text: c.text,
+          completed: c.completed,
+        })),
+      },
+    });
+    setNewChecklistText('');
+  };
+
   // Calculate total minutes logged
   const totalMinutes = useMemo(() => {
     return timeEntries.reduce((acc, entry) => acc + (entry.durationMinutes || 0), 0);
@@ -476,8 +692,13 @@ export function TaskDetailModal({
   const handleLogTimeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!task) return;
-    if (logMinutes <= 0) {
-      setLogError('Duration must be greater than 0 minutes.');
+    if (createTimeEntryMutation.isPending) return;
+    if (!Number.isInteger(logMinutes) || logMinutes < 1 || logMinutes > 1440) {
+      setLogError('Duration must be an integer between 1 and 1440 minutes.');
+      return;
+    }
+    if (!logDate || logDate > workDate()) {
+      setLogError('Entry date is required and cannot be in the future.');
       return;
     }
     setLogError(null);
@@ -485,7 +706,7 @@ export function TaskDetailModal({
     try {
       await createTimeEntryMutation.mutateAsync({
         taskId: task.id,
-        entryDate: logDate || new Date().toISOString().split('T')[0]!,
+        entryDate: logDate || workDate(),
         durationMinutes: Number(logMinutes),
         note: logNote.trim() || undefined,
       });
@@ -508,7 +729,7 @@ export function TaskDetailModal({
           data-testid="task-detail-modal"
         >
           {/* Header */}
-          <DialogHeader className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex flex-row items-start justify-between">
+          <DialogHeader className="px-6 py-4 pr-14 border-b border-slate-200 bg-slate-50 flex flex-row items-start justify-between">
             <div className="space-y-1.5 pr-6">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge
@@ -518,7 +739,7 @@ export function TaskDetailModal({
                   {workRequest?.entity || 'ATA'}
                 </Badge>
                 <Badge variant="outline" size="compact" className="font-semibold text-blue-700 bg-blue-50">
-                  {task.phase.replace('_', ' ')}
+                  {task.phase ? task.phase.replace('_', ' ') : ''}
                 </Badge>
                 <Badge
                   variant={task.status === 'Completed' ? 'success' : 'secondary'}
@@ -556,6 +777,8 @@ export function TaskDetailModal({
                     type="button"
                     variant="outline"
                     size="sm"
+                    disabled={isPhaseBlocked}
+                    title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
                     onClick={() => handleSetTaskStatus('In Progress')}
                     className="text-xs gap-1.5"
                     data-testid="task-status-inprogress-btn"
@@ -569,6 +792,8 @@ export function TaskDetailModal({
                     type="button"
                     variant="outline"
                     size="sm"
+                    disabled={isPhaseBlocked}
+                    title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
                     onClick={() => handleSetTaskStatus('In Progress')}
                     className="text-xs shrink-0 gap-1.5"
                     data-testid="task-toggle-status-btn"
@@ -581,6 +806,14 @@ export function TaskDetailModal({
                     type="button"
                     variant="default"
                     size="sm"
+                    disabled={isPhaseBlocked || isPrereqBlocked}
+                    title={
+                      isPhaseBlocked
+                        ? phaseBlockedTooltip
+                        : isPrereqBlocked
+                        ? prereqBlockedTooltip
+                        : undefined
+                    }
                     onClick={() => handleSetTaskStatus('Completed')}
                     className="text-xs shrink-0 gap-1.5"
                     data-testid="task-toggle-status-btn"
@@ -595,14 +828,24 @@ export function TaskDetailModal({
 
           {/* Modal Body: Scrollable */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            {isCompletedWr && (
+              <div
+                className="bg-amber-50 border border-amber-200 text-amber-800 text-xs px-3 py-2 rounded-md flex items-center gap-2"
+                data-testid="completed-wr-lock-banner"
+              >
+                <Lock className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                <span>Completed Work Request: Task records and attachments are finalized and locked.</span>
+              </div>
+            )}
+
             {/* 1. Meta Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
-              <div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+              <div className="min-w-0">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">
-                  Lead Assignee
+                  Primary Assignee
                 </span>
                 <div
-                  className="flex items-center gap-1.5 font-medium text-slate-800 truncate"
+                  className="flex items-center gap-1.5 font-medium text-slate-800 truncate min-w-0"
                   data-testid="task-assignee"
                 >
                   <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
@@ -615,41 +858,77 @@ export function TaskDetailModal({
                 )}
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">
                   Due Date
                 </span>
-                <div className="flex items-center gap-1.5 font-medium text-slate-800">
+                <div className="flex items-center gap-1.5 font-medium text-slate-800 min-w-0 truncate">
                   <Calendar className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                  <span>
-                    {task.dueDate
-                      ? new Date(task.dueDate).toLocaleDateString()
-                      : 'Not set'}
-                  </span>
+                  {canEdit ? (
+                    <div className="flex items-center gap-1.5 min-w-0 truncate">
+                      <DateInput
+                        aria-label="Task due date"
+                        type="date"
+                        value={
+                          localDueDate
+                            ? localDueDate.includes('T')
+                              ? new Date(localDueDate).toISOString().split('T')[0]
+                              : localDueDate
+                            : ''
+                        }
+                        onValueChange={(value) => {
+                          const val = value || null;
+                          setLocalDueDate(val);
+                          if (task.workRequestId) {
+                            updateTask({
+                              workRequestId: task.workRequestId,
+                              taskId: task.id,
+                              data: { dueDate: val },
+                            })
+                              .then((res) => {
+                                if (res && onTaskUpdated) {
+                                  onTaskUpdated(res as Task);
+                                }
+                              })
+                              .catch(() => {
+                                setLocalDueDate(task.dueDate ?? null);
+                              });
+                          }
+                        }}
+                        className="h-8 w-44 text-xs"
+                        data-testid="task-due-date-input"
+                      />
+                      {!localDueDate && <span className="text-slate-400 text-xs">Not set</span>}
+                    </div>
+                  ) : (
+                    <span className="truncate">
+                      {localDueDate
+                        ? new Date(localDueDate).toLocaleDateString()
+                        : 'Not set'}
+                    </span>
+                  )}
                 </div>
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">
                   Phase Entered
                 </span>
-                <div className="flex items-center gap-1.5 font-medium text-slate-800">
+                <div className="flex items-center gap-1.5 font-medium text-slate-800 min-w-0 truncate">
                   <Clock className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                  <span>
-                    {task.phaseEnteredAt
-                      ? new Date(task.phaseEnteredAt).toLocaleDateString()
-                      : 'N/A'}
+                  <span className="capitalize truncate">
+                    {task.phase?.replace('_', ' ')} • {task.phaseEnteredAt ? new Date(task.phaseEnteredAt).toLocaleDateString() : 'N/A'}
                   </span>
                 </div>
               </div>
 
-              <div>
+              <div className="min-w-0">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">
                   Total Logged Time
                 </span>
-                <div className="flex items-center gap-1.5 font-bold text-blue-700">
+                <div className="flex items-center gap-1.5 font-bold text-blue-700 min-w-0 truncate">
                   <Clock className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-                  <span>{formatHours(totalMinutes)}</span>
+                  <span className="truncate">{formatHours(totalMinutes)}</span>
                 </div>
               </div>
             </div>
@@ -669,7 +948,7 @@ export function TaskDetailModal({
                       </span>
                     </h4>
                     <p className="text-[11px] text-slate-500">
-                      Primary lead assignee and co-assignees working on this task
+                      Primary assignee and co-assignees working on this task
                     </p>
                   </div>
                 </div>
@@ -677,7 +956,7 @@ export function TaskDetailModal({
                 {canEdit && (
                   <div className="flex flex-wrap items-center gap-2">
                     {/* Reassign Lead Select */}
-                    {teamList.length > 0 && (
+                    {scopedTeamList.length > 0 && (
                       <div className="w-40 sm:w-44" data-testid="reassign-lead-container">
                         <Select
                           key={`reassign-${reassignSelectKey}`}
@@ -687,12 +966,12 @@ export function TaskDetailModal({
                             className="h-7 text-xs bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-700"
                             data-testid="reassign-lead-select"
                           >
-                            <SelectValue placeholder="Reassign Lead..." />
+                            <SelectValue placeholder="Select Primary Assignee..." />
                           </SelectTrigger>
                           <SelectContent>
-                            {teamList.map((m) => (
+                            {scopedTeamList.map((m) => (
                               <SelectItem key={m.id} value={m.id} className="text-xs">
-                                {m.name} {m.id === task.assigneeId ? '(Lead)' : `(${m.role})`}
+                                {m.name} {m.id === task.assigneeId ? '(Primary)' : `(${m.role})`}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -701,7 +980,7 @@ export function TaskDetailModal({
                     )}
 
                     {/* Add Co-Assignee Select */}
-                    {availableTeamMembers.length > 0 && (
+                    {availableTeamMembers.length > 0 ? (
                       <div className="w-40 sm:w-44" data-testid="assign-employee-container">
                         <Select
                           key={`add-${addSelectKey}`}
@@ -722,6 +1001,18 @@ export function TaskDetailModal({
                           </SelectContent>
                         </Select>
                       </div>
+                    ) : (
+                      <div className="w-40 sm:w-44" data-testid="assign-employee-container">
+                        <Select disabled>
+                          <SelectTrigger
+                            className="h-7 text-xs bg-slate-50 border-slate-200 text-slate-400 font-medium"
+                            data-testid="assign-employee-select"
+                          >
+                            <SelectValue placeholder="All team assigned" />
+                          </SelectTrigger>
+                          <SelectContent />
+                        </Select>
+                      </div>
                     )}
                   </div>
                 )}
@@ -730,7 +1021,7 @@ export function TaskDetailModal({
               {/* Members Chips / Cards */}
               {assignedTeamMembers.length === 0 ? (
                 <div className="py-3 text-center text-xs text-slate-400 italic">
-                  No team members assigned yet. Use the dropdown above to assign a lead or co-assignee.
+                  No team members assigned yet. Use the dropdown above to assign a primary or co-assignee.
                 </div>
               ) : (
                 <div className="flex flex-wrap gap-2 pt-1" data-testid="assigned-team-list">
@@ -749,7 +1040,7 @@ export function TaskDetailModal({
                         <span className="font-semibold text-xs">{member.name}</span>
                         {member.isLead ? (
                           <Badge size="compact" className="bg-blue-600 text-white font-medium text-[10px]">
-                            Lead
+                            Primary
                           </Badge>
                         ) : (
                           <Badge variant="outline" size="compact" className="text-[10px] text-slate-500">
@@ -765,10 +1056,10 @@ export function TaskDetailModal({
                               type="button"
                               onClick={() => handleSetLeadAssignee(member.id)}
                               className="text-[10px] text-blue-600 hover:text-blue-800 hover:underline font-medium px-1"
-                              title="Make this member the lead assignee"
+                              title="Make this member the primary assignee"
                               data-testid={`make-lead-btn-${member.id}`}
                             >
-                              Make Lead
+                              Make Primary
                             </button>
                           )}
                           <button
@@ -790,50 +1081,139 @@ export function TaskDetailModal({
 
             {/* 3. Description / Requirements */}
             <div className="space-y-1.5">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Description & Instructions
-              </h4>
-              <div
-                className="p-3.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 whitespace-pre-wrap leading-relaxed min-h-[60px]"
-                data-testid="task-description"
-              >
-                {task.description || (
-                  <span className="text-slate-400 italic">No description provided for this task.</span>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Description & Instructions
+                </h4>
+                {!isCompletedWr && canEdit && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => setIsEditingDesc(!isEditingDesc)}
+                    className="h-6 px-1.5 text-slate-500 hover:text-blue-600 gap-1"
+                    title="Edit Task Description"
+                    data-testid="edit-task-description-btn"
+                  >
+                    <Pencil className="h-3 w-3" />
+                    <span className="text-[11px]">{isEditingDesc ? 'Cancel' : 'Edit'}</span>
+                  </Button>
                 )}
               </div>
+
+              {isEditingDesc ? (
+                <div className="space-y-2">
+                  <textarea
+                    value={descText}
+                    onChange={(e) => setDescText(e.target.value)}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 min-h-[80px]"
+                    placeholder="Enter task description or instructions..."
+                    data-testid="task-description-textarea"
+                  />
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => {
+                        setDescText(task.description || '');
+                        setIsEditingDesc(false);
+                      }}
+                      className="h-7 text-xs"
+                      data-testid="cancel-edit-description-btn"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="xs"
+                      onClick={handleSaveDescription}
+                      disabled={isSavingDesc}
+                      className="h-7 text-xs"
+                      data-testid="save-description-btn"
+                    >
+                      {isSavingDesc ? 'Saving...' : 'Save Changes'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className="p-3.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 whitespace-pre-wrap leading-relaxed min-h-[60px]"
+                  data-testid="task-description"
+                >
+                  {task.description || (
+                    <span className="text-slate-400 italic">No description provided for this task.</span>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* 3. Checklist Items (if present) */}
-            {task.checklist && task.checklist.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+            {/* 3. Checklist Items */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
                   <CheckSquare className="h-3.5 w-3.5" />
-                  Checklist ({task.checklist.filter((c) => c.completed).length}/{task.checklist.length})
-                </h4>
+                  Checklist ({task.checklist?.filter((c) => c.completed).length || 0}/{task.checklist?.length || 0})
+                </span>
+              </h4>
+
+              {task.checklist && task.checklist.length > 0 ? (
                 <div className="p-2 border border-slate-200 rounded-lg divide-y divide-slate-100 bg-white">
                   {task.checklist.map((item) => (
                     <div key={item.id} className="py-2 px-2 flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
+                      <label className="flex items-center gap-2 cursor-pointer flex-1">
                         <input
                           type="checkbox"
                           checked={item.completed}
-                          readOnly
-                          className="rounded text-blue-600"
+                          onChange={() => handleToggleChecklist(item.id, !item.completed)}
+                          disabled={!canEdit}
+                          className="rounded text-blue-600 cursor-pointer"
                         />
                         <span className={item.completed ? 'line-through text-slate-400' : 'text-slate-700 font-medium'}>
                           {item.text}
                         </span>
-                      </div>
+                      </label>
                       {item.assigneeName && (
                         <span className="text-[10px] text-slate-400">{item.assigneeName}</span>
                       )}
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="p-3 text-center text-xs text-slate-400 bg-slate-50 rounded border border-slate-200 italic">
+                  No checklist items yet.
+                </div>
+              )}
 
-            {/* 4. Predecessors (if present) */}
+              {canEdit && (
+                <div className="flex items-center gap-2 pt-1">
+                  <Input
+                    placeholder="Add a new checklist item..."
+                    value={newChecklistText}
+                    onChange={(e) => setNewChecklistText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddChecklistItem();
+                      }
+                    }}
+                    className="h-8 text-xs bg-white"
+                  />
+                  <Button
+                    type="button"
+                    size="xs"
+                    onClick={handleAddChecklistItem}
+                    disabled={!newChecklistText.trim()}
+                    className="h-8 text-xs gap-1"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* 4. Predecessors */}
             {task.predecessors && task.predecessors.length > 0 && (
               <div className="space-y-1.5">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
@@ -841,11 +1221,22 @@ export function TaskDetailModal({
                   Predecessors
                 </h4>
                 <div className="flex flex-wrap gap-1.5">
-                  {task.predecessors.map((pId) => (
-                    <Badge key={pId} variant="outline" size="compact" className="text-[10px]">
-                      Task: {pId}
-                    </Badge>
-                  ))}
+                  {task.predecessors.map((pId) => {
+                    const detail = (task as unknown as { predecessorDetails?: Array<{ id: string; title: string; status: string }> })
+                      .predecessorDetails?.find((d) => d.id === pId);
+                    const predTask = siblingTasks.find((t) => t.id === pId);
+                    const title = detail?.title || predTask?.title || pId.slice(0, 8);
+                    const status = detail?.status || predTask?.status;
+
+                    return (
+                      <Badge key={pId} variant="outline" size="compact" className="text-[10px] gap-1">
+                        <span className="font-semibold">{title}</span>
+                        {status && (
+                          <span className="text-[9px] text-slate-500">({status})</span>
+                        )}
+                      </Badge>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -877,7 +1268,7 @@ export function TaskDetailModal({
                 </div>
               ) : linkedDocs.length === 0 ? (
                 <div className="p-4 text-center text-xs text-slate-400 bg-slate-50 rounded border border-slate-200 italic">
-                  No documents linked to this work request or task.
+                  No documents linked to this task.
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1174,10 +1565,12 @@ export function TaskDetailModal({
                       <label className="text-[10px] font-bold uppercase text-slate-500 block mb-1">
                         Date
                       </label>
-                      <Input
+                      <DateInput
+                        aria-label="Time log date"
                         type="date"
+                        max={workDate()}
                         value={logDate}
-                        onChange={(e) => setLogDate(e.target.value)}
+                        onValueChange={(value) => setLogDate(value)}
                         className="h-8 text-xs bg-white"
                         required
                         data-testid="log-time-date-input"
@@ -1318,19 +1711,25 @@ export function TaskDetailModal({
       </Dialog>
 
       {/* 1. Invoice Create Modal (UAT2-7) */}
-      {isInvoiceModalOpen && (
+      {isInvoiceModalOpen && task && (
         <InvoiceCreateModal
           isOpen={isInvoiceModalOpen}
           onClose={() => {
             setIsInvoiceModalOpen(false);
             refetchRelated();
+            if (task.id) {
+              void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(task.id) });
+            }
           }}
           onCreated={() => {
             setIsInvoiceModalOpen(false);
             refetchRelated();
+            if (task.id) {
+              void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(task.id) });
+            }
           }}
           prefill={{
-            workRequestId: task.workRequestId,
+            workRequestId: task.workRequestId || workRequest?.id,
             taskId: task.id,
             clientId: workRequest?.clientId || undefined,
           }}
@@ -1338,19 +1737,25 @@ export function TaskDetailModal({
       )}
 
       {/* 2. Disbursement Create Modal (UAT2-7) */}
-      {isDisbursementModalOpen && (
+      {isDisbursementModalOpen && task && (
         <CreateDisbursementModal
           isOpen={isDisbursementModalOpen}
           onClose={() => {
             setIsDisbursementModalOpen(false);
             refetchRelated();
+            if (task.id) {
+              void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(task.id) });
+            }
           }}
           onSuccess={() => {
             setIsDisbursementModalOpen(false);
             refetchRelated();
+            if (task.id) {
+              void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(task.id) });
+            }
           }}
           prefill={{
-            workRequestId: task.workRequestId,
+            workRequestId: task.workRequestId || workRequest?.id,
             taskId: task.id,
             clientId: workRequest?.clientId || undefined,
           }}
@@ -1358,15 +1763,18 @@ export function TaskDetailModal({
       )}
 
       {/* 3. Transmittal Form Modal (UAT2-7) */}
-      {isTransmittalModalOpen && (
+      {isTransmittalModalOpen && task && (
         <TransmittalFormModal
           isOpen={isTransmittalModalOpen}
           onClose={() => {
             setIsTransmittalModalOpen(false);
             refetchRelated();
+            if (task.id) {
+              void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(task.id) });
+            }
           }}
           prefill={{
-            workRequestId: task.workRequestId,
+            workRequestId: task.workRequestId || workRequest?.id,
             taskId: task.id,
             clientId: workRequest?.clientId || undefined,
           }}
@@ -1374,18 +1782,27 @@ export function TaskDetailModal({
       )}
 
       {/* 4. Document Upload Modal (UAT2-11) */}
-      {isUploadDocModalOpen && (
+      {isUploadDocModalOpen && task && (
         <DocumentUploadModal
           isOpen={isUploadDocModalOpen}
-          onClose={() => setIsUploadDocModalOpen(false)}
-          defaultWorkRequestId={task.workRequestId}
+          onClose={() => {
+            setIsUploadDocModalOpen(false);
+            if (task.id) {
+              void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(task.id) });
+            }
+          }}
+          defaultWorkRequestId={task.workRequestId || workRequest?.id}
           defaultClientId={workRequest?.clientId || undefined}
+          defaultTaskId={task.id}
           onSuccess={() => {
             setIsUploadDocModalOpen(false);
             refetchDocs();
-            queryClient.invalidateQueries({
+            void queryClient.invalidateQueries({
               queryKey: operationsKeys.documents(),
             });
+            if (task.id) {
+              void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(task.id) });
+            }
           }}
         />
       )}
@@ -1394,9 +1811,24 @@ export function TaskDetailModal({
       {selectedDoc && (
         <DocumentViewerModal
           isOpen={Boolean(selectedDoc)}
-          onClose={() => setSelectedDoc(null)}
+          onClose={() => {
+            setSelectedDoc(null);
+            refetchDocs();
+            void queryClient.invalidateQueries({ queryKey: operationsKeys.documents() });
+            if (task?.id) {
+              void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(task.id) });
+            }
+          }}
           document={selectedDoc}
           workRequest={workRequest}
+          onUploadSuccess={(updatedDoc) => {
+            setSelectedDoc(updatedDoc);
+            refetchDocs();
+            void queryClient.invalidateQueries({ queryKey: operationsKeys.documents() });
+            if (task?.id) {
+              void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(task.id) });
+            }
+          }}
         />
       )}
     </>

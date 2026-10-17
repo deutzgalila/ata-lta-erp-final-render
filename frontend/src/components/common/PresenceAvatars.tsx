@@ -13,6 +13,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSessionStore } from '@/lib/session';
 import { isFeatureEnabled } from '@/lib/flags';
+import { queryClient } from '@/lib/api';
 
 export interface ViewerPresence {
   userId: string;
@@ -62,6 +63,42 @@ export function getAvatarColorClass(idOrName: string): string {
   return AVATAR_BG_COLORS[index] ?? 'bg-indigo-600 text-white';
 }
 
+export function getCachedUserAvatar(userIdOrKey?: string, userEmail?: string): string | null {
+  try {
+    const team = queryClient.getQueryData<Array<{ id?: string; email?: string; avatarUrl?: string | null }>>(['me', 'team']);
+    if (Array.isArray(team)) {
+      const match = team.find(
+        (m) =>
+          (m.id && userIdOrKey && m.id === userIdOrKey) ||
+          (m.email && userEmail && m.email.toLowerCase() === userEmail.toLowerCase())
+      );
+      if (match?.avatarUrl && typeof match.avatarUrl === 'string' && match.avatarUrl.trim() !== '') {
+        return match.avatarUrl.trim();
+      }
+    }
+  } catch {
+    // safe fallback
+  }
+
+  try {
+    const adminUsers = queryClient.getQueryData<Array<{ id?: string; email?: string; avatarUrl?: string | null }>>(['admin', 'users']);
+    if (Array.isArray(adminUsers)) {
+      const match = adminUsers.find(
+        (m) =>
+          (m.id && userIdOrKey && m.id === userIdOrKey) ||
+          (m.email && userEmail && m.email.toLowerCase() === userEmail.toLowerCase())
+      );
+      if (match?.avatarUrl && typeof match.avatarUrl === 'string' && match.avatarUrl.trim() !== '') {
+        return match.avatarUrl.trim();
+      }
+    }
+  } catch {
+    // safe fallback
+  }
+
+  return null;
+}
+
 export function extractViewers(
   presenceState: Record<string, unknown>,
   currentUserId?: string,
@@ -81,10 +118,12 @@ export function extractViewers(
       const name = String(rec.name || rec.displayName || rec.email || 'Colleague').trim();
       const email = String(rec.email || '').trim();
       const role = String(rec.role || 'Staff').trim();
-      const avatarUrl =
-        typeof rec.avatarUrl === 'string' && rec.avatarUrl.trim() !== ''
-          ? rec.avatarUrl.trim()
+      const rawAvatar = rec.avatarUrl || rec.avatar_url;
+      const resolvedAvatar =
+        typeof rawAvatar === 'string' && rawAvatar.trim() !== ''
+          ? rawAvatar.trim()
           : null;
+      const avatarUrl = resolvedAvatar || getCachedUserAvatar(id, email);
 
       // Filter out current active user
       if (currentUserId && id === currentUserId) continue;
@@ -301,7 +340,8 @@ export function PresenceAvatars({
         const tooltipText = `Viewing now: ${viewer.name} (${viewer.role})`;
         const initials = getInitials(viewer.name);
         const colorClass = getAvatarColorClass(viewer.userId || viewer.name);
-        const hasValidAvatar = Boolean(viewer.avatarUrl && !failedAvatarIds[viewer.userId]);
+        const effectiveAvatarUrl = viewer.avatarUrl || getCachedUserAvatar(viewer.userId, viewer.email);
+        const hasValidAvatar = Boolean(effectiveAvatarUrl && !failedAvatarIds[viewer.userId]);
 
         return (
           <div
@@ -319,9 +359,9 @@ export function PresenceAvatars({
             <div
               className={`h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold border-2 border-white shadow-xs transition-transform hover:scale-110 cursor-pointer ${colorClass}`}
             >
-              {hasValidAvatar && viewer.avatarUrl ? (
+              {hasValidAvatar && effectiveAvatarUrl ? (
                 <img
-                  src={viewer.avatarUrl}
+                  src={effectiveAvatarUrl}
                   alt={viewer.name}
                   className="h-full w-full rounded-full object-cover"
                   onError={() => {

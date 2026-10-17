@@ -6,3 +6,4 @@ export * from './api';
 export * from './components';
 export * from './constants';
 export * from './utils/formatters';
+export * from './utils/googleDrive';

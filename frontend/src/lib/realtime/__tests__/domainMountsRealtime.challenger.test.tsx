@@ -1148,7 +1148,7 @@ describe('Challenger M2-1: Domain Component Mounts & Supabase CDC Realtime Sync'
       }
     });
 
-    it('Stale Version Rejection Guard: drops events with equal or lower version', async () => {
+    it('Stale Version Rejection Guard: drops duplicate INSERT and lower UPDATE, accepts equal UPDATE (SPEC-002)', async () => {
       const { wrapper } = createTestHarness();
       render(<DisbursementsTable onSelectDisbursement={vi.fn()} />, { wrapper });
 
@@ -1162,22 +1162,21 @@ describe('Challenger M2-1: Domain Component Mounts & Supabase CDC Realtime Sync'
         'cdc_disbursements'
       ) as MockRealtimeChannel;
 
-      // Initial version is 1. Incoming payload has version 1 (equal)
+      // Duplicate INSERT with equal version (1) -> Guard 2 drops it
       act(() => {
         disbChannel.emit('postgres_changes', {
-          eventType: 'UPDATE',
+          eventType: 'INSERT',
           new: {
             ...initialDisbursements[0],
             status: 'Approved',
-            version: 1, // equal version
+            version: 1, // duplicate equal INSERT
           },
-          old: initialDisbursements[0],
         });
       });
 
       // UI badge should remain Pending
-      const badgeAfterEqual = screen.getByTestId('disbursement-status-badge');
-      expect(badgeAfterEqual.getAttribute('data-test-status')).toBe('pending');
+      const badgeAfterEqualInsert = screen.getByTestId('disbursement-status-badge');
+      expect(badgeAfterEqualInsert.getAttribute('data-test-status')).toBe('pending');
 
       // Lower version (0)
       act(() => {
@@ -1194,6 +1193,24 @@ describe('Challenger M2-1: Domain Component Mounts & Supabase CDC Realtime Sync'
 
       const badgeAfterLower = screen.getByTestId('disbursement-status-badge');
       expect(badgeAfterLower.getAttribute('data-test-status')).toBe('pending');
+
+      // Equal version (1) UPDATE -> Guard 2 accepts under SPEC-002
+      act(() => {
+        disbChannel.emit('postgres_changes', {
+          eventType: 'UPDATE',
+          new: {
+            ...initialDisbursements[0],
+            status: 'Approved',
+            version: 1, // equal version UPDATE
+          },
+          old: initialDisbursements[0],
+        });
+      });
+
+      await waitFor(() => {
+        const badgeAfterEqualUpdate = screen.getByTestId('disbursement-status-badge');
+        expect(badgeAfterEqualUpdate.getAttribute('data-test-status')).toBe('approved');
+      });
     });
 
     it('Loop Prevention Guard: drops events originated by the current browser tab', async () => {

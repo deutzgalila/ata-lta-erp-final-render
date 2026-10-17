@@ -58,7 +58,7 @@ const baseTask: Task = {
   phaseEnteredAt: '2026-02-01T00:00:00Z',
   assigneeId: 'user-associate-1',
   assigneeName: 'Senior Associate B',
-  assignees: ['user-associate-1'],
+  assignees: ['user-associate-1', 'user-challenger-2'],
   predecessors: [],
   dueDate: '2026-03-15T00:00:00Z',
   requiredLinkType: null,
@@ -150,7 +150,7 @@ describe('Adversarial Challenger 2 Stress Suite: Parcel OPS', () => {
         'No description provided for this task.'
       );
       expect(screen.getByText('Not set')).toBeInTheDocument(); // Due date fallback
-      expect(screen.getByText('N/A')).toBeInTheDocument(); // Phase entered fallback
+      expect(screen.getByText(/N\/A/)).toBeInTheDocument(); // Phase entered fallback
       expect(screen.getByText('0m')).toBeInTheDocument(); // Total logged time
     });
 
@@ -179,7 +179,7 @@ describe('Adversarial Challenger 2 Stress Suite: Parcel OPS', () => {
       const docsSection = await screen.findByTestId('task-documents-section');
       expect(docsSection).toBeInTheDocument();
       expect(
-        await screen.findByText('No documents linked to this work request or task.')
+        await screen.findByText('No documents linked to this task.')
       );
     });
 
@@ -264,7 +264,7 @@ describe('Adversarial Challenger 2 Stress Suite: Parcel OPS', () => {
 
       // Error banner renders and no API call is made
       expect(
-        await screen.findByText('Duration must be greater than 0 minutes.')
+        await screen.findByText('Duration must be an integer between 1 and 1440 minutes.')
       ).toBeInTheDocument();
       expect(postSpy).not.toHaveBeenCalled();
 
@@ -272,7 +272,7 @@ describe('Adversarial Challenger 2 Stress Suite: Parcel OPS', () => {
       fireEvent.change(minInput, { target: { value: '-15' } });
       fireEvent.submit(screen.getByTestId('log-time-form'));
       expect(
-        await screen.findByText('Duration must be greater than 0 minutes.')
+        await screen.findByText('Duration must be an integer between 1 and 1440 minutes.')
       ).toBeInTheDocument();
       expect(postSpy).not.toHaveBeenCalled();
     });
@@ -325,7 +325,10 @@ describe('Adversarial Challenger 2 Stress Suite: Parcel OPS', () => {
       let putBody: unknown = null;
       vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
         const url = String(input);
-        if (url.includes('/tasks/task-stress-101') && init?.method === 'PUT') {
+        if (
+          url.includes('/tasks/task-stress-101') &&
+          (init?.method === 'PUT' || init?.method === 'PATCH')
+        ) {
           putBody = JSON.parse(String(init.body));
           return new Response(
             JSON.stringify({

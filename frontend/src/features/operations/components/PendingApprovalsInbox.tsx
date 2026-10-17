@@ -32,6 +32,7 @@ import { operationsKeys } from '../api/queryKeys';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
 import { isUserAdmin } from '../lib/taskScope';
+import { useEntityRealtimeSync } from '@/lib/realtime';
 import type { Phase, OperationsRequest } from '../api/types';
 
 export interface PendingApprovalsInboxProps {
@@ -54,6 +55,14 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
 
   const canApprove = hasPermission(permissions, 'workflow:phase_transition');
   const canRequest = hasPermission(permissions, 'workflow:transition_request');
+
+  // Real-time CDC subscription for operations requests
+  useEntityRealtimeSync({
+    table: 'operations_requests',
+    listRootKey: operationsKeys.requests(),
+    detailQueryKey: (id) => operationsKeys.requestDetail(id),
+    activeEntity,
+  });
 
   // Queries
   const { data: rawRequests, isLoading, isError, refetch } = useOperationsRequests({
@@ -140,7 +149,12 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
 
     const fromPhase = selectedRequest.from_phase || (selectedRequest as unknown as { fromPhase?: Phase })?.fromPhase;
     const tasks = wrDetail.tasks || [];
-    const activeTasks = tasks.filter((t) => t.status !== 'Cancelled');
+    const activeTasks = tasks.filter(
+      (t) =>
+        t.status !== 'Cancelled' &&
+        !(t as unknown as { deletedAt?: string | null; deleted_at?: string | null }).deletedAt &&
+        !(t as unknown as { deletedAt?: string | null; deleted_at?: string | null }).deleted_at
+    );
 
     if (fromPhase === 'pre_processing') {
       const preTasks = activeTasks.filter((t) => t.phase === 'pre_processing');
@@ -164,7 +178,11 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
       };
     } else if (fromPhase === 'quality_assurance') {
       const incomplete = activeTasks.filter((t) => t.status !== 'Completed');
-      const unpassed = activeTasks.filter((t) => t.qaStatus !== 'passed');
+      const unpassed = activeTasks.filter(
+        (t) =>
+          t.qaStatus !== 'passed' &&
+          (t as unknown as { qa_status?: string }).qa_status !== 'passed'
+      );
       const blockers = [...new Set([...incomplete, ...unpassed])];
       return {
         passed: blockers.length === 0,
@@ -571,15 +589,26 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
 
                   {selectedRequest.linked_task_id && (
                     <div className="text-xs text-slate-700 bg-white p-2.5 rounded border border-slate-200 flex items-center justify-between">
-                      <span className="text-slate-500 font-medium">Linked Task ID:</span>
-                      <span className="font-mono text-slate-800">{selectedRequest.linked_task_id}</span>
+                      <span className="text-slate-500 font-medium">Linked Task:</span>
+                      <span className="font-semibold text-slate-800">
+                        {wrDetail?.tasks?.find((t) => t.id === selectedRequest.linked_task_id)?.title || selectedRequest.linked_task_id}
+                      </span>
                     </div>
                   )}
 
                   {selectedRequest.notes && (
                     <div className="text-xs text-slate-600 bg-white p-2.5 rounded border border-slate-200">
                       <span className="font-semibold text-slate-700">Submitter Notes: </span>
-                      {selectedRequest.notes}
+                      {(() => {
+                        const raw = selectedRequest.notes;
+                        if (typeof raw === 'string' && raw.trim().startsWith('{')) {
+                          try {
+                            const parsed = JSON.parse(raw);
+                            return parsed.user_notes || parsed.notes || raw;
+                          } catch { return raw; }
+                        }
+                        return raw;
+                      })()}
                     </div>
                   )}
                 </div>
@@ -600,7 +629,16 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
                   {selectedRequest.notes && (
                     <div className="text-xs text-slate-600 bg-white p-2.5 rounded border border-slate-200">
                       <span className="font-semibold text-slate-700">Submitter Notes: </span>
-                      {selectedRequest.notes}
+                      {(() => {
+                        const raw = selectedRequest.notes;
+                        if (typeof raw === 'string' && raw.trim().startsWith('{')) {
+                          try {
+                            const parsed = JSON.parse(raw);
+                            return parsed.user_notes || parsed.notes || raw;
+                          } catch { return raw; }
+                        }
+                        return raw;
+                      })()}
                     </div>
                   )}
                 </div>

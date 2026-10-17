@@ -4,7 +4,6 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  Plus,
   Printer,
   CreditCard,
   Eye,
@@ -41,6 +40,7 @@ import type { Invoice, InvoiceStatus } from '../api/types';
 
 export interface InvoiceListProps {
   onSelectInvoice?: (invoice: Invoice) => void;
+  /** @deprecated Creation moved to BillingPage header */
   onCreateInvoice?: () => void;
   onRecordPayment?: (invoice: Invoice) => void;
   onPrintPreview?: (invoice: Invoice) => void;
@@ -49,16 +49,15 @@ export interface InvoiceListProps {
 const STATUS_TABS: Array<{ label: string; value: InvoiceStatus | 'All' }> = [
   { label: 'All', value: 'All' },
   { label: 'Draft', value: 'Draft' },
-  { label: 'Pending', value: 'Pending' },
   { label: 'Sent', value: 'Sent' },
   { label: 'Partially Paid', value: 'Partially Paid' },
   { label: 'Paid', value: 'Paid' },
   { label: 'Overdue', value: 'Overdue' },
+  { label: 'Cancelled', value: 'Cancelled' },
 ];
 
 export function InvoiceList({
   onSelectInvoice,
-  onCreateInvoice,
   onRecordPayment,
   onPrintPreview,
 }: InvoiceListProps) {
@@ -79,16 +78,15 @@ export function InvoiceList({
   const [pageSize, setPageSize] = useState(25);
 
   // Permissions (hooks must be unconditional)
-  const canEdit = usePermission('billing:edit');
-  const canCreate = canEdit;
   const canRecordPayment = usePermission('billing:payments');
 
   // Queries
   const { data: clientsData } = useClients();
   const clientsList = clientsData || [];
 
+  const effectiveStatus = statusFilter === 'Approved' ? 'Sent' : statusFilter;
   const { data: invoicesResponse, isLoading } = useInvoices({
-    status: statusFilter,
+    status: effectiveStatus,
     clientId: clientFilter !== 'all' ? clientFilter : undefined,
     search: debouncedSearch || undefined,
     archived: false,
@@ -203,17 +201,6 @@ export function InvoiceList({
             testIdPrefix="view-mode"
             className="hidden sm:flex"
           />
-
-          {canCreate && onCreateInvoice && (
-            <Button
-              onClick={onCreateInvoice}
-              className="bg-blue-600 hover:bg-blue-700 text-white shadow-xs text-xs h-8 gap-1.5 cursor-pointer"
-              data-testid="create-invoice-button"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Create Invoice</span>
-            </Button>
-          )}
         </div>
       </div>
 

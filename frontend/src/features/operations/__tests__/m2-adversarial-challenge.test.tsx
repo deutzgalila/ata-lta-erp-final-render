@@ -870,9 +870,9 @@ describe('Milestone 2 Adversarial Challenge Suite (Empirical Challenger 2)', () 
   describe('Target 4: File Upload Size Guard (> 50MB Immediate Rejection)', () => {
     it('4.1 immediately rejects files > 50MB before network request without initiating upload', async () => {
       let uploadCallCount = 0;
-      global.fetch = vi.fn().mockImplementation((url: string) => {
+      global.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
         const u = String(url);
-        if (u.includes('/download-url')) {
+        if (u.includes('/download-url') || u.includes('/me/team')) {
           return Promise.resolve({
             ok: true,
             status: 200,
@@ -884,7 +884,7 @@ describe('Milestone 2 Adversarial Challenge Suite (Empirical Challenger 2)', () 
             }),
           } as Response);
         }
-        uploadCallCount++;
+        if (init?.method && init.method !== 'GET') uploadCallCount++;
         return Promise.resolve({
           ok: true,
           status: 200,

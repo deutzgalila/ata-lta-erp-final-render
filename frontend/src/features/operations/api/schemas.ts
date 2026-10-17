@@ -79,8 +79,18 @@ export const requestStatusEnum = z.enum(['pending', 'fulfilled', 'rejected', 'ca
 export const recurrenceTypeEnum = z.enum(['none', 'annual']);
 
 export const documentCategoryEnum = z.enum([
+  'Owner Details',
+  'Business Details',
   'SEC',
+  'City Hall',
   'BIR',
+  'SSS',
+  'PhilHealth',
+  'Pag-IBIG',
+  'IPO',
+  'FDA',
+  'Labor',
+  'Others',
   'CONTRACT',
   'PERMIT',
   'FINANCIAL',
@@ -355,6 +365,21 @@ export const retainerTemplateSchema = z.object({
   tasks: z.array(retainerTemplateTaskSchema).optional().default([]),
 });
 
+export const generateRetainerTemplateTaskOverrideSchema = z.object({
+  local_id: z.string().min(1).optional(),
+  localId: z.string().min(1).optional(),
+  title: z.string().min(1).max(255).optional(),
+  description: z.string().max(2000).optional().nullable(),
+  phase: z.enum(['pre_processing', 'processing']).optional(),
+  assignees: z.array(z.string()).optional(),
+  assigneeId: z.string().optional().nullable(),
+  coAssignees: z.array(z.string()).optional(),
+  depends_on: z.string().optional().nullable(),
+  dependsOn: z.string().optional().nullable(),
+  dueDate: z.string().optional().nullable(),
+  due_date: z.string().optional().nullable(),
+});
+
 export const generateRetainerTemplateSchema = z.object({
   period_label: z.string().trim().min(1).max(50).optional().nullable(),
   periodLabel: z.string().trim().min(1).max(50).optional().nullable(),
@@ -371,6 +396,7 @@ export const generateRetainerTemplateSchema = z.object({
       co_assignees: z.array(z.string()).optional(),
       dueDate: z.string().optional().nullable(),
       due_date: z.string().optional().nullable(),
+      tasks: z.array(generateRetainerTemplateTaskOverrideSchema).optional(),
     })
     .optional(),
 });

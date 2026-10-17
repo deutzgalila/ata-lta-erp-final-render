@@ -20,7 +20,7 @@ const DocumentsPage = lazy(() => import('@/routes/documents'));
 const ReportsPage = lazy(() => import('@/routes/reports'));
 const ClientsPage = lazy(() => import('@/routes/clients'));
 const AdminPage = lazy(() => import('@/routes/admin'));
-const KitchenSinkPage = lazy(() => import('@/routes/_kitchen-sink'));
+const ProfilePage = lazy(() => import('@/routes/profile'));
 
 function RouteLoadingFallback() {
   return (
@@ -154,7 +154,7 @@ export function AppContent() {
           <Route
             path="/reports"
             element={
-              <RouteGuard requiredPermission="reports:view">
+              <RouteGuard adminOnly requiredPermission="reports:view">
                 <Suspense fallback={<RouteLoadingFallback />}>
                   <ReportsPage />
                 </Suspense>
@@ -181,13 +181,11 @@ export function AppContent() {
               </RouteGuard>
             }
           />
-
-          {/* Dev-only Kitchen Sink Route */}
           <Route
-            path="/dev/kitchen-sink"
+            path="/profile"
             element={
               <Suspense fallback={<RouteLoadingFallback />}>
-                <KitchenSinkPage />
+                <ProfilePage />
               </Suspense>
             }
           />

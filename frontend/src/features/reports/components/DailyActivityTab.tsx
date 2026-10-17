@@ -1,3 +1,4 @@
+import { DateInput } from '@/components/ui/date-input';
 import { useState } from 'react';
 import {
   Calendar,
@@ -12,7 +13,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import {
   Table,
   TableHeader,
@@ -64,11 +64,12 @@ export function DailyActivityTab() {
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-xs">
             <span className="text-xs font-semibold text-slate-600">Date:</span>
-            <Input
+            <DateInput
+              aria-label="Report date"
               type="date"
               value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value || getTodayString())}
-              className="h-7 text-xs w-36 border-none bg-transparent shadow-none p-0 focus-visible:ring-0"
+              onValueChange={(value) => setSelectedDate(value || getTodayString())}
+              className="h-7 text-xs w-44"
               data-testid="daily-date-picker"
             />
           </div>

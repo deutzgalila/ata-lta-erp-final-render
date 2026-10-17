@@ -36,8 +36,8 @@ export const operationsKeys = {
 
   // --- Retainer Templates ---
   templates: () => [...operationsKeys.all, 'templates'] as const,
-  templatesList: (entity: string | null) =>
-    [...operationsKeys.templates(), 'list', entity] as const,
+  templatesList: (entity: string | null, type?: 'retainer' | 'other' | string) =>
+    [...operationsKeys.templates(), 'list', entity, type ?? 'all'] as const,
   templateDetail: (id: string) => [...operationsKeys.templates(), 'detail', id] as const,
 
   // --- Documents (DMS) ---

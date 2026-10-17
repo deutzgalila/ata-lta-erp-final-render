@@ -33,6 +33,7 @@ import { RejectReasonModal } from '@/features/operations/components/RejectReason
 import { DisbursementPrintModal } from './DisbursementPrintModal';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
+import { isUserAdmin } from '@/features/operations/lib/taskScope';
 import { disbursementKeys } from '../api/queryKeys';
 import { PresenceAvatars } from '@/components/common/PresenceAvatars';
 import {
@@ -55,8 +56,10 @@ export function DisbursementDetailDrawer({
   onClose,
 }: DisbursementDetailDrawerProps) {
   const queryClient = useQueryClient();
+  const user = useSessionStore((state) => state.user);
   const permissions = useSessionStore((state) => state.permissions);
-  const canApprove = hasPermission(permissions, 'disbursement:approve');
+  const isAdmin = isUserAdmin(user);
+  const canApprove = hasPermission(permissions, 'disbursement:approve') || isAdmin;
   const canRelease = hasPermission(permissions, 'disbursement:mark_released');
 
   const { data: item, isLoading } = useDisbursementDetail(id ?? undefined, {
@@ -370,19 +373,33 @@ export function DisbursementDetailDrawer({
 
             {/* Contextual Action Bar */}
             <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
-              {/* Draft -> Submit */}
+              {/* Draft -> Direct Approve (Admin) vs Submit for Approval (Non-Admin) */}
               {item.status === 'Draft' && (
-                <Button
-                  type="button"
-                  variant="default"
-                  size="sm"
-                  onClick={handleSubmit}
-                  className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-medium"
-                  data-testid="drawer-submit-btn"
-                >
-                  <Send className="h-3.5 w-3.5 mr-1" />
-                  Submit for Approval
-                </Button>
+                isAdmin ? (
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                    onClick={handleApprove}
+                    className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                    data-testid="drawer-direct-approve-btn"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                    Direct Approve
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="sm"
+                    onClick={handleSubmit}
+                    className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                    data-testid="drawer-submit-btn"
+                  >
+                    <Send className="h-3.5 w-3.5 mr-1" />
+                    Submit for Approval
+                  </Button>
+                )
               )}
 
               {/* Pending -> Approve / Reject */}

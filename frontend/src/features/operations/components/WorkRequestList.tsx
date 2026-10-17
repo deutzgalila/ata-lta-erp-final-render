@@ -18,6 +18,7 @@ import {
   Building,
   ChevronDown,
   Check,
+  User,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -173,12 +174,17 @@ export function WorkRequestList({
       // Client Filter
       if (clientFilter !== 'all' && wr.clientId !== clientFilter) return false;
 
-      // Assignee Filter
+      // Assignee Filter (Task B.10: Multi-dimensional)
       if (assigneeFilter !== 'all') {
         if (assigneeFilter === 'unassigned') {
           if (wr.assignedTo) return false;
         } else {
-          if (wr.assignedTo !== assigneeFilter) return false;
+          const isManager = wr.assignedTo === assigneeFilter;
+          const isCoAssignee = Array.isArray(wr.coAssignees) && wr.coAssignees.includes(assigneeFilter);
+          const isTaskAssignee = Array.isArray(wr.tasks) && wr.tasks.some((t) =>
+            t.assigneeId === assigneeFilter || (Array.isArray(t.assignees) && t.assignees.includes(assigneeFilter))
+          );
+          if (!isManager && !isCoAssignee && !isTaskAssignee) return false;
         }
       }
 
@@ -565,6 +571,24 @@ export function WorkRequestList({
             </SelectContent>
           </Select>
 
+          {/* Assigned to Me Toggle (Task B.10) */}
+          {user?.id && (
+            <Button
+              type="button"
+              variant={assigneeFilter === user.id ? 'default' : 'outline'}
+              size="xs"
+              onClick={() => {
+                setAssigneeFilter(assigneeFilter === user.id ? 'all' : user.id);
+                setPage(1);
+              }}
+              className="h-7 text-[11px] gap-1 shrink-0"
+              data-testid="assigned-to-me-btn"
+            >
+              <User className="h-3 w-3" />
+              Assigned to Me
+            </Button>
+          )}
+
           {/* Due Date Filter */}
           <Select
             value={dateFilter}
@@ -780,7 +804,9 @@ export function WorkRequestList({
                     {/* Client & Entity */}
                     <TableCell className="text-xs text-slate-700">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-medium">{wr.clientName || '—'}</span>
+                        <span className="font-medium">
+                          {wr.clientName || clients.find((c) => c.id === wr.clientId)?.name || '—'}
+                        </span>
                         <Badge variant={wr.entity === 'LTA' ? 'lta' : 'ata'} size="compact">
                           {wr.entity}
                         </Badge>
@@ -931,7 +957,7 @@ export function WorkRequestList({
                         </Button>
 
                         {/* Edit */}
-                        {canEdit && onEdit && (
+                        {canEdit && onEdit && wr.status !== 'Completed' && wr.phase !== 'completion' && (
                           <Button
                             type="button"
                             variant="ghost"
@@ -1033,7 +1059,9 @@ export function WorkRequestList({
                     </h4>
                     <div className="flex items-center gap-1.5 text-xs text-slate-500">
                       <Building className="h-3 w-3" />
-                      <span className="truncate max-w-40">{wr.clientName || '—'}</span>
+                      <span className="truncate max-w-40">
+                        {wr.clientName || clients.find((c) => c.id === wr.clientId)?.name || '—'}
+                      </span>
                       <Badge variant={wr.entity === 'LTA' ? 'lta' : 'ata'} size="compact">
                         {wr.entity}
                       </Badge>
@@ -1107,7 +1135,7 @@ export function WorkRequestList({
                   </div>
 
                   <div className="flex items-center gap-1">
-                    {onEdit && canEdit && (
+                    {onEdit && canEdit && wr.status !== 'Completed' && wr.phase !== 'completion' && (
                       <Button
                         type="button"
                         variant="ghost"

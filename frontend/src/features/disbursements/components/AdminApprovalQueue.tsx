@@ -8,7 +8,6 @@ import {
   FileText,
   User,
   Building,
-  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,13 +32,22 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
   const [rejectingItem, setRejectingItem] = useState<Disbursement | null>(null);
 
   const permissions = useSessionStore((state) => state.permissions);
+  const currentUser = useSessionStore((state) => state.user);
   const canApprove = hasPermission(permissions, 'disbursement:approve');
 
   // Query pending items
   const { data: response, isLoading } = useDisbursementsList({
     status: 'Pending',
   });
-  const items = useMemo(() => response?.data ?? [], [response]);
+  const items = useMemo(() => {
+    const raw = response?.data ?? [];
+    if (canApprove) return raw;
+    return raw.filter((item) => {
+      const creator = item.created_by || item.createdBy;
+      const emp = item.employee_id || item.employeeId;
+      return (creator && creator === currentUser?.id) || (emp && emp === currentUser?.id);
+    });
+  }, [response, canApprove, currentUser?.id]);
 
   // Mutations
   const { approveWithBlocking } = useApproveDisbursement();
@@ -71,23 +79,6 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
     }
   };
 
-  if (!canApprove) {
-    return (
-      <div
-        className="p-8 text-center bg-slate-50 border border-slate-200 rounded-xl"
-        data-testid="admin-approval-queue-unauthorized"
-      >
-        <AlertTriangle className="h-10 w-10 text-amber-500 mx-auto mb-3" />
-        <h3 className="text-sm font-bold text-slate-800">Admin Clearance Required</h3>
-        <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-          The Pending Approvals queue is reserved for administrators holding the{' '}
-          <span className="font-mono text-slate-700 font-semibold">disbursement:approve</span>{' '}
-          permission.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4" data-testid="admin-approval-queue">
       {/* Header bar */}
@@ -95,17 +86,19 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
         <div>
           <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
             <Clock className="h-5 w-5 text-amber-600" />
-            Admin Approval Queue
+            {canApprove ? 'Admin Approval Queue' : 'My Submitted Approvals'}
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Review and adjudicate pending disbursement requests. Approved vouchers proceed to funds release.
+            {canApprove
+              ? 'Review and adjudicate pending disbursement requests. Approved vouchers proceed to funds release.'
+              : 'View status of your submitted disbursement vouchers awaiting administrative approval.'}
           </p>
         </div>
         <div className="relative w-full sm:w-64">
           <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-slate-400" />
           <Input
             type="text"
-            placeholder="Search pending vouchers..."
+            placeholder={canApprove ? 'Search pending vouchers...' : 'Search my submissions...'}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-8 text-xs h-8"
@@ -126,9 +119,13 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
           data-testid="pending-queue-empty"
         >
           <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto mb-3" />
-          <h3 className="text-sm font-bold text-slate-800">Queue is Clear</h3>
+          <h3 className="text-sm font-bold text-slate-800">
+            {canApprove ? 'Queue is Clear' : 'No Pending Submissions'}
+          </h3>
           <p className="text-xs text-slate-500 mt-1">
-            There are no pending disbursements requiring administrative review.
+            {canApprove
+              ? 'There are no pending disbursements requiring administrative review.'
+              : 'You do not have any pending disbursement vouchers awaiting approval.'}
           </p>
         </div>
       ) : (
@@ -216,28 +213,32 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
                       View Details
                     </Button>
                   )}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setRejectingItem(item)}
-                    className="text-xs h-7 text-rose-600 border-rose-200 hover:bg-rose-50"
-                    data-testid={`reject-btn-${item.id}`}
-                  >
-                    <XCircle className="h-3.5 w-3.5 mr-1 text-rose-600" />
-                    Reject
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="default"
-                    size="sm"
-                    onClick={() => handleApprove(item)}
-                    className="text-xs h-7 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
-                    data-testid={`approve-btn-${item.id}`}
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                    Approve
-                  </Button>
+                  {canApprove && (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setRejectingItem(item)}
+                        className="text-xs h-7 text-rose-600 border-rose-200 hover:bg-rose-50"
+                        data-testid={`reject-btn-${item.id}`}
+                      >
+                        <XCircle className="h-3.5 w-3.5 mr-1 text-rose-600" />
+                        Reject
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="default"
+                        size="sm"
+                        onClick={() => handleApprove(item)}
+                        className="text-xs h-7 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                        data-testid={`approve-btn-${item.id}`}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                        Approve
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             );
