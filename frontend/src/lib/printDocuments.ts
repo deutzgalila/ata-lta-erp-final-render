@@ -349,7 +349,8 @@ export function printableTransmittalItems<T extends { description?: string | nul
 }
 
 const TRANSMITTAL_CSS = `
-@page { size: letter; margin: 12mm 15mm; }
+@page { size: letter; margin: 0; }
+@media print { body { padding: 12mm 15mm; box-sizing: border-box; } }
 body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0; color: #000; background-color: #fff; font-size: 10pt; line-height: 1.35; }
 .container { width: 100%; max-width: 680px; margin: 0 auto; position: relative; }
 .header-table { width: 100%; border: 2px solid #000; border-collapse: collapse; margin-bottom: 15px; table-layout: fixed; }
@@ -427,12 +428,8 @@ export function printTransmittalDocument(t: TransmittalPrintData, options: Trans
   /* Signature / stamp from acknowledgment */
   let sigName = '';
   let sigDate = '';
-  let stampDateStr = '';
   if (t.status === 'Acknowledged' && t.acknowledged_at) {
     const stampDateObj = new Date(t.acknowledged_at);
-    stampDateStr = stampDateObj
-      .toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })
-      .toUpperCase();
     if (t.received_by_name) {
       sigName = t.received_by_name.toUpperCase();
       sigDate = `${stampDateObj.getMonth() + 1}/${stampDateObj.getDate()}/${String(
@@ -498,11 +495,6 @@ export function printTransmittalDocument(t: TransmittalPrintData, options: Trans
     `</tr></thead>` +
     `<tbody>${rowsHtml}</tbody>` +
     `</table>` +
-    (t.status === 'Acknowledged' && stampDateStr
-      ? `<div class="received-stamp"><div class="stamp-title">RECEIVED</div><div class="stamp-date">${esc(
-          stampDateStr
-        )}</div></div>`
-      : '') +
     `</div>` +
     (t.notes
       ? `<div style="margin: 10px 0; font-style: italic; font-size: 9.5pt; color: #555;">Notes: ${esc(

@@ -128,7 +128,7 @@ describe('Challenger 2 Empirical Verification: SPEC-REALTIME-UAT-REMEDIATION-002
   // TASK 1: activeChannelRegistry Eviction on CHANNEL_ERROR or Unexpected Close
   // =========================================================================
   describe('Task 1: activeChannelRegistry Eviction on CHANNEL_ERROR and Socket Dropouts', () => {
-    it('1.1: Evicts channel from registry on CHANNEL_ERROR and allows fresh reconnection', async () => {
+    it('1.1: Retains subscribers on CHANNEL_ERROR for SDK reconnection', async () => {
       const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const removeChannelSpy = vi.spyOn(supabase, 'removeChannel');
 
@@ -148,8 +148,8 @@ describe('Challenger 2 Empirical Verification: SPEC-REALTIME-UAT-REMEDIATION-002
       });
 
       // Registry entry should be evicted immediately
-      expect(getActiveChannelRegistrySizeForTesting()).toBe(0);
-      expect(removeChannelSpy).toHaveBeenCalledWith(channel);
+      expect(getActiveChannelRegistrySizeForTesting()).toBe(1);
+      expect(removeChannelSpy).not.toHaveBeenCalled();
       expect(warnSpy).toHaveBeenCalledWith(
         '[Realtime] Subscription error (CHANNEL_ERROR) on work_requests:',
         expect.any(Error)
@@ -167,7 +167,7 @@ describe('Challenger 2 Empirical Verification: SPEC-REALTIME-UAT-REMEDIATION-002
       hook2.unmount();
     });
 
-    it('1.2: Evicts channel from registry on TIMED_OUT', async () => {
+    it('1.2: Retains subscribers on TIMED_OUT', async () => {
       vi.spyOn(console, 'warn').mockImplementation(() => {});
       const removeChannelSpy = vi.spyOn(supabase, 'removeChannel');
 
@@ -183,13 +183,13 @@ describe('Challenger 2 Empirical Verification: SPEC-REALTIME-UAT-REMEDIATION-002
         channel.emitStatus('TIMED_OUT', new Error('Gateway timeout'));
       });
 
-      expect(getActiveChannelRegistrySizeForTesting()).toBe(0);
-      expect(removeChannelSpy).toHaveBeenCalledWith(channel);
+      expect(getActiveChannelRegistrySizeForTesting()).toBe(1);
+      expect(removeChannelSpy).not.toHaveBeenCalled();
 
       hook.unmount();
     });
 
-    it('1.3: Evicts channel on abnormal CLOSED (code 1006 / unclean close)', async () => {
+    it('1.3: Schedules recovery on abnormal CLOSED (code 1006 / unclean close)', async () => {
       vi.spyOn(console, 'warn').mockImplementation(() => {});
       const removeChannelSpy = vi.spyOn(supabase, 'removeChannel');
 
@@ -209,8 +209,8 @@ describe('Challenger 2 Empirical Verification: SPEC-REALTIME-UAT-REMEDIATION-002
         channel.emitStatus('CLOSED', abnormalCloseError);
       });
 
-      expect(getActiveChannelRegistrySizeForTesting()).toBe(0);
-      expect(removeChannelSpy).toHaveBeenCalledWith(channel);
+      expect(getActiveChannelRegistrySizeForTesting()).toBe(1);
+      expect(removeChannelSpy).not.toHaveBeenCalled();
 
       hook.unmount();
     });
@@ -262,7 +262,7 @@ describe('Challenger 2 Empirical Verification: SPEC-REALTIME-UAT-REMEDIATION-002
         channel.emitStatus('CHANNEL_ERROR', new Error('Transport dropped'));
       });
 
-      expect(getActiveChannelRegistrySizeForTesting()).toBe(0);
+      expect(getActiveChannelRegistrySizeForTesting()).toBe(1);
 
       // Unmounting subscribers after eviction must not throw
       expect(() => {

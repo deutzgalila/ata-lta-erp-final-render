@@ -1490,6 +1490,7 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
 interface ChannelSubscriptionEntry {
   channel: ReturnType<typeof supabase.channel>;
   subscribers: Set<(payload: unknown) => void>;
+  reconnectTimer?: ReturnType<typeof setTimeout>;
 }
 
 /**
@@ -1523,6 +1524,7 @@ const activeChannelRegistry = new Map<string, ChannelSubscriptionEntry>();
  * Testing helper to reset channel registry state between test suites.
  */
 export function clearChannelRegistryForTesting(): void {
+  for (const entry of activeChannelRegistry.values()) clearTimeout(entry.reconnectTimer);
   activeChannelRegistry.clear();
   processedNotificationEvents.clear();
 }
@@ -1567,59 +1569,64 @@ export function useEntityRealtimeSync<T = Record<string, unknown>>(
     let entry = activeChannelRegistry.get(registryKey);
 
     if (!entry) {
-      // First component subscribing: create Supabase channel and bind single listener
-      const channel = supabase.channel(channelName);
+      const subscribers = new Set<(payload: unknown) => void>();
+      let reconnectAttempt = 0;
+      const connect = () => {
+        // First component subscribing: create Supabase channel and bind single listener
+        const channel = supabase.channel(channelName);
 
-      channel.on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: options.table,
-          ...(options.filter ? { filter: options.filter } : {}),
-        },
-        (payload) => {
-          const currentEntry = activeChannelRegistry.get(registryKey);
-          if (currentEntry) {
-            for (const subCallback of currentEntry.subscribers) {
-              try {
-                subCallback(payload);
-              } catch (err) {
-                console.error('[Realtime] Error in subscriber callback:', err);
+        channel.on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: options.table,
+            ...(options.filter ? { filter: options.filter } : {}),
+          },
+          (payload) => {
+            const currentEntry = activeChannelRegistry.get(registryKey);
+            if (currentEntry?.channel === channel) {
+              for (const subCallback of currentEntry.subscribers) {
+                try {
+                  subCallback(payload);
+                } catch (err) {
+                  console.error('[Realtime] Error in subscriber callback:', err);
+                }
               }
             }
           }
-        }
-      );
+        );
 
-      channel.subscribe((status, err) => {
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          const errObj = err as { message?: string; cause?: { code?: number; wasClean?: boolean } } | undefined;
-          const isCleanClose =
-            status === 'CLOSED' &&
-            (errObj?.cause?.code === 1000 ||
-              errObj?.cause?.code === 1001 ||
-              errObj?.cause?.wasClean === true ||
-              errObj?.message?.includes('socket closed: 1000') ||
-              errObj?.message?.includes('socket closed: 1001'));
-
-          if (!isCleanClose) {
-            console.warn(`[Realtime] Subscription error (${status}) on ${options.table}:`, err);
-            // Evict dead channel from activeChannelRegistry so subsequent mounts establish a fresh channel
-            const currentEntry = activeChannelRegistry.get(registryKey);
-            if (currentEntry && currentEntry.channel === channel) {
-              activeChannelRegistry.delete(registryKey);
-              void supabase.removeChannel(channel);
-            }
+        const newEntry: ChannelSubscriptionEntry = { channel, subscribers };
+        activeChannelRegistry.set(registryKey, newEntry);
+        channel.subscribe((status, err) => {
+          // Ignore late callbacks from channels intentionally removed/replaced.
+          if (activeChannelRegistry.get(registryKey) !== newEntry) return;
+          if (status === 'SUBSCRIBED') {
+            clearTimeout(newEntry.reconnectTimer);
+            newEntry.reconnectTimer = undefined;
+            reconnectAttempt = 0;
+            return;
           }
-        }
-      });
-
-      entry = {
-        channel,
-        subscribers: new Set(),
+          const error = err as { message?: string; cause?: { code?: number; wasClean?: boolean } } | undefined;
+          const cleanClose = error?.cause?.wasClean || [1000, 1001].includes(error?.cause?.code ?? 0) || /socket closed: 100[01]/.test(error?.message || '');
+          if ((status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') && !cleanClose) {
+            console.warn(`[Realtime] Subscription error (${status}) on ${options.table}:`, err);
+          }
+          // Transport errors/timeouts are retried by the SDK. Removing the channel
+          // here destroys its subscribers and prevents that automatic recovery.
+          if (status === 'CLOSED' && !newEntry.reconnectTimer) {
+            newEntry.reconnectTimer = setTimeout(() => {
+              if (activeChannelRegistry.get(registryKey) !== newEntry || !subscribers.size) return;
+              void supabase.removeChannel(channel).then(() => {
+                if (subscribers.size && activeChannelRegistry.get(registryKey) === newEntry) connect();
+              });
+            }, Math.min(1000 * 2 ** reconnectAttempt++, 30000));
+          }
+        });
+        return newEntry;
       };
-      activeChannelRegistry.set(registryKey, entry);
+      entry = connect();
     }
 
     // Register this component's callback
@@ -1627,12 +1634,13 @@ export function useEntityRealtimeSync<T = Record<string, unknown>>(
 
     // Teardown: unregister callback and remove channel ONLY when last subscriber unmounts
     return () => {
+      entry.subscribers.delete(handlePayload);
       const currentEntry = activeChannelRegistry.get(registryKey);
       if (currentEntry) {
-        currentEntry.subscribers.delete(handlePayload);
 
         if (currentEntry.subscribers.size === 0) {
           activeChannelRegistry.delete(registryKey);
+          clearTimeout(currentEntry.reconnectTimer);
           void supabase.removeChannel(currentEntry.channel);
         }
       }

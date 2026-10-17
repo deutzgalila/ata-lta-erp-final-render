@@ -98,6 +98,27 @@ export interface RequestOptions extends RequestInit {
   skipAuth?: boolean;
 }
 
+let refreshInFlight: Promise<string | null> | null = null;
+
+function refreshAccessToken(): Promise<string | null> {
+  if (refreshInFlight) return refreshInFlight;
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return Promise.resolve(null);
+  refreshInFlight = (async () => {
+    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (!response.ok) return null;
+    const { data } = await response.json() as { data: { accessToken: string; refreshToken?: string } };
+    // Do not restore a session that was signed out while refresh was pending.
+    if (getRefreshToken() !== refreshToken) return getToken();
+    setTokens(data.accessToken, data.refreshToken);
+    return data.accessToken;
+  })().finally(() => { refreshInFlight = null; });
+  return refreshInFlight;
+}
+
 export async function apiRequest<T = unknown>(
   path: string,
   options: RequestOptions = {}
@@ -147,49 +168,29 @@ export async function apiRequest<T = unknown>(
 
   // Handle 401 with token refresh attempt (Spec 3.2, R6)
   if (res.status === 401 && !path.startsWith('/auth/')) {
-    const refreshToken = getRefreshToken();
-    if (refreshToken) {
-      try {
-        const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken }),
-        });
-
-        if (refreshRes.ok) {
-          const refreshJson = (await refreshRes.json()) as {
-            data: { accessToken: string; refreshToken?: string };
-          };
-          const { accessToken, refreshToken: newRefresh } = refreshJson.data;
-          setTokens(accessToken, newRefresh);
-          headers['Authorization'] = `Bearer ${accessToken}`;
-
-          res = await fetch(url, {
-            ...options,
-            cache: 'no-cache',
-            headers,
-          });
-
-          if (res.status !== 401) {
-            if (res.status === 204) {
-              return null as T;
-            }
-            return (await res.json()) as T;
-          }
-        }
-      } catch (refreshErr) {
-        console.error('[api] Refresh failed:', refreshErr);
+    try {
+      // Concurrent 401s share one refresh; late responses use the rotated token.
+      const latestToken = getToken();
+      const accessToken = latestToken && latestToken !== token ? latestToken : await refreshAccessToken();
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+        res = await fetch(url, { ...options, cache: 'no-cache', headers });
       }
+    } catch (refreshError) {
+      // Preserve the session on a temporary network failure.
+      throw refreshError;
     }
 
-    // Refresh failed or retry returned 401 -> logout & redirect (R6)
-    clearTokens();
-    useSessionStore.getState().clearSession();
-    queryClient.clear();
-    if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-      window.location.href = '/login';
+    if (res.status === 401) {
+      // Refresh failed or retry returned 401 -> logout & redirect (R6)
+      clearTokens();
+      useSessionStore.getState().clearSession();
+      queryClient.clear();
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+      throw new ApiError(401, 'Unauthorized', 'Session expired. Please sign in again.');
     }
-    throw new ApiError(401, 'Unauthorized', 'Session expired. Please sign in again.');
   }
 
   if (!res.ok) {

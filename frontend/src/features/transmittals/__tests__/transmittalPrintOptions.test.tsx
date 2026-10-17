@@ -24,6 +24,14 @@ function capturePrint() {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe('Transmittal company options and complete print manifest', () => {
+  it('omits the received stamp from final PDF HTML while retaining acknowledgment signature details', () => {
+    const printed = capturePrint();
+    printTransmittalDocument({ ...transmittal, status: 'Acknowledged', acknowledged_at: '2026-10-12', received_by_name: 'Recipient' });
+    expect(printed().querySelector('.received-stamp')).toBeNull();
+    expect(printed().querySelector('.sig-name')?.textContent).toBe('RECIPIENT');
+    expect(printed().querySelector('style')?.textContent).toContain('@page { size: letter; margin: 0; }');
+  });
+
   it('uses edited company details in preview and escaped final print/PDF HTML', () => {
     const printed = capturePrint();
     render(<TransmittalPrintModal isOpen transmittal={transmittal} onClose={vi.fn()} />);
