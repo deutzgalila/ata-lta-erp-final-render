@@ -501,6 +501,74 @@ describe('Disbursements UI Components & Integration', () => {
       });
 
       expect(dispatchedBody!.receiptFilename).toBe('receipt.pdf');
+      expect(dispatchedBody!.receiptS3Key).toMatch(/^disbursements\/receipts\/.*receipt\.pdf$/);
+    });
+
+    it('prompts soft-warning when storage upload fails despite selecting a receipt file', async () => {
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      const storageSpy = vi.spyOn(supabase.storage, 'from').mockReturnValue({
+        upload: vi.fn().mockResolvedValue({ data: null, error: new Error('Storage network unreachable') }),
+        remove: vi.fn().mockResolvedValue({ data: [], error: null }),
+        getPublicUrl: vi.fn().mockReturnValue({ data: { publicUrl: '' } }),
+      } as any);
+
+      let dispatched = false;
+      global.fetch = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
+        if (init?.method === 'POST') {
+          dispatched = true;
+          return {
+            ok: true,
+            status: 201,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({ data: { id: 'new-disb' } }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ data: [] }),
+        };
+      });
+
+      const { wrapper } = createHarness();
+      render(
+        <CreateDisbursementModal
+          isOpen={true}
+          onClose={() => {}}
+          defaultWorkRequestId="11111111-1111-1111-1111-111111111111"
+        />,
+        { wrapper }
+      );
+
+      fireEvent.change(screen.getByTestId('input-amount'), { target: { value: '3500' } });
+      fireEvent.change(screen.getByTestId('textarea-description'), {
+        target: { value: 'Consultancy receipt payment' },
+      });
+
+      const dropzone = screen.getByTestId('receipt-dropzone');
+      const testFile = new File(['dummy-receipt-content'], 'receipt.pdf', { type: 'application/pdf' });
+      fireEvent.drop(dropzone, {
+        dataTransfer: {
+          files: [testFile],
+        },
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('receipt-attached-filename')).toHaveTextContent('receipt.pdf');
+      });
+
+      fireEvent.click(screen.getByTestId('submit-create-disbursement-btn'));
+
+      await waitFor(() => {
+        expect(confirmSpy).toHaveBeenCalledWith(
+          'No Government Assessment Document attached. Proceed anyway?'
+        );
+      });
+      expect(dispatched).toBe(false);
+
+      confirmSpy.mockRestore();
+      storageSpy.mockRestore();
     });
 
     it('allows removing an attached receipt before submission', async () => {
