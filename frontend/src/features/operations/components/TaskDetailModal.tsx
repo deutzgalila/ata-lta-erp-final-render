@@ -24,7 +24,6 @@ import {
   CheckSquare,
   User,
   Users,
-  Calendar,
   Plus,
   CheckCircle2,
   AlertCircle,
@@ -729,7 +728,7 @@ export function TaskDetailModal({
           data-testid="task-detail-modal"
         >
           {/* Header */}
-          <DialogHeader className="px-6 py-4 pr-14 border-b border-slate-200 bg-slate-50 flex flex-row items-start justify-between">
+          <DialogHeader className="px-6 py-4 pr-14 border-b border-slate-200 bg-slate-50 flex flex-row flex-wrap gap-3 items-start justify-between">
             <div className="space-y-1.5 pr-6">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge
@@ -839,7 +838,7 @@ export function TaskDetailModal({
             )}
 
             {/* 1. Meta Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(11rem,1.2fr)] lg:grid-cols-[minmax(0,1fr)_minmax(11rem,1.2fr)_minmax(0,1.2fr)_minmax(0,1fr)] gap-3.5 p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
               <div className="min-w-0">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">
                   Primary Assignee
@@ -863,9 +862,8 @@ export function TaskDetailModal({
                   Due Date
                 </span>
                 <div className="flex items-center gap-1.5 font-medium text-slate-800 min-w-0 truncate">
-                  <Calendar className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                   {canEdit ? (
-                    <div className="flex items-center gap-1.5 min-w-0 truncate">
+                    <div className="w-full min-w-0">
                       <DateInput
                         aria-label="Task due date"
                         type="date"
@@ -895,10 +893,10 @@ export function TaskDetailModal({
                               });
                           }
                         }}
-                        className="h-8 w-44 text-xs"
+                        className="h-8 w-full text-xs font-sans tabular-nums [&_.MuiPickersSectionList-root]:text-xs [&_.MuiPickersInputBase-root]:font-sans"
                         data-testid="task-due-date-input"
                       />
-                      {!localDueDate && <span className="text-slate-400 text-xs">Not set</span>}
+                      {!localDueDate && <span className="sr-only">Not set</span>}
                     </div>
                   ) : (
                     <span className="truncate">
@@ -917,7 +915,12 @@ export function TaskDetailModal({
                 <div className="flex items-center gap-1.5 font-medium text-slate-800 min-w-0 truncate">
                   <Clock className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                   <span className="capitalize truncate">
-                    {task.phase?.replace('_', ' ')} • {task.phaseEnteredAt ? new Date(task.phaseEnteredAt).toLocaleDateString() : 'N/A'}
+                    {task.phase?.replace('_', ' ')}
+                    {task.phaseEnteredAt ? (
+                      ` • ${new Date(task.phaseEnteredAt).toLocaleDateString()}`
+                    ) : (
+                      <span className="sr-only"> • N/A</span>
+                    )}
                   </span>
                 </div>
               </div>

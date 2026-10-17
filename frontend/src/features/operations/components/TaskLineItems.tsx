@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  GripVertical,
+  Link2,
   ChevronRight,
   ChevronDown,
   Plus,
@@ -197,7 +197,7 @@ export function TaskLineItems({
           Tasks ({tasks.length})
         </h4>
         <span className="text-[11px] text-slate-400">
-          Notion-style line items • Paste a list — we'll split it
+          Paste a list — we'll split it
         </span>
       </div>
 
@@ -259,11 +259,7 @@ export function TaskLineItems({
               data-testid={`task-row-${task.localId}`}
             >
               {/* Primary Row Controls */}
-              <div className="flex items-center gap-2">
-                {/* Drag handle placeholder */}
-                <div className="text-slate-400 cursor-grab px-0.5">
-                  <GripVertical className="h-4 w-4" />
-                </div>
+              <div className="flex flex-wrap items-center gap-1.5">
 
                 {/* Expand / Collapse Toggle */}
                 <button
@@ -281,11 +277,12 @@ export function TaskLineItems({
                 </button>
 
                 {/* Task Title Input */}
-                <div className="flex-1 min-w-0">
+                <div className="min-w-48 flex-[1_1_12rem]">
                   <Input
                     value={task.title}
                     onChange={(e) => handleUpdateTask(index, 'title', e.target.value)}
-                    placeholder="Task title (paste a list — we'll split it)..."
+                    placeholder="Task title"
+                    aria-label={`Task ${index + 1} title`}
                     disabled={disabled}
                     className="h-8 text-xs bg-white"
                     data-testid={`task-title-input-${task.localId}`}
@@ -293,7 +290,7 @@ export function TaskLineItems({
                 </div>
 
                 {/* Phase Badge / Selector (immutable in edit mode) */}
-                <div className="w-28 shrink-0">
+                <div className="w-24 shrink-0">
                   <Select
                     value={task.phase}
                     onValueChange={(val) =>
@@ -301,8 +298,8 @@ export function TaskLineItems({
                     }
                     disabled={disabled || Boolean(task.id)}
                   >
-                    <SelectTrigger className="h-8 text-[11px] bg-white">
-                      <SelectValue />
+                    <SelectTrigger className="h-8 text-xs bg-white px-2" aria-label="Task phase">
+                      <SelectValue>{task.phase === 'pre_processing' ? 'Pre-process' : 'Processing'}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem
@@ -320,7 +317,7 @@ export function TaskLineItems({
                 </div>
 
                 {/* Primary Assignee Dropdown */}
-                <div className="w-36 shrink-0">
+                <div className="w-28 shrink-0">
                   <Select
                     value={task.assigneeId || 'unassigned'}
                     onValueChange={(val) => {
@@ -329,11 +326,11 @@ export function TaskLineItems({
                     }}
                     disabled={disabled}
                   >
-                    <SelectTrigger className="h-8 text-[11px] bg-white">
+                    <SelectTrigger className="h-8 text-xs bg-white px-2 [&>span]:truncate" aria-label="Primary assignee">
                       <SelectValue placeholder="Assignee" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="unassigned">— Unassigned —</SelectItem>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
                       {projectTeam.map((m) => (
                         <SelectItem key={m.id} value={m.id} className="text-xs">
                           {m.name}
@@ -350,7 +347,8 @@ export function TaskLineItems({
                     value={task.dueDate || ''}
                     onChange={(e) => handleUpdateTask(index, 'dueDate', e.target.value || null)}
                     disabled={disabled}
-                    className="h-8 text-[11px] bg-white px-2"
+                    className="h-8 text-xs font-sans tabular-nums bg-white px-1.5"
+                    aria-label="Task due date"
                     title="Task Due Date"
                     data-testid={`task-due-date-input-${task.localId}`}
                   />
@@ -366,16 +364,19 @@ export function TaskLineItems({
                       )
                     }
                     disabled={disabled}
-                    className="h-8 px-2 min-w-44 max-w-56 truncate text-[11px] font-normal border border-slate-200 rounded-md bg-white text-slate-600 hover:bg-slate-50 flex items-center gap-1 focus:outline-none"
+                    className="h-8 px-2 shrink-0 text-xs font-normal border border-slate-200 rounded-md bg-white text-slate-600 hover:bg-slate-50 flex items-center gap-1 focus:outline-none"
                     data-testid={`task-dep-btn-${task.localId}`}
-                    title={depDisplayText}
+                    title={`Dependencies: ${depDisplayText}`}
+                    aria-label={`Dependencies: ${depDisplayText}`}
+                    aria-expanded={activeDepDropdown === task.localId}
                   >
-                    <span className="truncate">{depDisplayText}</span>
+                    <Link2 className="h-3.5 w-3.5" />
+                    <span>{currentDeps.includes('*') ? 'All' : currentDeps.length || '—'}</span>
                   </button>
 
                   {/* Dependency Dropdown Popover */}
                   {activeDepDropdown === task.localId && (
-                    <div className="absolute right-0 top-9 z-50 w-80 p-2 bg-white rounded-md shadow-lg border border-slate-200 text-xs space-y-1">
+                    <div className="absolute right-0 top-9 z-50 w-80 max-w-[calc(100vw-3rem)] p-2 bg-white rounded-md shadow-lg border border-slate-200 text-xs space-y-1">
                       <div className="font-semibold text-slate-500 pb-1 border-b text-[10px] uppercase">
                         Select Predecessor Tasks
                       </div>

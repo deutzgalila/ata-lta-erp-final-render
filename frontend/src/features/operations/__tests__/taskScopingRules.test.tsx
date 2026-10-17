@@ -263,6 +263,21 @@ describe('TaskDetailModal UI Scoping Integration', () => {
     expect(screen.getByTestId('task-upload-doc-btn')).toBeInTheDocument();
   });
 
+  it.each(['Draft', 'Assigned'] as const)('offers both status actions for an owned %s task', (status) => {
+    useSessionStore.getState().setSession({
+      user: userAssignedStaff,
+      permissions: ['workflow:view', 'workflow:edit'],
+      activeEntity: 'ATA',
+    });
+    render(<TaskDetailModal isOpen onClose={vi.fn()} task={{ ...mockTask, status }} workRequest={mockWr} />,
+      { wrapper: createWrapper() });
+    const start = screen.getByTestId('task-status-inprogress-btn');
+    const complete = screen.getByTestId('task-toggle-status-btn');
+    expect(start).toHaveTextContent('Mark In Progress');
+    expect(complete).toHaveTextContent('Mark Completed');
+    expect(start.parentElement).toBe(complete.parentElement);
+  });
+
   it('HIDES status, log time, and upload buttons for unassigned manager', async () => {
     useSessionStore.getState().setSession({
       user: userUnassignedManager,
