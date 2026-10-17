@@ -350,8 +350,8 @@ export function printableTransmittalItems<T extends { description?: string | nul
 
 const TRANSMITTAL_CSS = `
 @page { size: letter; margin: 0; }
-@media print { body { padding: 12mm 15mm; box-sizing: border-box; } }
 body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0; color: #000; background-color: #fff; font-size: 10pt; line-height: 1.35; }
+@media print { body { padding-top: 8mm; box-sizing: border-box; } }
 .container { width: 100%; max-width: 680px; margin: 0 auto; position: relative; }
 .header-table { width: 100%; border: 2px solid #000; border-collapse: collapse; margin-bottom: 15px; table-layout: fixed; }
 .header-table td { border: 2px solid #000; padding: 6px 10px; vertical-align: top; word-break: break-word; word-break: break-all; overflow-wrap: anywhere; box-sizing: border-box; }
