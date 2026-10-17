@@ -87,18 +87,42 @@ const PRESERVED_TABLES = new Set([
 ]);
 
 async function listAllStorageFiles(supabase, bucket, folder = '') {
-  const { data, error } = await supabase.storage.from(bucket).list(folder);
-  if (error || !data) return [];
+  const limit = 100;
+  let offset = 0;
   let files = [];
-  for (const item of data) {
-    const itemPath = folder ? `${folder}/${item.name}` : item.name;
-    if (item.id === null) {
-      const nested = await listAllStorageFiles(supabase, bucket, itemPath);
-      files.push(...nested);
-    } else {
-      files.push(itemPath);
+
+  while (true) {
+    const { data, error } = await supabase.storage.from(bucket).list(folder, {
+      limit,
+      offset,
+      sortBy: { column: 'name', order: 'asc' },
+    });
+
+    if (error) {
+      throw new Error(`Failed to list storage objects in bucket "${bucket}" at path "${folder || '/'}" (offset ${offset}): ${error.message}`);
     }
+
+    if (!data || data.length === 0) {
+      break;
+    }
+
+    for (const item of data) {
+      const itemPath = folder ? `${folder}/${item.name}` : item.name;
+      if (item.id === null) {
+        const nested = await listAllStorageFiles(supabase, bucket, itemPath);
+        files.push(...nested);
+      } else {
+        files.push(itemPath);
+      }
+    }
+
+    if (data.length < limit) {
+      break;
+    }
+
+    offset += limit;
   }
+
   return files;
 }
 
