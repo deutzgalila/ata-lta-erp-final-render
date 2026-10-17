@@ -20,6 +20,7 @@ import {
   Send,
   XCircle,
   Printer,
+  Pencil,
 } from 'lucide-react';
 import {
   useDisbursementDetail,
@@ -27,11 +28,14 @@ import {
   useApproveDisbursement,
   useRejectDisbursement,
   useFundDisbursement,
+  useDisbursementReceiptUrl,
 } from '../api/useDisbursements';
 import { DisbursementStatusBadge } from './DisbursementStatusBadge';
 import { ReleaseFundsModal } from './FundsReleaseActions';
 import { RejectReasonModal } from '@/features/operations/components/RejectReasonModal';
 import { DisbursementPrintModal } from './DisbursementPrintModal';
+import { AdminApprovalModal } from './AdminApprovalModal';
+import { EditPaymentDetailsModal } from './EditPaymentDetailsModal';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
 import { isUserAdmin } from '@/features/operations/lib/taskScope';
@@ -82,11 +86,28 @@ export function DisbursementDetailDrawer({
   const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
+  const [isEditPaymentModalOpen, setIsEditPaymentModalOpen] = useState(false);
   const [conflictModalState, setConflictModalState] = useState<{
     isOpen: boolean;
     error?: unknown;
     attemptedStatus?: string | null;
   }>({ isOpen: false });
+
+  const { data: receiptData, isLoading: isLoadingReceipt } = useDisbursementReceiptUrl(
+    item?.id,
+    {
+      enabled:
+        isOpen &&
+        Boolean(item?.id) &&
+        Boolean(
+          item?.receipt_filename ||
+          item?.receiptFilename ||
+          item?.receipt_s3_key ||
+          item?.receiptS3Key
+        ),
+    }
+  );
 
   if (!isOpen) return null;
 
@@ -252,11 +273,13 @@ export function DisbursementDetailDrawer({
               </div>
               <div className="space-y-1">
                 <span className="text-slate-500 block text-[11px]">Linked Work Request</span>
-                <span className="font-mono text-slate-800 flex items-center gap-1">
+                <span className="font-mono text-slate-800 flex items-center gap-1" data-testid="drawer-work-request">
                   <FileText className="h-3 w-3 text-slate-400" />
-                  {item.linked_work_request_name ||
-                    item.linked_work_request_order_number ||
-                    (workRequestId ? `${workRequestId.slice(0, 18)}...` : 'None')}
+                  {item.linked_work_request_order_number && item.linked_work_request_name
+                    ? `${item.linked_work_request_order_number} — ${item.linked_work_request_name}`
+                    : item.linked_work_request_name ||
+                      item.linked_work_request_order_number ||
+                      (workRequestId ? 'Work Request Linked' : 'None')}
                 </span>
               </div>
               <div className="space-y-1">
@@ -287,53 +310,105 @@ export function DisbursementDetailDrawer({
             )}
 
             {/* Receipt Attachment */}
-            {(item.receipt_filename || item.receiptFilename) && (
-              <div className="p-3 bg-blue-50/60 border border-blue-200/80 rounded-md flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Receipt className="h-4 w-4 text-blue-600" />
-                  <div>
-                    <span className="font-medium text-blue-900 block">
-                      {item.receipt_filename || item.receiptFilename}
-                    </span>
-                    {(item.receipt_s3_key || item.receiptS3Key) && (
-                      <span className="font-mono text-[10px] text-blue-600">
-                        {item.receipt_s3_key || item.receiptS3Key}
+            {(item.receipt_filename || item.receiptFilename || item.receipt_s3_key || item.receiptS3Key) && (
+              <div className="p-3 bg-blue-50/60 border border-blue-200/80 rounded-md space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Receipt className="h-4 w-4 text-blue-600" />
+                    <div>
+                      <span className="font-medium text-blue-900 block text-xs">
+                        {item.receipt_filename || item.receiptFilename || 'Supporting Document'}
                       </span>
-                    )}
+                      {(item.receipt_s3_key || item.receiptS3Key) && (
+                        <span className="font-mono text-[10px] text-blue-600 block">
+                          {item.receipt_s3_key || item.receiptS3Key}
+                        </span>
+                      )}
+                    </div>
                   </div>
+
+                  {/* Receipt Action / Status */}
+                  {receiptData?.status === 'unavailable' ? (
+                    <span
+                      className="text-[11px] font-medium px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200"
+                      data-testid="receipt-legacy-unavailable"
+                    >
+                      Supporting document unavailable (legacy record)
+                    </span>
+                  ) : receiptData?.url ? (
+                    <a
+                      href={receiptData.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
+                      data-testid="btn-preview-receipt"
+                    >
+                      <FileText className="h-3 w-3" />
+                      View / Download
+                    </a>
+                  ) : isLoadingReceipt ? (
+                    <span className="text-[11px] text-slate-500">Loading document link...</span>
+                  ) : null}
                 </div>
+
+                {/* Inline image preview if available */}
+                {receiptData?.url && receiptData.contentType?.startsWith('image/') && (
+                  <div className="pt-2 border-t border-blue-100">
+                    <img
+                      src={receiptData.url}
+                      alt={item.receipt_filename || item.receiptFilename || 'Receipt Preview'}
+                      className="max-h-48 rounded border border-blue-200 object-contain mx-auto"
+                      data-testid="receipt-preview-image"
+                    />
+                  </div>
+                )}
               </div>
             )}
 
             {/* Payment & Settlement Details */}
             {(item.status === 'Released' || item.status === 'Funded' || item.payment_method || item.paymentMethod) && (
               <div className="p-3 bg-purple-50/50 border border-purple-200/70 rounded-md space-y-2">
-                <h4 className="font-semibold text-purple-900 text-xs flex items-center gap-1.5">
-                  <DollarSign className="h-3.5 w-3.5 text-purple-600" />
-                  Payment Release Information
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-purple-900 text-xs flex items-center gap-1.5">
+                    <DollarSign className="h-3.5 w-3.5 text-purple-600" />
+                    Payment Release Information
+                  </h4>
+                  {(item.status === 'Released' || item.status === 'Funded') && (canRelease || isAdmin) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsEditPaymentModalOpen(true)}
+                      className="text-[11px] h-6 px-2 text-purple-700 border-purple-200 hover:bg-purple-100 cursor-pointer"
+                      data-testid="btn-edit-payment-details"
+                    >
+                      <Pencil className="h-3 w-3 mr-1" />
+                      Edit Payment Details
+                    </Button>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                   <div>
                     <span className="text-slate-500">Method: </span>
-                    <span className="font-medium text-slate-800">
+                    <span className="font-medium text-slate-800" data-testid="detail-payment-method">
                       {item.payment_method || item.paymentMethod || 'N/A'}
                     </span>
                   </div>
                   <div>
                     <span className="text-slate-500">Reference: </span>
-                    <span className="font-medium text-slate-800">
+                    <span className="font-medium text-slate-800" data-testid="detail-payment-reference">
                       {item.payment_reference || item.paymentReference || 'N/A'}
                     </span>
                   </div>
                   <div>
                     <span className="text-slate-500">Bank: </span>
-                    <span className="font-medium text-slate-800">
+                    <span className="font-medium text-slate-800" data-testid="detail-payment-bank">
                       {item.payment_bank || item.paymentBank || 'N/A'}
                     </span>
                   </div>
                   <div>
                     <span className="text-slate-500">Payment Date: </span>
-                    <span className="font-medium text-slate-800">
+                    <span className="font-medium text-slate-800" data-testid="detail-payment-date">
                       {item.payment_date || item.paymentDate || 'N/A'}
                     </span>
                   </div>
@@ -613,6 +688,26 @@ export function DisbursementDetailDrawer({
             await queryClient.invalidateQueries({ queryKey: disbursementKeys.lists() });
           }}
         />
+
+        {/* Admin Direct Approval Modal */}
+        {item && isApprovalModalOpen && (
+          <AdminApprovalModal
+            isOpen={isApprovalModalOpen}
+            disbursement={item}
+            onClose={() => setIsApprovalModalOpen(false)}
+            onSuccess={() => setIsApprovalModalOpen(false)}
+          />
+        )}
+
+        {/* Payment Details Correction Modal */}
+        {item && isEditPaymentModalOpen && (
+          <EditPaymentDetailsModal
+            isOpen={isEditPaymentModalOpen}
+            disbursement={item}
+            onClose={() => setIsEditPaymentModalOpen(false)}
+            onSuccess={() => setIsEditPaymentModalOpen(false)}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

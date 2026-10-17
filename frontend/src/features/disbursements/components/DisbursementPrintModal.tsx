@@ -238,9 +238,11 @@ export function DisbursementPrintModal({
                         Work Request:
                       </span>
                       <span className="font-mono text-[11px] text-blue-800 truncate max-w-[200px]" data-testid="print-work-request">
-                        {disbursement.linked_work_request_name ||
-                          disbursement.linked_work_request_order_number ||
-                          disbursement.linked_work_request_id}
+                        {disbursement.linked_work_request_order_number && disbursement.linked_work_request_name
+                          ? `${disbursement.linked_work_request_order_number} — ${disbursement.linked_work_request_name}`
+                          : disbursement.linked_work_request_name ||
+                            disbursement.linked_work_request_order_number ||
+                            (disbursement.linked_work_request_id ? 'Work Request Linked' : 'None')}
                       </span>
                     </div>
                   )}

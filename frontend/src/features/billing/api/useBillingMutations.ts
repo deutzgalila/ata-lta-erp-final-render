@@ -94,9 +94,13 @@ export async function updateInvoiceAction(
     actionName: 'Update Invoice',
     apiCall: async () => {
       const payload: Record<string, unknown> = { ...data };
-      if (isFeatureEnabled('strict_occ') && typeof explicitVersion === 'number') {
-        payload.expectedVersion = explicitVersion;
-      } else if (!isFeatureEnabled('strict_occ')) {
+      if (isFeatureEnabled('strict_occ')) {
+        if (typeof explicitVersion === 'number') {
+          payload.expectedVersion = explicitVersion;
+        } else if (typeof data.expectedVersion === 'number') {
+          payload.expectedVersion = data.expectedVersion;
+        }
+      } else {
         delete payload.expectedVersion;
       }
 

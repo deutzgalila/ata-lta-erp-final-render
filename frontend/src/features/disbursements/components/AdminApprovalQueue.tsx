@@ -13,9 +13,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { RejectReasonModal } from '@/features/operations/components/RejectReasonModal';
+import { AdminApprovalModal } from './AdminApprovalModal';
 import {
   useDisbursementsList,
-  useApproveDisbursement,
   useRejectDisbursement,
 } from '../api/useDisbursements';
 import { DisbursementStatusBadge } from './DisbursementStatusBadge';
@@ -31,6 +31,7 @@ export interface AdminApprovalQueueProps {
 export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueProps) {
   const [search, setSearch] = useState('');
   const [rejectingItem, setRejectingItem] = useState<Disbursement | null>(null);
+  const [approvingItem, setApprovingItem] = useState<Disbursement | null>(null);
 
   const permissions = useSessionStore((state) => state.permissions);
   const currentUser = useSessionStore((state) => state.user);
@@ -61,7 +62,6 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
   }, [responsePending, responsePendingAdmin, canApprove, currentUser?.id]);
 
   // Mutations
-  const { approveWithBlocking } = useApproveDisbursement();
   const { rejectDisbursement } = useRejectDisbursement();
 
   // Filtered items
@@ -82,12 +82,8 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
     });
   }, [items, search]);
 
-  const handleApprove = async (item: Disbursement) => {
-    try {
-      await approveWithBlocking(item.id);
-    } catch {
-      // Captured by BlockingActionModal
-    }
+  const handleApprove = (item: Disbursement) => {
+    setApprovingItem(item);
   };
 
   return (
@@ -194,10 +190,12 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
                     <span className="flex items-center gap-1">
                       <FileText className="h-3 w-3 text-slate-400" />
                       WR:{' '}
-                      <span className="font-mono">
-                        {item.linked_work_request_name ||
-                          item.linked_work_request_order_number ||
-                          `${(workRequestId || '').slice(0, 8)}...`}
+                      <span className="font-mono" data-testid={`pending-item-wr-${item.id}`}>
+                        {item.linked_work_request_order_number && item.linked_work_request_name
+                          ? `${item.linked_work_request_order_number} — ${item.linked_work_request_name}`
+                          : item.linked_work_request_name ||
+                            item.linked_work_request_order_number ||
+                            'Work Request Linked'}
                       </span>
                     </span>
                   )}
@@ -319,6 +317,16 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
           invalidateQueries={[disbursementKeys.all]}
           onClose={() => setRejectingItem(null)}
           onSuccess={() => setRejectingItem(null)}
+        />
+      )}
+
+      {/* Admin Direct Approval Modal with Payment Collection */}
+      {approvingItem && (
+        <AdminApprovalModal
+          isOpen={Boolean(approvingItem)}
+          disbursement={approvingItem}
+          onClose={() => setApprovingItem(null)}
+          onSuccess={() => setApprovingItem(null)}
         />
       )}
     </div>

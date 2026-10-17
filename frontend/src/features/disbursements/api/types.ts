@@ -275,9 +275,57 @@ export interface RejectDisbursementInput {
  */
 export interface ReleasePaymentInput {
   method?: string;
-  reference?: string;
-  bank?: string;
+  reference?: string | null;
+  bank?: string | null;
   date?: string;
+  expectedVersion?: number;
+}
+
+/**
+ * Payload for POST /v1/disbursements/:id/approve
+ */
+export interface ApproveDisbursementInput {
+  method: string;
+  reference?: string | null;
+  bank?: string | null;
+  date: string;
+  expectedVersion: number;
+}
+
+/**
+ * Payload for PATCH /v1/disbursements/:id/payment-details
+ */
+export interface UpdatePaymentDetailsInput {
+  method: string;
+  reference?: string | null;
+  bank?: string | null;
+  date: string;
+  expectedVersion: number;
+}
+
+/**
+ * Pre-signed receipt upload types
+ */
+export interface CreateReceiptUploadReservationInput {
+  filename: string;
+  contentType: 'application/pdf' | 'image/png' | 'image/jpeg' | string;
+  size: number;
+}
+
+export interface ReceiptUploadReservation {
+  uploadId: string;
+  uploadUrl: string;
+  objectKey: string;
+  expiresAt: string;
+}
+
+export interface ReceiptUrlData {
+  status?: 'unavailable';
+  reason?: string;
+  url?: string;
+  filename?: string;
+  contentType?: string;
+  expiresAt?: string;
 }
 
 /**

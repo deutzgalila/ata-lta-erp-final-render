@@ -38,6 +38,7 @@ import {
   archiveInvoiceAction,
   deleteInvoiceAction,
 } from '../api/useBillingMutations';
+import { InvoiceEditModal } from './InvoiceEditModal';
 import { usePermission } from '@/lib/permissions';
 import { formatCurrency, getStatusBadgeVariant } from '../utils/formatters';
 import { PresenceAvatars } from '@/components/common/PresenceAvatars';
@@ -86,6 +87,9 @@ export function InvoiceDetailModal({
   const canEditAddress = usePermission('billing:edit_client_address');
   const canPay = usePermission('billing:payments');
   const canDelete = usePermission('billing:delete');
+
+  // Edit Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   // Address editing state
   const [isEditingAddress, setIsEditingAddress] = useState(false);
@@ -298,6 +302,19 @@ export function InvoiceDetailModal({
                 >
                   <CreditCard className="w-3.5 h-3.5" />
                   <span>Record Payment</span>
+                </Button>
+              )}
+
+              {invoice.status === 'Draft' && (isAdmin || canEdit) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="h-8 text-xs gap-1 cursor-pointer border-slate-300 text-slate-700 hover:text-slate-900"
+                  data-testid="btn-edit-invoice"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  <span>Edit Invoice</span>
                 </Button>
               )}
             </div>
@@ -595,6 +612,19 @@ export function InvoiceDetailModal({
         <DialogFooter className="border-t border-slate-200 pt-3 flex flex-col sm:flex-row justify-between items-center gap-2">
           {/* Left: Status Progression Flow */}
           <div className="flex items-center gap-2 w-full sm:w-auto">
+            {invoice.status === 'Draft' && (isAdmin || canEdit) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditModalOpen(true)}
+                className="text-xs text-slate-700 hover:text-slate-900 border-slate-300 gap-1 cursor-pointer"
+                data-testid="btn-edit-draft-invoice"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                <span>Edit Invoice</span>
+              </Button>
+            )}
+
             {invoice.status === 'Draft' && isAdmin && (
               <Button
                 size="sm"
@@ -709,6 +739,17 @@ export function InvoiceDetailModal({
       }}
       onCancel={() => setConflictModalState({ isOpen: false })}
     />
+
+    {isEditModalOpen && (
+      <InvoiceEditModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        invoice={invoice}
+        onUpdated={() => {
+          refetch();
+        }}
+      />
+    )}
   </>
 );
 }
