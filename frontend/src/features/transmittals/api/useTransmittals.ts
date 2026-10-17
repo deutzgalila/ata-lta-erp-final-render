@@ -6,7 +6,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/api';
+import { apiRequest, ApiError } from '@/lib/api';
 import { useSessionStore } from '@/lib/session';
 import { runBlockingAction } from '@/features/operations/components/BlockingActionModal';
 import { transmittalKeys } from './queryKeys';
@@ -82,6 +82,10 @@ export function useTransmittalDetail(
       return res.data;
     },
     enabled: Boolean(id) && (options?.enabled ?? true),
+    // A missing record is not transient; retries/focus cannot repair a 404.
+    retry: (failureCount, error) => !(error instanceof ApiError && error.status === 404) && failureCount < 1,
+    refetchOnWindowFocus: (query) => !(query.state.error instanceof ApiError && query.state.error.status === 404),
+    refetchOnReconnect: (query) => !(query.state.error instanceof ApiError && query.state.error.status === 404),
     // Instant feel: render from the matching list row while the detail fetch
     // completes — but only when the row carries its line items (the detail
     // modal renders items unguarded). Placeholder never persists.

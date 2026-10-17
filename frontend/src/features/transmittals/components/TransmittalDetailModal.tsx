@@ -66,7 +66,7 @@ export function TransmittalDetailModal({
   onUnarchive: _onUnarchive,
   onDelete,
 }: TransmittalDetailModalProps) {
-  const { data: transmittal, isLoading } = useTransmittalDetail(transmittalId ?? undefined, {
+  const { data: transmittal, isLoading, error, refetch, isFetching } = useTransmittalDetail(transmittalId ?? undefined, {
     enabled: isOpen && Boolean(transmittalId),
   });
 
@@ -113,7 +113,12 @@ export function TransmittalDetailModal({
           </div>
         </DialogHeader>
 
-        {isLoading || !transmittal ? (
+        {error ? (
+          <div role="alert" className="space-y-3 py-10 text-center text-sm text-slate-600">
+            <p>{error.message || 'Unable to load this transmittal.'}</p>
+            <Button variant="outline" size="sm" disabled={isFetching} onClick={() => void refetch()}>Retry</Button>
+          </div>
+        ) : isLoading || !transmittal ? (
           <div className="py-16 text-center text-xs text-slate-400">Loading details...</div>
         ) : (
           <div className="space-y-6 pt-2">
