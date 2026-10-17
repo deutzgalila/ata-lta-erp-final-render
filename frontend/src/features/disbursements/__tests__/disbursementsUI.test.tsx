@@ -808,12 +808,23 @@ describe('Disbursements UI Components & Integration', () => {
     });
 
     it('renders all lifecycle badges with corresponding styling', () => {
-      const statuses = ['Submitted', 'Pending Admin Approval', 'Archived', 'Released', 'Funded', 'Rejected'] as const;
-      statuses.forEach((st) => {
-        const { container } = render(<DisbursementStatusBadge status={st} />);
+      const statusExpectations = [
+        { status: 'Submitted', expectedClasses: ['bg-blue-100', 'text-blue-800', 'border-blue-300'] },
+        { status: 'Pending Admin Approval', expectedClasses: ['bg-amber-100', 'text-amber-800', 'border-amber-300'] },
+        { status: 'Archived', expectedClasses: ['bg-slate-100', 'text-slate-700', 'border-slate-300'] },
+        { status: 'Released', expectedClasses: ['bg-purple-100', 'text-purple-800', 'border-purple-300'] },
+        { status: 'Funded', expectedClasses: ['bg-emerald-100', 'text-emerald-800', 'border-emerald-300'] },
+        { status: 'Rejected', expectedClasses: ['bg-rose-100', 'text-rose-800', 'border-rose-300'] },
+      ] as const;
+
+      statusExpectations.forEach(({ status, expectedClasses }) => {
+        const { container } = render(<DisbursementStatusBadge status={status} />);
         const badge = container.querySelector('[data-testid="disbursement-status-badge"]');
         expect(badge).toBeInTheDocument();
-        expect(badge?.textContent).toBe(st);
+        expect(badge?.textContent).toBe(status);
+        expectedClasses.forEach((cls) => {
+          expect(badge).toHaveClass(cls);
+        });
       });
     });
   });
