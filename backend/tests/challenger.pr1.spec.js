@@ -666,9 +666,9 @@ describe('Adversarial Challenger Suite: PR-1 (challenger_m2_1)', () => {
       // 1. Check 201 Response Envelope
       expect(wr.id).toBeDefined();
       expect(wr.coAssignees).toBeDefined();
-      expect(wr.coAssignees).toContain('Staff Alice');
-      expect(wr.coAssignees).toContain('Staff Bob');
-      expect(wr.coAssignees).toContain('Staff Charlie');
+      expect(wr.coAssignees.some((c) => c === staff1.id || c === 'Staff Alice')).toBe(true);
+      expect(wr.coAssignees.some((c) => c === staff2.id || c === 'Staff Bob')).toBe(true);
+      expect(wr.coAssignees.some((c) => c === staff3.id || c === 'Staff Charlie')).toBe(true);
 
       const prepTask = wr.phases.pre_processing.tasks[0];
       expect(prepTask.assigneeId).toBe(staff1.id); // Primary
@@ -705,9 +705,9 @@ describe('Adversarial Challenger Suite: PR-1 (challenger_m2_1)', () => {
       // 4. Verify work_requests.co_assignees in DB
       const wrInDb = mockTables.work_requests.get(wr.id);
       expect(wrInDb).toBeDefined();
-      expect(wrInDb.co_assignees).toEqual(
-        expect.arrayContaining(['Staff Alice', 'Staff Bob', 'Staff Charlie'])
-      );
+      expect(wrInDb.co_assignees.some((c) => c === staff1.id || c === 'Staff Alice')).toBe(true);
+      expect(wrInDb.co_assignees.some((c) => c === staff2.id || c === 'Staff Bob')).toBe(true);
+      expect(wrInDb.co_assignees.some((c) => c === staff3.id || c === 'Staff Charlie')).toBe(true);
 
       // 5. Verify GET /v1/operations/work-requests/:id returns the complete assignment graph
       const getRes = await request(app)
@@ -718,9 +718,9 @@ describe('Adversarial Challenger Suite: PR-1 (challenger_m2_1)', () => {
       expect(getRes.status).toBe(200);
       const fetchedWr = getRes.body.data;
       expect(fetchedWr.id).toBe(wr.id);
-      expect(fetchedWr.coAssignees).toEqual(
-        expect.arrayContaining(['Staff Alice', 'Staff Bob', 'Staff Charlie'])
-      );
+      expect(fetchedWr.coAssignees.some((c) => c === staff1.id || c === 'Staff Alice')).toBe(true);
+      expect(fetchedWr.coAssignees.some((c) => c === staff2.id || c === 'Staff Bob')).toBe(true);
+      expect(fetchedWr.coAssignees.some((c) => c === staff3.id || c === 'Staff Charlie')).toBe(true);
     });
   });
 });

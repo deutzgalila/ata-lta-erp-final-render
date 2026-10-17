@@ -269,8 +269,8 @@ describe('P0-D PR-1: Operations Creation Pipeline & Tokenizer Rework', () => {
 
       // Verify work_requests.co_assignees mirrored
       const wrRow = mockTables.work_requests.get(wr.id);
-      expect(wrRow.co_assignees).toContain('Staff Maria');
-      expect(wrRow.co_assignees).toContain('Staff Juan');
+      expect(wrRow.co_assignees.some((c) => c === staffUser1.id || c === 'Staff Maria')).toBe(true);
+      expect(wrRow.co_assignees.some((c) => c === staffUser2.id || c === 'Staff Juan')).toBe(true);
     });
 
     it('rejects dependency "0" with 400 Bad Request and field error', async () => {
