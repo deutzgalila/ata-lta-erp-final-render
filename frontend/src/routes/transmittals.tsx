@@ -41,6 +41,7 @@ import { ViewModeToggle } from '@/features/billing/components/ViewModeToggle';
 import {
   useTransmittalsList,
   useTransmittalCounts,
+  useUpdateTransmittal,
 } from '@/features/transmittals/api/useTransmittals';
 import type { Transmittal, EntityCode } from '@/features/transmittals/api/types';
 
@@ -55,6 +56,7 @@ export default function TransmittalsPage() {
 
   const [detailModalId, setDetailModalId] = useState<string | null>(null);
   const [printTarget, setPrintTarget] = useState<Transmittal | null>(null);
+  const updateTransmittal = useUpdateTransmittal();
 
   // Workflow Dialog States
   const [approveTargetId, setApproveTargetId] = useState<string | null>(null);
@@ -360,6 +362,15 @@ export default function TransmittalsPage() {
       {/* Print Preview Modal (Item-rows-only fix) */}
       <TransmittalPrintModal
         transmittal={printTarget}
+        onSaveItems={async (items) => {
+          if (!printTarget) return;
+          const updated = await updateTransmittal.mutateAsync({
+            id: printTarget.id,
+            data: { items, expectedVersion: printTarget.version },
+          });
+          if (!updated) throw new Error('Transmittal update did not return a record');
+          setPrintTarget((current) => current?.id === updated.id ? { ...current, ...updated } : current);
+        }}
         onEdit={(t) => {
           setPrintTarget(null);
           setDetailModalId(null);

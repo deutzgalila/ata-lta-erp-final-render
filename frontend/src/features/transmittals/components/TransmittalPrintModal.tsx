@@ -1,7 +1,7 @@
 /** Transmittal preview and print options; document rows match the complete manifest. */
 
 import { useRef, useState, useEffect } from 'react';
-import { Printer } from 'lucide-react';
+import { Printer, Plus, Trash2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -14,13 +14,14 @@ import { printTransmittalDocument, defaultTransmittalCompany, printableTransmitt
 import { Input } from '@/components/ui/input';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
-import type { Transmittal } from '../api/types';
+import type { Transmittal, TransmittalItem, CreateTransmittalItemInput } from '../api/types';
 
 export interface TransmittalPrintModalProps {
   transmittal: Transmittal | null;
   isOpen: boolean;
   onClose: () => void;
   onEdit?: (transmittal: Transmittal) => void;
+  onSaveItems?: (items: CreateTransmittalItemInput[]) => Promise<void>;
 }
 
 export function TransmittalPrintModal({
@@ -28,10 +29,19 @@ export function TransmittalPrintModal({
   isOpen,
   onClose,
   onEdit,
+  onSaveItems,
 }: TransmittalPrintModalProps) {
   const printAreaRef = useRef<HTMLDivElement>(null);
 
   const [company, setCompany] = useState(() => defaultTransmittalCompany(transmittal?.entity_code));
+  const [editingItems, setEditingItems] = useState(false);
+  const [draftItems, setDraftItems] = useState<TransmittalItem[]>([]);
+  const [savingItems, setSavingItems] = useState(false);
+  const [itemsError, setItemsError] = useState('');
+  useEffect(() => {
+    setEditingItems(false);
+    setItemsError('');
+  }, [isOpen, transmittal?.id]);
   const user = useSessionStore((state) => state.user);
   const permissions = useSessionStore((state) => state.permissions);
   useEffect(() => {
@@ -107,7 +117,33 @@ export function TransmittalPrintModal({
   }
 
   // Item-rows-only: strictly map real items without filler rows
-  const items = printableTransmittalItems(transmittal.items);
+  const canEditItems = user?.role === 'Admin' && hasPermission(permissions, 'transmittal:edit');
+  const items = printableTransmittalItems(editingItems ? draftItems : transmittal.items);
+  const updateDraftItem = (index: number, patch: Partial<TransmittalItem>) => {
+    setDraftItems((previous) => previous.map((item, i) => i === index ? { ...item, ...patch } : item));
+    setItemsError('');
+  };
+  const saveItems = async () => {
+    if (!canEditItems || !onSaveItems || savingItems) return;
+    if (!draftItems.length || draftItems.some((item) => !item.description.trim() || !Number.isInteger(item.quantity) || item.quantity < 1)) {
+      setItemsError('Add at least one document. Each row needs a description and a positive whole-number quantity.');
+      return;
+    }
+    setSavingItems(true);
+    setItemsError('');
+    try {
+      await onSaveItems(draftItems.map((item) => ({
+        description: item.description.trim(),
+        documentType: (item.document_type || item.documentType || 'Others').trim(),
+        quantity: item.quantity,
+      })));
+      setEditingItems(false);
+    } catch {
+      setItemsError('Documents were not saved. Your edits are still here; please try again.');
+    } finally {
+      setSavingItems(false);
+    }
+  };
 
   const handlePrint = () => {
     printTransmittalDocument(transmittal, company);
@@ -205,20 +241,30 @@ export function TransmittalPrintModal({
           }
         `}</style>
 
-        <DialogHeader className="p-4 border-b bg-slate-50 flex flex-row items-center justify-between print:hidden">
+        <DialogHeader className="p-4 pr-14 border-b bg-slate-50 flex flex-row flex-wrap gap-3 items-center justify-between print:hidden">
           <DialogTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
             <Printer className="h-4 w-4 text-blue-600" />
             Transmittal Letter Preview
           </DialogTitle>
           <div className="flex items-center gap-2">
-            {user?.role === 'Admin' && hasPermission(permissions, 'transmittal:edit') && onEdit && (
-              <Button size="sm" variant="outline" onClick={() => onEdit(transmittal)}>
+            {canEditItems && (onSaveItems || onEdit) && (
+              <Button size="sm" variant="outline" disabled={editingItems} onClick={() => {
+                if (onSaveItems) {
+                  setDraftItems((transmittal.items || []).map((item) => ({ ...item })));
+                  setItemsError('');
+                  setEditingItems(true);
+                } else {
+                  onEdit?.(transmittal);
+                }
+              }}>
                 Edit contents
               </Button>
             )}
             <Button
               size="sm"
               onClick={handlePrint}
+              disabled={editingItems || savingItems}
+              title={editingItems ? 'Save or cancel document edits before printing' : undefined}
               className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white gap-1 cursor-pointer print:hidden"
               data-testid="print-action-btn"
             >
@@ -250,6 +296,49 @@ export function TransmittalPrintModal({
           )}
           <p className="text-xs text-slate-500">These company details apply to this print preview and PDF. They do not change the company record.</p>
         </section>
+
+        {editingItems && canEditItems && (
+          <section className="mx-4 mb-4 rounded-lg border border-blue-200 bg-blue-50/40 p-4 space-y-3 print:hidden" aria-label="Edit document rows">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">Documents ({draftItems.length})</h3>
+                <p className="text-xs text-slate-500">Save your changes to update the transmittal and printout.</p>
+              </div>
+              <Button size="sm" variant="outline" disabled={savingItems} onClick={() => {
+                setDraftItems((previous) => [...previous, { id: crypto.randomUUID(), description: '', document_type: 'Others', quantity: 1 }]);
+                setItemsError('');
+              }}><Plus className="mr-1 h-3.5 w-3.5" />Add document row</Button>
+            </div>
+            <fieldset disabled={savingItems} className="space-y-2">
+              {draftItems.map((item, index) => (
+                <div key={item.id} className="grid grid-cols-[minmax(0,1fr)_5rem_2rem] gap-2 rounded-md border border-slate-200 bg-white p-3 sm:grid-cols-[9rem_minmax(0,1fr)_5rem_2rem]">
+                  <label className="col-span-3 text-xs font-medium text-slate-600 sm:col-span-1">Category
+                    <Input aria-label={`Document ${index + 1} category`} maxLength={50} value={item.document_type || item.documentType || ''}
+                      onChange={(event) => updateDraftItem(index, { document_type: event.target.value, documentType: event.target.value })} />
+                  </label>
+                  <label className="text-xs font-medium text-slate-600">Document
+                    <Input aria-label={`Document ${index + 1} description`} maxLength={255} value={item.description}
+                      onChange={(event) => updateDraftItem(index, { description: event.target.value })} />
+                  </label>
+                  <label className="text-xs font-medium text-slate-600">Quantity
+                    <Input aria-label={`Document ${index + 1} quantity`} type="number" min={1} step={1} value={item.quantity || ''}
+                      onChange={(event) => updateDraftItem(index, { quantity: Number(event.target.value) })} />
+                  </label>
+                  <Button size="icon" variant="ghost" className="self-end" aria-label={`Remove document ${index + 1}`}
+                    onClick={() => setDraftItems((previous) => previous.filter((_, i) => i !== index))}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </fieldset>
+            {itemsError && <p role="alert" className="text-xs text-red-700">{itemsError}</p>}
+            <div className="flex flex-wrap justify-end gap-2">
+              {onEdit && <Button size="sm" variant="ghost" disabled={savingItems} onClick={() => onEdit(transmittal)}>Edit other details</Button>}
+              <Button size="sm" variant="outline" disabled={savingItems} onClick={() => { setEditingItems(false); setItemsError(''); }}>Cancel edits</Button>
+              <Button size="sm" disabled={savingItems} onClick={saveItems}>{savingItems ? 'Saving…' : 'Save documents'}</Button>
+            </div>
+          </section>
+        )}
 
         {/* Printable Document Sheet (Verbatim 1:1 Prototype Boxed Form) */}
         <div

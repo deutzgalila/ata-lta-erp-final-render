@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import { TransmittalCard } from '../components/TransmittalCard';
 import { TransmittalPrintModal } from '../components/TransmittalPrintModal';
 import { printTransmittalDocument } from '@/lib/printDocuments';
@@ -94,6 +94,56 @@ describe('Transmittal company options and complete print manifest', () => {
     render(<TransmittalCard transmittal={{ ...transmittal, status }} onView={vi.fn()} onPrint={vi.fn()} onEdit={onEdit} />);
     fireEvent.click(screen.getByTestId('edit-transmittal-btn'));
     expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ status }));
+  });
+
+  it('adds and saves actual document rows from the preview, then prints the saved list', async () => {
+    useSessionStore.getState().setSession({
+      user: { id: 'admin', name: 'Admin', email: 'admin@example.com', role: 'Admin', entities: ['ATA'], departments: [] },
+      permissions: ['transmittal:edit'], activeEntity: 'ATA',
+    });
+    const printed = capturePrint();
+    const onSaveItems = vi.fn().mockResolvedValue(undefined);
+    const { rerender } = render(<TransmittalPrintModal isOpen transmittal={transmittal} onClose={vi.fn()} onSaveItems={onSaveItems} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit contents' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add document row' }));
+    fireEvent.change(screen.getByLabelText('Document 2 description'), { target: { value: 'Birth certificate' } });
+    fireEvent.change(screen.getByLabelText('Document 2 category'), { target: { value: 'Original Copy' } });
+    expect(screen.getByTestId('print-action-btn')).toBeDisabled();
+    expect(screen.getByTestId('print-items-table').querySelectorAll('tbody tr')).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Save documents' }));
+    await waitFor(() => expect(onSaveItems).toHaveBeenCalledWith([
+      { description: 'Tax return', documentType: 'Tax', quantity: 2 },
+      { description: 'Birth certificate', documentType: 'Original Copy', quantity: 1 },
+    ]));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Save documents' })).not.toBeInTheDocument());
+    rerender(<TransmittalPrintModal isOpen transmittal={{ ...transmittal, version: 2, items: [
+      ...transmittal.items!, { id: 'new-row', description: 'Birth certificate', document_type: 'Original Copy', quantity: 1 },
+    ] }} onClose={vi.fn()} onSaveItems={onSaveItems} />);
+    fireEvent.click(screen.getByTestId('print-action-btn'));
+    expect(printed().querySelectorAll('.document-table tbody tr')).toHaveLength(2);
+    expect(printed().body.textContent).toContain('BIRTH CERTIFICATE');
+  });
+
+  it('validates blank rows, retains failed saves, and discards changes on cancel', async () => {
+    useSessionStore.getState().setSession({
+      user: { id: 'admin', name: 'Admin', email: 'admin@example.com', role: 'Admin', entities: ['ATA'], departments: [] },
+      permissions: ['transmittal:edit'], activeEntity: 'ATA',
+    });
+    const onSaveItems = vi.fn().mockRejectedValue(new Error('Conflict'));
+    render(<TransmittalPrintModal isOpen transmittal={transmittal} onClose={vi.fn()} onSaveItems={onSaveItems} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit contents' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add document row' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save documents' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Each row needs a description');
+    expect(onSaveItems).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByLabelText('Remove document 2'));
+    fireEvent.change(screen.getByLabelText('Document 1 description'), { target: { value: 'Correction' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save documents' }));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Documents were not saved'));
+    expect(screen.getByLabelText('Document 1 description')).toHaveValue('Correction');
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel edits' }));
+    expect(screen.getByTestId('print-items-table')).toHaveTextContent('TAX RETURN');
+    expect(screen.getByTestId('print-action-btn')).toBeEnabled();
   });
 
 });
