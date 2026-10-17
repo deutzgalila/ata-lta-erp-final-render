@@ -187,8 +187,8 @@ export function DocumentViewerModal({
   }, [isFullPage]);
 
   const documentId = doc?.id;
-  const { data: downloadData, isLoading: isDownloadLoading } =
-    useDocumentDownloadUrl(documentId, { enabled: Boolean(documentId) });
+  const { data: downloadData, isLoading: isDownloadLoading, error: downloadError, refetch: retryDownload, isFetching: isDownloadFetching } =
+    useDocumentDownloadUrl(documentId, { enabled: isOpen && Boolean(documentId) && !Boolean(doc?.external_url?.trim() || doc?.externalUrl?.trim()) });
 
   const addComment = useAddDocumentComment();
   const editComment = useEditDocumentComment();
@@ -327,6 +327,18 @@ export function DocumentViewerModal({
       return (
         <div className="h-full flex items-center justify-center text-[#9494a0] text-sm">
           Loading document preview...
+        </div>
+      );
+    }
+
+    if (downloadError && !effectiveExternalUrl) {
+      return (
+        <div role="alert" className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center text-slate-600">
+          <p className="text-sm font-medium">Unable to load document preview</p>
+          <p className="text-xs">{downloadError.message}</p>
+          <Button type="button" variant="outline" size="sm" disabled={isDownloadFetching} onClick={() => void retryDownload()}>
+            Retry preview
+          </Button>
         </div>
       );
     }
