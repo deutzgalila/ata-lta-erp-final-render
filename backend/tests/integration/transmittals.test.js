@@ -351,57 +351,56 @@ describe('/v1/transmittals', () => {
     expect(updateRes.body.data.notes).toBe('Updated notes');
     expect(updateRes.body.data.tracking_number).toBe('TR-12345');
   });
-  it.each(['Sent', 'Acknowledged'])('allows Admin to correct %s contents without changing status', async (status) => {
-    const token = registerUser({ email: 'admin-edit@ata-lta.ph', name: 'Admin', role: 'Admin', entities: ['ATA'] });
-    mockTables.transmittals.set('tx-edit', {
-      id: 'tx-edit', entity_id: 'ent-ata', client_id: CLIENT_ID,
-      status, tracking_number: 'TR-KEEP', approved: true, version: 1,
+  describe('Consolidated transmittal entity resolution', () => {
+    const id = 'fae8185a-7ea3-4096-b10d-a74c5bd580ca';
+    let token;
+    beforeEach(() => {
+      token = registerUser({ email: 'admin-consolidated@ata-lta.ph', name: 'Admin', role: 'Admin', entities: ['ATA', 'LTA'] });
+      mockTables.transmittals.set(id, {
+        id, entity_id: 'ent-lta', client_id: CLIENT_ID, status: 'Acknowledged', version: 1,
+      });
     });
-    const res = await request(app).put('/v1/transmittals/tx-edit')
-      .set('Authorization', `Bearer ${token}`).set('X-Active-Entity', 'ATA')
-      .send({ notes: 'Corrected', recipientName: 'New recipient',
-        items: [{ description: 'Corrected document', documentType: 'Tax', quantity: 2 }], expectedVersion: 1 })
-      .expect(200);
-    expect(res.body.data.status).toBe(status);
-    expect(res.body.data.tracking_number).toBe('TR-KEEP');
-    expect(res.body.data.recipient_name).toBe('New recipient');
-    expect(res.body.data.items).toHaveLength(1);
-    expect(res.body.data.items[0].description).toBe('Corrected document');
-  });
 
-  it('still rejects non-Admin edits to sent contents, including a forged role', async () => {
-    const token = registerUser({ email: 'doc-edit@ata-lta.ph', name: 'Doc', role: 'Documentation', entities: ['ATA'] });
-    mockTables.transmittals.set('tx-edit', {
-      id: 'tx-edit', entity_id: 'ent-ata', client_id: CLIENT_ID, status: 'Sent', notes: 'Original', version: 1,
+    it.each(['ALL', undefined])('reads LTA details with entity header %s', async (entity) => {
+      const req = request(app).get(`/v1/transmittals/${id}`).set('Authorization', `Bearer ${token}`);
+      if (entity) req.set('X-Active-Entity', entity);
+      const res = await req.expect(200);
+      expect(res.body.data.entity_code).toBe('LTA');
     });
-    await request(app).put('/v1/transmittals/tx-edit')
-      .set('Authorization', `Bearer ${token}`).set('X-Active-Entity', 'ATA')
-      .send({ notes: 'Tampered', user: { role: 'Admin' }, expectedVersion: 1 }).expect(409);
-    expect(mockTables.transmittals.get('tx-edit').notes).toBe('Original');
-  });
 
-  it('does not replace documents when an Admin saves a stale version', async () => {
-    const token = registerUser({ email: 'admin-stale@ata-lta.ph', name: 'Admin', role: 'Admin', entities: ['ATA'] });
-    mockTables.transmittals.set('tx-edit', {
-      id: 'tx-edit', entity_id: 'ent-ata', client_id: CLIENT_ID, status: 'Sent', version: 2,
+    it('saves inline items without requiring clientId in ALL view', async () => {
+      const res = await request(app).put(`/v1/transmittals/${id}`)
+        .set('Authorization', `Bearer ${token}`).set('X-Active-Entity', 'ALL')
+        .send({ items: [{ description: 'Added inline', documentType: 'Original Copy', quantity: 1 }], expectedVersion: 1 })
+        .expect(200);
+      expect(res.body.data.items[0].description).toBe('Added inline');
+      expect(res.body.data.entity_id).toBe('ent-lta');
+      expect(res.body.data.status).toBe('Acknowledged');
     });
-    mockTables.transmittal_items.set('original-item', {
-      id: 'original-item', transmittal_id: 'tx-edit', description: 'Original document', quantity: 1,
-    });
-    await request(app).put('/v1/transmittals/tx-edit')
-      .set('Authorization', `Bearer ${token}`).set('X-Active-Entity', 'ATA')
-      .send({ items: [{ description: 'Stale document' }], expectedVersion: 1 }).expect(409);
-    expect(mockTables.transmittal_items.get('original-item').description).toBe('Original document');
-  });
 
-  it('returns the LTA entity code for company defaults when printing from detail', async () => {
-    const token = registerUser({ email: 'admin-lta@ata-lta.ph', name: 'Admin', role: 'Admin', entities: ['LTA'] });
-    mockTables.transmittals.set('tx-lta', {
-      id: 'tx-lta', entity_id: 'ent-lta', client_id: CLIENT_ID, status: 'Draft', version: 1,
+    it('rejects non-Admin edits and ignores a forged Admin role in the body', async () => {
+      const staff = registerUser({ email: 'doc-lta@ata-lta.ph', name: 'Doc', role: 'Documentation', entities: ['LTA'] });
+      await request(app).put(`/v1/transmittals/${id}`)
+        .set('Authorization', `Bearer ${staff}`).set('X-Active-Entity', 'LTA')
+        .send({ items: [{ description: 'Forbidden edit' }], user: { role: 'Admin' } }).expect(409);
     });
-    const res = await request(app).get('/v1/transmittals/tx-lta')
-      .set('Authorization', `Bearer ${token}`).set('X-Active-Entity', 'LTA').expect(200);
-    expect(res.body.data.entity_code).toBe('LTA');
+
+    it('does not remove saved items when the inline version is stale', async () => {
+      mockTables.transmittals.get(id).version = 2;
+      mockTables.transmittal_items.set('saved-item', { id: 'saved-item', transmittal_id: id, description: 'Saved', quantity: 1 });
+      await request(app).put(`/v1/transmittals/${id}`)
+        .set('Authorization', `Bearer ${token}`).set('X-Active-Entity', 'ALL')
+        .send({ items: [{ description: 'Stale edit' }], expectedVersion: 1 }).expect(409);
+      expect(mockTables.transmittal_items.get('saved-item').description).toBe('Saved');
+    });
+
+    it('retains explicit ATA scoping and rejects access by ATA-only users', async () => {
+      await request(app).get(`/v1/transmittals/${id}`)
+        .set('Authorization', `Bearer ${token}`).set('X-Active-Entity', 'ATA').expect(404);
+      const restricted = registerUser({ email: 'ata-only@ata-lta.ph', name: 'Restricted', role: 'Admin', entities: ['ATA'] });
+      await request(app).get(`/v1/transmittals/${id}`)
+        .set('Authorization', `Bearer ${restricted}`).set('X-Active-Entity', 'ALL').expect(403);
+    });
   });
 
 });

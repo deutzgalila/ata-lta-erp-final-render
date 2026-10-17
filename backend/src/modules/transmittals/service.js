@@ -24,7 +24,7 @@ const listTransmittals = async ({ entityId, filters = {}, user }) => {
   const { status, clientId, search, archived, includeDeleted, page = 1, limit = 50 } = filters;
   const isArchived = archived === true || archived === 'true';
 
-  let query = supabaseAdmin.from('transmittals').select('*, clients(name, address, tin)', { count: 'exact' });
+  let query = supabaseAdmin.from('transmittals').select('*, clients(name)', { count: 'exact' });
 
   if (includeDeleted !== true && includeDeleted !== 'true') {
     query = query.is('deleted_at', null);
@@ -296,7 +296,7 @@ const getTransmittalById = async ({ entityId, id, user }) => {
 };
 
 /**
- * Update a Draft transmittal, or correct contents in any status as Admin.
+ * Update a transmittal (only if Draft).
  * @param {object} params
  * @param {string} params.entityId
  * @param {string} params.id
@@ -378,8 +378,7 @@ const updateTransmittal = async ({ entityId, id, userId, user, data }) => {
 
   // Replace items if provided
   if (data.items) {
-    const { error: deleteError } = await supabaseAdmin.from('transmittal_items').delete().eq('transmittal_id', id);
-    if (deleteError) throw new AppError({ statusCode: 500, title: 'Database Error', detail: 'Failed to replace transmittal items' });
+    await supabaseAdmin.from('transmittal_items').delete().eq('transmittal_id', id);
 
     const items = data.items.map((item, idx) => ({
       transmittal_id: id,
@@ -389,8 +388,7 @@ const updateTransmittal = async ({ entityId, id, userId, user, data }) => {
       sort_order: idx,
     }));
 
-    const { error: insertError } = await supabaseAdmin.from('transmittal_items').insert(items);
-    if (insertError) throw new AppError({ statusCode: 500, title: 'Database Error', detail: 'Failed to save transmittal items' });
+    await supabaseAdmin.from('transmittal_items').insert(items);
   }
 
   return attachItems(updated);
