@@ -317,6 +317,7 @@ export interface TransmittalPrintData {
   acknowledged_at?: string | null;
   received_by_name?: string | null;
   recipient_name?: string | null;
+  recipient_details?: string | null;
   notes?: string | null;
   clients?: { name?: string | null; address?: string | null } | null;
   items?: Array<{
@@ -324,7 +325,27 @@ export interface TransmittalPrintData {
     document_type?: string | null;
     documentType?: string | null;
     description?: string | null;
+    quantity?: number;
   }>;
+}
+
+export interface TransmittalPrintOptions {
+  includeCompanyDetails?: boolean;
+  companyName?: string;
+  companyAddress?: string;
+}
+
+export function defaultTransmittalCompany(entity?: string) {
+  return {
+    includeCompanyDetails: true,
+    companyName: `${entity === 'LTA' ? 'LTA' : 'ATA'} BUSINESS CONSULTANCY SERVICES`,
+    companyAddress: 'RM 307 Republic Supermarket Bldg,\nSoler St., cor. F.Torres St.,\nSta. Cruz, Manila',
+  };
+}
+
+/** Ignore blank draft rows; never pad or truncate the document manifest. */
+export function printableTransmittalItems<T extends { description?: string | null }>(items?: T[]): T[] {
+  return (items || []).filter((item) => Boolean(item.description?.trim()));
 }
 
 const TRANSMITTAL_CSS = `
@@ -348,7 +369,9 @@ body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0; color: 
 .table-header-cell { border-bottom: 2px solid #000; padding: 6px 10px; font-weight: bold; text-align: left; font-size: 10pt; }
 .category-header-cell { width: 35%; border-right: 2px solid #000; }
 .document-header-cell { width: 65%; }
-.doc-row { height: 22px; }
+.doc-row { break-inside: avoid; page-break-inside: avoid; }
+.document-table thead { display: table-header-group; }
+.signature-container { break-inside: avoid; }
 .doc-cell { border-bottom: 1px solid #000; padding: 4px 10px; font-size: 10pt; text-align: left; word-break: break-word; overflow-wrap: anywhere; }
 .category-cell { font-weight: bold; border-right: 1px solid #000; width: 35%; }
 .document-cell { width: 65%; }
@@ -364,18 +387,13 @@ body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0; color: 
 .sig-label { font-size: 9pt; color: #333; margin-top: 6px; }
 `;
 
-export function printTransmittalDocument(t: TransmittalPrintData): void {
+export function printTransmittalDocument(t: TransmittalPrintData, options: TransmittalPrintOptions = {}): void {
   const entity = t.entity_code === 'LTA' ? 'LTA' : 'ATA';
   const isATA = entity === 'ATA';
 
-  const companyName = isATA
-    ? 'ATA BUSINESS CONSULTANCY SERVICES'
-    : 'LTA BUSINESS CONSULTANCY SERVICES';
-  const companyAddressLines = [
-    'RM 307 Republic Supermarket Bldg,',
-    'Soler St., cor. F.Torres St.,',
-    'Sta. Cruz, Manila',
-  ];
+  const company = { ...defaultTransmittalCompany(entity), ...options };
+  const companyName = company.companyName;
+  const companyAddressLines = company.companyAddress.split('\n').map((line) => line.trim()).filter(Boolean);
 
   /* Entity-aware date: ATA uppercase long form, LTA M/D/YYYY */
   const dateObj = new Date(t.sent_at || t.created_at || new Date());
@@ -423,16 +441,11 @@ export function printTransmittalDocument(t: TransmittalPrintData): void {
     }
   }
 
-  /* 12 fixed rows: real items then padded blanks (prototype behavior) */
-  const rows: Array<{ category: string; document: string }> = [];
-  const totalRows = 12;
-  (t.items || []).slice(0, totalRows).forEach((item) => {
-    rows.push({
-      category: (item.document_type || item.documentType || '').toUpperCase(),
-      document: (item.description || '').toUpperCase(),
-    });
-  });
-  while (rows.length < totalRows) rows.push({ category: '', document: '' });
+  const rows = printableTransmittalItems(t.items).map((item) => ({
+    category: (item.document_type || item.documentType || 'Others').toUpperCase(),
+    document: (item.description || '').toUpperCase() +
+      (item.quantity && item.quantity > 1 ? ` (QTY: ${item.quantity})` : ''),
+  }));
 
   const rowsHtml = rows
     .map(
@@ -458,10 +471,11 @@ export function printTransmittalDocument(t: TransmittalPrintData): void {
     )}</span></td>` +
     `</tr>` +
     `<tr>` +
-    `<td class="from-cell"><strong>FROM:</strong> <strong>${esc(companyName)}</strong>` +
-    companyAddressLines.map((l) => `<br>${esc(l)}`).join('') +
-    `</td>` +
-    `<td class="to-cell">` +
+    (company.includeCompanyDetails
+      ? `<td class="from-cell"><strong>FROM:</strong> <strong>${esc(companyName)}</strong>` +
+        companyAddressLines.map((l) => `<br>${esc(l)}`).join('') + `</td>`
+      : '') +
+    `<td class="to-cell"${company.includeCompanyDetails ? '' : ' colspan="2" style="width:100%"'}>` +
     `<div style="display: flex; gap: 8px; align-items: flex-start;">` +
     `<strong style="margin-top: 3px;">TO:</strong>` +
     `<div style="flex: 1; display: flex; flex-direction: column;">` +
@@ -469,6 +483,7 @@ export function printTransmittalDocument(t: TransmittalPrintData): void {
     `<div class="underline-line">${toLine2 ? esc(toLine2) : ''}</div>` +
     `<div class="underline-line">${toLine3 ? esc(toLine3) : ''}</div>` +
     `<div class="underline-line">${toLine4 ? esc(toLine4) : ''}</div>` +
+    (t.recipient_details?.trim() ? `<div style="white-space:pre-line;margin-top:4px">${esc(t.recipient_details)}</div>` : '') +
     `</div></div>` +
     `</td>` +
     `</tr>` +

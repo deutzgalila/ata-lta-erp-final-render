@@ -360,6 +360,12 @@ export default function TransmittalsPage() {
       {/* Print Preview Modal (Item-rows-only fix) */}
       <TransmittalPrintModal
         transmittal={printTarget}
+        onEdit={(t) => {
+          setPrintTarget(null);
+          setDetailModalId(null);
+          setFormEditTarget(t);
+          setIsFormModalOpen(true);
+        }}
         isOpen={Boolean(printTarget)}
         onClose={() => setPrintTarget(null)}
       />

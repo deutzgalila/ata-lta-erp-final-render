@@ -74,7 +74,7 @@ export function TransmittalDetailModal({
   const user = useSessionStore((state) => state.user);
   const isAdmin = user?.role === 'Admin';
 
-  const canEdit = hasPermission(permissions, 'transmittal:edit') && transmittal?.status === 'Draft';
+  const canEdit = hasPermission(permissions, 'transmittal:edit') && (isAdmin || transmittal?.status === 'Draft');
   const canApprove = hasPermission(permissions, 'transmittal:approve') && transmittal?.status === 'Draft';
   const canMark = hasPermission(permissions, 'transmittal:mark');
   const canDelete = hasPermission(permissions, 'transmittal:delete');

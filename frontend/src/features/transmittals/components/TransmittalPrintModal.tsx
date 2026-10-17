@@ -1,13 +1,6 @@
-/**
- * Transmittal Print / PDF Preview Modal (UAT2-3)
- *
- * Verbatim 1:1 port of prototype transmittal preview layout (erp_prototype/js/transmittal.js),
- * omitting the prototype's 12-row filler loop to match backend PDF behavior (item-rows-only).
- * Features entity-aware date formatting, Manila company address, TO 4-line block,
- * boxed document table, centered signature block, and dynamic "RECEIVED" stamp on Acknowledged status.
- */
+/** Transmittal preview and print options; document rows match the complete manifest. */
 
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { Printer } from 'lucide-react';
 import {
   Dialog,
@@ -17,34 +10,40 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { printTransmittalDocument } from '@/lib/printDocuments';
+import { printTransmittalDocument, defaultTransmittalCompany, printableTransmittalItems } from '@/lib/printDocuments';
+import { Input } from '@/components/ui/input';
+import { useSessionStore } from '@/lib/session';
+import { hasPermission } from '@/lib/permissions';
 import type { Transmittal } from '../api/types';
 
 export interface TransmittalPrintModalProps {
   transmittal: Transmittal | null;
   isOpen: boolean;
   onClose: () => void;
+  onEdit?: (transmittal: Transmittal) => void;
 }
 
 export function TransmittalPrintModal({
   transmittal,
   isOpen,
   onClose,
+  onEdit,
 }: TransmittalPrintModalProps) {
   const printAreaRef = useRef<HTMLDivElement>(null);
+
+  const [company, setCompany] = useState(() => defaultTransmittalCompany(transmittal?.entity_code));
+  const user = useSessionStore((state) => state.user);
+  const permissions = useSessionStore((state) => state.permissions);
+  useEffect(() => {
+    if (isOpen) setCompany(defaultTransmittalCompany(transmittal?.entity_code));
+  }, [isOpen, transmittal?.id, transmittal?.entity_code]);
 
   if (!isOpen || !transmittal) return null;
 
   const entityCode = transmittal.entity_code || 'ATA';
   const isATA = entityCode === 'ATA';
 
-  const companyName = isATA
-    ? 'ATA BUSINESS CONSULTANCY SERVICES'
-    : 'LTA BUSINESS CONSULTANCY SERVICES';
-
-  const companyAddress =
-    'RM 307 Republic Supermarket Bldg, Soler St., cor. F.Torres St., Sta. Cruz, Manila';
-
+  const { companyName, companyAddress, includeCompanyDetails } = company;
   const companyTin = isATA ? 'TIN: 234-567-890-000' : 'TIN: 345-678-901-000';
 
   // Date formatting (Entity-aware: ATA = uppercase full month, LTA = M/D/YYYY)
@@ -108,14 +107,10 @@ export function TransmittalPrintModal({
   }
 
   // Item-rows-only: strictly map real items without filler rows
-  const items = transmittal.items || [];
+  const items = printableTransmittalItems(transmittal.items);
 
   const handlePrint = () => {
-    // Print via a fresh window containing the prototype-verbatim transmittal
-    // letter (erp_prototype/js/transmittal.js openPrintLetter) incl. the
-    // 12-row padded document table — Chromium output matches the legacy form
-    // 1:1, independent of the in-app modal CSS.
-    printTransmittalDocument(transmittal);
+    printTransmittalDocument(transmittal, company);
   };
 
   return (
@@ -216,6 +211,11 @@ export function TransmittalPrintModal({
             Transmittal Letter Preview
           </DialogTitle>
           <div className="flex items-center gap-2">
+            {user?.role === 'Admin' && hasPermission(permissions, 'transmittal:edit') && onEdit && (
+              <Button size="sm" variant="outline" onClick={() => onEdit(transmittal)}>
+                Edit contents
+              </Button>
+            )}
             <Button
               size="sm"
               onClick={handlePrint}
@@ -227,6 +227,29 @@ export function TransmittalPrintModal({
             </Button>
           </div>
         </DialogHeader>
+
+        <section className="mx-4 mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3 print:hidden" aria-label="Print options">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-800">
+            <input type="checkbox" checked={includeCompanyDetails}
+              onChange={(event) => setCompany({ ...company, includeCompanyDetails: event.target.checked })} />
+            Include company details (FROM)
+          </label>
+          {includeCompanyDetails && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="space-y-1 text-xs font-medium text-slate-600">
+                <span>Company Name</span>
+                <Input value={companyName} onChange={(event) => setCompany({ ...company, companyName: event.target.value })} />
+              </label>
+              <label className="space-y-1 text-xs font-medium text-slate-600">
+                <span>Company Address</span>
+                <textarea rows={3} value={companyAddress}
+                  onChange={(event) => setCompany({ ...company, companyAddress: event.target.value })}
+                  className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" />
+              </label>
+            </div>
+          )}
+          <p className="text-xs text-slate-500">These company details apply to this print preview and PDF. They do not change the company record.</p>
+        </section>
 
         {/* Printable Document Sheet (Verbatim 1:1 Prototype Boxed Form) */}
         <div
@@ -277,19 +300,20 @@ export function TransmittalPrintModal({
 
               {/* Row 3: FROM & TO */}
               <tr>
-                <td
+                {includeCompanyDetails && <td
                   className="border-2 border-black p-2.5 align-top break-words leading-relaxed text-black"
                   style={{ width: '55%', border: '2px solid #000' }}
                 >
                   <strong>FROM:</strong> <strong>{companyName}</strong>
                   <br />
-                  {companyAddress}
+                  <span className="whitespace-pre-line">{companyAddress}</span>
                   <br />
                   <span className="text-[10px] font-mono text-slate-500">{companyTin}</span>
-                </td>
+                </td>}
                 <td
+                  colSpan={includeCompanyDetails ? 1 : 2}
                   className="border-2 border-black p-2.5 align-top break-words leading-relaxed text-black"
-                  style={{ width: '45%', border: '2px solid #000' }}
+                  style={{ width: includeCompanyDetails ? '45%' : '100%', border: '2px solid #000' }}
                 >
                   <div className="flex gap-2 items-start">
                     <strong className="mt-0.5">TO:</strong>
@@ -312,6 +336,9 @@ export function TransmittalPrintModal({
                       <div className="border-b-[1.5px] border-black min-h-[16px] mt-0.5 pb-0.5 font-bold text-black">
                         {toLine4}
                       </div>
+                      {transmittal.recipient_details?.trim() && (
+                        <div className="mt-1 whitespace-pre-line">{transmittal.recipient_details}</div>
+                      )}
                     </div>
                   </div>
                 </td>
@@ -361,7 +388,7 @@ export function TransmittalPrintModal({
                 {items.map((item, idx) => (
                   <tr
                     key={item.id || `manifest-row-${idx}`}
-                    className="h-[22px]"
+                    className="break-inside-avoid"
                     data-testid={`print-item-row-${idx}`}
                   >
                     <td

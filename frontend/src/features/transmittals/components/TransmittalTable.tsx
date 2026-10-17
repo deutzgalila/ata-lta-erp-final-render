@@ -169,7 +169,7 @@ export function TransmittalTable({
               ) : (
                 filteredTransmittals.map((t) => {
                   const itemsCount = t.items?.length ?? 0;
-                  const canEdit = canEditPermission && t.status === 'Draft';
+                  const canEdit = canEditPermission && (isAdmin || t.status === 'Draft');
                   const canApprove = canApprovePermission && t.status === 'Draft';
                   const isSendDisabled = !isAdmin && !t.approved;
 
