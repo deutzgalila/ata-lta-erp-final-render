@@ -165,12 +165,12 @@ describe('live document comments challenger', () => {
     expect(scroller.scrollTop).toBe(100);
     scroller.scrollTop = 800; fireEvent.scroll(scroller);
     await emit({ ...serverDoc, comments: [...serverDoc.comments, comment('four', 'Fourth')] });
-    expect(scroller.scrollTop).toBe(1000);
+    await waitFor(() => expect(scroller.scrollTop).toBe(1000));
     view.rerender(<QueryClientProvider client={client}><DocumentViewerModal isOpen={false} document={serverDoc} onClose={vi.fn()} /></QueryClientProvider>);
     expect(mocks.remove).toHaveBeenCalled();
     expect(screen.queryByTestId('document-viewer-modal')).not.toBeInTheDocument();
     view.rerender(<QueryClientProvider client={client}><DocumentViewerModal isOpen document={serverDoc} onClose={vi.fn()} /></QueryClientProvider>);
-    expect(screen.getByTestId('comments-scroll-container').scrollTop).toBe(1000);
+    await waitFor(() => expect(screen.getByTestId('comments-scroll-container').scrollTop).toBe(1000));
     height.mockRestore();
   });
 });
