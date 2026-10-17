@@ -41,6 +41,8 @@ const mockTables = {
   document_sequences: new Map(),
 };
 
+const mockStorageObjects = new Map();
+
 let sequence = 0;
 const nextId = () => {
   sequence += 1;
@@ -512,6 +514,14 @@ const rpcImpl = {
       : [params.p_from_statuses];
     if (!fromStatuses.includes(row.status)) return { data: [], error: null };
 
+    if (
+      params.p_expected_version !== null &&
+      params.p_expected_version !== undefined &&
+      row.version !== Number(params.p_expected_version)
+    ) {
+      return { data: [], error: null };
+    }
+
     const now = nowIso();
     row.status = params.p_to_status;
     row.updated_at = now;
@@ -763,7 +773,38 @@ const rpcImpl = {
       params.p_expected_version !== undefined &&
       invoice.version !== Number(params.p_expected_version)
     ) {
-      return { data: null, error: null };
+      return {
+        data: null,
+        error: {
+          message: `ERR_CONCURRENCY_CONFLICT: Invoice version mismatch (expected ${params.p_expected_version}, found ${invoice.version})`,
+          code: 'P0001',
+        },
+      };
+    }
+
+    const u = params.p_updates || {};
+    const isFinancial =
+      (params.p_line_items !== null && params.p_line_items !== undefined) ||
+      u.client_id !== undefined ||
+      u.work_request_id !== undefined ||
+      u.task_id !== undefined ||
+      u.linked_task_id !== undefined ||
+      u.taskId !== undefined ||
+      u.linkedTaskId !== undefined ||
+      u.linked_transmittal_id !== undefined ||
+      u.invoice_number !== undefined ||
+      u.issue_date !== undefined ||
+      u.due_date !== undefined ||
+      u.terms !== undefined;
+
+    if (isFinancial && invoice.status !== 'Draft') {
+      return {
+        data: null,
+        error: {
+          message: `INVOICE_NOT_DRAFT: Cannot modify financial fields or line items of non-draft invoice (current status ${invoice.status})`,
+          code: 'P0002',
+        },
+      };
     }
 
     let subtotal = null;
@@ -788,7 +829,6 @@ const rpcImpl = {
       subtotal = params.p_line_items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
     }
 
-    const u = params.p_updates || {};
     Object.keys(u).forEach((key) => {
       invoice[key] = u[key];
     });
@@ -916,16 +956,50 @@ const supabaseAdmin = {
     listBuckets: () => Promise.resolve({ data: [{ name: 'test-bucket' }], error: null }),
     createBucket: () => Promise.resolve({ data: { name: 'avatars' }, error: null }),
     updateBucket: () => Promise.resolve({ data: { name: 'avatars' }, error: null }),
-    from: () => ({
-      createSignedUploadUrl: () =>
-        Promise.resolve({ data: { signedUrl: 'https://storage.example.com/upload' }, error: null }),
-      createSignedUrl: () =>
+    from: (_bucketName) => ({
+      createSignedUploadUrl: (_path) =>
         Promise.resolve({
-          data: { signedUrl: 'https://storage.example.com/download' },
+          data: {
+            signedUrl: 'https://storage.example.com/upload',
+          },
           error: null,
         }),
-      remove: () => Promise.resolve({ data: null, error: null }),
-      upload: () => Promise.resolve({ data: { path: 'test-path' }, error: null }),
+      createSignedUrl: (_path, _expiresIn) =>
+        Promise.resolve({
+          data: {
+            signedUrl: 'https://storage.example.com/download',
+          },
+          error: null,
+        }),
+      remove: (paths) => {
+        (paths || []).forEach((p) => mockStorageObjects.delete(p));
+        return Promise.resolve({ data: null, error: null });
+      },
+      upload: (path, buffer, options) => {
+        mockStorageObjects.set(path, {
+          buffer: buffer || Buffer.from('mock-bytes'),
+          size: buffer ? buffer.length : 1024,
+          contentType: options?.contentType || 'application/octet-stream',
+        });
+        return Promise.resolve({ data: { path }, error: null });
+      },
+      list: (folder, _options) => {
+        const prefix = folder ? (folder.endsWith('/') ? folder : folder + '/') : '';
+        const items = Array.from(mockStorageObjects.keys())
+          .filter((k) => k.startsWith(prefix))
+          .map((k) => ({
+            name: k.slice(prefix.length),
+            metadata: { size: mockStorageObjects.get(k)?.size || 1024 },
+          }));
+        return Promise.resolve({ data: items, error: null });
+      },
+      download: (path) => {
+        if (!mockStorageObjects.has(path)) {
+          return Promise.resolve({ data: null, error: { message: 'Object not found' } });
+        }
+        const obj = mockStorageObjects.get(path);
+        return Promise.resolve({ data: obj.buffer || Buffer.from('mock-bytes'), error: null });
+      },
     }),
   },
 };
@@ -933,6 +1007,7 @@ const supabaseAdmin = {
 const resetMock = () => {
   mockUsers.clear();
   mockTokens.clear();
+  mockStorageObjects.clear();
   Object.keys(mockTables).forEach((key) => mockTables[key].clear());
   sequence = 0;
   try {
@@ -949,4 +1024,5 @@ module.exports = {
   seedDefaults,
   resetMock,
   mockTables,
+  mockStorageObjects,
 };

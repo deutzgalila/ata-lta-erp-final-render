@@ -126,9 +126,31 @@ const uploadBuffer = async ({ path, buffer, contentType }) => {
   return getSignedDownloadUrl({ path, expiresInSeconds: 300 });
 };
 
+/**
+ * Verify whether an object exists in private Supabase Storage.
+ * @param {Object} params
+ * @param {string} params.path - Storage path
+ * @param {string} [params.bucket] - Optional bucket override
+ * @returns {Promise<boolean>}
+ */
+const verifyObjectExists = async ({ path, bucket: targetBucket }) => {
+  const activeBucket = targetBucket || env.storage.bucket;
+  if (!activeBucket) return false;
+  try {
+    const { data, error } = await supabaseAdmin.storage
+      .from(activeBucket)
+      .download(path);
+    if (error || !data) return false;
+    return true;
+  } catch (_e) {
+    return false;
+  }
+};
+
 module.exports = {
   getSignedUploadUrl,
   getSignedDownloadUrl,
   deleteObject,
   uploadBuffer,
+  verifyObjectExists,
 };

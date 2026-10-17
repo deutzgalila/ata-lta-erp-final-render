@@ -371,14 +371,14 @@ describe('/v1/disbursements', () => {
     expect(adminList.body.data.some((d) => d.category === 'DraftCategory')).toBe(true);
     expect(adminList.body.data.some((d) => d.category === 'ReleasedCategory')).toBe(true);
 
-    // 2. Ops lists disbursements -> sees only Released
+    // 2. Ops lists disbursements -> strictly scoped to own vouchers under D1
     const opsList = await request(app)
       .get('/v1/disbursements')
       .set('Authorization', `Bearer ${ops}`)
       .set('X-Active-Entity', 'ATA')
       .expect(200);
     expect(opsList.body.data.some((d) => d.category === 'DraftCategory')).toBe(false);
-    expect(opsList.body.data.some((d) => d.category === 'ReleasedCategory')).toBe(true);
+    expect(opsList.body.data.some((d) => d.category === 'ReleasedCategory')).toBe(false);
 
     // 3. Ops tries to fetch draft disbursement directly -> 403 Forbidden
     await request(app)
@@ -387,13 +387,13 @@ describe('/v1/disbursements', () => {
       .set('X-Active-Entity', 'ATA')
       .expect(403);
 
-    // 4. Ops gets counts -> count does not include draft/pending
+    // 4. Ops gets counts -> does not leak admin vouchers under D1
     const opsCounts = await request(app)
       .get('/v1/disbursements/counts')
       .set('Authorization', `Bearer ${ops}`)
       .set('X-Active-Entity', 'ATA')
       .expect(200);
-    expect(opsCounts.body.data.active).toBe(1); // Only the Released one
+    expect(opsCounts.body.data.active).toBe(0); // Scoped to own vouchers
 
     // 5. Admin gets counts -> count includes both
     const adminCounts = await request(app)
@@ -546,6 +546,7 @@ describe('/v1/disbursements', () => {
       fund_source: 'Firm Fund',
       status: 'Pending',
       created_by: 'some-other-person',
+      requested_by: employeeId,
       employee_id: employeeId,
       linked_work_request_id: WORK_REQUEST_ID,
       archived: false,

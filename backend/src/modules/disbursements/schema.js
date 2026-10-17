@@ -79,13 +79,46 @@ const rejectSchema = z.object({
 });
 
 /**
- * Schema for release payment details.
+ * Schema for receipt upload reservation.
+ */
+const createReceiptUploadSchema = z.object({
+  filename: z.string().trim().min(1, 'Filename is required').max(255),
+  contentType: z.enum(['application/pdf', 'image/png', 'image/jpeg'], {
+    errorMap: () => ({ message: 'contentType must be application/pdf, image/png, or image/jpeg' }),
+  }),
+  size: z.number().int().positive('Size must be positive').max(10485760, 'Size must not exceed 10 MiB'),
+});
+
+/**
+ * Schema for direct admin approval or payment release.
+ */
+const approveDisbursementSchema = z.object({
+  method: z.string().trim().min(1, 'Payment method is required').max(50),
+  reference: z.string().trim().max(100).optional().nullable(),
+  bank: z.string().trim().max(100).optional().nullable(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
+  expectedVersion: z.number().int().positive('expectedVersion must be a positive integer'),
+});
+
+/**
+ * Schema for release payment details (legacy).
  */
 const releasePaymentSchema = z.object({
   method: z.string().max(50).optional(),
   reference: z.string().max(100).optional(),
   bank: z.string().max(100).optional(),
   date: z.string().optional(),
+});
+
+/**
+ * Schema for updating payment details on Released/Funded vouchers.
+ */
+const updatePaymentDetailsSchema = z.object({
+  method: z.string().trim().min(1, 'Payment method is required').max(50),
+  reference: z.string().trim().max(100).optional().nullable(),
+  bank: z.string().trim().max(100).optional().nullable(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
+  expectedVersion: z.number().int().positive('expectedVersion must be a positive integer'),
 });
 
 /**
@@ -108,6 +141,9 @@ module.exports = {
   updateDisbursementSchema,
   rejectSchema,
   releasePaymentSchema,
+  createReceiptUploadSchema,
+  approveDisbursementSchema,
+  updatePaymentDetailsSchema,
   disbursementTemplateSchema,
   FUND_SOURCES,
   DISBURSEMENT_CATEGORIES,
