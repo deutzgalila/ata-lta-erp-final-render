@@ -829,6 +829,9 @@ describe('/v1/invoices', () => {
 
   describe('Parcel A: Backend Lifecycle & Governance (Tasks A.1, A.2, A.3)', () => {
     it('Task A.1: Entity resolution Step 4 resolves invoice entity in ALL entity mode', async () => {
+      const billingService = require('../../src/modules/billing/service');
+      const updateInvoiceSpy = jest.spyOn(billingService, 'updateInvoice');
+
       const admin = registerUser({
         email: 'admin-all@ata-lta.ph',
         name: 'Admin All',
@@ -861,6 +864,59 @@ describe('/v1/invoices', () => {
 
       expect(res.body.data.notes).toBe('Updated in ALL mode');
       expect(res.body.data.entity_id).toBe('ent-lta');
+
+      // Assert that resolveEntity middleware Step 4 resolved and passed 'ent-lta' to updateInvoice,
+      // distinguishing middleware resolution from service fallback (which would have received 'ent-ata').
+      expect(updateInvoiceSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entityId: 'ent-lta',
+          id: LTA_INV_ID,
+        })
+      );
+
+      updateInvoiceSpy.mockRestore();
+    });
+
+    it('Task A.1: getInvoiceById falls back to direct query when entityId does not match for authorized user', async () => {
+      const billingService = require('../../src/modules/billing/service');
+      const admin = {
+        id: 'admin-1',
+        role: 'Admin',
+        entities: ['ATA', 'LTA'],
+      };
+
+      const INV_ID = '88888888-aaaa-bbbb-cccc-222222222222';
+      mockTables.invoices.set(INV_ID, {
+        id: INV_ID,
+        entity_id: 'ent-lta',
+        client_id: CLIENT_ID_LTA,
+        work_request_id: WORK_REQUEST_ID,
+        invoice_number: 'LTA-SI-2026-FB',
+        status: 'Draft',
+        total: 3000,
+        balance: 3000,
+        amount_paid: 0,
+        archived: false,
+      });
+
+      // Mismatched entity ('ent-ata') without fallback throws 404
+      await expect(
+        billingService.getInvoiceById({
+          entityId: 'ent-ata',
+          id: INV_ID,
+          user: admin,
+          allowFallback: false,
+        })
+      ).rejects.toThrow('Invoice 88888888-aaaa-bbbb-cccc-222222222222 not found');
+
+      // With allowFallback: true, it falls back to direct query and succeeds
+      const fallbackResult = await billingService.getInvoiceById({
+        entityId: 'ent-ata',
+        id: INV_ID,
+        user: admin,
+        allowFallback: true,
+      });
+      expect(fallbackResult.entity_id).toBe('ent-lta');
     });
 
     it('Task A.2: Non-admin attempting to approve invoice to Sent gets HTTP 403 FORBIDDEN_INVOICE_APPROVAL', async () => {
