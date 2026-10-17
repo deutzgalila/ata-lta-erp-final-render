@@ -98,6 +98,7 @@ const updateTransmittal = async (req, res, next) => {
       entityId: req.activeEntity,
       id: req.params.id,
       userId: req.user.id,
+      user: req.user,
       data: validated,
     });
     res.json({ data });

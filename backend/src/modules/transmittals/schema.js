@@ -31,7 +31,7 @@ const createTransmittalSchema = z.object({
 });
 
 /**
- * Schema for updating a transmittal (only in Draft status).
+ * Schema for updating a transmittal (Draft status, or Admin corrections).
  */
 const updateTransmittalSchema = z.object({
   clientId: z.string().uuid().optional(),

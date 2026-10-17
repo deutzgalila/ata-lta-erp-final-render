@@ -24,7 +24,7 @@ const listTransmittals = async ({ entityId, filters = {}, user }) => {
   const { status, clientId, search, archived, includeDeleted, page = 1, limit = 50 } = filters;
   const isArchived = archived === true || archived === 'true';
 
-  let query = supabaseAdmin.from('transmittals').select('*, clients(name)', { count: 'exact' });
+  let query = supabaseAdmin.from('transmittals').select('*, clients(name, address, tin)', { count: 'exact' });
 
   if (includeDeleted !== true && includeDeleted !== 'true') {
     query = query.is('deleted_at', null);
@@ -291,11 +291,12 @@ const getTransmittalById = async ({ entityId, id, user }) => {
     .eq('transmittal_id', id)
     .order('sort_order', { ascending: true });
 
-  return { ...transmittal, items: items || [] };
+  const { data: entity } = await supabaseAdmin.from('entities').select('code').eq('id', transmittal.entity_id).single();
+  return { ...transmittal, entity_code: entity?.code || transmittal.entity_code, items: items || [] };
 };
 
 /**
- * Update a transmittal (only if Draft).
+ * Update a Draft transmittal, or correct contents in any status as Admin.
  * @param {object} params
  * @param {string} params.entityId
  * @param {string} params.id
@@ -303,12 +304,12 @@ const getTransmittalById = async ({ entityId, id, user }) => {
  * @param {object} params.data
  * @returns {Promise<object>}
  */
-const updateTransmittal = async ({ entityId, id, userId, data }) => {
+const updateTransmittal = async ({ entityId, id, userId, user, data }) => {
   const existing = await getTransmittalById({ entityId, id });
 
   // Board-order reordering is allowed for any status so the kanban board can
   // persist drag-and-drop order in Sent/Acknowledged columns. All other edits
-  // remain restricted to Draft transmittals.
+  // remain restricted to Draft transmittals except for authenticated Admin corrections.
   const hasNonOrderEdit =
     data.clientId !== undefined ||
     data.workRequestId !== undefined ||
@@ -318,7 +319,7 @@ const updateTransmittal = async ({ entityId, id, userId, data }) => {
     data.recipientDetails !== undefined ||
     data.items !== undefined;
 
-  if (existing.status !== 'Draft' && hasNonOrderEdit) {
+  if (existing.status !== 'Draft' && hasNonOrderEdit && user?.role !== 'Admin') {
     throw new AppError({
       statusCode: 409,
       title: 'Conflict',
@@ -338,21 +339,6 @@ const updateTransmittal = async ({ entityId, id, userId, data }) => {
   if (data.recipientName !== undefined) updates.recipient_name = data.recipientName;
   if (data.recipientDetails !== undefined) updates.recipient_details = data.recipientDetails;
   if (data.boardOrder !== undefined) updates.board_order = data.boardOrder;
-
-  // Replace items if provided
-  if (data.items) {
-    await supabaseAdmin.from('transmittal_items').delete().eq('transmittal_id', id);
-
-    const items = data.items.map((item, idx) => ({
-      transmittal_id: id,
-      description: item.description,
-      document_type: item.documentType || null,
-      quantity: item.quantity || 1,
-      sort_order: idx,
-    }));
-
-    await supabaseAdmin.from('transmittal_items').insert(items);
-  }
 
   // OCC (Spec 2.2 / R-10): version-guard the update when the client declares
   // the version it read; zero matching rows become a 409 conflict.
@@ -388,6 +374,23 @@ const updateTransmittal = async ({ entityId, id, userId, data }) => {
       title: 'Not Found',
       detail: `Transmittal ${id} not found`,
     });
+  }
+
+  // Replace items if provided
+  if (data.items) {
+    const { error: deleteError } = await supabaseAdmin.from('transmittal_items').delete().eq('transmittal_id', id);
+    if (deleteError) throw new AppError({ statusCode: 500, title: 'Database Error', detail: 'Failed to replace transmittal items' });
+
+    const items = data.items.map((item, idx) => ({
+      transmittal_id: id,
+      description: item.description,
+      document_type: item.documentType || null,
+      quantity: item.quantity || 1,
+      sort_order: idx,
+    }));
+
+    const { error: insertError } = await supabaseAdmin.from('transmittal_items').insert(items);
+    if (insertError) throw new AppError({ statusCode: 500, title: 'Database Error', detail: 'Failed to save transmittal items' });
   }
 
   return attachItems(updated);
