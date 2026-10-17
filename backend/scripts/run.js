@@ -21,17 +21,18 @@ const envFiles = {
   staging: '.env.staging',
   prod: '.env.production',
   production: '.env.production',
+  main: '.env.production',
 };
 
 if (envName === 'uat') {
   console.error('❌ The UAT environment connection has been disabled because it was converted to the Main Render deployment.');
-  console.error('   To run the backend against the main deployment, use "prod".');
+  console.error('   To run the backend against the main deployment, use "prod" or "main".');
   process.exit(1);
 }
 
 const envFile = envFiles[envName];
 if (!envFile) {
-  console.error(`Unknown environment "${envArg}". Use one of: local, staging, prod`);
+  console.error(`Unknown environment "${envArg}". Use one of: local, staging, prod, main`);
   process.exit(1);
 }
 
@@ -62,7 +63,7 @@ if (fs.existsSync(envPath)) {
 
 // Ensure NODE_ENV reflects the selected profile unless explicitly overridden.
 if (!process.env.NODE_ENV) {
-  process.env.NODE_ENV = (envName === 'uat' || envName === 'staging') ? 'production' : 'development';
+  process.env.NODE_ENV = (envName === 'uat' || envName === 'staging' || envName === 'prod' || envName === 'production' || envName === 'main') ? 'production' : 'development';
 }
 
 require('../src/app.js');

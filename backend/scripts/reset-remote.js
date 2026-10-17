@@ -29,6 +29,7 @@ const envFiles = {
   staging: '.env.staging',
   prod: '.env.production',
   production: '.env.production',
+  main: '.env.production',
 };
 
 if (envArg.toLowerCase() === 'uat') {
@@ -39,7 +40,7 @@ if (envArg.toLowerCase() === 'uat') {
 
 const envFile = envFiles[envArg.toLowerCase()];
 if (!envFile) {
-  console.error(`Unknown environment "${envArg}". Use one of: local, staging, prod`);
+  console.error(`Unknown environment "${envArg}". Use one of: local, staging, prod, main`);
   process.exit(1);
 }
 

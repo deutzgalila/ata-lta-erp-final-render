@@ -37,6 +37,7 @@ const envFiles = {
   staging: '.env.staging',
   prod: '.env.production',
   production: '.env.production',
+  main: '.env.production',
 };
 
 if (envArg.toLowerCase() === 'uat') {

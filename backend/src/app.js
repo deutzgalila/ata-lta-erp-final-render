@@ -6,6 +6,20 @@
  * Module routes are intentionally stubbed; implementation happens per phase.
  */
 
+const fs = require('fs');
+const path = require('path');
+const nodeEnv = process.env.NODE_ENV || 'development';
+if (nodeEnv === 'production') {
+  const prodEnv = path.resolve(__dirname, '../.env.production');
+  if (fs.existsSync(prodEnv)) {
+    require('dotenv').config({ path: prodEnv });
+  }
+} else if (nodeEnv === 'staging') {
+  const stagingEnv = path.resolve(__dirname, '../.env.staging');
+  if (fs.existsSync(stagingEnv)) {
+    require('dotenv').config({ path: stagingEnv });
+  }
+}
 require('dotenv').config();
 const express = require('express');
 const helmet = require('helmet');

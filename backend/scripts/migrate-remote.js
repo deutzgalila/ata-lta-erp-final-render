@@ -34,11 +34,12 @@ const envFiles = {
   staging: '.env.staging',
   prod: '.env.production',
   production: '.env.production',
+  main: '.env.production',
 };
 
 if (envName === 'uat') {
   console.error('❌ The UAT environment connection has been disabled because it was converted to the Main Render deployment.');
-  console.error('   To run migrations against the main deployment, use "prod".');
+  console.error('   To run migrations against the main deployment, use "prod" or "main".');
   process.exit(1);
 }
 
