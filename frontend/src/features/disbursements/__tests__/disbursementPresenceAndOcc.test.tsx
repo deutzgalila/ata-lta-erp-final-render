@@ -250,7 +250,7 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
       expect(capturedBody).toEqual({ expectedVersion: 2 });
     });
 
-    it('useApproveDisbursement omits expectedVersion when strict_occ is disabled', async () => {
+    it('useApproveDisbursement unconditionally passes expectedVersion even when strict_occ is disabled', async () => {
       localStorage.setItem('erp_feature_override_strict_occ', 'false');
 
       let capturedBody: any = null;
@@ -269,7 +269,7 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
       const { result } = renderHook(() => useApproveDisbursement(), { wrapper });
 
       await result.current.approveDisbursement({ id: 'disb-201', expectedVersion: 2 });
-      expect(capturedBody).toBeNull();
+      expect(capturedBody).toEqual({ expectedVersion: 2 });
     });
 
     it('useRejectDisbursement passes expectedVersion when strict_occ is enabled', async () => {
@@ -302,7 +302,7 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
       });
     });
 
-    it('useRejectDisbursement omits expectedVersion when strict_occ is disabled', async () => {
+    it('useRejectDisbursement unconditionally passes expectedVersion even when strict_occ is disabled', async () => {
       localStorage.setItem('erp_feature_override_strict_occ', 'false');
 
       let capturedBody: any = null;
@@ -328,8 +328,9 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
 
       expect(capturedBody).toEqual({
         reason: 'Missing official receipt',
+        expectedVersion: 2,
       });
-      expect(capturedBody.expectedVersion).toBeUndefined();
+      expect(capturedBody.expectedVersion).toBe(2);
     });
 
     it('useFundDisbursement passes expectedVersion when strict_occ is enabled', async () => {
@@ -448,6 +449,11 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
       // Click Approve Voucher button
       const approveBtn = screen.getByTestId('drawer-approve-btn');
       fireEvent.click(approveBtn);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('admin-approval-modal')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByTestId('btn-confirm-approve'));
 
       await waitFor(() => {
         expect(screen.getByTestId('conflict-resolution-modal')).toBeInTheDocument();
@@ -714,6 +720,11 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
       fireEvent.click(approveBtn);
 
       await waitFor(() => {
+        expect(screen.getByTestId('admin-approval-modal')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByTestId('btn-confirm-approve'));
+
+      await waitFor(() => {
         expect(screen.getByTestId('conflict-resolution-modal')).toBeInTheDocument();
       });
 
@@ -787,6 +798,11 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
 
       const approveBtn = screen.getByTestId('drawer-approve-btn');
       fireEvent.click(approveBtn);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('admin-approval-modal')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByTestId('btn-confirm-approve'));
 
       await waitFor(() => {
         expect(screen.getByTestId('conflict-resolution-modal')).toBeInTheDocument();
@@ -867,6 +883,11 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
 
       const directApproveBtn = screen.getByTestId('drawer-direct-approve-btn');
       fireEvent.click(directApproveBtn);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('admin-approval-modal')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByTestId('btn-confirm-approve'));
 
       await waitFor(() => {
         expect(global.fetch).toHaveBeenCalledWith(

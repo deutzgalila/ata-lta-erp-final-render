@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -21,11 +21,11 @@ import {
   XCircle,
   Printer,
   Pencil,
+  RefreshCw,
 } from 'lucide-react';
 import {
   useDisbursementDetail,
   useSubmitDisbursement,
-  useApproveDisbursement,
   useRejectDisbursement,
   useFundDisbursement,
   useDisbursementReceiptUrl,
@@ -47,6 +47,7 @@ import {
 } from '@/components/common/ConflictResolutionModal';
 import { useBlockingModalStore } from '@/features/operations/components/BlockingActionModal';
 import { useQueryClient } from '@tanstack/react-query';
+import { cn } from '@/lib/utils';
 import type { ApiError } from '@/lib/api';
 import type { Disbursement } from '../api/types';
 
@@ -79,7 +80,6 @@ export function DisbursementDetailDrawer({
   const voucher = item;
 
   const { submitWithBlocking } = useSubmitDisbursement();
-  const { approveWithBlocking } = useApproveDisbursement();
   const { rejectDisbursement } = useRejectDisbursement();
   const { fundWithBlocking } = useFundDisbursement();
 
@@ -88,13 +88,21 @@ export function DisbursementDetailDrawer({
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
   const [isEditPaymentModalOpen, setIsEditPaymentModalOpen] = useState(false);
+  const [imageLoadError, setImageLoadError] = useState(false);
   const [conflictModalState, setConflictModalState] = useState<{
     isOpen: boolean;
     error?: unknown;
     attemptedStatus?: string | null;
   }>({ isOpen: false });
 
-  const { data: receiptData, isLoading: isLoadingReceipt } = useDisbursementReceiptUrl(
+  const {
+    data: receiptData,
+    isLoading: isLoadingReceipt,
+    isError: isReceiptError,
+    error: receiptError,
+    refetch: refetchReceiptUrl,
+    isFetching: isFetchingReceipt,
+  } = useDisbursementReceiptUrl(
     item?.id,
     {
       enabled:
@@ -109,6 +117,10 @@ export function DisbursementDetailDrawer({
     }
   );
 
+  useEffect(() => {
+    setImageLoadError(false);
+  }, [receiptData?.url]);
+
   if (!isOpen) return null;
 
   const handleSubmit = async () => {
@@ -122,24 +134,6 @@ export function DisbursementDetailDrawer({
           isOpen: true,
           error: err,
           attemptedStatus: 'Pending',
-        });
-        return;
-      }
-      // Handled via BlockingActionModal
-    }
-  };
-
-  const handleApprove = async () => {
-    if (!item) return;
-    try {
-      await approveWithBlocking(item.id, item.version);
-    } catch (err: unknown) {
-      if (isConcurrencyConflictError(err)) {
-        useBlockingModalStore.getState().close();
-        setConflictModalState({
-          isOpen: true,
-          error: err,
-          attemptedStatus: 'Approved',
         });
         return;
       }
@@ -328,7 +322,28 @@ export function DisbursementDetailDrawer({
                   </div>
 
                   {/* Receipt Action / Status */}
-                  {receiptData?.status === 'unavailable' ? (
+                  {isReceiptError ? (
+                    <div className="flex items-center gap-2" data-testid="receipt-error-state">
+                      <span className="text-[11px] text-rose-600 font-medium flex items-center gap-1">
+                        <AlertCircle className="h-3.5 w-3.5 text-rose-500" />
+                        {(receiptError as Error)?.message || 'Preview unavailable'}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setImageLoadError(false);
+                          void refetchReceiptUrl();
+                        }}
+                        className="text-[11px] h-6 px-2 text-rose-700 border-rose-200 hover:bg-rose-50 cursor-pointer"
+                        data-testid="btn-retry-receipt"
+                      >
+                        <RefreshCw className={cn('h-3 w-3 mr-1', isFetchingReceipt && 'animate-spin')} />
+                        Retry
+                      </Button>
+                    </div>
+                  ) : receiptData?.status === 'unavailable' ? (
                     <span
                       className="text-[11px] font-medium px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200"
                       data-testid="receipt-legacy-unavailable"
@@ -336,30 +351,80 @@ export function DisbursementDetailDrawer({
                       Supporting document unavailable (legacy record)
                     </span>
                   ) : receiptData?.url ? (
-                    <a
-                      href={receiptData.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
-                      data-testid="btn-preview-receipt"
-                    >
-                      <FileText className="h-3 w-3" />
-                      View / Download
-                    </a>
-                  ) : isLoadingReceipt ? (
-                    <span className="text-[11px] text-slate-500">Loading document link...</span>
+                    <div className="flex items-center gap-1.5">
+                      <a
+                        href={receiptData.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
+                        data-testid="btn-preview-receipt"
+                      >
+                        <FileText className="h-3 w-3" />
+                        View / Download
+                      </a>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setImageLoadError(false);
+                          void refetchReceiptUrl();
+                        }}
+                        className="text-[11px] h-6 px-2 text-blue-700 border-blue-200 hover:bg-blue-100 cursor-pointer"
+                        title="Refresh signed URL (valid for 5 minutes)"
+                        data-testid="btn-refresh-receipt"
+                      >
+                        <RefreshCw className={cn('h-3 w-3 mr-1', isFetchingReceipt && 'animate-spin')} />
+                        Refresh Link
+                      </Button>
+                    </div>
+                  ) : isLoadingReceipt || isFetchingReceipt ? (
+                    <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                      <RefreshCw className="h-3 w-3 animate-spin text-blue-500" />
+                      Loading document link...
+                    </span>
                   ) : null}
                 </div>
 
                 {/* Inline image preview if available */}
                 {receiptData?.url && receiptData.contentType?.startsWith('image/') && (
                   <div className="pt-2 border-t border-blue-100">
-                    <img
-                      src={receiptData.url}
-                      alt={item.receipt_filename || item.receiptFilename || 'Receipt Preview'}
-                      className="max-h-48 rounded border border-blue-200 object-contain mx-auto"
-                      data-testid="receipt-preview-image"
-                    />
+                    {imageLoadError ? (
+                      <div
+                        className="p-3 bg-amber-50/80 border border-amber-200 rounded-md text-center space-y-1.5"
+                        data-testid="receipt-image-error"
+                      >
+                        <div className="flex items-center justify-center gap-1.5 text-xs font-medium text-amber-800">
+                          <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                          <span>Image preview failed to load or signed link expired</span>
+                        </div>
+                        <p className="text-[11px] text-amber-700">
+                          Signed receipt URLs expire after 5 minutes. Refresh to obtain a new signed preview.
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setImageLoadError(false);
+                            void refetchReceiptUrl();
+                          }}
+                          className="text-[11px] h-6 px-2 border-amber-300 text-amber-800 hover:bg-amber-100 cursor-pointer"
+                          data-testid="btn-retry-image-preview"
+                        >
+                          <RefreshCw className={cn('h-3 w-3 mr-1', isFetchingReceipt && 'animate-spin')} />
+                          Refresh Image Preview
+                        </Button>
+                      </div>
+                    ) : (
+                      <img
+                        src={receiptData.url}
+                        alt={item.receipt_filename || item.receiptFilename || 'Receipt Preview'}
+                        className="max-h-48 rounded border border-blue-200 object-contain mx-auto"
+                        onError={() => setImageLoadError(true)}
+                        data-testid="receipt-preview-image"
+                      />
+                    )}
                   </div>
                 )}
               </div>
@@ -514,7 +579,7 @@ export function DisbursementDetailDrawer({
                     type="button"
                     variant="default"
                     size="sm"
-                    onClick={handleApprove}
+                    onClick={() => setIsApprovalModalOpen(true)}
                     className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
                     data-testid="drawer-direct-approve-btn"
                   >
@@ -536,8 +601,8 @@ export function DisbursementDetailDrawer({
                 )
               )}
 
-              {/* Pending / Pending Admin Approval -> Approve / Reject */}
-              {(item.status === 'Pending' || item.status === 'Pending Admin Approval') && canApprove && (
+              {/* Pending / Pending Admin Approval / Submitted -> Approve / Reject */}
+              {(item.status === 'Pending' || item.status === 'Pending Admin Approval' || item.status === 'Submitted') && canApprove && (
                 <>
                   <Button
                     type="button"
@@ -554,7 +619,7 @@ export function DisbursementDetailDrawer({
                     type="button"
                     variant="default"
                     size="sm"
-                    onClick={handleApprove}
+                    onClick={() => setIsApprovalModalOpen(true)}
                     className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
                     data-testid="drawer-approve-btn"
                   >
@@ -696,6 +761,14 @@ export function DisbursementDetailDrawer({
             disbursement={item}
             onClose={() => setIsApprovalModalOpen(false)}
             onSuccess={() => setIsApprovalModalOpen(false)}
+            onConflict={(err) => {
+              setIsApprovalModalOpen(false);
+              setConflictModalState({
+                isOpen: true,
+                error: err,
+                attemptedStatus: 'Approved',
+              });
+            }}
           />
         )}
 

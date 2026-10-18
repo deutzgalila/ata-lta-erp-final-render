@@ -74,6 +74,11 @@ export function CreateDisbursementModal({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isNoReceiptConfirmOpen, setIsNoReceiptConfirmOpen] = useState(false);
   const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
+  const [uploadedReceipt, setUploadedReceipt] = useState<{
+    file: File;
+    receiptS3Key: string;
+    receiptFilename: string;
+  } | null>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -98,6 +103,7 @@ export function CreateDisbursementModal({
     }
     setReceiptFile(file);
     setReceiptFilename(file.name);
+    setUploadedReceipt(null);
     setErrors((prev) => {
       const copy = { ...prev };
       delete copy.receipt;
@@ -179,6 +185,7 @@ export function CreateDisbursementModal({
       setEmployeeId('');
       setReceiptFile(null);
       setReceiptFilename('');
+      setUploadedReceipt(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       setErrors({});
     } else {
@@ -195,6 +202,7 @@ export function CreateDisbursementModal({
       setNotes('');
       setReceiptFile(null);
       setReceiptFilename('');
+      setUploadedReceipt(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       setErrors({});
     }
@@ -298,6 +306,7 @@ export function CreateDisbursementModal({
     setNotes('');
     setReceiptFile(null);
     setReceiptFilename('');
+    setUploadedReceipt(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
     setErrors({});
   };
@@ -307,7 +316,7 @@ export function CreateDisbursementModal({
     if (!validate()) return;
 
     // Distinguish absent file selection from failed upload
-    const hasReceipt = Boolean(receiptFile || (receiptFilename && receiptFilename.trim()));
+    const hasReceipt = Boolean(receiptFile || uploadedReceipt);
     if (!hasReceipt) {
       setIsNoReceiptConfirmOpen(true);
       return;
@@ -320,7 +329,11 @@ export function CreateDisbursementModal({
     let resultingS3Key: string | null = null;
     let resultingFilename: string | null = null;
 
-    if (!bypassReceipt && receiptFile) {
+    if (!bypassReceipt && uploadedReceipt && receiptFile && uploadedReceipt.file === receiptFile) {
+      // Reuse already uploaded and completed receipt reservation without re-uploading
+      resultingS3Key = uploadedReceipt.receiptS3Key;
+      resultingFilename = uploadedReceipt.receiptFilename;
+    } else if (!bypassReceipt && receiptFile) {
       // Validate MIME and size before upload
       if (!['application/pdf', 'image/png', 'image/jpeg'].includes(receiptFile.type)) {
         setErrors((prev) => ({ ...prev, receipt: 'Only PDF, PNG, and JPEG files are allowed' }));
@@ -334,6 +347,11 @@ export function CreateDisbursementModal({
       setIsUploadingReceipt(true);
       try {
         const uploadResult = await uploadReceiptFile(receiptFile);
+        setUploadedReceipt({
+          file: receiptFile,
+          receiptS3Key: uploadResult.receiptS3Key,
+          receiptFilename: uploadResult.receiptFilename,
+        });
         resultingS3Key = uploadResult.receiptS3Key;
         resultingFilename = uploadResult.receiptFilename;
       } catch (err: unknown) {
@@ -344,8 +362,6 @@ export function CreateDisbursementModal({
       } finally {
         setIsUploadingReceipt(false);
       }
-    } else if (!bypassReceipt && receiptFilename && receiptFilename.trim()) {
-      resultingFilename = receiptFilename.trim();
     }
 
     const effectiveCategory = category === 'Other' && customCategory.trim() ? customCategory.trim() : category;
@@ -361,7 +377,7 @@ export function CreateDisbursementModal({
       dueDate: dueDate ? dueDate : null,
       notes: notes.trim() ? notes.trim() : null,
       receiptS3Key: resultingS3Key,
-      receiptFilename: resultingFilename,
+      receiptFilename: resultingS3Key !== null ? resultingFilename : null,
     };
 
     try {
@@ -689,6 +705,7 @@ export function CreateDisbursementModal({
                       e.stopPropagation();
                       setReceiptFile(null);
                       setReceiptFilename('');
+                      setUploadedReceipt(null);
                       if (fileInputRef.current) fileInputRef.current.value = '';
                     }}
                     className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600 cursor-pointer"

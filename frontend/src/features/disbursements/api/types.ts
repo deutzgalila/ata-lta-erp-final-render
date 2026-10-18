@@ -349,11 +349,12 @@ export interface CreateDisbursementTemplateInput {
 
 export interface DisbursementListResponse {
   data: Disbursement[];
-  meta: {
+  meta?: {
     total: number;
     page: number;
     limit: number;
   };
+  count?: number;
 }
 
 export interface DisbursementDetailResponse {

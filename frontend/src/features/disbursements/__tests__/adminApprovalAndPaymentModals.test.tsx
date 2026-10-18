@@ -342,5 +342,275 @@ describe('Direct Admin Approval & Payment Details Corrections (R3 / D2)', () => 
         /Supporting document unavailable \(legacy record\)/i
       );
     });
+
+    it('renders explicit Refresh Link button next to View/Download and refetches signed URL on click', async () => {
+      let callCount = 0;
+      global.fetch = vi.fn().mockImplementation(async (url: string) => {
+        const u = String(url);
+        if (u.includes('/disbursements/disb-rel-1/receipt-url')) {
+          callCount++;
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({
+              data: {
+                url: `https://storage.test/signed/official_receipt_${callCount}.pdf`,
+                filename: 'official_receipt.pdf',
+                contentType: 'application/pdf',
+                expiresAt: '2026-10-18T01:05:00Z',
+              },
+            }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ data: [] }),
+        };
+      });
+
+      const { wrapper } = createHarness();
+      render(
+        <DisbursementDetailDrawer
+          isOpen={true}
+          onClose={() => {}}
+          initialDisbursement={mockReleasedDisbursement}
+        />,
+        { wrapper }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('btn-preview-receipt')).toBeInTheDocument();
+        expect(screen.getByTestId('btn-refresh-receipt')).toBeInTheDocument();
+      });
+
+      expect(screen.getByTestId('btn-preview-receipt')).toHaveAttribute(
+        'href',
+        'https://storage.test/signed/official_receipt_1.pdf'
+      );
+
+      // Click explicit refresh button
+      fireEvent.click(screen.getByTestId('btn-refresh-receipt'));
+
+      await waitFor(() => {
+        expect(callCount).toBeGreaterThanOrEqual(2);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('btn-preview-receipt')).toHaveAttribute(
+          'href',
+          'https://storage.test/signed/official_receipt_2.pdf'
+        );
+      });
+    });
+
+    it('renders error retry UI state with Retry button when receipt URL fails (isError: true)', async () => {
+      let shouldFail = true;
+      global.fetch = vi.fn().mockImplementation(async (url: string) => {
+        const u = String(url);
+        if (u.includes('/disbursements/disb-rel-1/receipt-url')) {
+          if (shouldFail) {
+            return {
+              ok: false,
+              status: 500,
+              headers: new Headers({ 'content-type': 'application/json' }),
+              json: async () => ({ error: 'Storage network timeout' }),
+            };
+          }
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({
+              data: {
+                url: 'https://storage.test/signed/recovered_receipt.pdf',
+                filename: 'official_receipt.pdf',
+                contentType: 'application/pdf',
+              },
+            }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ data: [] }),
+        };
+      });
+
+      const { wrapper } = createHarness();
+      render(
+        <DisbursementDetailDrawer
+          isOpen={true}
+          onClose={() => {}}
+          initialDisbursement={mockReleasedDisbursement}
+        />,
+        { wrapper }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('receipt-error-state')).toBeInTheDocument();
+        expect(screen.getByTestId('btn-retry-receipt')).toBeInTheDocument();
+      }, { timeout: 4000 });
+
+      expect(screen.queryByTestId('btn-preview-receipt')).not.toBeInTheDocument();
+
+      // Clear failure and click retry
+      shouldFail = false;
+      fireEvent.click(screen.getByTestId('btn-retry-receipt'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('btn-preview-receipt')).toBeInTheDocument();
+      });
+      expect(screen.queryByTestId('receipt-error-state')).not.toBeInTheDocument();
+    });
+
+    it('handles image onError fallback and renders Refresh Image Preview button', async () => {
+      let refreshCalled = false;
+      global.fetch = vi.fn().mockImplementation(async (url: string) => {
+        const u = String(url);
+        if (u.includes('/disbursements/disb-rel-1/receipt-url')) {
+          if (refreshCalled) {
+            return {
+              ok: true,
+              status: 200,
+              headers: new Headers({ 'content-type': 'application/json' }),
+              json: async () => ({
+                data: {
+                  url: 'https://storage.test/signed/refreshed_image.png',
+                  filename: 'official_receipt.png',
+                  contentType: 'image/png',
+                },
+              }),
+            };
+          }
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({
+              data: {
+                url: 'https://storage.test/signed/expired_image.png',
+                filename: 'official_receipt.png',
+                contentType: 'image/png',
+              },
+            }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ data: [] }),
+        };
+      });
+
+      const imageDisbursement: Disbursement = {
+        ...mockReleasedDisbursement,
+        receipt_filename: 'official_receipt.png',
+      };
+
+      const { wrapper } = createHarness();
+      render(
+        <DisbursementDetailDrawer
+          isOpen={true}
+          onClose={() => {}}
+          initialDisbursement={imageDisbursement}
+        />,
+        { wrapper }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('receipt-preview-image')).toBeInTheDocument();
+      });
+
+      // Simulate expired image failing to load
+      fireEvent.error(screen.getByTestId('receipt-preview-image'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('receipt-image-error')).toBeInTheDocument();
+        expect(screen.getByTestId('btn-retry-image-preview')).toBeInTheDocument();
+      });
+
+      expect(screen.queryByTestId('receipt-preview-image')).not.toBeInTheDocument();
+
+      // Click refresh image preview
+      refreshCalled = true;
+      fireEvent.click(screen.getByTestId('btn-retry-image-preview'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('receipt-preview-image')).toBeInTheDocument();
+      });
+      expect(screen.getByTestId('receipt-preview-image')).toHaveAttribute(
+        'src',
+        'https://storage.test/signed/refreshed_image.png'
+      );
+    });
+
+    it('routes drawer approve button to AdminApprovalModal collecting payment method, date, and expectedVersion', async () => {
+      let approveBody: Record<string, unknown> | null = null;
+      global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+        const u = String(url);
+        if (init?.method === 'POST' && u.includes('/disbursements/disb-app-1/approve')) {
+          approveBody = JSON.parse(init.body as string);
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({
+              data: {
+                ...mockPendingDisbursement,
+                status: 'Released',
+                version: 3,
+                ...approveBody,
+              },
+            }),
+          };
+        }
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ data: [] }),
+        };
+      });
+
+      const { wrapper } = createHarness();
+      render(
+        <DisbursementDetailDrawer
+          isOpen={true}
+          onClose={() => {}}
+          initialDisbursement={mockPendingDisbursement}
+        />,
+        { wrapper }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('drawer-approve-btn')).toBeInTheDocument();
+      });
+
+      // Clicking approve button in drawer must NOT directly send POST /approve without payment fields;
+      // It must open AdminApprovalModal
+      fireEvent.click(screen.getByTestId('drawer-approve-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('admin-approval-modal')).toBeInTheDocument();
+      });
+
+      expect(approveBody).toBeNull(); // No request sent yet!
+
+      // Confirm in modal
+      fireEvent.click(screen.getByTestId('btn-confirm-approve'));
+
+      await waitFor(() => {
+        expect(approveBody).not.toBeNull();
+      });
+
+      expect(approveBody!.method).toBe('Bank Transfer');
+      expect(approveBody!.date).toBeDefined();
+      expect(approveBody!.expectedVersion).toBe(2);
+    });
   });
 });

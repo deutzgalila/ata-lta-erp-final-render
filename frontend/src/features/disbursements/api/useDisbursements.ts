@@ -9,7 +9,6 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData, type QueryClie
 import { apiRequest, ApiError } from '@/lib/api';
 import { useSessionStore } from '@/lib/session';
 import { broadcastEntityChange } from '@/lib/tabSync';
-import { isFeatureEnabled } from '@/lib/flags';
 import { runBlockingAction } from '@/features/operations/components/BlockingActionModal';
 import { disbursementKeys } from './queryKeys';
 import {
@@ -121,6 +120,65 @@ export function useDisbursementsList(
       const path = `/disbursements${queryStr ? `?${queryStr}` : ''}`;
       const res = await apiRequest<DisbursementListResponse>(path);
       return res;
+    },
+    placeholderData: keepPreviousData,
+    enabled: options?.enabled ?? true,
+  });
+}
+
+/**
+ * 1b. Fetch all disbursements for a status across all pages (F4 / Queue Complete Traversal).
+ * Automatically paginates until all records for the given status are retrieved,
+ * preventing silent truncation beyond 100 items.
+ */
+export async function fetchAllDisbursementsForStatus(
+  status: string,
+  limitPerPage = 100
+): Promise<Disbursement[]> {
+  if (isTestWithoutMock()) return [];
+  const all: Disbursement[] = [];
+  let page = 1;
+
+  while (true) {
+    const params = new URLSearchParams();
+    params.append('status', status);
+    params.append('limit', String(limitPerPage));
+    params.append('page', String(page));
+
+    const path = `/disbursements?${params.toString()}`;
+    const res = await apiRequest<DisbursementListResponse>(path);
+    const items = res.data ?? [];
+    all.push(...items);
+
+    const total = res.meta?.total ?? res.count;
+    if (
+      items.length < limitPerPage ||
+      (typeof total === 'number' && all.length >= total) ||
+      items.length === 0
+    ) {
+      break;
+    }
+    page++;
+    if (page > 50) break; // Defensive upper bound
+  }
+
+  return all;
+}
+
+export function useAllDisbursementsForStatus(
+  status: string,
+  options?: { enabled?: boolean }
+) {
+  const activeEntity = useSessionStore((state) => state.activeEntity);
+
+  return useQuery({
+    queryKey: ['disbursements', 'all-for-status', activeEntity, status],
+    queryFn: async () => {
+      const data = await fetchAllDisbursementsForStatus(status);
+      return {
+        data,
+        meta: { total: data.length, page: 1, limit: data.length },
+      };
     },
     placeholderData: keepPreviousData,
     enabled: options?.enabled ?? true,
@@ -392,7 +450,7 @@ export function useApproveDisbursement() {
         payload.date = arg.date;
       }
 
-      if (isFeatureEnabled('strict_occ') && typeof expectedVersion === 'number') {
+      if (typeof expectedVersion === 'number') {
         payload.expectedVersion = expectedVersion;
       }
 
@@ -488,7 +546,7 @@ export function useRejectDisbursement() {
     mutationFn: async ({ id, reason, expectedVersion }) => {
       const validated = rejectDisbursementSchema.parse({ reason });
       const payload: Record<string, unknown> = { reason: validated.reason };
-      if (isFeatureEnabled('strict_occ') && typeof expectedVersion === 'number') {
+      if (typeof expectedVersion === 'number') {
         payload.expectedVersion = expectedVersion;
       }
       const res = await apiRequest<DisbursementDetailResponse>(
@@ -575,7 +633,7 @@ export function useReleaseDisbursement() {
       const expectedVersion = typeof arg === 'object' ? arg.expectedVersion : undefined;
       const validated = data ? releasePaymentSchema.parse(data) : {};
       const payload: Record<string, unknown> = { ...validated };
-      if (isFeatureEnabled('strict_occ') && typeof expectedVersion === 'number') {
+      if (typeof expectedVersion === 'number') {
         payload.expectedVersion = expectedVersion;
       }
       const res = await apiRequest<DisbursementDetailResponse>(
@@ -849,7 +907,7 @@ export function useFundDisbursement() {
       const id = typeof arg === 'string' ? arg : arg.id;
       const expectedVersion = typeof arg === 'object' ? arg.expectedVersion : undefined;
       const payload: Record<string, unknown> = {};
-      if (isFeatureEnabled('strict_occ') && typeof expectedVersion === 'number') {
+      if (typeof expectedVersion === 'number') {
         payload.expectedVersion = expectedVersion;
       }
 

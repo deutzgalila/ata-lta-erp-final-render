@@ -591,6 +591,11 @@ describe('Empirical Challenger: Track 2B Adversarial Verification Harness', () =
       fireEvent.click(directApproveBtn);
 
       await waitFor(() => {
+        expect(screen.getByTestId('admin-approval-modal')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByTestId('btn-confirm-approve'));
+
+      await waitFor(() => {
         expect(approvedCalled).toBe(true);
       });
     });

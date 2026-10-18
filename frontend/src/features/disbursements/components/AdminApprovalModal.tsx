@@ -13,6 +13,8 @@ import { DateInput } from '@/components/ui/date-input';
 import { CheckCircle2 } from 'lucide-react';
 import { useApproveDisbursement } from '../api/useDisbursements';
 import { approveDisbursementSchema } from '../api/schemas';
+import { isConcurrencyConflictError } from '@/components/common/ConflictResolutionModal';
+import { useBlockingModalStore } from '@/features/operations/components/BlockingActionModal';
 import type { Disbursement } from '../api/types';
 
 export interface AdminApprovalModalProps {
@@ -20,6 +22,7 @@ export interface AdminApprovalModalProps {
   disbursement: Disbursement | null;
   onClose: () => void;
   onSuccess?: () => void;
+  onConflict?: (err: unknown) => void;
 }
 
 export function AdminApprovalModal({
@@ -27,6 +30,7 @@ export function AdminApprovalModal({
   disbursement,
   onClose,
   onSuccess,
+  onConflict,
 }: AdminApprovalModalProps) {
   const { approveWithBlocking } = useApproveDisbursement();
 
@@ -89,7 +93,15 @@ export function AdminApprovalModal({
       });
       onClose();
       if (onSuccess) onSuccess();
-    } catch {
+    } catch (err: unknown) {
+      if (isConcurrencyConflictError(err)) {
+        useBlockingModalStore.getState().close();
+        onClose();
+        if (onConflict) {
+          onConflict(err);
+          return;
+        }
+      }
       // Errors handled via BlockingActionModal / OCC modal
     }
   };
