@@ -137,6 +137,7 @@ export async function fetchAllDisbursementsForStatus(
 ): Promise<Disbursement[]> {
   if (isTestWithoutMock()) return [];
   const all: Disbursement[] = [];
+  const seen = new Set<string>();
   let page = 1;
 
   while (true) {
@@ -148,7 +149,12 @@ export async function fetchAllDisbursementsForStatus(
     const path = `/disbursements?${params.toString()}`;
     const res = await apiRequest<DisbursementListResponse>(path);
     const items = res.data ?? [];
-    all.push(...items);
+    const unseen = items.filter((item) => !seen.has(item.id));
+    if (items.length && !unseen.length) {
+      throw new Error('Pending queue pagination made no progress. Refresh the queue.');
+    }
+    for (const item of unseen) seen.add(item.id);
+    all.push(...unseen);
 
     const total = res.meta?.total ?? res.count;
     if (
@@ -159,7 +165,6 @@ export async function fetchAllDisbursementsForStatus(
       break;
     }
     page++;
-    if (page > 50) break; // Defensive upper bound
   }
 
   return all;
