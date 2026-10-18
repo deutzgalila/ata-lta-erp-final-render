@@ -11,6 +11,7 @@ const {
   rejectSchema,
   createReceiptUploadSchema,
   approveDisbursementSchema,
+  releaseDisbursementSchema,
   updatePaymentDetailsSchema,
   disbursementTemplateSchema,
 } = require('./schema');
@@ -153,18 +154,15 @@ const submitDisbursement = async (req, res, next) => {
 /** @type {import('express').RequestHandler} */
 const approveDisbursement = async (req, res, next) => {
   try {
-    let paymentDetails = null;
-    let expectedVersion = null;
-    if (req.body && Object.keys(req.body).length > 0) {
-      const validated = approveDisbursementSchema.parse(req.body);
-      paymentDetails = {
-        method: validated.method,
-        reference: validated.reference,
-        bank: validated.bank,
-        date: validated.date,
-      };
-      expectedVersion = validated.expectedVersion;
-    }
+    const validated = approveDisbursementSchema.parse(req.body || {});
+    const paymentDetails = {
+      method: validated.method,
+      reference: validated.reference,
+      bank: validated.bank,
+      date: validated.date,
+    };
+    const expectedVersion = validated.expectedVersion;
+
     const data = await service.approveDisbursement({
       entityId: req.activeEntity,
       id: req.params.id,
@@ -182,18 +180,15 @@ const approveDisbursement = async (req, res, next) => {
 /** @type {import('express').RequestHandler} */
 const releaseDisbursement = async (req, res, next) => {
   try {
-    let paymentDetails = null;
-    let expectedVersion = null;
-    if (req.body && Object.keys(req.body).length > 0) {
-      const validated = approveDisbursementSchema.parse(req.body);
-      paymentDetails = {
-        method: validated.method,
-        reference: validated.reference,
-        bank: validated.bank,
-        date: validated.date,
-      };
-      expectedVersion = validated.expectedVersion;
-    }
+    const validated = releaseDisbursementSchema.parse(req.body || {});
+    const paymentDetails = {
+      method: validated.method,
+      reference: validated.reference,
+      bank: validated.bank,
+      date: validated.date,
+    };
+    const expectedVersion = validated.expectedVersion;
+
     const data = await service.releaseDisbursement({
       entityId: req.activeEntity,
       id: req.params.id,

@@ -25,6 +25,8 @@ const {
   mockTables,
   mockStorageObjects,
 } = require('../fixtures/supabaseMock');
+const reservations = require('../../src/modules/disbursements/receiptReservationStore');
+const schema = require('../../src/modules/disbursements/schema');
 
 const CLIENT_ATA_ID = '11111111-aaaa-1111-aaaa-111111111111';
 const CLIENT_LTA_ID = '22222222-bbbb-2222-bbbb-222222222222';
@@ -77,6 +79,7 @@ describe('DB-AUDIT-REMEDIATION-2026-10-17 Milestone M1 Test Suite', () => {
 
   beforeEach(() => {
     resetMock();
+    reservations.clearReservations();
     seedBaseEntities();
 
     adminToken = registerUser({
@@ -684,8 +687,9 @@ describe('DB-AUDIT-REMEDIATION-2026-10-17 Milestone M1 Test Suite', () => {
       expect(earlyCompleteRes.body.code).toBe('RECEIPT_UPLOAD_VERIFICATION_FAILED');
 
       // 3. Simulate browser upload into storage
+      const validPdfBuffer = Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(204800 - 9, 0)]);
       mockStorageObjects.set(objectKey, {
-        buffer: Buffer.from('mock pdf binary content'),
+        buffer: validPdfBuffer,
         size: 204800,
         contentType: 'application/pdf',
       });
@@ -842,4 +846,490 @@ describe('DB-AUDIT-REMEDIATION-2026-10-17 Milestone M1 Test Suite', () => {
       expect(res.body.data.reason).toBe('legacy_attachment_missing');
     });
   });
+
+  describe('R1: Approval & Release Validation and Calendar Dates', () => {
+    it('rejects empty-body approval with 400 and leaves voucher state completely unchanged', async () => {
+      const voucherId = 'voucher-empty-approve';
+      mockTables.disbursements.set(voucherId, {
+        id: voucherId,
+        entity_id: 'ent-ata',
+        category: 'Meals',
+        description: 'Empty approve test',
+        amount: 250,
+        fund_source: 'Firm Fund',
+        status: 'Pending',
+        created_by: staffA_Id,
+        requested_by: staffA_Id,
+        payment_method: null,
+        payment_date: null,
+        version: 1,
+        archived: false,
+      });
+
+      const res = await request(app)
+        .post(`/v1/disbursements/${voucherId}/approve`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({})
+        .expect(400);
+
+      expect(res.body.title).toBe('Validation Error');
+      expect(res.body.detail).toContain('method: Required');
+      expect(res.body.detail).toContain('date: Required');
+      expect(res.body.detail).toContain('expectedVersion: Required');
+
+      const stored = mockTables.disbursements.get(voucherId);
+      expect(stored.status).toBe('Pending');
+      expect(stored.payment_method).toBeNull();
+      expect(stored.payment_date).toBeNull();
+      expect(stored.version).toBe(1);
+    });
+
+    it('rejects empty-body release with 400 and leaves voucher unchanged', async () => {
+      const voucherId = 'voucher-empty-release';
+      mockTables.disbursements.set(voucherId, {
+        id: voucherId,
+        entity_id: 'ent-ata',
+        category: 'Meals',
+        description: 'Empty release test',
+        amount: 250,
+        fund_source: 'Firm Fund',
+        status: 'Approved',
+        created_by: staffA_Id,
+        requested_by: staffA_Id,
+        version: 2,
+        archived: false,
+      });
+
+      const res = await request(app)
+        .post(`/v1/disbursements/${voucherId}/release`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({})
+        .expect(400);
+
+      expect(res.body.title).toBe('Validation Error');
+      const stored = mockTables.disbursements.get(voucherId);
+      expect(stored.status).toBe('Approved');
+      expect(stored.version).toBe(2);
+    });
+
+    it('rejects impossible calendar dates in approval and release schemas', () => {
+      const invalidDates = ['2026-99-99', '2026-02-31', '2026-02-29', '2026-04-31', '18-10-2026'];
+      for (const d of invalidDates) {
+        expect(
+          schema.approveDisbursementSchema.safeParse({ method: 'Cash', date: d, expectedVersion: 1 }).success
+        ).toBe(false);
+        expect(
+          schema.releaseDisbursementSchema.safeParse({ method: 'Cash', date: d, expectedVersion: 1 }).success
+        ).toBe(false);
+        expect(
+          schema.updatePaymentDetailsSchema.safeParse({ method: 'Cash', date: d, expectedVersion: 1 }).success
+        ).toBe(false);
+      }
+
+      // Valid leap day passes
+      expect(
+        schema.approveDisbursementSchema.safeParse({ method: 'Cash', date: '2024-02-29', expectedVersion: 1 }).success
+      ).toBe(true);
+      // Valid regular day passes
+      expect(
+        schema.approveDisbursementSchema.safeParse({ method: 'Cash', date: '2026-10-18', expectedVersion: 1 }).success
+      ).toBe(true);
+    });
+
+    it('rejects invalid expectedVersion (zero, negative, or float)', async () => {
+      const voucherId = 'voucher-invalid-version';
+      mockTables.disbursements.set(voucherId, {
+        id: voucherId,
+        entity_id: 'ent-ata',
+        category: 'Meals',
+        description: 'Invalid version test',
+        amount: 100,
+        fund_source: 'Firm Fund',
+        status: 'Pending',
+        created_by: staffA_Id,
+        requested_by: staffA_Id,
+        version: 1,
+        archived: false,
+      });
+
+      // Zero version
+      const zeroRes = await request(app)
+        .post(`/v1/disbursements/${voucherId}/approve`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ method: 'Cash', date: '2026-10-18', expectedVersion: 0 })
+        .expect(400);
+      expect(zeroRes.body.detail).toContain('expectedVersion');
+
+      // Negative version
+      const negRes = await request(app)
+        .post(`/v1/disbursements/${voucherId}/approve`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ method: 'Cash', date: '2026-10-18', expectedVersion: -1 })
+        .expect(400);
+      expect(negRes.body.detail).toContain('expectedVersion');
+
+      // Float version
+      const floatRes = await request(app)
+        .post(`/v1/disbursements/${voucherId}/approve`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ method: 'Cash', date: '2026-10-18', expectedVersion: 1.5 })
+        .expect(400);
+      expect(floatRes.body.detail).toContain('expectedVersion');
+    });
+  });
+
+  describe('R2: Staff Pending Changes Counts and Column Alignment', () => {
+    it('correctly counts rejected pending_changes for staff callers using submitted_by', async () => {
+      // 1. Seed rejected pending change submitted by Alice
+      mockTables.pending_changes.set('pc-alice-rejected', {
+        id: 'pc-alice-rejected',
+        entity_id: 'ent-ata',
+        table_name: 'disbursements',
+        proposed_data: { description: 'Alice expense' },
+        submitted_by: staffA_Id,
+        status: 'rejected',
+      });
+
+      // 2. Seed rejected operations request requested by Alice
+      mockTables.operations_requests.set('ops-alice-rejected', {
+        id: 'ops-alice-rejected',
+        entity_id: 'ent-ata',
+        type: 'disbursement',
+        requested_by: staffA_Id,
+        status: 'rejected',
+      });
+
+      // 3. Alice fetches counts -> sees rejected === 2
+      const aliceRes = await request(app)
+        .get('/v1/disbursements/counts')
+        .set('Authorization', `Bearer ${staffA_Token}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(200);
+      expect(aliceRes.body.data.rejected).toBe(2);
+
+      // 4. Bob fetches counts -> sees rejected === 0 (no leak of Alice\'s rejections)
+      const bobRes = await request(app)
+        .get('/v1/disbursements/counts')
+        .set('Authorization', `Bearer ${staffB_Token}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(200);
+      expect(bobRes.body.data.rejected).toBe(0);
+
+      // 5. Admin fetches counts -> sees rejected === 2
+      const adminRes = await request(app)
+        .get('/v1/disbursements/counts')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(200);
+      expect(adminRes.body.data.rejected).toBe(2);
+    });
+
+    it('isolates rejected pending changes by table_name and entity_id', async () => {
+      // Non-disbursement table
+      mockTables.pending_changes.set('pc-invoice-rejected', {
+        id: 'pc-invoice-rejected',
+        entity_id: 'ent-ata',
+        table_name: 'invoices',
+        proposed_data: { description: 'Invoice edit' },
+        submitted_by: staffA_Id,
+        status: 'rejected',
+      });
+
+      // Cross-entity (LTA)
+      mockTables.pending_changes.set('pc-lta-rejected', {
+        id: 'pc-lta-rejected',
+        entity_id: 'ent-lta',
+        table_name: 'disbursements',
+        proposed_data: { description: 'LTA expense' },
+        submitted_by: staffA_Id,
+        status: 'rejected',
+      });
+
+      // Status pending (not rejected)
+      mockTables.pending_changes.set('pc-pending', {
+        id: 'pc-pending',
+        entity_id: 'ent-ata',
+        table_name: 'disbursements',
+        proposed_data: { description: 'Pending expense' },
+        submitted_by: staffA_Id,
+        status: 'pending',
+      });
+
+      const aliceRes = await request(app)
+        .get('/v1/disbursements/counts')
+        .set('Authorization', `Bearer ${staffA_Token}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(200);
+      expect(aliceRes.body.data.rejected).toBe(0);
+    });
+  });
+
+  describe('R5: Attachment Provenance and Paired Metadata', () => {
+    it('rejects filename-only new voucher creation (schema & service)', async () => {
+      const res = await request(app)
+        .post('/v1/disbursements')
+        .set('Authorization', `Bearer ${staffA_Token}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          category: 'Meals',
+          description: 'Filename only test',
+          amount: 500,
+          fundSource: 'Firm Fund',
+          linkedWorkRequestId: WR_ATA_ID,
+          receiptFilename: 'orphaned_receipt.png',
+        })
+        .expect(400);
+
+      expect(res.body.title).toBe('Validation Error');
+      expect(res.body.detail).toContain('receiptS3Key: receiptS3Key is required when receiptFilename is provided');
+    });
+
+    it('rejects receiptS3Key without filename on new voucher creation', async () => {
+      const res = await request(app)
+        .post('/v1/disbursements')
+        .set('Authorization', `Bearer ${staffA_Token}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          category: 'Meals',
+          description: 'Key only test',
+          amount: 500,
+          fundSource: 'Firm Fund',
+          linkedWorkRequestId: WR_ATA_ID,
+          receiptS3Key: 'some-key.pdf',
+        })
+        .expect(400);
+
+      expect(res.body.title).toBe('Validation Error');
+      expect(res.body.detail).toContain('receiptFilename: receiptFilename is required when receiptS3Key is provided');
+    });
+
+    it('rejects voucher update with unverified foreign receipt key', async () => {
+      const voucherId = 'voucher-foreign-key';
+      mockTables.disbursements.set(voucherId, {
+        id: voucherId,
+        entity_id: 'ent-ata',
+        category: 'Meals',
+        description: 'Foreign key test',
+        amount: 500,
+        fund_source: 'Firm Fund',
+        status: 'Draft',
+        created_by: staffA_Id,
+        requested_by: staffA_Id,
+        receipt_s3_key: null,
+        receipt_filename: null,
+        version: 1,
+        archived: false,
+      });
+
+      const res = await request(app)
+        .put(`/v1/disbursements/${voucherId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          receiptS3Key: 'entities/LTA/private/foreign-document.pdf',
+          receiptFilename: 'forged.pdf',
+          expectedVersion: 1,
+        })
+        .expect(400);
+
+      expect(res.body.code).toBe('INVALID_RECEIPT_RESERVATION');
+
+      const stored = mockTables.disbursements.get(voucherId);
+      expect(stored.receipt_s3_key).toBeNull();
+      expect(stored.version).toBe(1);
+    });
+
+    it('allows updating voucher by retaining existing persisted receipt key', async () => {
+      const voucherId = 'voucher-retain-key';
+      mockTables.disbursements.set(voucherId, {
+        id: voucherId,
+        entity_id: 'ent-ata',
+        category: 'Meals',
+        description: 'Retain key test',
+        amount: 500,
+        fund_source: 'Firm Fund',
+        status: 'Draft',
+        created_by: staffA_Id,
+        requested_by: staffA_Id,
+        receipt_s3_key: 'entities/ATA/disbursements/existing-receipt.pdf',
+        receipt_filename: 'existing-receipt.pdf',
+        version: 1,
+        archived: false,
+      });
+
+      const res = await request(app)
+        .put(`/v1/disbursements/${voucherId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          notes: 'Updated note while retaining receipt',
+          receiptS3Key: 'entities/ATA/disbursements/existing-receipt.pdf',
+          receiptFilename: 'existing-receipt.pdf',
+          expectedVersion: 1,
+        })
+        .expect(200);
+
+      expect(res.body.data.receipt_s3_key).toBe('entities/ATA/disbursements/existing-receipt.pdf');
+      expect(res.body.data.version).toBe(2);
+    });
+
+    it('allows updating voucher with newly verified upload reservation and consumes it', async () => {
+      const voucherId = 'voucher-new-attachment';
+      mockTables.disbursements.set(voucherId, {
+        id: voucherId,
+        entity_id: 'ent-ata',
+        category: 'Transportation',
+        description: 'New attachment test',
+        amount: 300,
+        fund_source: 'Firm Fund',
+        status: 'Draft',
+        created_by: staffA_Id,
+        requested_by: staffA_Id,
+        receipt_s3_key: null,
+        receipt_filename: null,
+        version: 1,
+        archived: false,
+      });
+
+      // 1. Reserve upload as admin
+      const reserveRes = await request(app)
+        .post('/v1/disbursements/receipt-uploads')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          filename: 'taxi_receipt.pdf',
+          contentType: 'application/pdf',
+          size: 1024,
+        })
+        .expect(201);
+      const { uploadId, objectKey } = reserveRes.body.data;
+
+      // 2. Put object in mock storage & complete as admin
+      const validPdfBuffer2 = Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.alloc(1024 - 9, 0)]);
+      mockStorageObjects.set(objectKey, {
+        buffer: validPdfBuffer2,
+        size: 1024,
+        contentType: 'application/pdf',
+      });
+      await request(app)
+        .post(`/v1/disbursements/receipt-uploads/${uploadId}/complete`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(200);
+
+      // 3. Update voucher with new receipt key as admin
+      const updateRes = await request(app)
+        .put(`/v1/disbursements/${voucherId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          receiptS3Key: objectKey,
+          receiptFilename: 'taxi_receipt.pdf',
+          expectedVersion: 1,
+        })
+        .expect(200);
+
+      expect(updateRes.body.data.receipt_s3_key).toBe(objectKey);
+      expect(updateRes.body.data.receipt_filename).toBe('taxi_receipt.pdf');
+
+      // 4. Reservation is now consumed -> replay on another voucher is rejected
+      const voucher2Id = 'voucher-replay-target';
+      mockTables.disbursements.set(voucher2Id, {
+        id: voucher2Id,
+        entity_id: 'ent-ata',
+        category: 'Transportation',
+        description: 'Replay target',
+        amount: 150,
+        fund_source: 'Firm Fund',
+        status: 'Draft',
+        created_by: staffA_Id,
+        requested_by: staffA_Id,
+        version: 1,
+        archived: false,
+      });
+
+      const replayRes = await request(app)
+        .put(`/v1/disbursements/${voucher2Id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          receiptS3Key: objectKey,
+          receiptFilename: 'taxi_receipt.pdf',
+          expectedVersion: 1,
+        })
+        .expect(400);
+
+      expect(replayRes.body.code).toBe('INVALID_RECEIPT_RESERVATION');
+    });
+
+    it('allows clearing attachment with receiptS3Key: null', async () => {
+      const voucherId = 'voucher-clear-attachment';
+      mockTables.disbursements.set(voucherId, {
+        id: voucherId,
+        entity_id: 'ent-ata',
+        category: 'Meals',
+        description: 'Clear attachment test',
+        amount: 400,
+        fund_source: 'Firm Fund',
+        status: 'Draft',
+        created_by: staffA_Id,
+        requested_by: staffA_Id,
+        receipt_s3_key: 'entities/ATA/disbursements/old-key.pdf',
+        receipt_filename: 'old-key.pdf',
+        version: 1,
+        archived: false,
+      });
+
+      const res = await request(app)
+        .put(`/v1/disbursements/${voucherId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          receiptS3Key: null,
+          expectedVersion: 1,
+        })
+        .expect(200);
+
+      expect(res.body.data.receipt_s3_key).toBeNull();
+      expect(res.body.data.receipt_filename).toBeNull();
+    });
+
+    it('rejects contradictory update with receiptS3Key: null and non-null receiptFilename', async () => {
+      const voucherId = 'voucher-contradictory';
+      mockTables.disbursements.set(voucherId, {
+        id: voucherId,
+        entity_id: 'ent-ata',
+        category: 'Meals',
+        description: 'Contradictory test',
+        amount: 400,
+        fund_source: 'Firm Fund',
+        status: 'Draft',
+        created_by: staffA_Id,
+        requested_by: staffA_Id,
+        receipt_s3_key: 'entities/ATA/disbursements/old-key.pdf',
+        receipt_filename: 'old-key.pdf',
+        version: 1,
+        archived: false,
+      });
+
+      const res = await request(app)
+        .put(`/v1/disbursements/${voucherId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          receiptS3Key: null,
+          receiptFilename: 'still_here.pdf',
+          expectedVersion: 1,
+        })
+        .expect(400);
+
+      expect(res.body.title).toBe('Validation Error');
+    });
+  });
 });
+

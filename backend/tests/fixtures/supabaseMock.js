@@ -67,6 +67,23 @@ const VERSIONED_TABLES = new Set([
   'documents',
 ]);
 
+const TABLE_COLUMNS = {
+  pending_changes: new Set([
+    'id',
+    'entity_id',
+    'table_name',
+    'parent_record_id',
+    'proposed_data',
+    'submitted_by',
+    'status',
+    'rejection_reason',
+    'reviewed_by',
+    'reviewed_at',
+    'created_at',
+    'version',
+  ]),
+};
+
 const nowIso = () => new Date().toISOString();
 
 /**
@@ -283,6 +300,13 @@ const tableQuery = (table) => {
       return builder;
     },
     eq: (column, value) => {
+      const known = TABLE_COLUMNS[table];
+      if (known && !known.has(column)) {
+        builder._queryError = {
+          message: `column "${column}" does not exist`,
+          code: '42703',
+        };
+      }
       filters.push({ column, value });
       return builder;
     },
@@ -432,6 +456,9 @@ const tableQuery = (table) => {
       return builder;
     },
     maybeSingle: () => {
+      if (builder._queryError) {
+        return Promise.resolve({ data: null, error: builder._queryError });
+      }
       if (builder._insertError) {
         return Promise.resolve({ data: null, error: builder._insertError });
       }
@@ -439,6 +466,9 @@ const tableQuery = (table) => {
       return Promise.resolve({ data: result[0] || null, error: null });
     },
     single: () => {
+      if (builder._queryError) {
+        return Promise.resolve({ data: null, error: builder._queryError });
+      }
       if (builder._insertError) {
         return Promise.resolve({ data: null, error: builder._insertError });
       }
@@ -449,6 +479,9 @@ const tableQuery = (table) => {
       return Promise.resolve({ data: result[0], error: null });
     },
     count: (options = {}) => {
+      if (builder._queryError) {
+        return Promise.resolve({ data: null, count: null, error: builder._queryError });
+      }
       if (builder._insertError) {
         return Promise.resolve({ data: null, error: builder._insertError });
       }
@@ -460,6 +493,9 @@ const tableQuery = (table) => {
       return Promise.resolve({ data: [{ count }], count, error: null });
     },
     then: (resolve) => {
+      if (builder._queryError) {
+        return Promise.resolve({ data: null, count: null, error: builder._queryError }).then(resolve);
+      }
       if (builder._insertError) {
         return Promise.resolve({ data: null, error: builder._insertError }).then(resolve);
       }
@@ -998,7 +1034,14 @@ const supabaseAdmin = {
           return Promise.resolve({ data: null, error: { message: 'Object not found' } });
         }
         const obj = mockStorageObjects.get(path);
-        return Promise.resolve({ data: obj.buffer || Buffer.from('mock-bytes'), error: null });
+        let buffer = obj.buffer || Buffer.from('mock-bytes');
+        if (!Buffer.isBuffer(buffer)) {
+          buffer = Buffer.from(buffer);
+        }
+        buffer.contentType = obj.contentType;
+        buffer.type = obj.contentType;
+        buffer.size = obj.size !== undefined ? obj.size : buffer.length;
+        return Promise.resolve({ data: buffer, error: null });
       },
     }),
   },

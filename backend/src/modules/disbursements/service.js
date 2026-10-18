@@ -20,8 +20,10 @@ const {
   createReservation,
   getReservation,
   completeReservation,
-  findCompletedReservationByKey,
+  claimReservationByKey,
+  releaseReservationByKey,
   consumeReservationByKey,
+  cleanupExpiredReservations,
 } = require('./receiptReservationStore');
 
 /** Valid status transitions */
@@ -179,7 +181,7 @@ const getDisbursementCounts = async ({ entityId, user }) => {
             .eq('table_name', 'disbursements')
             .eq('status', 'rejected');
           if (!isAdmin && !isAccounting) {
-            q = q.eq('user_id', user.id);
+            q = q.eq('submitted_by', user.id);
           }
           return q;
         })()
@@ -439,24 +441,29 @@ const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
     });
   }
 
-  // Verify completed receipt reservation if receiptS3Key is supplied (R5 / D4)
+  // Atomically claim receipt reservation if receiptS3Key is supplied (R4 / AC-4)
+  let receiptClaim = null;
   if (data.receiptS3Key) {
-    const reservationMatch = findCompletedReservationByKey({
+    const claimResult = claimReservationByKey({
       receiptS3Key: data.receiptS3Key,
       userId,
       entityId,
     });
-    if (!reservationMatch || reservationMatch.error) {
-      const isMismatch = reservationMatch?.error === 'MISMATCH';
+    if (!claimResult || claimResult.error) {
+      const isMismatch = claimResult?.error === 'MISMATCH';
+      const isClaimed = claimResult?.error === 'ALREADY_CLAIMED';
       throw new AppError({
         statusCode: isMismatch ? 403 : 400,
         title: isMismatch ? 'Forbidden' : 'Bad Request',
         detail: isMismatch
           ? 'Receipt reservation does not belong to the authenticated user or entity.'
-          : 'Receipt upload reservation is invalid, unverified, or expired.',
+          : isClaimed
+          ? 'Receipt reservation is currently being processed by another request.'
+          : 'Receipt upload reservation is invalid, unverified, expired, or already consumed.',
         code: isMismatch ? 'RECEIPT_RESERVATION_MISMATCH' : 'INVALID_RECEIPT_RESERVATION',
       });
     }
+    receiptClaim = claimResult;
   }
 
   const initialStatus = isStaff ? 'Pending' : 'Draft';
@@ -475,6 +482,14 @@ const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
       .maybeSingle();
 
     if (taskErr || !task) {
+      if (data.receiptS3Key && receiptClaim) {
+        releaseReservationByKey({
+          receiptS3Key: data.receiptS3Key,
+          userId,
+          entityId,
+          claimId: receiptClaim.claimId,
+        });
+      }
       throw new AppError({
         statusCode: 400,
         title: 'Bad Request',
@@ -484,6 +499,14 @@ const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
     }
 
     if (effectiveWrId && task.work_request_id !== effectiveWrId) {
+      if (data.receiptS3Key && receiptClaim) {
+        releaseReservationByKey({
+          receiptS3Key: data.receiptS3Key,
+          userId,
+          entityId,
+          claimId: receiptClaim.claimId,
+        });
+      }
       throw new AppError({
         statusCode: 400,
         title: 'Bad Request',
@@ -493,76 +516,108 @@ const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
     }
   }
 
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    const disbursementNumber = await generateDisbursementNumber(
-      entityId,
-      entityCode || entityId,
-      attempt
-    );
+  try {
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      const disbursementNumber = await generateDisbursementNumber(
+        entityId,
+        entityCode || entityId,
+        attempt
+      );
 
-    const row = {
-      disbursement_number: disbursementNumber,
-      entity_id: entityId,
-      category: data.category,
-      description: data.description,
-      amount: data.amount,
-      fund_source: data.fundSource,
-      status: initialStatus,
-      client_id: data.clientId || null,
-      employee_id: userId,
-      linked_invoice_id: data.linkedInvoiceId || null,
-      linked_work_request_id: effectiveWrId,
-      linked_task_id: effectiveTaskId,
-      task_id: effectiveTaskId,
-      linked_transmittal_id: data.linkedTransmittalId || null,
-      requested_by: userId,
-      due_date: data.dueDate || null,
-      notes: data.notes || null,
-      receipt_s3_key: data.receiptS3Key || null,
-      receipt_filename: data.receiptFilename || null,
-      created_by: userId,
-      updated_by: userId,
-    };
+      const row = {
+        disbursement_number: disbursementNumber,
+        entity_id: entityId,
+        category: data.category,
+        description: data.description,
+        amount: data.amount,
+        fund_source: data.fundSource,
+        status: initialStatus,
+        client_id: data.clientId || null,
+        employee_id: userId,
+        linked_invoice_id: data.linkedInvoiceId || null,
+        linked_work_request_id: effectiveWrId,
+        linked_task_id: effectiveTaskId,
+        task_id: effectiveTaskId,
+        linked_transmittal_id: data.linkedTransmittalId || null,
+        requested_by: userId,
+        due_date: data.dueDate || null,
+        notes: data.notes || null,
+        receipt_s3_key: data.receiptS3Key || null,
+        receipt_filename: data.receiptFilename || null,
+        created_by: userId,
+        updated_by: userId,
+      };
 
-    const { data: disbursement, error } = await supabaseAdmin
-      .from('disbursements')
-      .insert(row)
-      .select()
-      .single();
+      const { data: disbursement, error } = await supabaseAdmin
+        .from('disbursements')
+        .insert(row)
+        .select()
+        .single();
 
-    if (!error) {
-      if (data.receiptS3Key) {
-        consumeReservationByKey({ receiptS3Key: data.receiptS3Key, userId, entityId });
+      if (!error) {
+        if (data.receiptS3Key) {
+          const consumed = consumeReservationByKey({
+            receiptS3Key: data.receiptS3Key,
+            userId,
+            entityId,
+            claimId: receiptClaim?.claimId,
+            voucherId: disbursement.id,
+          });
+
+          if (!consumed) {
+            await supabaseAdmin
+              .from('disbursements')
+              .delete()
+              .eq('id', disbursement.id);
+
+            throw new AppError({
+              statusCode: 409,
+              title: 'Conflict',
+              detail: 'Receipt reservation could not be consumed. It may have already been consumed or claimed by another request.',
+              code: 'RECEIPT_RESERVATION_CONSUME_FAILED',
+            });
+          }
+        }
+
+        await auditService.log({
+          action: 'disbursement.create',
+          table: 'disbursements',
+          recordId: disbursement.id,
+          entity: entityId,
+          userId,
+          details: { disbursementNumber, total: data.amount },
+        });
+
+        const entityCodeResolved = await resolveEntityCode(disbursement.entity_id);
+        return { ...disbursement, entity_code: entityCodeResolved };
       }
 
-      await auditService.log({
-        action: 'disbursement.create',
-        table: 'disbursements',
-        recordId: disbursement.id,
-        entity: entityId,
+      if (error.code !== '23505') {
+        throw new AppError({
+          statusCode: 500,
+          title: 'Database Error',
+          detail: 'Failed to create disbursement',
+        });
+      }
+    }
+
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Unable to generate a unique disbursement number. Please retry.',
+      code: 'DUPLICATE_DISBURSEMENT_NUMBER',
+    });
+  } catch (err) {
+    if (data.receiptS3Key && receiptClaim) {
+      releaseReservationByKey({
+        receiptS3Key: data.receiptS3Key,
         userId,
-        details: { disbursementNumber, total: data.amount },
-      });
-
-      const entityCodeResolved = await resolveEntityCode(disbursement.entity_id);
-      return { ...disbursement, entity_code: entityCodeResolved };
-    }
-
-    if (error.code !== '23505') {
-      throw new AppError({
-        statusCode: 500,
-        title: 'Database Error',
-        detail: 'Failed to create disbursement',
+        entityId,
+        claimId: receiptClaim.claimId,
       });
     }
+    throw err;
   }
-
-  throw new AppError({
-    statusCode: 409,
-    title: 'Conflict',
-    detail: 'Unable to generate a unique disbursement number. Please retry.',
-    code: 'DUPLICATE_DISBURSEMENT_NUMBER',
-  });
 };
 
 /**
@@ -801,8 +856,102 @@ const updateDisbursement = async ({ entityId, id, userId, data, user }) => {
   if (data.status !== undefined) updates.status = data.status;
   if (data.notes !== undefined) updates.notes = data.notes;
   if (data.archived !== undefined) updates.archived = data.archived;
-  if (data.receiptS3Key !== undefined) updates.receipt_s3_key = data.receiptS3Key;
-  if (data.receiptFilename !== undefined) updates.receipt_filename = data.receiptFilename;
+  // Enforce attachment provenance and paired metadata (R5 / F8)
+  let receiptReservationClaim = null;
+  const isReceiptKeyProvided = data.receiptS3Key !== undefined;
+  const isReceiptFilenameProvided = data.receiptFilename !== undefined;
+
+  if (isReceiptKeyProvided || isReceiptFilenameProvided) {
+    const newKey = data.receiptS3Key;
+    const newFilename = data.receiptFilename;
+
+    if (newKey === null) {
+      // Explicitly clearing attachment
+      if (newFilename) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Bad Request',
+          detail: 'Cannot set receiptFilename when receiptS3Key is null.',
+          code: 'INVALID_RECEIPT_ATTACHMENT',
+        });
+      }
+      updates.receipt_s3_key = null;
+      updates.receipt_filename = null;
+    } else if (!isReceiptKeyProvided && isReceiptFilenameProvided) {
+      // Filename provided without S3 key
+      if (!existing.receipt_s3_key) {
+        // Existing voucher has no S3 key: reject filename-only update
+        throw new AppError({
+          statusCode: 400,
+          title: 'Bad Request',
+          detail: 'Cannot set receiptFilename without a valid receiptS3Key.',
+          code: 'INVALID_RECEIPT_ATTACHMENT',
+        });
+      }
+      if (newFilename === null) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Bad Request',
+          detail: 'Cannot clear receiptFilename while retaining receiptS3Key.',
+          code: 'INVALID_RECEIPT_ATTACHMENT',
+        });
+      }
+      updates.receipt_filename = newFilename;
+    } else if (newKey === existing.receipt_s3_key) {
+      // Retaining existing persisted key (already verified and consumed)
+      updates.receipt_s3_key = newKey;
+      if (isReceiptFilenameProvided) {
+        if (newFilename === null) {
+          throw new AppError({
+            statusCode: 400,
+            title: 'Bad Request',
+            detail: 'Cannot clear receiptFilename while retaining receiptS3Key.',
+            code: 'INVALID_RECEIPT_ATTACHMENT',
+          });
+        }
+        updates.receipt_filename = newFilename;
+      }
+    } else {
+      // New or replacement key: enforce verified reservation provenance
+      const claimResult = claimReservationByKey({
+        receiptS3Key: newKey,
+        userId,
+        entityId,
+      });
+
+      if (!claimResult || claimResult.error) {
+        const isMismatch = claimResult?.error === 'MISMATCH';
+        throw new AppError({
+          statusCode: isMismatch ? 403 : 400,
+          title: isMismatch ? 'Forbidden' : 'Bad Request',
+          detail: isMismatch
+            ? 'Receipt reservation does not belong to the authenticated user or entity.'
+            : 'Receipt upload reservation is invalid, unverified, expired, or already consumed.',
+          code: isMismatch ? 'RECEIPT_RESERVATION_MISMATCH' : 'INVALID_RECEIPT_RESERVATION',
+        });
+      }
+
+      const resolvedFilename = newFilename || claimResult.data.filename;
+      if (!resolvedFilename) {
+        releaseReservationByKey({
+          receiptS3Key: newKey,
+          userId,
+          entityId,
+          claimId: claimResult.claimId,
+        });
+        throw new AppError({
+          statusCode: 400,
+          title: 'Bad Request',
+          detail: 'receiptFilename is required when receiptS3Key is provided.',
+          code: 'INVALID_RECEIPT_ATTACHMENT',
+        });
+      }
+
+      updates.receipt_s3_key = newKey;
+      updates.receipt_filename = resolvedFilename;
+      receiptReservationClaim = { key: newKey, claimId: claimResult.claimId };
+    }
+  }
 
   // Prepend Accounting edit notes and set edited_by_accounting: true (Task A.5)
   if (isAccountingUser && isEditingFinancial) {
@@ -827,29 +976,72 @@ const updateDisbursement = async ({ entityId, id, userId, data, user }) => {
   if (expectedVersion !== null) {
     query = query.eq('version', expectedVersion);
   }
-  const { data: updated, error } = await query.select().maybeSingle();
 
-  if (error) {
-    throw new AppError({
-      statusCode: 500,
-      title: 'Database Error',
-      detail: 'Failed to update disbursement',
-    });
-  }
+  try {
+    const { data: updated, error } = await query.select().maybeSingle();
 
-  if (!updated) {
-    if (expectedVersion !== null) {
-      throw concurrencyConflict();
+    if (error) {
+      throw new AppError({
+        statusCode: 500,
+        title: 'Database Error',
+        detail: 'Failed to update disbursement',
+      });
     }
-    throw new AppError({
-      statusCode: 404,
-      title: 'Not Found',
-      detail: `Disbursement ${id} not found`,
-    });
-  }
 
-  const enriched = await enrichDisbursementExtras([updated]);
-  return enriched[0];
+    if (!updated) {
+      if (expectedVersion !== null) {
+        throw concurrencyConflict();
+      }
+      throw new AppError({
+        statusCode: 404,
+        title: 'Not Found',
+        detail: `Disbursement ${id} not found`,
+      });
+    }
+
+    if (receiptReservationClaim) {
+      const consumed = consumeReservationByKey({
+        receiptS3Key: receiptReservationClaim.key,
+        userId,
+        entityId,
+        claimId: receiptReservationClaim.claimId,
+        voucherId: updated.id,
+      });
+
+      if (!consumed) {
+        const rollbackUpdates = {};
+        for (const key of Object.keys(updates)) {
+          rollbackUpdates[key] = existing[key] !== undefined ? existing[key] : null;
+        }
+
+        await supabaseAdmin
+          .from('disbursements')
+          .update(rollbackUpdates)
+          .eq('id', id)
+          .eq('entity_id', entityId);
+
+        throw new AppError({
+          statusCode: 409,
+          title: 'Conflict',
+          detail: 'Receipt reservation could not be consumed. It may have already been consumed or claimed by another request.',
+          code: 'RECEIPT_RESERVATION_CONSUME_FAILED',
+        });
+      }
+    }
+
+    const enriched = await enrichDisbursementExtras([updated]);
+    return enriched[0];
+  } catch (err) {
+    if (receiptReservationClaim) {
+      releaseReservationByKey({
+        receiptS3Key: receiptReservationClaim.key,
+        userId,
+        entityId,
+        claimId: receiptReservationClaim.claimId,
+      });
+    }
+    throw err;
+  }
 };
 
 /**
@@ -1531,17 +1723,56 @@ const completeReceiptUpload = async ({ entityId, uploadId, userId, user: _user }
     });
   }
 
-  const exists = await storageService.verifyObjectExists({ path: reservation.objectKey });
-  if (!exists) {
+  if (reservation.status === 'consumed') {
     throw new AppError({
-      statusCode: 422,
-      title: 'Unprocessable Entity',
-      detail: 'Receipt binary was not found in storage. Upload failed or was interrupted.',
-      code: 'RECEIPT_UPLOAD_VERIFICATION_FAILED',
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Receipt upload reservation has already been consumed and cannot be re-completed.',
+      code: 'RECEIPT_RESERVATION_ALREADY_CONSUMED',
     });
   }
 
-  completeReservation(uploadId, { userId, entityId });
+  if (reservation.status === 'claimed') {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Receipt upload reservation is currently being claimed by an active voucher request.',
+      code: 'RECEIPT_RESERVATION_ALREADY_CLAIMED',
+    });
+  }
+
+  const verification = await storageService.verifyReceiptObject({
+    path: reservation.objectKey,
+    expectedSize: reservation.size,
+    expectedContentType: reservation.contentType,
+  });
+
+  if (!verification.valid) {
+    throw new AppError({
+      statusCode: 422,
+      title: 'Unprocessable Entity',
+      detail: verification.error || 'Receipt upload verification failed.',
+      code: verification.code || 'RECEIPT_UPLOAD_VERIFICATION_FAILED',
+    });
+  }
+
+  const completeResult = completeReservation(uploadId, { userId, entityId });
+  if (completeResult && completeResult.error === 'ALREADY_CONSUMED') {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Receipt upload reservation has already been consumed.',
+      code: 'RECEIPT_RESERVATION_ALREADY_CONSUMED',
+    });
+  }
+  if (completeResult && completeResult.error === 'ALREADY_CLAIMED') {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Receipt upload reservation is currently being claimed by an active voucher request.',
+      code: 'RECEIPT_RESERVATION_ALREADY_CLAIMED',
+    });
+  }
 
   return {
     receiptS3Key: reservation.objectKey,
@@ -1653,4 +1884,5 @@ module.exports = {
   createReceiptUpload,
   completeReceiptUpload,
   getReceiptUrl,
+  cleanupExpiredReservations,
 };

@@ -764,6 +764,11 @@ describe('/v1/disbursements', () => {
         .post(`/v1/disbursements/${disbId}/approve`)
         .set('Authorization', `Bearer ${admin}`)
         .set('X-Active-Entity', 'ATA')
+        .send({
+          method: 'Cash',
+          date: '2026-10-18',
+          expectedVersion: 3,
+        })
         .expect(200);
 
       expect(approveRes.body.data.status).toBe('Released');

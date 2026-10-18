@@ -126,11 +126,21 @@ describe('Concurrency race conditions', () => {
       request(app)
         .post(`/v1/disbursements/${id}/approve`)
         .set('Authorization', `Bearer ${admin}`)
-        .set('X-Active-Entity', 'ATA'),
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          method: 'Bank Transfer',
+          date: '2026-10-18',
+          expectedVersion: 2,
+        }),
       request(app)
         .post(`/v1/disbursements/${id}/approve`)
         .set('Authorization', `Bearer ${admin}`)
-        .set('X-Active-Entity', 'ATA'),
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          method: 'Bank Transfer',
+          date: '2026-10-18',
+          expectedVersion: 2,
+        }),
     ]);
 
     const statuses = [res1.status, res2.status].sort();
