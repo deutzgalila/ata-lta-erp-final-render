@@ -5,6 +5,6 @@
 module.exports = require('../src/scripts/cleanupOrphanReceipts');
 if (require.main === module) {
   module.exports.run()
-    .then(() => process.exit(0))
+    .then((summary) => process.exit(summary.errors.length ? 1 : 0))
     .catch(() => process.exit(1));
 }

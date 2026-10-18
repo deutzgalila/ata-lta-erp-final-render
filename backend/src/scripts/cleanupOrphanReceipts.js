@@ -59,7 +59,7 @@ const run = async () => {
 
 if (require.main === module) {
   run()
-    .then(() => process.exit(0))
+    .then((summary) => process.exit(summary.errors.length ? 1 : 0))
     .catch(() => process.exit(1));
 }
 

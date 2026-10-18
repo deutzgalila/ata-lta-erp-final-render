@@ -150,7 +150,8 @@ describe('Codex Completion Review Regression Suite (R1–R6)', () => {
       size: 10,
     });
     reservations.completeReservation('replay', { userId: OWNER, entityId: 'ent-ata' });
-    reservations.consumeReservationByKey({ receiptS3Key: 'receipt-key', userId: OWNER, entityId: 'ent-ata' });
+    const claim = reservations.claimReservationByKey({ receiptS3Key: 'receipt-key', userId: OWNER, entityId: 'ent-ata' });
+    reservations.consumeReservationByKey({ receiptS3Key: 'receipt-key', userId: OWNER, entityId: 'ent-ata', claimId: claim.claimId });
     expect(reservations.getReservation('replay').status).toBe('consumed');
 
     // Attempt to re-complete consumed reservation must return ALREADY_CONSUMED error

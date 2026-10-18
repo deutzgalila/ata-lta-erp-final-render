@@ -516,6 +516,7 @@ const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
     }
   }
 
+  let receiptWriteMayHaveCommitted = false;
   try {
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       const disbursementNumber = await generateDisbursementNumber(
@@ -548,6 +549,7 @@ const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
         updated_by: userId,
       };
 
+      receiptWriteMayHaveCommitted = true;
       const { data: disbursement, error } = await supabaseAdmin
         .from('disbursements')
         .insert(row)
@@ -565,11 +567,8 @@ const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
           });
 
           if (!consumed) {
-            await supabaseAdmin
-              .from('disbursements')
-              .delete()
-              .eq('id', disbursement.id);
-
+            // The voucher already exists. Keep its claim for reconciliation;
+            // deleting it here can race another legitimate voucher update.
             throw new AppError({
               statusCode: 409,
               title: 'Conflict',
@@ -592,6 +591,9 @@ const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
         return { ...disbursement, entity_code: entityCodeResolved };
       }
 
+      // Only definite statement rejections release the claim. Connection errors
+      // and unknown completion outcomes must retain it for reconciliation.
+      receiptWriteMayHaveCommitted = !/^(?:22[0-9A-Z]{3}|23[0-9A-Z]{3}|42[0-9A-Z]{3}|40001|40P01)$/.test(error.code || '');
       if (error.code !== '23505') {
         throw new AppError({
           statusCode: 500,
@@ -608,7 +610,7 @@ const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
       code: 'DUPLICATE_DISBURSEMENT_NUMBER',
     });
   } catch (err) {
-    if (data.receiptS3Key && receiptClaim) {
+    if (data.receiptS3Key && receiptClaim && !receiptWriteMayHaveCommitted) {
       releaseReservationByKey({
         receiptS3Key: data.receiptS3Key,
         userId,
@@ -977,8 +979,12 @@ const updateDisbursement = async ({ entityId, id, userId, data, user }) => {
     query = query.eq('version', expectedVersion);
   }
 
+  let receiptWriteMayHaveCommitted = true;
   try {
     const { data: updated, error } = await query.select().maybeSingle();
+    if ((!error && !updated) || (error && /^(?:22[0-9A-Z]{3}|23[0-9A-Z]{3}|42[0-9A-Z]{3}|40001|40P01)$/.test(error.code || ''))) {
+      receiptWriteMayHaveCommitted = false;
+    }
 
     if (error) {
       throw new AppError({
@@ -1009,17 +1015,7 @@ const updateDisbursement = async ({ entityId, id, userId, data, user }) => {
       });
 
       if (!consumed) {
-        const rollbackUpdates = {};
-        for (const key of Object.keys(updates)) {
-          rollbackUpdates[key] = existing[key] !== undefined ? existing[key] : null;
-        }
-
-        await supabaseAdmin
-          .from('disbursements')
-          .update(rollbackUpdates)
-          .eq('id', id)
-          .eq('entity_id', entityId);
-
+        // The update committed. Do not restore a stale pre-update snapshot.
         throw new AppError({
           statusCode: 409,
           title: 'Conflict',
@@ -1032,7 +1028,7 @@ const updateDisbursement = async ({ entityId, id, userId, data, user }) => {
     const enriched = await enrichDisbursementExtras([updated]);
     return enriched[0];
   } catch (err) {
-    if (receiptReservationClaim) {
+    if (receiptReservationClaim && !receiptWriteMayHaveCommitted) {
       releaseReservationByKey({
         receiptS3Key: receiptReservationClaim.key,
         userId,
@@ -1772,6 +1768,12 @@ const completeReceiptUpload = async ({ entityId, uploadId, userId, user: _user }
       detail: 'Receipt upload reservation is currently being claimed by an active voucher request.',
       code: 'RECEIPT_RESERVATION_ALREADY_CLAIMED',
     });
+  }
+
+  if (!completeResult || completeResult.error) {
+    throw new AppError({ statusCode: 409, title: 'Receipt upload unavailable',
+      detail: 'Upload expired or cleanup started during verification. Create a new upload.',
+      code: 'RECEIPT_RESERVATION_UNAVAILABLE' });
   }
 
   return {

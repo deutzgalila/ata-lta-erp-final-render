@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const store = require('../../src/modules/disbursements/receiptReservationStore');
+const emptyDb = { from: () => ({ select() { return this; }, eq() { return this; }, limit: async () => ({ data: [], error: null }) }) };
 const cleanupScript = require('../../src/scripts/cleanupOrphanReceipts');
 
 describe('Receipt Reservation Durability & Cleanup Lifecycle (F1–F3)', () => {
@@ -192,7 +193,7 @@ describe('Receipt Reservation Durability & Cleanup Lifecycle (F1–F3)', () => {
       });
 
       expect(summary.errors.length).toBe(1);
-      expect(summary.errors[0].error).toContain('Voucher linkage check failed');
+      expect(summary.errors[0].error).toContain('Postgres connection failed');
       expect(mockStorage.deleteObject).not.toHaveBeenCalled();
     });
   });
@@ -225,7 +226,7 @@ describe('Receipt Reservation Durability & Cleanup Lifecycle (F1–F3)', () => {
       const summary = await store.cleanupExpiredReservations({
         now: new Date(),
         storage: mockStorage,
-        db: null,
+        db: emptyDb,
       });
 
       expect(summary.scanned).toBe(1);
@@ -255,6 +256,7 @@ describe('Receipt Reservation Durability & Cleanup Lifecycle (F1–F3)', () => {
       const run1 = await store.cleanupExpiredReservations({
         now: new Date(),
         storage: failingStorage,
+        db: emptyDb,
       });
 
       expect(run1.errors.length).toBe(1);
@@ -274,6 +276,7 @@ describe('Receipt Reservation Durability & Cleanup Lifecycle (F1–F3)', () => {
       const run2 = await store.cleanupExpiredReservations({
         now: new Date(),
         storage: healthyStorage,
+        db: emptyDb,
       });
 
       expect(run2.scanned).toBe(1);

@@ -654,16 +654,16 @@ describe('Challenger M2 — Suite 3: State Transitions & Non-Reversibility (R4)'
     });
 
     // Artificially age the record past expiresAt
-    const record = reservations.getReservation(uploadId);
-    record.expiresAt = new Date(Date.now() - 10000).toISOString();
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(Date.now() + 10000);
 
     // getReservation must NOT delete consumed record
     const retrieved = reservations.getReservation(uploadId);
     expect(retrieved).not.toBeNull();
     expect(retrieved.status).toBe('consumed');
+    clock.mockRestore();
   });
 
-  it('unconsumed reservations are purged past expiresAt in getReservation', () => {
+  it('expired reservations are unavailable but retained for cleanup', () => {
     const uploadId = 'ttl_pending_test';
     reservations.createReservation({
       uploadId,
@@ -676,11 +676,12 @@ describe('Challenger M2 — Suite 3: State Transitions & Non-Reversibility (R4)'
       expiresInSeconds: 1,
     });
 
-    const record = reservations.getReservation(uploadId);
-    record.expiresAt = new Date(Date.now() - 10000).toISOString();
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(Date.now() + 10000);
 
     const retrieved = reservations.getReservation(uploadId);
     expect(retrieved).toBeNull();
+    expect(reservations.syncFromDisk().has(uploadId)).toBe(true);
+    clock.mockRestore();
   });
 });
 
@@ -739,7 +740,7 @@ describe('Challenger M2 — Suite 4: Transactional Rollback & Retry Safety (R4)'
     expect(reservations.getReservation(uploadId).status).toBe('consumed');
   });
 
-  it('breaks stale claim lock after claim timeout window and allows subsequent claim', () => {
+  it('preserves the original claim even after the timeout window', () => {
     const uploadId = 'stale_claim_test';
     const objectKey = 'entities/ATA/disbursements/receipts/stale_claim.pdf';
 
@@ -772,39 +773,12 @@ describe('Challenger M2 — Suite 4: Transactional Rollback & Retry Safety (R4)'
     });
     expect(claimImmediate.error).toBe('ALREADY_CLAIMED');
 
-    // Age the claim by 61 seconds (stale claim)
-    const record = reservations.getReservation(uploadId);
-    record.claimedAt = new Date(Date.now() - 61000).toISOString();
-
-    // Second claim now breaks the stale lock and acquires a new claimId
-    const claim2 = reservations.claimReservationByKey({
-      receiptS3Key: objectKey,
-      userId: OWNER_ID,
-      entityId: ENT_ATA,
-      claimTimeoutSeconds: 60,
-    });
-    expect(claim2.claimId).toBeDefined();
-    expect(claim2.claimId).not.toBe(claim1.claimId);
-
-    // Old claim1 cannot consume the reservation because claimId mismatches
-    const staleConsume = reservations.consumeReservationByKey({
-      receiptS3Key: objectKey,
-      userId: OWNER_ID,
-      entityId: ENT_ATA,
-      claimId: claim1.claimId,
-    });
-    expect(staleConsume).toBeNull();
-    expect(record.status).toBe('claimed');
-
-    // Winning claim2 successfully consumes the reservation
-    const validConsume = reservations.consumeReservationByKey({
-      receiptS3Key: objectKey,
-      userId: OWNER_ID,
-      entityId: ENT_ATA,
-      claimId: claim2.claimId,
-    });
-    expect(validConsume).not.toBeNull();
-    expect(validConsume.status).toBe('consumed');
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(Date.now() + 61000);
+    const claim2 = reservations.claimReservationByKey({receiptS3Key: objectKey, userId: OWNER_ID, entityId: ENT_ATA});
+    expect(claim2.error).toBe('ALREADY_CLAIMED');
+    const consumed = reservations.consumeReservationByKey({receiptS3Key: objectKey, userId: OWNER_ID, entityId: ENT_ATA, claimId: claim1.claimId});
+    expect(consumed.status).toBe('consumed');
+    clock.mockRestore();
   });
 });
 

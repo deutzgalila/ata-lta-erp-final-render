@@ -1257,7 +1257,8 @@ describe('Adversarial Challenge 6: Scoped Orphan Cleanup Probes', () => {
 
     expect(summary.errors.length).toBe(1);
     expect(summary.errors[0].error).toContain('S3 503 Service Unavailable');
-    expect(summary.cleaned).toBe(1);
+    expect(summary.cleaned).toBe(0);
+    expect(reservations.syncFromDisk().get('failing-storage-orphan').status).toBe('cleanup_failed');
   });
 
   it('Probe 6.4: Long-term retention memory pruning: prunes consumed memory records after 24h retention window without deleting storage files', async () => {

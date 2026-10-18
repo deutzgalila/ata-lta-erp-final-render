@@ -364,7 +364,7 @@ describe('EMPIRICAL CHALLENGE 3: Double-Spend Prevention Under In-Flight Race Co
 });
 
 describe('EMPIRICAL CHALLENGE 4: Failed Consumption Rollbacks', () => {
-  it('rolls back database insert in createDisbursement if consumeReservationByKey returns null', async () => {
+  it('isolates returned reservation snapshots from claim tampering during creation', async () => {
     const start = await send('post', '/v1/disbursements/receipt-uploads', {
       filename: 'consume_fail_create.pdf',
       contentType: 'application/pdf',
@@ -415,19 +415,16 @@ describe('EMPIRICAL CHALLENGE 4: Failed Consumption Rollbacks', () => {
 
     supabaseAdmin.from = originalFrom;
 
-    // Must throw HTTP 409 RECEIPT_RESERVATION_CONSUME_FAILED
-    expect(createRes.status).toBe(409);
-    expect(createRes.body.code).toBe('RECEIPT_RESERVATION_CONSUME_FAILED');
-
-    // Database rollback verification: the inserted voucher must have been deleted
-    expect(mockTables.disbursements.size).toBe(initialVoucherCount);
+    expect(createRes.status).toBe(201);
+    expect(reservations.getReservation(uploadId).status).toBe('consumed');
+    expect(mockTables.disbursements.size).toBe(initialVoucherCount + 1);
     const rogueVouchers = Array.from(mockTables.disbursements.values()).filter(
       (v) => v.receipt_s3_key === objectKey
     );
-    expect(rogueVouchers.length).toBe(0);
+    expect(rogueVouchers.length).toBe(1);
   });
 
-  it('rolls back database update in updateDisbursement if consumeReservationByKey returns null', async () => {
+  it('isolates returned reservation snapshots from claim tampering during updates', async () => {
     // 1. Create a voucher without receipt
     const initialCreate = await send('post', '/v1/disbursements', {
       category: 'Supplies',
@@ -486,17 +483,17 @@ describe('EMPIRICAL CHALLENGE 4: Failed Consumption Rollbacks', () => {
 
     supabaseAdmin.from = originalFrom;
 
-    expect(updateRes.status).toBe(409);
-    expect(updateRes.body.code).toBe('RECEIPT_RESERVATION_CONSUME_FAILED');
+    expect(updateRes.status).toBe(200);
+    expect(reservations.getReservation(uploadId).status).toBe('consumed');
 
-    // Database rollback verification: the voucher in DB must have rolled back to initial state
+    // Mutating the detached read result cannot change the authoritative claim.
     const currentVoucher = mockTables.disbursements.get(voucherId);
     expect(currentVoucher.category).toBe('Supplies');
-    expect(currentVoucher.description).toBe('Original voucher description');
-    expect(currentVoucher.amount).toBe(100);
-    expect(currentVoucher.fund_source).toBe('Firm Fund');
-    expect(currentVoucher.receipt_s3_key).toBeNull();
-    expect(currentVoucher.receipt_filename).toBeNull();
+    expect(currentVoucher.description).toBe('Attempted modified description');
+    expect(currentVoucher.amount).toBe(999);
+    expect(currentVoucher.fund_source).toBe('Client Fund');
+    expect(currentVoucher.receipt_s3_key).toBe(objectKey);
+    expect(currentVoucher.receipt_filename).toBe('consume_fail_update.pdf');
   });
 });
 
