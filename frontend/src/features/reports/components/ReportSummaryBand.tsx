@@ -32,20 +32,20 @@ export const ReportSummaryCard: React.FC<ReportSummaryCardProps> = ({
     <div
       data-testid={dataTestId}
       className={cn(
-        'bg-[#FAF9F5] rounded-none border-0 p-4 shadow-none transition-colors',
+        'rounded-[8px] border border-[#CBD5E1] bg-[#FFFFFF] p-4 shadow-card transition-colors',
         attention
-          ? 'border-t-4 border-t-[#E61919] bg-[#FCE8E8]/40'
-          : 'hover:bg-[#E4E2DC]/50',
+          ? 'border-warning-border border-t-2 border-t-[#D97706] bg-[#FEFCE8]/40'
+          : 'hover:bg-[#F1F5F9]',
         className
       )}
     >
-      <div className="font-mono text-xs font-semibold uppercase tracking-wider text-[#4A4945]">
+      <div className="text-xs font-medium text-[#475569]">
         {label}
       </div>
-      <div className="font-mono text-xl sm:text-2xl font-bold text-[#0A0A0A] tracking-tight tabular-nums mt-1">
+      <div className="text-2xl font-bold text-[#0F172A] font-mono tabular-nums tracking-tight mt-1">
         {value}
       </div>
-      {subtext && <div className="text-xs text-[#4A4945] mt-1">{subtext}</div>}
+      {subtext && <div className="text-xs text-[#475569] mt-1">{subtext}</div>}
       {children}
     </div>
   );
@@ -93,7 +93,7 @@ export const ReportSummaryBand: React.FC<ReportSummaryBandProps> = ({
     return (
       <div
         className={cn(
-          'grid gap-px bg-[#0A0A0A] border border-[#0A0A0A] rounded-none',
+          'grid gap-4',
           getGridColsClass(colCount),
           className
         )}
@@ -102,10 +102,10 @@ export const ReportSummaryBand: React.FC<ReportSummaryBandProps> = ({
         {Array.from({ length: skeletonCount }).map((_, idx) => (
           <div
             key={idx}
-            className="bg-[#FAF9F5] rounded-none p-4 shadow-none animate-pulse motion-reduce:animate-none"
+            className="rounded-[8px] border border-[#CBD5E1] bg-[#FFFFFF] p-4 shadow-card animate-pulse motion-reduce:animate-none"
           >
-            <div className="h-4 w-24 bg-[#EAE8E3] rounded-none mb-3" />
-            <div className="h-7 w-32 bg-[#EAE8E3] rounded-none" />
+            <div className="h-4 w-24 bg-[#E2E8F0] rounded-[4px] mb-3" />
+            <div className="h-7 w-32 bg-[#E2E8F0] rounded-[4px]" />
           </div>
         ))}
       </div>
@@ -115,7 +115,7 @@ export const ReportSummaryBand: React.FC<ReportSummaryBandProps> = ({
   return (
     <div
       className={cn(
-        'grid gap-px bg-[#0A0A0A] border border-[#0A0A0A] rounded-none',
+        'grid gap-4',
         getGridColsClass(colCount),
         className
       )}
