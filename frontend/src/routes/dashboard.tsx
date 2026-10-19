@@ -1,7 +1,7 @@
 import { useSessionStore } from '@/lib/session';
 import { useEntityRealtimeSync } from '@/lib/realtime';
 import { Badge } from '@/components/ui/badge';
-import { ShieldCheck, Building2, Bell, Clock } from 'lucide-react';
+import { ShieldCheck, Building2, Bell, Clock, LayoutDashboard } from 'lucide-react';
 import { LogTimeWidget } from '@/features/dashboard/components/LogTimeWidget';
 import { PendingTasksCard } from '@/features/dashboard/components/PendingTasksCard';
 import { useTimeSummary } from '@/features/dashboard/api/useTimeEntries';
@@ -37,7 +37,8 @@ export default function DashboardPage() {
             <span aria-hidden="true">/</span>
             <span className="text-[#1E293B] font-semibold">Dashboard</span>
           </nav>
-          <h1 className="text-2xl font-semibold tracking-tight text-[#1E293B]">
+          <h1 className="text-2xl font-semibold tracking-tight text-[#1E293B] flex items-center gap-2">
+            <LayoutDashboard className="h-6 w-6 text-[#1D4ED8]" />
             Welcome back, {user?.name || 'User'}
           </h1>
           <p className="text-xs sm:text-sm text-[#475569] pt-0.5">

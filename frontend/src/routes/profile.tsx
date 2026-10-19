@@ -1,3 +1,4 @@
+import { User } from 'lucide-react';
 import { useProfile } from '@/features/profile/api/useProfile';
 import { ProfileDetailsCard } from '@/features/profile/components/ProfileDetailsCard';
 import { ProfilePasswordCard } from '@/features/profile/components/ProfilePasswordCard';
@@ -19,7 +20,10 @@ export default function ProfilePage() {
             <span aria-hidden="true">/</span>
             <span className="text-[#1E293B] font-semibold">Profile</span>
           </nav>
-          <h1 className="text-2xl font-semibold tracking-tight text-[#1E293B]">Profile</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-[#1E293B] flex items-center gap-2">
+            <User className="h-6 w-6 text-[#1D4ED8]" />
+            Profile
+          </h1>
           <p className="text-xs sm:text-sm text-[#475569] pt-0.5">Manage your account information and security.</p>
         </div>
       </div>
