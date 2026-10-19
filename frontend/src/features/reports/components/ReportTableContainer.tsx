@@ -23,13 +23,13 @@ export const ReportTableContainer: React.FC<ReportTableContainerProps> = ({
       tabIndex={0}
       data-testid={dataTestId}
       className={cn(
-        'w-full overflow-x-auto rounded-none border border-[#0A0A0A] bg-[#FAF9F5] shadow-none focus:outline-none focus:ring-2 focus:ring-[#0A0A0A]',
+        'w-full overflow-x-auto rounded-[8px] border border-[#CBD5E1] bg-[#FFFFFF] shadow-card focus:outline-none focus:ring-2 focus:ring-[#1D4ED8]',
         '[&_table]:w-full [&_table]:border-collapse [&_table]:text-left [&_table]:text-xs sm:[&_table]:text-sm',
-        '[&_thead]:bg-[#EAE8E3] [&_thead]:border-b [&_thead]:border-[#0A0A0A]',
-        '[&_th]:px-4 [&_th]:py-2.5 [&_th]:text-xs [&_th]:font-mono [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-wider [&_th]:text-[#0A0A0A] [&_th]:whitespace-nowrap',
-        '[&_tbody_tr]:border-b [&_tbody_tr]:border-[#C8C5BC] [&_tbody_tr]:transition-colors [&_tbody_tr]:hover:bg-[#E4E2DC]/60',
+        '[&_thead]:bg-[#F1F5F9] [&_thead]:border-b [&_thead]:border-[#CBD5E1]',
+        '[&_th]:px-4 [&_th]:py-2.5 [&_th]:text-xs [&_th]:font-semibold [&_th]:text-[#334155] [&_th]:whitespace-nowrap',
+        '[&_tbody_tr]:border-b [&_tbody_tr]:border-[#E2E8F0] [&_tbody_tr]:transition-colors [&_tbody_tr]:hover:bg-[#F1F5F9]',
         '[&_tbody_tr]:h-10 sm:[&_tbody_tr]:h-11',
-        '[&_td]:px-4 [&_td]:py-2.5 [&_td]:text-[#0A0A0A] [&_td]:align-middle',
+        '[&_td]:px-4 [&_td]:py-2.5 [&_td]:text-[#0F172A] [&_td]:align-middle',
         '[&_.tabular-nums]:font-mono [&_.tabular-nums]:tabular-nums',
         className
       )}

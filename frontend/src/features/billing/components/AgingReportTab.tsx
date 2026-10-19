@@ -82,13 +82,13 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
   return (
     <div className="space-y-6" data-testid="aging-report-tab">
       {/* 1. Header & Summary Cards */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b-2 border-[#0A0A0A] pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#CBD5E1] pb-4">
         <div>
-          <h2 className="text-lg font-bold uppercase tracking-tight text-[#0A0A0A] flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-[#0A0A0A]" />
+          <h2 className="text-lg font-semibold tracking-tight text-[#0F172A] flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-[#1D4ED8]" />
             <span>Accounts Receivable Aging Report</span>
           </h2>
-          <p className="text-xs text-[#4A4945] pt-0.5">
+          <p className="text-xs sm:text-sm text-[#475569] pt-0.5">
             Real-time aging breakdown of outstanding receivables grouped by overdue aging brackets.
           </p>
         </div>
@@ -97,7 +97,7 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
           variant="outline"
           size="sm"
           onClick={() => refetch()}
-          className="text-xs font-mono font-semibold h-8 px-3 rounded-none border border-[#0A0A0A] bg-[#FAF9F5] hover:bg-[#0A0A0A] hover:text-[#FAF9F5] text-[#0A0A0A] transition-colors self-start sm:self-auto cursor-pointer shadow-none"
+          className="text-xs font-medium h-8 px-3 rounded-[6px] border border-[#CBD5E1] bg-[#FFFFFF] hover:bg-[#F1F5F9] text-[#0F172A] transition-colors self-start sm:self-auto cursor-pointer shadow-2xs"
         >
           Refresh Report
         </Button>
@@ -111,20 +111,20 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
         {/* Current */}
         <div
           onClick={() => setSelectedBucket(selectedBucket === 'current' ? 'all' : 'current')}
-          className={`p-3 rounded-none border transition-colors cursor-pointer flex flex-col justify-between ${
+          className={`p-3.5 rounded-[8px] border transition-colors cursor-pointer flex flex-col justify-between text-left ${
             selectedBucket === 'current'
-              ? 'bg-[#0A0A0A] text-[#FAF9F5] border-2 border-[#0A0A0A] shadow-[inset_0_3px_0_0_#E61919]'
-              : 'bg-[#FAF9F5] border-[#0A0A0A] text-[#0A0A0A] hover:bg-[#E4E2DC]'
+              ? 'bg-[#EFF6FF] border-[#1D4ED8] ring-1 ring-[#1D4ED8] text-[#0F172A] shadow-2xs'
+              : 'bg-[#FFFFFF] border-[#CBD5E1] text-[#0F172A] hover:bg-[#F1F5F9] hover:border-[#94A3B8]'
           }`}
           data-testid="kpi-current"
         >
-          <span className={`font-mono text-xs font-semibold uppercase tracking-wider block ${selectedBucket === 'current' ? 'text-[#EAE8E3]' : 'text-[#4A4945]'}`}>
+          <span className={`text-xs font-medium block ${selectedBucket === 'current' ? 'text-[#1E40AF]' : 'text-[#475569]'}`}>
             Current (0 Days)
           </span>
-          <span className={`font-mono text-base font-bold mt-1 block tabular-nums ${selectedBucket === 'current' ? 'text-[#FAF9F5]' : 'text-[#0A0A0A]'}`}>
+          <span className="font-mono text-base font-bold mt-1 block tabular-nums text-[#0F172A]">
             {formatCurrency(summary.current)}
           </span>
-          <span className={`text-xs mt-0.5 block ${selectedBucket === 'current' ? 'text-[#C8C5BC]' : 'text-[#4A4945]'}`}>
+          <span className={`text-xs mt-0.5 block tabular-nums ${selectedBucket === 'current' ? 'text-[#1E40AF]' : 'text-[#475569]'}`}>
             Not yet overdue
           </span>
         </div>
@@ -132,19 +132,20 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
         {/* 1-30 Days */}
         <div
           onClick={() => setSelectedBucket(selectedBucket === '1-30' ? 'all' : '1-30')}
-          className={`p-3 rounded-none border transition-colors cursor-pointer flex flex-col justify-between ${
+          className={`p-3.5 rounded-[8px] border transition-colors cursor-pointer flex flex-col justify-between text-left ${
             selectedBucket === '1-30'
-              ? 'bg-[#0A0A0A] text-[#FAF9F5] border-2 border-[#0A0A0A] shadow-[inset_0_3px_0_0_#E61919]'
-              : 'bg-[#FAF9F5] border-[#0A0A0A] text-[#0A0A0A] hover:bg-[#E4E2DC]'
+              ? 'bg-[#EFF6FF] border-[#1D4ED8] ring-1 ring-[#1D4ED8] text-[#0F172A] shadow-2xs'
+              : 'bg-[#FFFFFF] border-[#CBD5E1] text-[#0F172A] hover:bg-[#F1F5F9] hover:border-[#94A3B8]'
           }`}
-          data-testid="kpi-1-30">
-          <span className={`font-mono text-xs font-semibold uppercase tracking-wider block ${selectedBucket === '1-30' ? 'text-[#EAE8E3]' : 'text-[#734800]'}`}>
+          data-testid="kpi-1-30"
+        >
+          <span className={`text-xs font-medium block ${selectedBucket === '1-30' ? 'text-[#1E40AF]' : 'text-[#854D0E]'}`}>
             1–30 Days
           </span>
-          <span className={`font-mono text-base font-bold mt-1 block tabular-nums ${selectedBucket === '1-30' ? 'text-[#FAF9F5]' : 'text-[#0A0A0A]'}`}>
+          <span className="font-mono text-base font-bold mt-1 block tabular-nums text-[#0F172A]">
             {formatCurrency(summary['1-30'])}
           </span>
-          <span className={`text-xs mt-0.5 block ${selectedBucket === '1-30' ? 'text-[#C8C5BC]' : 'text-[#4A4945]'}`}>
+          <span className={`text-xs mt-0.5 block tabular-nums ${selectedBucket === '1-30' ? 'text-[#1E40AF]' : 'text-[#475569]'}`}>
             Early overdue
           </span>
         </div>
@@ -152,20 +153,20 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
         {/* 31-60 Days */}
         <div
           onClick={() => setSelectedBucket(selectedBucket === '31-60' ? 'all' : '31-60')}
-          className={`p-3 rounded-none border transition-colors cursor-pointer flex flex-col justify-between ${
+          className={`p-3.5 rounded-[8px] border transition-colors cursor-pointer flex flex-col justify-between text-left ${
             selectedBucket === '31-60'
-              ? 'bg-[#0A0A0A] text-[#FAF9F5] border-2 border-[#0A0A0A] shadow-[inset_0_3px_0_0_#E61919]'
-              : 'bg-[#FAF9F5] border-[#0A0A0A] text-[#0A0A0A] hover:bg-[#E4E2DC]'
+              ? 'bg-[#EFF6FF] border-[#1D4ED8] ring-1 ring-[#1D4ED8] text-[#0F172A] shadow-2xs'
+              : 'bg-[#FFFFFF] border-[#CBD5E1] text-[#0F172A] hover:bg-[#F1F5F9] hover:border-[#94A3B8]'
           }`}
           data-testid="kpi-31-60"
         >
-          <span className={`font-mono text-xs font-semibold uppercase tracking-wider block ${selectedBucket === '31-60' ? 'text-[#EAE8E3]' : 'text-[#734800]'}`}>
+          <span className={`text-xs font-medium block ${selectedBucket === '31-60' ? 'text-[#1E40AF]' : 'text-[#854D0E]'}`}>
             31–60 Days
           </span>
-          <span className={`font-mono text-base font-bold mt-1 block tabular-nums ${selectedBucket === '31-60' ? 'text-[#FAF9F5]' : 'text-[#0A0A0A]'}`}>
+          <span className="font-mono text-base font-bold mt-1 block tabular-nums text-[#0F172A]">
             {formatCurrency(summary['31-60'])}
           </span>
-          <span className={`text-xs mt-0.5 block ${selectedBucket === '31-60' ? 'text-[#C8C5BC]' : 'text-[#4A4945]'}`}>
+          <span className={`text-xs mt-0.5 block tabular-nums ${selectedBucket === '31-60' ? 'text-[#1E40AF]' : 'text-[#475569]'}`}>
             Aging notice
           </span>
         </div>
@@ -173,20 +174,20 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
         {/* 61-90 Days */}
         <div
           onClick={() => setSelectedBucket(selectedBucket === '61-90' ? 'all' : '61-90')}
-          className={`p-3 rounded-none border transition-colors cursor-pointer flex flex-col justify-between ${
+          className={`p-3.5 rounded-[8px] border transition-colors cursor-pointer flex flex-col justify-between text-left ${
             selectedBucket === '61-90'
-              ? 'bg-[#0A0A0A] text-[#FAF9F5] border-2 border-[#0A0A0A] shadow-[inset_0_3px_0_0_#E61919]'
-              : 'bg-[#FAF9F5] border-[#0A0A0A] text-[#0A0A0A] hover:bg-[#E4E2DC]'
+              ? 'bg-[#EFF6FF] border-[#1D4ED8] ring-1 ring-[#1D4ED8] text-[#0F172A] shadow-2xs'
+              : 'bg-[#FFFFFF] border-[#CBD5E1] text-[#0F172A] hover:bg-[#F1F5F9] hover:border-[#94A3B8]'
           }`}
           data-testid="kpi-61-90"
         >
-          <span className={`font-mono text-xs font-semibold uppercase tracking-wider block ${selectedBucket === '61-90' ? 'text-[#EAE8E3]' : 'text-[#E61919]'}`}>
+          <span className={`text-xs font-medium block ${selectedBucket === '61-90' ? 'text-[#1E40AF]' : 'text-[#991B1B]'}`}>
             61–90 Days
           </span>
-          <span className={`font-mono text-base font-bold mt-1 block tabular-nums ${selectedBucket === '61-90' ? 'text-[#FAF9F5]' : 'text-[#0A0A0A]'}`}>
+          <span className="font-mono text-base font-bold mt-1 block tabular-nums text-[#0F172A]">
             {formatCurrency(summary['61-90'])}
           </span>
-          <span className={`text-xs mt-0.5 block ${selectedBucket === '61-90' ? 'text-[#C8C5BC]' : 'text-[#4A4945]'}`}>
+          <span className={`text-xs mt-0.5 block tabular-nums ${selectedBucket === '61-90' ? 'text-[#1E40AF]' : 'text-[#475569]'}`}>
             Urgent follow-up
           </span>
         </div>
@@ -194,20 +195,20 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
         {/* 90+ Days */}
         <div
           onClick={() => setSelectedBucket(selectedBucket === '90+' ? 'all' : '90+')}
-          className={`p-3 rounded-none border transition-colors cursor-pointer flex flex-col justify-between ${
+          className={`p-3.5 rounded-[8px] border transition-colors cursor-pointer flex flex-col justify-between text-left ${
             selectedBucket === '90+'
-              ? 'bg-[#0A0A0A] text-[#FAF9F5] border-2 border-[#0A0A0A] shadow-[inset_0_3px_0_0_#E61919]'
-              : 'bg-[#FAF9F5] border-[#0A0A0A] text-[#0A0A0A] hover:bg-[#E4E2DC]'
+              ? 'bg-[#EFF6FF] border-[#1D4ED8] ring-1 ring-[#1D4ED8] text-[#0F172A] shadow-2xs'
+              : 'bg-[#FFFFFF] border-[#CBD5E1] text-[#0F172A] hover:bg-[#F1F5F9] hover:border-[#94A3B8]'
           }`}
           data-testid="kpi-90-plus"
         >
-          <span className={`font-mono text-xs font-semibold uppercase tracking-wider block ${selectedBucket === '90+' ? 'text-[#EAE8E3]' : 'text-[#A81212]'}`}>
+          <span className={`text-xs font-medium block ${selectedBucket === '90+' ? 'text-[#1E40AF]' : 'text-[#991B1B]'}`}>
             90+ Days
           </span>
-          <span className={`font-mono text-base font-bold mt-1 block tabular-nums ${selectedBucket === '90+' ? 'text-[#FAF9F5]' : 'text-[#0A0A0A]'}`}>
+          <span className="font-mono text-base font-bold mt-1 block tabular-nums text-[#0F172A]">
             {formatCurrency(summary['90+'])}
           </span>
-          <span className={`text-xs mt-0.5 block ${selectedBucket === '90+' ? 'text-[#C8C5BC]' : 'text-[#4A4945]'}`}>
+          <span className={`text-xs mt-0.5 block tabular-nums ${selectedBucket === '90+' ? 'text-[#1E40AF]' : 'text-[#475569]'}`}>
             Delinquent account
           </span>
         </div>
@@ -215,20 +216,20 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
         {/* Grand Total */}
         <div
           onClick={() => setSelectedBucket('all')}
-          className={`p-3 rounded-none border transition-colors cursor-pointer flex flex-col justify-between ${
+          className={`p-3.5 rounded-[8px] border transition-colors cursor-pointer flex flex-col justify-between text-left ${
             selectedBucket === 'all'
-              ? 'bg-[#0A0A0A] text-[#FAF9F5] border-2 border-[#0A0A0A] shadow-[inset_0_3px_0_0_#E61919]'
-              : 'bg-[#FAF9F5] border-[#0A0A0A] text-[#0A0A0A] hover:bg-[#E4E2DC]'
+              ? 'bg-[#EFF6FF] border-[#1D4ED8] ring-1 ring-[#1D4ED8] text-[#0F172A] shadow-2xs'
+              : 'bg-[#FFFFFF] border-[#CBD5E1] text-[#0F172A] hover:bg-[#F1F5F9] hover:border-[#94A3B8]'
           }`}
           data-testid="kpi-grand-total"
         >
-          <span className={`font-mono text-xs font-semibold uppercase tracking-wider block ${selectedBucket === 'all' ? 'text-[#EAE8E3]' : 'text-[#4A4945]'}`}>
+          <span className={`text-xs font-medium block ${selectedBucket === 'all' ? 'text-[#1E40AF]' : 'text-[#475569]'}`}>
             Total Receivables
           </span>
-          <span className={`font-mono text-base font-bold mt-1 block tabular-nums ${selectedBucket === 'all' ? 'text-[#FAF9F5]' : 'text-[#0A0A0A]'}`}>
+          <span className="font-mono text-base font-bold mt-1 block tabular-nums text-[#0F172A]">
             {formatCurrency(summary.grandTotal)}
           </span>
-          <span className={`text-xs mt-0.5 block ${selectedBucket === 'all' ? 'text-[#C8C5BC]' : 'text-[#4A4945]'}`}>
+          <span className={`text-xs mt-0.5 block tabular-nums ${selectedBucket === 'all' ? 'text-[#1E40AF]' : 'text-[#475569]'}`}>
             All brackets combined
           </span>
         </div>
@@ -237,92 +238,92 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
       {/* 2. Search & Filter Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div className="relative max-w-sm flex-1">
-          <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#4A4945] pointer-events-none" />
+          <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#475569] pointer-events-none" />
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by client or invoice number..."
-            className="pl-9 h-9 text-xs font-sans rounded-none border border-[#0A0A0A] bg-white focus-visible:ring-[#0A0A0A]"
+            className="pl-9 h-9 text-xs sm:text-sm rounded-[6px] border border-[#CBD5E1] bg-white text-[#0F172A] focus-visible:ring-[#1D4ED8]"
             data-testid="aging-search-input"
           />
         </div>
 
-        <div className="font-mono text-xs text-[#4A4945]">
-          Showing <span className="font-bold text-[#0A0A0A] tabular-nums">{filteredEntries.length}</span>{' '}
+        <div className="text-xs sm:text-sm text-[#475569]">
+          Showing <span className="font-mono font-bold text-[#0F172A] tabular-nums">{filteredEntries.length}</span>{' '}
           outstanding invoices
           {selectedBucket !== 'all' && (
-            <span className="ml-1 text-[#0A0A0A] font-semibold">({selectedBucket} bucket)</span>
+            <span className="ml-1 text-[#0F172A] font-medium">({selectedBucket} bucket)</span>
           )}
         </div>
       </div>
 
       {/* 3. Table of Aging Invoices */}
       {isLoading ? (
-        <div className="p-12 text-center text-[#4A4945] bg-[#FAF9F5] rounded-none border border-[#0A0A0A]">
-          <div className="inline-block animate-spin h-7 w-7 border-2 border-[#0A0A0A] border-t-transparent mb-2"></div>
-          <p className="font-mono text-xs uppercase tracking-wider">Loading aging report...</p>
+        <div className="p-12 text-center text-[#475569] bg-[#FFFFFF] rounded-[8px] border border-[#CBD5E1] shadow-card">
+          <div className="inline-block animate-spin h-7 w-7 border-2 border-[#1D4ED8] border-t-transparent mb-2 rounded-full"></div>
+          <p className="text-xs font-medium text-[#475569]">Loading aging report...</p>
         </div>
       ) : filteredEntries.length === 0 ? (
         <div
-          className="p-12 text-center bg-[#FAF9F5] rounded-none border-2 border-dashed border-[#0A0A0A] space-y-2"
+          className="p-12 text-center bg-[#FFFFFF] rounded-[8px] border-2 border-dashed border-[#CBD5E1] space-y-2 shadow-card"
           data-testid="empty-aging-report"
         >
-          <FileSpreadsheet className="w-10 h-10 text-[#4A4945] mx-auto" />
-          <h3 className="font-mono text-sm font-bold uppercase tracking-tight text-[#0A0A0A]">
+          <FileSpreadsheet className="w-10 h-10 text-[#475569] mx-auto" />
+          <h3 className="text-sm font-semibold tracking-tight text-[#0F172A]">
             No overdue invoices found
           </h3>
-          <p className="text-xs text-[#4A4945] max-w-sm mx-auto">
+          <p className="text-xs text-[#475569] max-w-sm mx-auto">
             All customer accounts in this bucket have zero outstanding balance.
           </p>
         </div>
       ) : (
-        <div className="w-full overflow-x-auto rounded-none border border-[#0A0A0A] bg-[#FAF9F5] shadow-none">
+        <div className="w-full overflow-x-auto rounded-[8px] border border-[#CBD5E1] bg-[#FFFFFF] shadow-card">
           <Table>
-            <TableHeader className="bg-[#EAE8E3] border-b border-[#0A0A0A]">
+            <TableHeader className="bg-[#F1F5F9] border-b border-[#CBD5E1]">
               <TableRow>
-                <TableHead className="font-mono text-xs font-semibold uppercase tracking-wider text-[#0A0A0A]">Invoice #</TableHead>
-                <TableHead className="font-mono text-xs font-semibold uppercase tracking-wider text-[#0A0A0A]">Client Name</TableHead>
-                <TableHead className="font-mono text-xs font-semibold uppercase tracking-wider text-[#0A0A0A]">Due Date</TableHead>
-                <TableHead className="font-mono text-xs font-semibold uppercase tracking-wider text-[#0A0A0A]">Days Overdue</TableHead>
-                <TableHead className="font-mono text-xs font-semibold uppercase tracking-wider text-[#0A0A0A]">Aging Bracket</TableHead>
-                <TableHead className="font-mono text-xs font-semibold uppercase tracking-wider text-[#0A0A0A] text-right">
+                <TableHead className="text-xs font-semibold text-[#334155]">Invoice #</TableHead>
+                <TableHead className="text-xs font-semibold text-[#334155]">Client Name</TableHead>
+                <TableHead className="text-xs font-semibold text-[#334155]">Due Date</TableHead>
+                <TableHead className="text-xs font-semibold text-[#334155]">Days Overdue</TableHead>
+                <TableHead className="text-xs font-semibold text-[#334155]">Aging Bracket</TableHead>
+                <TableHead className="text-xs font-semibold text-[#334155] text-right">
                   Total Amount
                 </TableHead>
-                <TableHead className="font-mono text-xs font-semibold uppercase tracking-wider text-[#0A0A0A] text-right">
+                <TableHead className="text-xs font-semibold text-[#334155] text-right">
                   Outstanding Balance
                 </TableHead>
-                <TableHead className="font-mono text-xs font-semibold uppercase tracking-wider text-[#0A0A0A] text-right">
+                <TableHead className="text-xs font-semibold text-[#334155] text-right">
                   Actions
                 </TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody className="divide-y divide-[#C8C5BC]">
+            <TableBody className="divide-y divide-[#E2E8F0]">
               {filteredEntries.map((row) => (
                 <TableRow
                   key={row.id}
-                  className="hover:bg-[#E4E2DC]/60 transition-colors cursor-pointer"
+                  className="hover:bg-[#F1F5F9] transition-colors cursor-pointer"
                   onClick={() => onSelectInvoiceId && onSelectInvoiceId(row.id)}
                   data-testid={`aging-row-${row.id}`}
                 >
-                  <TableCell className="font-mono font-semibold text-xs text-[#0A0A0A] py-3">
+                  <TableCell className="font-mono font-medium text-xs text-[#0F172A] py-3 tabular-nums">
                     {row.invoiceNumber}
                   </TableCell>
-                  <TableCell className="text-xs text-[#0A0A0A] py-3 font-medium">
+                  <TableCell className="text-xs text-[#0F172A] py-3 font-medium">
                     {row.clientName}
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-[#4A4945] py-3 tabular-nums">
+                  <TableCell className="font-mono text-xs text-[#475569] py-3 tabular-nums">
                     {row.dueDate?.slice(0, 10)}
                   </TableCell>
                   <TableCell className="font-mono text-xs py-3 tabular-nums font-semibold">
                     <span
                       className={
                         row.daysOverdue > 60
-                          ? 'text-[#E61919] font-bold'
+                          ? 'text-[#991B1B] font-bold'
                           : row.daysOverdue > 30
-                          ? 'text-[#734800] font-bold'
+                          ? 'text-[#854D0E] font-bold'
                           : row.daysOverdue > 0
-                          ? 'text-[#734800] font-semibold'
-                          : 'text-[#4A4945]'
+                          ? 'text-[#854D0E] font-semibold'
+                          : 'text-[#475569]'
                       }
                     >
                       {row.daysOverdue} days
@@ -330,25 +331,25 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
                   </TableCell>
                   <TableCell className="py-3">
                     <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded-none border font-mono text-xs font-semibold tabular-nums ${
+                      className={`inline-flex items-center px-2 py-0.5 rounded-[4px] border font-mono text-xs font-semibold tabular-nums ${
                         row.bucket === 'Current'
-                          ? 'bg-[#E6F2E8] text-[#0F5223] border-[#1B7A37]'
+                          ? 'bg-[#F0FDF4] text-[#166534] border-[#86EFAC]'
                           : row.bucket === '1–30 Days'
-                          ? 'bg-[#FDF3D7] text-[#734800] border-[#B87500]'
+                          ? 'bg-[#FEFCE8] text-[#854D0E] border-[#FDE047]'
                           : row.bucket === '31–60 Days'
-                          ? 'bg-[#FDF3D7] text-[#734800] border-[#B87500]'
+                          ? 'bg-[#FEFCE8] text-[#854D0E] border-[#FDE047]'
                           : row.bucket === '61–90 Days'
-                          ? 'bg-[#FCE8E8] text-[#A81212] border-[#E61919]'
-                          : 'bg-[#FCE8E8] text-[#A81212] border-[#E61919]'
+                          ? 'bg-[#FEF2F2] text-[#991B1B] border-[#FCA5A5]'
+                          : 'bg-[#FEF2F2] text-[#991B1B] border-[#FCA5A5]'
                       }`}
                     >
                       {row.bucket}
                     </span>
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-[#4A4945] text-right py-3 tabular-nums">
+                  <TableCell className="font-mono text-xs text-[#475569] text-right py-3 tabular-nums">
                     {formatCurrency(row.total)}
                   </TableCell>
-                  <TableCell className="font-mono text-xs font-bold text-[#0A0A0A] text-right py-3 tabular-nums">
+                  <TableCell className="font-mono text-xs font-bold text-[#0F172A] text-right py-3 tabular-nums">
                     {formatCurrency(row.balance)}
                   </TableCell>
                   <TableCell className="text-right py-3" onClick={(e) => e.stopPropagation()}>
@@ -356,7 +357,7 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
                       variant="ghost"
                       size="icon"
                       onClick={() => onSelectInvoiceId && onSelectInvoiceId(row.id)}
-                      className="h-7 w-7 text-[#4A4945] hover:text-[#0A0A0A] hover:bg-[#EAE8E3] rounded-none cursor-pointer"
+                      className="h-7 w-7 text-[#475569] hover:text-[#0F172A] hover:bg-[#F1F5F9] rounded-[6px] cursor-pointer"
                       title="View Invoice Details"
                       data-testid={`aging-view-btn-${row.id}`}
                     >

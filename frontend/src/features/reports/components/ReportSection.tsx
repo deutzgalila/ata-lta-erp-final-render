@@ -32,17 +32,17 @@ export const ReportSection: React.FC<ReportSectionProps> = ({
       id={id}
       data-testid={dataTestId}
       className={cn(
-        'bg-[#FAF9F5] rounded-none border border-[#0A0A0A] shadow-none overflow-hidden transition-all',
+        'rounded-[8px] border border-[#CBD5E1] bg-[#FFFFFF] shadow-card overflow-hidden transition-colors',
         className
       )}
     >
-      <div className="flex items-center justify-between px-4 py-3 bg-[#EAE8E3] border-b border-[#0A0A0A] gap-3">
+      <div className="flex items-center justify-between px-4 py-3 bg-[#F1F5F9] border-b border-[#CBD5E1] gap-3">
         <div className="flex items-center gap-2.5">
           {collapsible && (
             <button
               type="button"
               onClick={() => setIsOpen(!isOpen)}
-              className="p-1 -ml-1 text-[#4A4945] hover:text-[#0A0A0A] rounded-none transition-colors cursor-pointer"
+              className="p-1 -ml-1 text-[#475569] hover:text-[#0F172A] rounded-[4px] transition-colors cursor-pointer"
               aria-expanded={isOpen}
               aria-label={isOpen ? `Collapse ${title}` : `Expand ${title}`}
             >
@@ -54,12 +54,12 @@ export const ReportSection: React.FC<ReportSectionProps> = ({
               />
             </button>
           )}
-          <h2 className="text-sm sm:text-base font-bold uppercase tracking-tight text-[#0A0A0A] leading-none">
+          <h2 className="text-sm sm:text-base font-semibold tracking-tight text-[#0F172A] leading-none">
             {title}
           </h2>
           {badgeCount !== undefined && (
             <span
-              className="inline-flex items-center px-2 py-0.5 rounded-none border border-[#0A0A0A] font-mono text-xs font-semibold bg-[#FAF9F5] text-[#0A0A0A] tabular-nums"
+              className="inline-flex items-center px-2 py-0.5 rounded-[4px] bg-[#EFF6FF] text-[#1E40AF] border border-[#BFDBFE] font-mono text-xs font-semibold tabular-nums"
               data-testid={`${dataTestId || 'section'}-badge`}
             >
               {badgeCount}
