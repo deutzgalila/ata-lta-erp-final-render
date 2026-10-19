@@ -33,19 +33,19 @@ export const ReportScopePrompt: React.FC<ReportScopePromptProps> = ({
     <div
       data-testid={dataTestId}
       className={cn(
-        'p-6 sm:p-8 bg-amber-50/70 border border-amber-200/90 rounded-xl text-center max-w-xl mx-auto my-8 shadow-2xs',
+        'p-6 sm:p-8 bg-[#FAF9F5] border-2 border-[#0A0A0A] rounded-none text-center max-w-xl mx-auto my-8 shadow-none',
         className
       )}
     >
-      <div className="w-11 h-11 rounded-full bg-amber-100 border border-amber-200/80 flex items-center justify-center mx-auto text-amber-700 mb-3.5">
+      <div className="w-10 h-10 rounded-none bg-[#FDF3D7] border border-[#B87500] flex items-center justify-center mx-auto text-[#734800] mb-3.5">
         <AlertTriangle className="w-5 h-5" />
       </div>
 
-      <h3 className="text-base sm:text-lg font-semibold text-slate-900 tracking-tight">
+      <h3 className="text-base sm:text-lg font-bold uppercase tracking-tight text-[#0A0A0A]">
         {message}
       </h3>
 
-      <p className="text-xs sm:text-sm text-slate-600 mt-2 max-w-md mx-auto leading-relaxed">
+      <p className="text-xs sm:text-sm text-[#4A4945] mt-2 max-w-md mx-auto leading-relaxed">
         {description}
       </p>
 
@@ -55,10 +55,10 @@ export const ReportScopePrompt: React.FC<ReportScopePromptProps> = ({
           size="sm"
           variant="outline"
           onClick={() => handleSelect('ATA')}
-          className="text-xs font-medium h-8 px-3.5 bg-white border-amber-300 text-amber-900 hover:bg-amber-100 hover:text-amber-950 cursor-pointer shadow-2xs"
+          className="text-xs font-mono font-semibold h-8 px-3.5 bg-[#FAF9F5] border border-[#0A0A0A] text-[#0A0A0A] hover:bg-[#0A0A0A] hover:text-[#FAF9F5] rounded-none cursor-pointer shadow-none transition-colors"
           data-testid="scope-prompt-btn-ata"
         >
-          <Building2 className="w-3.5 h-3.5 mr-1.5 text-amber-700" />
+          <Building2 className="w-3.5 h-3.5 mr-1.5" />
           Switch to ATA
         </Button>
         <Button
@@ -66,10 +66,10 @@ export const ReportScopePrompt: React.FC<ReportScopePromptProps> = ({
           size="sm"
           variant="outline"
           onClick={() => handleSelect('LTA')}
-          className="text-xs font-medium h-8 px-3.5 bg-white border-amber-300 text-amber-900 hover:bg-amber-100 hover:text-amber-950 cursor-pointer shadow-2xs"
+          className="text-xs font-mono font-semibold h-8 px-3.5 bg-[#FAF9F5] border border-[#0A0A0A] text-[#0A0A0A] hover:bg-[#0A0A0A] hover:text-[#FAF9F5] rounded-none cursor-pointer shadow-none transition-colors"
           data-testid="scope-prompt-btn-lta"
         >
-          <Building2 className="w-3.5 h-3.5 mr-1.5 text-amber-700" />
+          <Building2 className="w-3.5 h-3.5 mr-1.5" />
           Switch to LTA
         </Button>
       </div>

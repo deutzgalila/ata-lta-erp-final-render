@@ -40,7 +40,7 @@ export const ReportToolbar: React.FC<ReportToolbarProps> = ({
     <div
       data-testid={dataTestId}
       className={cn(
-        'flex flex-wrap items-center justify-between gap-3 bg-white p-3 sm:p-4 rounded-xl border border-slate-200/80 shadow-2xs',
+        'flex flex-wrap items-center justify-between gap-3 bg-[#EAE8E3] p-3 sm:p-4 rounded-none border border-[#0A0A0A] shadow-none',
         className
       )}
     >
