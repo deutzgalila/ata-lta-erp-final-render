@@ -40,27 +40,49 @@ const createInvoiceSchema = z.object({
 /**
  * Schema for updating an invoice.
  */
-const updateInvoiceSchema = z.object({
-  clientId: z.string().uuid().optional(),
-  workRequestId: z.string().uuid().optional().nullable(),
-  work_request_id: z.string().uuid().optional().nullable(),
-  taskId: z.string().uuid().optional().nullable(),
-  task_id: z.string().uuid().optional().nullable(),
-  linkedTaskId: z.string().uuid().optional().nullable(),
-  linkedTransmittalId: z.string().uuid().optional().nullable(),
-  invoiceNumber: z.string().min(1).max(50).optional(),
-  issueDate: z.string().optional(),
-  dueDate: z.string().optional(),
-  status: z.string().max(50).optional(),
-  lineItems: z.array(lineItemSchema).min(1).optional(),
-  notes: z.string().max(2000).optional().nullable(),
-  terms: z.string().max(2000).optional().nullable(),
-  address: z.string().max(500).optional().nullable(),
-  clientAddress: z.string().max(500).optional().nullable(),
-  archived: z.boolean().optional(),
-  // OCC guard (Spec 2.2 / R-10): update applies only if the stored version matches.
-  expectedVersion: z.number().int().positive().optional(),
-});
+const FINANCIAL_FIELDS = [
+  'clientId',
+  'invoiceNumber',
+  'issueDate',
+  'dueDate',
+  'lineItems',
+  'terms',
+];
+
+const updateInvoiceSchema = z
+  .object({
+    clientId: z.string().uuid().optional(),
+    workRequestId: z.string().uuid().optional().nullable(),
+    work_request_id: z.string().uuid().optional().nullable(),
+    taskId: z.string().uuid().optional().nullable(),
+    task_id: z.string().uuid().optional().nullable(),
+    linkedTaskId: z.string().uuid().optional().nullable(),
+    linkedTransmittalId: z.string().uuid().optional().nullable(),
+    invoiceNumber: z.string().min(1).max(50).optional(),
+    issueDate: z.string().optional(),
+    dueDate: z.string().optional(),
+    status: z.string().max(50).optional(),
+    lineItems: z.array(lineItemSchema).min(1).optional(),
+    notes: z.string().max(2000).optional().nullable(),
+    terms: z.string().max(2000).optional().nullable(),
+    address: z.string().max(500).optional().nullable(),
+    clientAddress: z.string().max(500).optional().nullable(),
+    archived: z.boolean().optional(),
+    // OCC guard (Spec 2.2 / R-10): update applies only if the stored version matches.
+    expectedVersion: z.number().int().positive().optional(),
+  })
+  .superRefine((data, ctx) => {
+    const hasFinancialEdit = FINANCIAL_FIELDS.some(
+      (field) => data[field] !== undefined
+    );
+    if (hasFinancialEdit && (data.expectedVersion === undefined || data.expectedVersion === null)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['expectedVersion'],
+        message: 'expectedVersion is required for financial field and line item edits',
+      });
+    }
+  });
 
 /**
  * Schema for recording a payment.

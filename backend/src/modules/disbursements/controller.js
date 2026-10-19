@@ -9,7 +9,10 @@ const {
   createDisbursementSchema,
   updateDisbursementSchema,
   rejectSchema,
-  releasePaymentSchema,
+  createReceiptUploadSchema,
+  approveDisbursementSchema,
+  releaseDisbursementSchema,
+  updatePaymentDetailsSchema,
   disbursementTemplateSchema,
 } = require('./schema');
 const service = require('./service');
@@ -151,27 +154,47 @@ const submitDisbursement = async (req, res, next) => {
 /** @type {import('express').RequestHandler} */
 const approveDisbursement = async (req, res, next) => {
   try {
+    const validated = approveDisbursementSchema.parse(req.body || {});
+    const paymentDetails = {
+      method: validated.method,
+      reference: validated.reference,
+      bank: validated.bank,
+      date: validated.date,
+    };
+    const expectedVersion = validated.expectedVersion;
+
     const data = await service.approveDisbursement({
       entityId: req.activeEntity,
       id: req.params.id,
       userId: req.user.id,
       user: req.user,
+      paymentDetails,
+      expectedVersion,
     });
     res.json({ data });
   } catch (err) {
-    next(err);
+    handleZodError(err, next);
   }
 };
 
 /** @type {import('express').RequestHandler} */
 const releaseDisbursement = async (req, res, next) => {
   try {
-    const paymentDetails = releasePaymentSchema.parse(req.body || {});
+    const validated = releaseDisbursementSchema.parse(req.body || {});
+    const paymentDetails = {
+      method: validated.method,
+      reference: validated.reference,
+      bank: validated.bank,
+      date: validated.date,
+    };
+    const expectedVersion = validated.expectedVersion;
+
     const data = await service.releaseDisbursement({
       entityId: req.activeEntity,
       id: req.params.id,
       userId: req.user.id,
       paymentDetails,
+      expectedVersion,
     });
     res.json({ data });
   } catch (err) {
@@ -289,6 +312,76 @@ const deleteDisbursementTemplate = async (req, res, next) => {
   }
 };
 
+/** @type {import('express').RequestHandler} */
+const updatePaymentDetails = async (req, res, next) => {
+  try {
+    const validated = updatePaymentDetailsSchema.parse(req.body);
+    const data = await service.updatePaymentDetails({
+      entityId: req.activeEntity,
+      id: req.params.id,
+      userId: req.user.id,
+      user: req.user,
+      method: validated.method,
+      reference: validated.reference,
+      bank: validated.bank,
+      date: validated.date,
+      expectedVersion: validated.expectedVersion,
+    });
+    res.json({ data });
+  } catch (err) {
+    handleZodError(err, next);
+  }
+};
+
+/** @type {import('express').RequestHandler} */
+const createReceiptUpload = async (req, res, next) => {
+  try {
+    const validated = createReceiptUploadSchema.parse(req.body);
+    const data = await service.createReceiptUpload({
+      entityId: req.activeEntity,
+      entityCode: req.entityCode || req.activeEntity,
+      userId: req.user.id,
+      user: req.user,
+      filename: validated.filename,
+      contentType: validated.contentType,
+      size: validated.size,
+    });
+    res.status(201).json({ data });
+  } catch (err) {
+    handleZodError(err, next);
+  }
+};
+
+/** @type {import('express').RequestHandler} */
+const completeReceiptUpload = async (req, res, next) => {
+  try {
+    const data = await service.completeReceiptUpload({
+      entityId: req.activeEntity,
+      uploadId: req.params.uploadId,
+      userId: req.user.id,
+      user: req.user,
+    });
+    res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/** @type {import('express').RequestHandler} */
+const getReceiptUrl = async (req, res, next) => {
+  try {
+    const data = await service.getReceiptUrl({
+      entityId: req.activeEntity,
+      id: req.params.id,
+      userId: req.user.id,
+      user: req.user,
+    });
+    res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   disbursementsController: {
     listDisbursements,
@@ -308,6 +401,10 @@ module.exports = {
     createDisbursementTemplate,
     updateDisbursementTemplate,
     deleteDisbursementTemplate,
+    updatePaymentDetails,
+    createReceiptUpload,
+    completeReceiptUpload,
+    getReceiptUrl,
     deleteDisbursement: async (req, res, next) => {
       try {
         await service.deleteDisbursement({
