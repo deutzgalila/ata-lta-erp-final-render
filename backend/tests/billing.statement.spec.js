@@ -153,7 +153,8 @@ it.each(['true', 'false'])(
     expect(html).toContain('&lt;script&gt;bad&lt;/script&gt;');
     expect(html.includes('<img')).toBe(toggle === 'true');
     expect(html.includes('A.T.A. BUSINESS CONSULTANCY')).toBe(toggle === 'true');
-    expect(html).toContain('@page { size: A4; margin: 0; padding: 15mm 20mm; }');
+    expect(html).toContain('@page { size: A4; margin: 15mm 20mm; }');
+    expect(generatePdf.mock.calls[0][0].options.preferCSSPageSize).toBe(true);
     if (toggle === 'true') expect(html).toContain('data:image/jpeg;base64,');
     await getPdf().expect(200);
     const suffix = toggle === 'true' ? '' : '-no-company-details';

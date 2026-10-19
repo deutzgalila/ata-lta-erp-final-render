@@ -1,4 +1,5 @@
-// Keep in sync with frontend/src/lib/printDocuments.ts statement renderer.
+// Keep document content in sync with frontend/src/lib/printDocuments.ts.
+// PDF page margins differ from browser printing; pdfService disables headers/footers.
 'use strict';
 Object.defineProperty(exports, '__esModule', { value: true });
 exports.STATEMENT_CSS = void 0;
@@ -45,8 +46,8 @@ function getInvoicePrintDetails(inv) {
 }
 exports.STATEMENT_CSS = `
 * { box-sizing: border-box; }
-/* Zero margins suppress browser headers/footers; page padding repeats on every sheet. */
-@page { size: A4; margin: 0; padding: 15mm 20mm; }
+/* Use actual page margins for consistent PDF spacing on every sheet. */
+@page { size: A4; margin: 15mm 20mm; }
 body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #000; box-sizing: border-box; max-width: 210mm; margin: 0 auto; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
 /* Generic Header Styles */

@@ -1,4 +1,5 @@
-// Equivalent to frontend/src/lib/disbursementDocument.ts; keep document rendering synchronized.
+// Keep document content in sync with frontend/src/lib/disbursementDocument.ts.
+// PDF page margins differ from browser printing; pdfService disables headers/footers.
 'use strict';
 Object.defineProperty(exports, '__esModule', { value: true });
 exports.DISBURSEMENT_DOCUMENT_CSS = exports.DISBURSEMENT_PAGE_CSS = void 0;
@@ -94,8 +95,8 @@ function disbursementAmountInWords(amount) {
   const whole = Math.floor(cents / 100);
   return `${convert(whole) || 'Zero'} Pesos${cents % 100 ? ' and ' + convert(cents % 100) + ' Centavos' : ''} Only`.toUpperCase();
 }
-// Zero margins suppress browser headers/footers; page padding repeats on every sheet.
-exports.DISBURSEMENT_PAGE_CSS = `@page { size: A4; margin: 0; padding: 15mm 20mm; }`;
+// Use actual page margins for consistent PDF spacing on every sheet.
+exports.DISBURSEMENT_PAGE_CSS = `@page { size: A4; margin: 15mm 20mm; }`;
 exports.DISBURSEMENT_DOCUMENT_CSS = `
 .disbursement-document { font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.5; color: #111; background: white; }
 .disbursement-document * { box-sizing: border-box; }
