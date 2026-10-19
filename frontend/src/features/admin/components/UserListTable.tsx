@@ -358,7 +358,7 @@ export function UserListTable({
                     <TableCell>
                       {user.isActive ? (
                         <span
-                          className="inline-flex items-center gap-1 rounded-[6px] bg-emerald-50 px-2 py-0.5 text-xs font-mono font-medium text-emerald-700 border-emerald-200"
+                          className="inline-flex items-center gap-1 rounded-[6px] bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 border-emerald-200"
                           data-testid={`user-status-${user.id}`}
                         >
                           <span className="h-1.5 w-1.5 rounded-[6px] bg-emerald-500" />
@@ -366,7 +366,7 @@ export function UserListTable({
                         </span>
                       ) : (
                         <span
-                          className="inline-flex items-center gap-1 rounded-[6px] bg-[#F8FAFC] px-2 py-0.5 text-xs font-mono font-medium text-[#475569] border-[#E2E8F0]"
+                          className="inline-flex items-center gap-1 rounded-[6px] bg-[#F8FAFC] px-2 py-0.5 text-xs font-medium text-[#475569] border-[#E2E8F0]"
                           data-testid={`user-status-${user.id}`}
                         >
                           <span className="h-1.5 w-1.5 rounded-[6px] bg-slate-400" />

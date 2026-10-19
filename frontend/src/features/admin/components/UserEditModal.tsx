@@ -227,7 +227,7 @@ export function UserEditModal({
                   required={changePassword}
                   data-testid="edit-user-password-input"
                 />
-                {errors.password && <p className="text-xs font-mono text-rose-600">{errors.password}</p>}
+                {errors.password && <p className="text-xs text-rose-600">{errors.password}</p>}
               </div>
             )}
           </div>

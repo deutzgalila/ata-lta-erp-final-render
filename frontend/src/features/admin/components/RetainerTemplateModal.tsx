@@ -476,7 +476,7 @@ export function RetainerTemplateModal({
                     <Clock className="h-3.5 w-3.5 text-purple-600" />
                     Annual Period Label Guidance (e.g. FY-2026, FY-2027)
                   </p>
-                  <p className="text-xs font-mono text-purple-700">
+                  <p className="text-xs text-purple-700">
                     When generating work requests from an annual template, you will be prompted for a period label (e.g. <code className="font-mono font-bold">FY-2026</code>). The system enforces duplicate protection (<code className="font-mono">UNIQUE(template_id, period_label)</code>) to prevent accidental duplicate work request creation.
                   </p>
                 </div>

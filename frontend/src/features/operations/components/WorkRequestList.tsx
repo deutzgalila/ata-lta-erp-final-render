@@ -542,9 +542,9 @@ export function WorkRequestList({
               <SelectValue placeholder="Client" />
             </SelectTrigger>
             <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
-              <SelectItem value="all" className="text-xs font-mono">All Clients</SelectItem>
+              <SelectItem value="all" className="text-xs">All Clients</SelectItem>
               {clients.map((c) => (
-                <SelectItem key={c.id} value={c.id} className="text-xs font-mono">
+                <SelectItem key={c.id} value={c.id} className="text-xs">
                   {c.name}
                 </SelectItem>
               ))}
@@ -564,9 +564,9 @@ export function WorkRequestList({
             </SelectTrigger>
             <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
               <SelectItem value="all" className="text-xs">All Assignees</SelectItem>
-              <SelectItem value="unassigned" className="text-xs font-mono">— Unassigned —</SelectItem>
+              <SelectItem value="unassigned" className="text-xs">— Unassigned —</SelectItem>
               {team.map((m) => (
-                <SelectItem key={m.id} value={m.id} className="text-xs font-mono">
+                <SelectItem key={m.id} value={m.id} className="text-xs">
                   {m.name}
                 </SelectItem>
               ))}
@@ -583,7 +583,7 @@ export function WorkRequestList({
                 setAssigneeFilter(assigneeFilter === user.id ? 'all' : user.id);
                 setPage(1);
               }}
-              className={`h-7 text-xs font-mono tracking-normal font-bold gap-1 shrink-0 rounded-[8px] border-[#E2E8F0] ${assigneeFilter === user.id ? 'bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs' : 'bg-[#FFFFFF] text-[#1E293B] hover:bg-[#F8FAFC]'}`}
+              className={`h-7 text-xs tracking-normal font-bold gap-1 shrink-0 rounded-[8px] border-[#E2E8F0] ${assigneeFilter === user.id ? 'bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs' : 'bg-[#FFFFFF] text-[#1E293B] hover:bg-[#F8FAFC]'}`}
               data-testid="assigned-to-me-btn"
             >
               <User className="h-3 w-3" />
@@ -786,7 +786,7 @@ export function WorkRequestList({
                           {/* Blocker Badge with Tooltip */}
                           {blocker.hasBlockers && (
                             <span
-                              className="inline-flex items-center gap-1 text-xs font-mono font-bold uppercase text-[#DC2626] bg-[#FEF2F2] border-[#FCA5A5] rounded-[6px] px-1.5 py-0.2 cursor-help"
+                              className="inline-flex items-center gap-1 text-xs font-bold uppercase text-[#DC2626] bg-[#FEF2F2] border-[#FCA5A5] rounded-[6px] px-1.5 py-0.2 cursor-help"
                               title={`Incomplete Gate Tasks:\n${blocker.taskTitles.join('\n')}`}
                               data-testid={`blocker-badge-${wr.id}`}
                             >

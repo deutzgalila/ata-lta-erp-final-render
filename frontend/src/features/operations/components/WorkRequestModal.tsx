@@ -794,10 +794,10 @@ export function WorkRequestModal({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Client Select */}
             <div className="space-y-1">
-              <label className="text-xs font-mono tracking-normal font-bold text-[#1E293B]">Client</label>
+              <label className="text-xs tracking-normal font-bold text-[#1E293B]">Client</label>
               <Select value={clientId || 'unselected'} onValueChange={handleClientChange}>
                 <SelectTrigger
-                  className="h-9 font-mono text-xs rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B]"
+                  className="h-9 text-xs rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B]"
                   data-testid="wr-modal-client-select"
                 >
                   <SelectValue placeholder="Select Client..." />
@@ -807,7 +807,7 @@ export function WorkRequestModal({
                   {clients
                     .filter((c) => !isEntityLocked || c.entity === entity)
                     .map((c) => (
-                      <SelectItem key={c.id} value={c.id} className="text-xs font-mono">
+                      <SelectItem key={c.id} value={c.id} className="text-xs">
                         {c.name} ({c.entity})
                       </SelectItem>
                     ))}

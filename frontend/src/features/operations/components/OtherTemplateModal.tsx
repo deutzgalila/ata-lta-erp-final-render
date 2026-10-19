@@ -312,7 +312,7 @@ export function OtherTemplateModal({
             <DialogTitle className="text-base font-semibold tracking-tight text-[#1E293B]">
               Access Restricted
             </DialogTitle>
-            <DialogDescription className="text-xs font-mono text-[#DC2626]">
+            <DialogDescription className="text-xs text-[#DC2626]">
               You do not have permission to author or edit templates (<code className="font-mono">retainers:edit</code> required).
             </DialogDescription>
           </DialogHeader>

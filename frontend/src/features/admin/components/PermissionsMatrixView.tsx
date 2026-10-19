@@ -198,7 +198,7 @@ export function PermissionsMatrixView() {
                   className="hover:bg-[#F8FAFC]/50 transition-colors"
                 >
                   {/* Row Index */}
-                  <TableCell className="text-xs font-mono text-[#475569]">
+                  <TableCell className="text-xs text-[#475569] tabular-nums">
                     {idx + 1}
                   </TableCell>
 

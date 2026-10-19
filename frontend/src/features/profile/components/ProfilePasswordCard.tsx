@@ -157,7 +157,7 @@ export function ProfilePasswordCard({ isLoading = false }: ProfilePasswordCardPr
                   size="sm"
                   onClick={handleGeneratePassword}
                   disabled={isLoading || isSaving}
-                  className="h-6 px-2 text-xs font-mono font-medium gap-1 text-primary border-primary/30 hover:bg-primary/5"
+                  className="h-6 px-2 text-xs font-medium gap-1 text-primary border-primary/30 hover:bg-primary/5"
                   data-testid="generate-password-btn"
                 >
                   <Sparkles className="h-3 w-3" />
@@ -209,7 +209,7 @@ export function ProfilePasswordCard({ isLoading = false }: ProfilePasswordCardPr
                 </label>
                 {confirmPassword && (
                   <span
-                    className={`text-xs font-mono uppercase font-bold tracking-wider px-2 py-0.5 rounded-[6px] ${
+                    className={`text-xs uppercase font-bold tracking-wider px-2 py-0.5 rounded-[6px] ${
                       passwordsMatch
                         ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                         : 'bg-destructive/10 text-destructive border-destructive/20'
@@ -264,7 +264,7 @@ export function ProfilePasswordCard({ isLoading = false }: ProfilePasswordCardPr
             <div className="flex items-center justify-between text-xs">
               <span className="font-medium text-muted-foreground">Password Strength</span>
               <span
-                className={`text-xs font-mono font-semibold px-2 py-0.5 rounded-[6px] tracking-normal ${
+                className={`text-xs font-semibold px-2 py-0.5 rounded-[6px] tracking-normal ${
                   evalRes.strength === 'strong'
                     ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
                     : evalRes.strength === 'good'

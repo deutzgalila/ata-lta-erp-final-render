@@ -127,7 +127,7 @@ export function RetainerGenerationLogs() {
                       {details.periodLabel ? (
                         <Badge
                           variant="outline"
-                          className="font-mono text-xs py-0.5 px-2 bg-purple-50 text-purple-700 border-purple-200 font-semibold gap-1"
+                          className="text-xs py-0.5 px-2 bg-purple-50 text-purple-700 border-purple-200 font-semibold gap-1"
                           data-testid={`log-period-${entry.id}`}
                         >
                           <Repeat className="h-3 w-3" />
@@ -141,7 +141,7 @@ export function RetainerGenerationLogs() {
                     <TableCell>
                       <a
                         href={`/operations?search=${wrId}`}
-                        className="inline-flex items-center gap-1 font-mono text-xs text-[#1E293B] hover:text-[#1E293B] hover:underline"
+                        className="inline-flex items-center gap-1 text-xs text-[#1E293B] hover:text-[#1E293B] hover:underline"
                         data-testid={`log-wr-${entry.id}`}
                       >
                         <span>{wrId.slice(0, 13)}...</span>

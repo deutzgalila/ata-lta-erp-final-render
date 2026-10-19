@@ -437,7 +437,7 @@ export function CreateDisbursementModal({
               </select>
             </div>
             {errors.linkedWorkRequestId && (
-              <span className="text-xs font-mono text-red-600 block" data-testid="error-work-request-id">
+              <span className="text-xs text-red-600 block" data-testid="error-work-request-id">
                 {errors.linkedWorkRequestId}
               </span>
             )}

@@ -106,7 +106,7 @@ export function ClientDetailModal({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
           {/* TIN */}
           <div className="p-3 bg-[#F8FAFC] rounded-[8px] border-[#E2E8F0] space-y-1">
-            <div className="text-xs font-mono font-bold text-[#475569] tracking-normal">
+            <div className="text-xs font-bold text-[#475569] tracking-normal">
               Tax Identification Number (TIN)
             </div>
             <div className="font-mono font-bold text-[#1E293B] text-sm tabular-nums" data-testid="client-detail-tin">
@@ -213,7 +213,7 @@ export function ClientDetailModal({
               {client.relatedCompanies.map((rc, idx) => (
                 <div
                   key={rc.id || idx}
-                  className="flex items-center justify-between p-2 bg-[#F8FAFC] rounded-[8px] border-[#E2E8F0] text-xs font-mono"
+                  className="flex items-center justify-between p-2 bg-[#F8FAFC] rounded-[8px] border-[#E2E8F0] text-xs"
                 >
                   <div className="flex items-center gap-1.5 text-[#1E293B]">
                     <Layers className="h-3.5 w-3.5 text-[#475569] shrink-0" />

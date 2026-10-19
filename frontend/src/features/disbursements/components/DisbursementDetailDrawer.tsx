@@ -324,7 +324,7 @@ export function DisbursementDetailDrawer({
                         {item.receipt_filename || item.receiptFilename || 'Supporting Document'}
                       </span>
                       {(item.receipt_s3_key || item.receiptS3Key) && (
-                        <span className="text-xs font-mono text-[#1E293B] block">
+                        <span className="text-xs text-[#1E293B] block">
                           {item.receipt_s3_key || item.receiptS3Key}
                         </span>
                       )}

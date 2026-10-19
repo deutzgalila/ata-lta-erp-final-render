@@ -468,7 +468,7 @@ export function InvoiceDetailModal({
               <TableBody>
                 {(invoice.line_items || []).map((item, idx) => (
                   <TableRow key={item.id || idx}>
-                    <TableCell className="font-mono text-xs text-[#475569] py-2.5">
+                    <TableCell className="text-xs text-[#475569] tabular-nums py-2.5">
                       {idx + 1}
                     </TableCell>
                     <TableCell className="text-xs font-medium text-[#1E293B] py-2.5">

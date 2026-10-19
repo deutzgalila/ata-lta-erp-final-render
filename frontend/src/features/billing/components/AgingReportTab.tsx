@@ -305,7 +305,7 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
                   onClick={() => onSelectInvoiceId && onSelectInvoiceId(row.id)}
                   data-testid={`aging-row-${row.id}`}
                 >
-                  <TableCell className="font-mono font-medium text-xs text-[#1E293B] py-3 tabular-nums">
+                  <TableCell className="font-medium text-xs text-[#1E293B] py-3 tabular-nums">
                     {row.invoiceNumber}
                   </TableCell>
                   <TableCell className="text-xs text-[#1E293B] py-3 font-medium">

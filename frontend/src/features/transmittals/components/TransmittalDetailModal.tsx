@@ -191,7 +191,7 @@ export function TransmittalDetailModal({
                     ) : (
                       transmittal.items.map((item, idx) => (
                         <tr key={item.id || idx} className="hover:bg-[#F8FAFC]/50">
-                          <td className="py-2.5 px-3 font-mono text-center text-[#475569]">
+                          <td className="py-2.5 px-3 tabular-nums text-center text-[#475569]">
                             {idx + 1}
                           </td>
                           <td className="py-2.5 px-3">

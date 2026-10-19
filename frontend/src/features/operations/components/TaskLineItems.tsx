@@ -253,11 +253,7 @@ export function TaskLineItems({
           return (
             <div
               key={task.localId}
-              className={`p-2.5 space-y-2 transition-colors border-l-4 ${
-                task.phase === 'pre_processing'
-                  ? 'border-l-[#4F46E5]'
-                  : 'border-l-[#2563EB]'
-              } ${
+              className={`p-2.5 space-y-2 transition-colors ${
                 isExpanded ? 'bg-[#F8FAFC]' : 'hover:bg-[#F8FAFC]/50'
               }`}
               data-testid={`task-row-${task.localId}`}
@@ -338,9 +334,9 @@ export function TaskLineItems({
                       <SelectValue placeholder="Assignee" />
                     </SelectTrigger>
                     <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
-                      <SelectItem value="unassigned" className="font-mono text-xs">Unassigned</SelectItem>
+                      <SelectItem value="unassigned" className="text-xs">Unassigned</SelectItem>
                       {projectTeam.map((m) => (
-                        <SelectItem key={m.id} value={m.id} className="text-xs font-mono">
+                        <SelectItem key={m.id} value={m.id} className="text-xs">
                           {m.name}
                         </SelectItem>
                       ))}
@@ -550,7 +546,7 @@ export function TaskLineItems({
                                 !task.coAssignees.includes(m.id)
                             )
                             .map((m) => (
-                              <SelectItem key={m.id} value={m.id} className="text-xs font-mono">
+                              <SelectItem key={m.id} value={m.id} className="text-xs">
                                 {m.name}
                               </SelectItem>
                             ))}

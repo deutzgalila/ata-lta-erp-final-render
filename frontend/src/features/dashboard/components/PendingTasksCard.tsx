@@ -137,7 +137,7 @@ export function PendingTasksCard() {
                     variant="outline"
                     size="sm"
                     onClick={() => handleNavigateToTask(task)}
-                    className="text-xs font-mono font-semibold h-8 gap-1.5 rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B] hover:bg-[#F8FAFC] cursor-pointer"
+                    className="text-xs font-semibold h-8 gap-1.5 rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B] hover:bg-[#F8FAFC] cursor-pointer"
                     data-testid={`view-task-btn-${task.taskId}`}
                   >
                     View in Operations
