@@ -92,12 +92,8 @@ export function PrintPreviewModal({
         className="max-w-5xl max-h-[92vh] overflow-y-auto p-0 bg-slate-100"
         data-testid="print-preview-modal"
       >
-        {/* Page margin boxes are only used by the separate print window. */}
         <style>
-          {STATEMENT_CSS.replace('body {', '.statement-document {').replace(
-            /@(?:top|bottom)-(?:left|center|right)\s*\{[^}]*\}/g,
-            ''
-          ) +
+          {STATEMENT_CSS.replace('body {', '.statement-document {') +
             `
           .statement-document { box-sizing: border-box; width: 210mm; min-height: 297mm; padding: 15mm 20mm; background: white; }
           .statement-document p { margin: 2px 0; }
