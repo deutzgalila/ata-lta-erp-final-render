@@ -107,6 +107,12 @@ router.get(
   disbursementsController.listDisbursements
 );
 router.get(
+  '/:id/receipt-url',
+  resolveEntity({ allowAll: true }),
+  requirePermission('disbursement:view'),
+  disbursementsController.getReceiptUrl
+);
+router.get(
   '/:id',
   resolveEntity({ allowAll: true }),
   requirePermission('disbursement:view'),
@@ -115,6 +121,18 @@ router.get(
 
 // Resolve entity code → UUID for all remaining mutation routes in this module
 router.use(resolveEntity());
+
+// --- Receipt Upload Reservations (R5 / D4) ---
+router.post(
+  '/receipt-uploads',
+  requirePermission('disbursement:create'),
+  disbursementsController.createReceiptUpload
+);
+router.post(
+  '/receipt-uploads/:uploadId/complete',
+  requirePermission('disbursement:create'),
+  disbursementsController.completeReceiptUpload
+);
 
 // --- Disbursement Templates Mutations ---
 router.post(
@@ -184,6 +202,13 @@ router.post(
   requirePermission('disbursement:mark_released'),
   audit('disbursement.release', { table: 'disbursements' }),
   disbursementsController.releaseDisbursement
+);
+
+router.patch(
+  '/:id/payment-details',
+  requirePermission(['disbursement:mark_released', 'disbursement:edit']),
+  audit('disbursement.payment_details_update', { table: 'disbursements' }),
+  disbursementsController.updatePaymentDetails
 );
 
 router.post(

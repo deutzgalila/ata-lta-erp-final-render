@@ -324,8 +324,13 @@ app.use((req, res, _next) => {
 // Global error handler
 app.use(errorHandler);
 
+const { startPeriodicReceiptCleanup } = require('./modules/disbursements/receiptReservationStore');
+
 const server = app.listen(env.port, () => {
   logger.info('server started', { port: env.port, env: env.nodeEnv });
+  if (env.nodeEnv !== 'test') {
+    startPeriodicReceiptCleanup();
+  }
 });
 
 module.exports = { app, server };

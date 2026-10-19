@@ -8,12 +8,23 @@
  * Phase 6 — Agent B
  */
 
+const crypto = require('crypto');
 const { supabaseAdmin } = require('../../services/supabaseClient');
 const auditService = require('../../services/auditService');
+const storageService = require('../../services/storageService');
 const AppError = require('../../lib/AppError');
 const { concurrencyConflict, resolveExpectedVersion } = require('../../lib/concurrency');
 const { buildPermissionSet, hasPermission } = require('../../lib/permissions');
 const { resolveEntityCode } = require('../../lib/entityResolver');
+const {
+  createReservation,
+  getReservation,
+  completeReservation,
+  claimReservationByKey,
+  releaseReservationByKey,
+  consumeReservationByKey,
+  cleanupExpiredReservations,
+} = require('./receiptReservationStore');
 
 /** Valid status transitions */
 const VALID_TRANSITIONS = {
@@ -120,14 +131,6 @@ const getDisbursementCounts = async ({ entityId, user }) => {
   const isAdmin = user?.role === 'Admin';
   const isAccounting =
     (user?.departments || []).includes('Accounting') || user?.role === 'Accounting';
-  let concernedWrIds = [];
-  if (!isAdmin && !isAccounting) {
-    const { getUserConcernedWorkRequestIds } = require('../../lib/userScope');
-    concernedWrIds = await getUserConcernedWorkRequestIds(user);
-    if (concernedWrIds.length === 0) {
-      return { active: 0, archived: 0, rejected: 0, awaitingRelease: 0 };
-    }
-  }
 
   const runCount = async (query) => {
     const { count, error } = await query;
@@ -148,7 +151,7 @@ const getDisbursementCounts = async ({ entityId, user }) => {
       .in('entity_id', entityIds)
       .is('deleted_at', null);
     if (!isAdmin && !isAccounting) {
-      q = q.in('linked_work_request_id', concernedWrIds);
+      q = q.or(`requested_by.eq.${user.id},created_by.eq.${user.id}`);
     }
     return q;
   };
@@ -162,10 +165,7 @@ const getDisbursementCounts = async ({ entityId, user }) => {
     return hasPermission(permissions, 'disbursement:mark_released');
   })();
 
-  let activeQuery = baseQuery().neq('archived', true).neq('status', 'Cancelled');
-  if (!isAdmin && !isAccounting) {
-    activeQuery = activeQuery.in('status', ['Released', 'Funded', 'Rejected']);
-  }
+  const activeQuery = baseQuery().neq('archived', true).neq('status', 'Cancelled');
 
   const [active, archivedCount, cancelledCount, pendingRejected, opsRejected, awaitingRelease] =
     await Promise.all([
@@ -173,12 +173,18 @@ const getDisbursementCounts = async ({ entityId, user }) => {
       runCount(baseQuery().eq('archived', true)),
       runCount(baseQuery().eq('status', 'Cancelled').eq('archived', false)),
       runCount(
-        supabaseAdmin
-          .from('pending_changes')
-          .select('*', { count: 'exact', head: true })
-          .in('entity_id', entityIds)
-          .eq('table_name', 'disbursements')
-          .eq('status', 'rejected')
+        (() => {
+          let q = supabaseAdmin
+            .from('pending_changes')
+            .select('*', { count: 'exact', head: true })
+            .in('entity_id', entityIds)
+            .eq('table_name', 'disbursements')
+            .eq('status', 'rejected');
+          if (!isAdmin && !isAccounting) {
+            q = q.eq('submitted_by', user.id);
+          }
+          return q;
+        })()
       ),
       runCount(
         (() => {
@@ -189,7 +195,7 @@ const getDisbursementCounts = async ({ entityId, user }) => {
             .eq('type', 'disbursement')
             .eq('status', 'rejected');
           if (!isAdmin && !isAccounting) {
-            q = q.in('work_request_id', concernedWrIds);
+            q = q.eq('requested_by', user.id);
           }
           return q;
         })()
@@ -308,7 +314,26 @@ const listDisbursements = async ({ entityId, filters = {}, user }) => {
     .select('*, clients(name)', { count: 'exact' })
     .is('deleted_at', null);
 
-  if (entityId && entityId !== 'ALL') {
+  if (entityId === 'ALL') {
+    const codes = (user?.entities || []).filter((c) =>
+      VALID_ENTITY_CODES.includes(c.toUpperCase())
+    );
+    const resolved = await Promise.all(
+      codes.map(async (code) => {
+        const { data } = await supabaseAdmin
+          .from('entities')
+          .select('id')
+          .eq('code', code)
+          .maybeSingle();
+        return data?.id;
+      })
+    );
+    const entityIds = resolved.filter(Boolean);
+    if (entityIds.length === 0) {
+      return { data: [], count: 0 };
+    }
+    query = query.in('entity_id', entityIds);
+  } else if (entityId) {
     query = query.eq('entity_id', entityId);
   }
 
@@ -318,27 +343,15 @@ const listDisbursements = async ({ entityId, filters = {}, user }) => {
     query = query.eq('archived', false);
   }
 
-  // Role restriction and scoping
+  // Role restriction and strict voucher ownership (R2 / D1)
   const isAdmin = user?.role === 'Admin';
   const isAccounting =
     (user?.departments || []).includes('Accounting') || user?.role === 'Accounting';
   if (!isAdmin && !isAccounting) {
-    // Non-admin, non-accounting staff can see:
-    // 1. Released/Funded disbursements, OR
-    // 2. Any disbursement where they are the creator or employee
-    if (status) {
-      if (['Draft', 'Pending', 'Submitted', 'Under Review', 'Approved'].includes(status)) {
-        // Only return if created by or assigned to this user
-        query = query.eq('status', status).or(`created_by.eq.${user.id},employee_id.eq.${user.id}`);
-      } else {
-        query = query.eq('status', status);
-      }
-    } else {
-      query = query.or(`status.in.(Released,Funded,Rejected),created_by.eq.${user.id},employee_id.eq.${user.id}`);
-    }
-  } else {
-    if (status) query = query.eq('status', status);
+    query = query.or(`requested_by.eq.${user.id},created_by.eq.${user.id}`);
   }
+
+  if (status) query = query.eq('status', status);
 
   if (category) query = query.eq('category', category);
   if (fundSource) query = query.eq('fund_source', fundSource);
@@ -349,15 +362,6 @@ const listDisbursements = async ({ entityId, filters = {}, user }) => {
   if (linkedTransmittalId) query = query.eq('linked_transmittal_id', linkedTransmittalId);
   if (search) {
     query = query.or(`description.ilike.%${search}%,disbursement_number.ilike.%${search}%`);
-  }
-
-  if (!isAdmin && !isAccounting) {
-    const { getUserConcernedWorkRequestIds } = require('../../lib/userScope');
-    const concernedWrIds = await getUserConcernedWorkRequestIds(user);
-    if (concernedWrIds.length === 0) {
-      return { data: [], count: 0 };
-    }
-    query = query.in('linked_work_request_id', concernedWrIds);
   }
 
 
@@ -427,6 +431,41 @@ const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
     }
   }
 
+  // Reject foreign employeeId (R2 / AC-4)
+  if (data.employeeId && data.employeeId !== userId) {
+    throw new AppError({
+      statusCode: 403,
+      title: 'Forbidden',
+      detail: 'Cannot create disbursement voucher for another employee.',
+      code: 'DISBURSEMENT_REQUESTER_MISMATCH',
+    });
+  }
+
+  // Atomically claim receipt reservation if receiptS3Key is supplied (R4 / AC-4)
+  let receiptClaim = null;
+  if (data.receiptS3Key) {
+    const claimResult = claimReservationByKey({
+      receiptS3Key: data.receiptS3Key,
+      userId,
+      entityId,
+    });
+    if (!claimResult || claimResult.error) {
+      const isMismatch = claimResult?.error === 'MISMATCH';
+      const isClaimed = claimResult?.error === 'ALREADY_CLAIMED';
+      throw new AppError({
+        statusCode: isMismatch ? 403 : 400,
+        title: isMismatch ? 'Forbidden' : 'Bad Request',
+        detail: isMismatch
+          ? 'Receipt reservation does not belong to the authenticated user or entity.'
+          : isClaimed
+          ? 'Receipt reservation is currently being processed by another request.'
+          : 'Receipt upload reservation is invalid, unverified, expired, or already consumed.',
+        code: isMismatch ? 'RECEIPT_RESERVATION_MISMATCH' : 'INVALID_RECEIPT_RESERVATION',
+      });
+    }
+    receiptClaim = claimResult;
+  }
+
   const initialStatus = isStaff ? 'Pending' : 'Draft';
   const MAX_RETRIES = 5;
 
@@ -443,6 +482,14 @@ const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
       .maybeSingle();
 
     if (taskErr || !task) {
+      if (data.receiptS3Key && receiptClaim) {
+        releaseReservationByKey({
+          receiptS3Key: data.receiptS3Key,
+          userId,
+          entityId,
+          claimId: receiptClaim.claimId,
+        });
+      }
       throw new AppError({
         statusCode: 400,
         title: 'Bad Request',
@@ -452,6 +499,14 @@ const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
     }
 
     if (effectiveWrId && task.work_request_id !== effectiveWrId) {
+      if (data.receiptS3Key && receiptClaim) {
+        releaseReservationByKey({
+          receiptS3Key: data.receiptS3Key,
+          userId,
+          entityId,
+          claimId: receiptClaim.claimId,
+        });
+      }
       throw new AppError({
         statusCode: 400,
         title: 'Bad Request',
@@ -461,72 +516,110 @@ const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
     }
   }
 
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    const disbursementNumber = await generateDisbursementNumber(
-      entityId,
-      entityCode || entityId,
-      attempt
-    );
+  let receiptWriteMayHaveCommitted = false;
+  try {
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      const disbursementNumber = await generateDisbursementNumber(
+        entityId,
+        entityCode || entityId,
+        attempt
+      );
 
-    const row = {
-      disbursement_number: disbursementNumber,
-      entity_id: entityId,
-      category: data.category,
-      description: data.description,
-      amount: data.amount,
-      fund_source: data.fundSource,
-      status: initialStatus,
-      client_id: data.clientId || null,
-      employee_id: data.employeeId || null,
-      linked_invoice_id: data.linkedInvoiceId || null,
-      linked_work_request_id: effectiveWrId,
-      linked_task_id: effectiveTaskId,
-      task_id: effectiveTaskId,
-      linked_transmittal_id: data.linkedTransmittalId || null,
-      requested_by: userId,
-      due_date: data.dueDate || null,
-      notes: data.notes || null,
-      receipt_s3_key: data.receiptS3Key || null,
-      receipt_filename: data.receiptFilename || null,
-      created_by: userId,
-      updated_by: userId,
-    };
+      const row = {
+        disbursement_number: disbursementNumber,
+        entity_id: entityId,
+        category: data.category,
+        description: data.description,
+        amount: data.amount,
+        fund_source: data.fundSource,
+        status: initialStatus,
+        client_id: data.clientId || null,
+        employee_id: userId,
+        linked_invoice_id: data.linkedInvoiceId || null,
+        linked_work_request_id: effectiveWrId,
+        linked_task_id: effectiveTaskId,
+        task_id: effectiveTaskId,
+        linked_transmittal_id: data.linkedTransmittalId || null,
+        requested_by: userId,
+        due_date: data.dueDate || null,
+        notes: data.notes || null,
+        receipt_s3_key: data.receiptS3Key || null,
+        receipt_filename: data.receiptFilename || null,
+        created_by: userId,
+        updated_by: userId,
+      };
 
-    const { data: disbursement, error } = await supabaseAdmin
-      .from('disbursements')
-      .insert(row)
-      .select()
-      .single();
+      receiptWriteMayHaveCommitted = true;
+      const { data: disbursement, error } = await supabaseAdmin
+        .from('disbursements')
+        .insert(row)
+        .select()
+        .single();
 
-    if (!error) {
-      await auditService.log({
-        action: 'disbursement.create',
-        table: 'disbursements',
-        recordId: disbursement.id,
-        entity: entityId,
+      if (!error) {
+        if (data.receiptS3Key) {
+          const consumed = consumeReservationByKey({
+            receiptS3Key: data.receiptS3Key,
+            userId,
+            entityId,
+            claimId: receiptClaim?.claimId,
+            voucherId: disbursement.id,
+          });
+
+          if (!consumed) {
+            // The voucher already exists. Keep its claim for reconciliation;
+            // deleting it here can race another legitimate voucher update.
+            throw new AppError({
+              statusCode: 409,
+              title: 'Conflict',
+              detail: 'Receipt reservation could not be consumed. It may have already been consumed or claimed by another request.',
+              code: 'RECEIPT_RESERVATION_CONSUME_FAILED',
+            });
+          }
+        }
+
+        await auditService.log({
+          action: 'disbursement.create',
+          table: 'disbursements',
+          recordId: disbursement.id,
+          entity: entityId,
+          userId,
+          details: { disbursementNumber, total: data.amount },
+        });
+
+        const entityCodeResolved = await resolveEntityCode(disbursement.entity_id);
+        return { ...disbursement, entity_code: entityCodeResolved };
+      }
+
+      // Only definite statement rejections release the claim. Connection errors
+      // and unknown completion outcomes must retain it for reconciliation.
+      receiptWriteMayHaveCommitted = !/^(?:22[0-9A-Z]{3}|23[0-9A-Z]{3}|42[0-9A-Z]{3}|40001|40P01)$/.test(error.code || '');
+      if (error.code !== '23505') {
+        throw new AppError({
+          statusCode: 500,
+          title: 'Database Error',
+          detail: 'Failed to create disbursement',
+        });
+      }
+    }
+
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Unable to generate a unique disbursement number. Please retry.',
+      code: 'DUPLICATE_DISBURSEMENT_NUMBER',
+    });
+  } catch (err) {
+    if (data.receiptS3Key && receiptClaim && !receiptWriteMayHaveCommitted) {
+      releaseReservationByKey({
+        receiptS3Key: data.receiptS3Key,
         userId,
-        details: { disbursementNumber, total: data.amount },
-      });
-
-      const entityCodeResolved = await resolveEntityCode(disbursement.entity_id);
-      return { ...disbursement, entity_code: entityCodeResolved };
-    }
-
-    if (error.code !== '23505') {
-      throw new AppError({
-        statusCode: 500,
-        title: 'Database Error',
-        detail: 'Failed to create disbursement',
+        entityId,
+        claimId: receiptClaim.claimId,
       });
     }
+    throw err;
   }
-
-  throw new AppError({
-    statusCode: 409,
-    title: 'Conflict',
-    detail: 'Unable to generate a unique disbursement number. Please retry.',
-    code: 'DUPLICATE_DISBURSEMENT_NUMBER',
-  });
 };
 
 /**
@@ -557,41 +650,29 @@ const getDisbursementById = async ({ entityId, id, user }) => {
     });
   }
 
-  // Role restriction
+  // Role restriction & strict ownership enforcement (R2 / D1)
   if (user) {
     const isAdmin = user.role === 'Admin';
     const isAccounting =
       (user.departments || []).includes('Accounting') || user.role === 'Accounting';
-    const isManager =
-      user.role === 'Manager' || (user.departments || []).includes('Management');
-    const isSelf =
-      data.requested_by === user.id ||
-      data.created_by === user.id ||
-      data.employee_id === user.id;
+    const isOwner = data.requested_by === user.id || data.created_by === user.id;
 
     if (!isAdmin && !isAccounting) {
-      if (
-        !isManager &&
-        !isSelf &&
-        ['Draft', 'Pending', 'Submitted', 'Under Review', 'Approved'].includes(data.status)
-      ) {
+      if (!isOwner) {
         throw new AppError({
           statusCode: 403,
           title: 'Forbidden',
-          detail: 'You do not have permission to view this disbursement in its current status.',
+          detail: 'You do not have permission to view this disbursement.',
         });
       }
-
-      if (!isSelf) {
-        const { getUserConcernedWorkRequestIds } = require('../../lib/userScope');
-        const concernedWrIds = await getUserConcernedWorkRequestIds(user);
-        if (!data.linked_work_request_id || !concernedWrIds.includes(data.linked_work_request_id)) {
-          throw new AppError({
-            statusCode: 403,
-            title: 'Forbidden',
-            detail: 'You do not have permission to view this disbursement.',
-          });
-        }
+    } else if (user.entities && Array.isArray(user.entities)) {
+      const entityCode = await resolveEntityCode(data.entity_id);
+      if (entityCode && !user.entities.includes(entityCode)) {
+        throw new AppError({
+          statusCode: 403,
+          title: 'Forbidden',
+          detail: 'You do not have permission to view disbursements for this entity.',
+        });
       }
     }
   }
@@ -739,6 +820,16 @@ const updateDisbursement = async ({ entityId, id, userId, data, user }) => {
     }
   }
 
+  // Prohibit reassigning requester, creator, or employee identity (R2 / AC-4)
+  if (data.employeeId !== undefined && data.employeeId !== existing.employee_id) {
+    throw new AppError({
+      statusCode: 403,
+      title: 'Forbidden',
+      detail: 'Cannot reassign disbursement requester or employee identity.',
+      code: 'DISBURSEMENT_REQUESTER_MISMATCH',
+    });
+  }
+
   const updates = {
     updated_by: userId,
     updated_at: new Date().toISOString(),
@@ -749,7 +840,6 @@ const updateDisbursement = async ({ entityId, id, userId, data, user }) => {
   if (data.amount !== undefined) updates.amount = data.amount;
   if (data.fundSource !== undefined) updates.fund_source = data.fundSource;
   if (data.clientId !== undefined) updates.client_id = data.clientId;
-  if (data.employeeId !== undefined) updates.employee_id = data.employeeId;
   if (data.linkedInvoiceId !== undefined) updates.linked_invoice_id = data.linkedInvoiceId;
   if (
     data.linkedWorkRequestId !== undefined ||
@@ -768,8 +858,102 @@ const updateDisbursement = async ({ entityId, id, userId, data, user }) => {
   if (data.status !== undefined) updates.status = data.status;
   if (data.notes !== undefined) updates.notes = data.notes;
   if (data.archived !== undefined) updates.archived = data.archived;
-  if (data.receiptS3Key !== undefined) updates.receipt_s3_key = data.receiptS3Key;
-  if (data.receiptFilename !== undefined) updates.receipt_filename = data.receiptFilename;
+  // Enforce attachment provenance and paired metadata (R5 / F8)
+  let receiptReservationClaim = null;
+  const isReceiptKeyProvided = data.receiptS3Key !== undefined;
+  const isReceiptFilenameProvided = data.receiptFilename !== undefined;
+
+  if (isReceiptKeyProvided || isReceiptFilenameProvided) {
+    const newKey = data.receiptS3Key;
+    const newFilename = data.receiptFilename;
+
+    if (newKey === null) {
+      // Explicitly clearing attachment
+      if (newFilename) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Bad Request',
+          detail: 'Cannot set receiptFilename when receiptS3Key is null.',
+          code: 'INVALID_RECEIPT_ATTACHMENT',
+        });
+      }
+      updates.receipt_s3_key = null;
+      updates.receipt_filename = null;
+    } else if (!isReceiptKeyProvided && isReceiptFilenameProvided) {
+      // Filename provided without S3 key
+      if (!existing.receipt_s3_key) {
+        // Existing voucher has no S3 key: reject filename-only update
+        throw new AppError({
+          statusCode: 400,
+          title: 'Bad Request',
+          detail: 'Cannot set receiptFilename without a valid receiptS3Key.',
+          code: 'INVALID_RECEIPT_ATTACHMENT',
+        });
+      }
+      if (newFilename === null) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Bad Request',
+          detail: 'Cannot clear receiptFilename while retaining receiptS3Key.',
+          code: 'INVALID_RECEIPT_ATTACHMENT',
+        });
+      }
+      updates.receipt_filename = newFilename;
+    } else if (newKey === existing.receipt_s3_key) {
+      // Retaining existing persisted key (already verified and consumed)
+      updates.receipt_s3_key = newKey;
+      if (isReceiptFilenameProvided) {
+        if (newFilename === null) {
+          throw new AppError({
+            statusCode: 400,
+            title: 'Bad Request',
+            detail: 'Cannot clear receiptFilename while retaining receiptS3Key.',
+            code: 'INVALID_RECEIPT_ATTACHMENT',
+          });
+        }
+        updates.receipt_filename = newFilename;
+      }
+    } else {
+      // New or replacement key: enforce verified reservation provenance
+      const claimResult = claimReservationByKey({
+        receiptS3Key: newKey,
+        userId,
+        entityId,
+      });
+
+      if (!claimResult || claimResult.error) {
+        const isMismatch = claimResult?.error === 'MISMATCH';
+        throw new AppError({
+          statusCode: isMismatch ? 403 : 400,
+          title: isMismatch ? 'Forbidden' : 'Bad Request',
+          detail: isMismatch
+            ? 'Receipt reservation does not belong to the authenticated user or entity.'
+            : 'Receipt upload reservation is invalid, unverified, expired, or already consumed.',
+          code: isMismatch ? 'RECEIPT_RESERVATION_MISMATCH' : 'INVALID_RECEIPT_RESERVATION',
+        });
+      }
+
+      const resolvedFilename = newFilename || claimResult.data.filename;
+      if (!resolvedFilename) {
+        releaseReservationByKey({
+          receiptS3Key: newKey,
+          userId,
+          entityId,
+          claimId: claimResult.claimId,
+        });
+        throw new AppError({
+          statusCode: 400,
+          title: 'Bad Request',
+          detail: 'receiptFilename is required when receiptS3Key is provided.',
+          code: 'INVALID_RECEIPT_ATTACHMENT',
+        });
+      }
+
+      updates.receipt_s3_key = newKey;
+      updates.receipt_filename = resolvedFilename;
+      receiptReservationClaim = { key: newKey, claimId: claimResult.claimId };
+    }
+  }
 
   // Prepend Accounting edit notes and set edited_by_accounting: true (Task A.5)
   if (isAccountingUser && isEditingFinancial) {
@@ -794,29 +978,66 @@ const updateDisbursement = async ({ entityId, id, userId, data, user }) => {
   if (expectedVersion !== null) {
     query = query.eq('version', expectedVersion);
   }
-  const { data: updated, error } = await query.select().maybeSingle();
 
-  if (error) {
-    throw new AppError({
-      statusCode: 500,
-      title: 'Database Error',
-      detail: 'Failed to update disbursement',
-    });
-  }
-
-  if (!updated) {
-    if (expectedVersion !== null) {
-      throw concurrencyConflict();
+  let receiptWriteMayHaveCommitted = true;
+  try {
+    const { data: updated, error } = await query.select().maybeSingle();
+    if ((!error && !updated) || (error && /^(?:22[0-9A-Z]{3}|23[0-9A-Z]{3}|42[0-9A-Z]{3}|40001|40P01)$/.test(error.code || ''))) {
+      receiptWriteMayHaveCommitted = false;
     }
-    throw new AppError({
-      statusCode: 404,
-      title: 'Not Found',
-      detail: `Disbursement ${id} not found`,
-    });
-  }
 
-  const enriched = await enrichDisbursementExtras([updated]);
-  return enriched[0];
+    if (error) {
+      throw new AppError({
+        statusCode: 500,
+        title: 'Database Error',
+        detail: 'Failed to update disbursement',
+      });
+    }
+
+    if (!updated) {
+      if (expectedVersion !== null) {
+        throw concurrencyConflict();
+      }
+      throw new AppError({
+        statusCode: 404,
+        title: 'Not Found',
+        detail: `Disbursement ${id} not found`,
+      });
+    }
+
+    if (receiptReservationClaim) {
+      const consumed = consumeReservationByKey({
+        receiptS3Key: receiptReservationClaim.key,
+        userId,
+        entityId,
+        claimId: receiptReservationClaim.claimId,
+        voucherId: updated.id,
+      });
+
+      if (!consumed) {
+        // The update committed. Do not restore a stale pre-update snapshot.
+        throw new AppError({
+          statusCode: 409,
+          title: 'Conflict',
+          detail: 'Receipt reservation could not be consumed. It may have already been consumed or claimed by another request.',
+          code: 'RECEIPT_RESERVATION_CONSUME_FAILED',
+        });
+      }
+    }
+
+    const enriched = await enrichDisbursementExtras([updated]);
+    return enriched[0];
+  } catch (err) {
+    if (receiptReservationClaim && !receiptWriteMayHaveCommitted) {
+      releaseReservationByKey({
+        receiptS3Key: receiptReservationClaim.key,
+        userId,
+        entityId,
+        claimId: receiptReservationClaim.claimId,
+      });
+    }
+    throw err;
+  }
 };
 
 /**
@@ -927,7 +1148,7 @@ const performTransition = async ({ entityId, id, userId, action, extraUpdates = 
   }
 
   const paymentDetails =
-    action === 'release'
+    action === 'release' || action === 'approve'
       ? {
           method: extraUpdates.payment_method,
           reference: extraUpdates.payment_reference,
@@ -946,6 +1167,7 @@ const performTransition = async ({ entityId, id, userId, action, extraUpdates = 
     p_entity_id: entityId,
     p_reason: reason,
     p_payment_details: paymentDetails,
+    p_expected_version: extraUpdates.expectedVersion || null,
   });
 
   if (rpcError) {
@@ -958,6 +1180,26 @@ const performTransition = async ({ entityId, id, userId, action, extraUpdates = 
 
   if (!rows || rows.length === 0) {
     const current = await getDisbursementById({ entityId, id });
+    if (!current) {
+      throw new AppError({
+        statusCode: 404,
+        title: 'Not Found',
+        detail: `Disbursement ${id} not found`,
+      });
+    }
+    if (
+      extraUpdates.expectedVersion !== undefined &&
+      extraUpdates.expectedVersion !== null &&
+      current.version !== Number(extraUpdates.expectedVersion)
+    ) {
+      throw new AppError({
+        statusCode: 409,
+        title: 'Conflict',
+        detail:
+          'The record was modified by another user. Please reload the latest version before editing.',
+        code: 'ERR_CONCURRENCY_CONFLICT',
+      });
+    }
     throw new AppError({
       statusCode: 409,
       title: 'Invalid Transition',
@@ -1018,9 +1260,17 @@ const forwardDisbursement = async ({ entityId, id, userId }) => {
 };
 
 /**
- * Approve a disbursement. Pending → Approved (or Draft → Approved for Admin).
+ * Approve a disbursement directly to Released (R3 / D2).
+ * Pending Admin Approval | Submitted | Pending | Draft → Released.
  */
-const approveDisbursement = async ({ entityId, id, userId, user }) => {
+const approveDisbursement = async ({
+  entityId,
+  id,
+  userId,
+  user,
+  paymentDetails = {},
+  expectedVersion = null,
+}) => {
   const result = await performTransition({
     entityId,
     id,
@@ -1030,6 +1280,14 @@ const approveDisbursement = async ({ entityId, id, userId, user }) => {
     extraUpdates: {
       approved_by: userId,
       approved_at: new Date().toISOString(),
+      released_by: userId,
+      released_at: new Date().toISOString(),
+      payment_method: paymentDetails?.method || null,
+      payment_reference: paymentDetails?.reference || null,
+      payment_bank: paymentDetails?.bank || null,
+      payment_date: paymentDetails?.date || new Date().toISOString().slice(0, 10),
+      payment_processed_by: userId,
+      expectedVersion,
     },
   });
 
@@ -1047,9 +1305,15 @@ const approveDisbursement = async ({ entityId, id, userId, user }) => {
 };
 
 /**
- * Release a disbursement. Approved → Released.
+ * Release a disbursement. Approved | Pending Admin Approval → Released.
  */
-const releaseDisbursement = async ({ entityId, id, userId, paymentDetails = {} }) => {
+const releaseDisbursement = async ({
+  entityId,
+  id,
+  userId,
+  paymentDetails = {},
+  expectedVersion = null,
+}) => {
   return performTransition({
     entityId,
     id,
@@ -1063,6 +1327,7 @@ const releaseDisbursement = async ({ entityId, id, userId, paymentDetails = {} }
       payment_bank: paymentDetails.bank || null,
       payment_date: paymentDetails.date || new Date().toISOString().slice(0, 10),
       payment_processed_by: userId,
+      expectedVersion,
     },
   });
 };
@@ -1304,26 +1569,262 @@ const deleteDisbursementTemplate = async ({ entityId, id }) => {
   }
 };
 
-module.exports = {
-  listDisbursements,
-  createDisbursement,
-  getDisbursementById,
-  updateDisbursement,
-  archiveDisbursement,
-  unarchiveDisbursement,
-  submitDisbursement,
-  approveDisbursement,
-  releaseDisbursement,
-  fundDisbursement,
-  rejectDisbursement,
-  forwardDisbursement,
-  enrichDisbursementExtras,
-  getDisbursementCounts,
-  listDisbursementTemplates,
-  createDisbursementTemplate,
-  updateDisbursementTemplate,
-  deleteDisbursementTemplate,
-  updateDisbursementStatus,
+/**
+ * Update payment details on Released or Funded vouchers (R3 / D2).
+ * Strictly preserves status, approved_by, approved_at, released_by, released_at, and fund history.
+ */
+const updatePaymentDetails = async ({
+  entityId,
+  id,
+  userId,
+  user,
+  method,
+  reference,
+  bank,
+  date,
+  expectedVersion,
+}) => {
+  const existing = await getDisbursementById({ entityId, id, user });
+  if (!['Released', 'Funded'].includes(existing.status)) {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: `Payment details can only be updated for Released or Funded disbursements. Current status: ${existing.status}`,
+      code: 'CONFLICT_CURRENT_STATUS',
+    });
+  }
+
+  if (expectedVersion !== undefined && expectedVersion !== null && existing.version !== Number(expectedVersion)) {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'The record was modified by another user. Please reload the latest version before editing.',
+      code: 'ERR_CONCURRENCY_CONFLICT',
+    });
+  }
+
+  const paymentUpdates = {
+    payment_method: method.trim(),
+    payment_reference: reference ? reference.trim() : null,
+    payment_bank: bank ? bank.trim() : null,
+    payment_date: date,
+    updated_by: userId,
+    updated_at: new Date().toISOString(),
+    version: existing.version + 1,
+  };
+
+  const { data: updated, error } = await supabaseAdmin
+    .from('disbursements')
+    .update(paymentUpdates)
+    .eq('id', id)
+    .eq('entity_id', existing.entity_id || entityId)
+    .eq('version', existing.version)
+    .select()
+    .single();
+
+  if (error || !updated) {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'The record was modified by another user. Please reload the latest version before editing.',
+      code: 'ERR_CONCURRENCY_CONFLICT',
+    });
+  }
+
+  await auditService.log({
+    action: 'disbursement.payment_details_update',
+    table: 'disbursements',
+    recordId: id,
+    entity: existing.entity_id || entityId,
+    userId,
+    details: {
+      before: {
+        payment_method: existing.payment_method,
+        payment_reference: existing.payment_reference,
+        payment_bank: existing.payment_bank,
+        payment_date: existing.payment_date,
+      },
+      after: {
+        payment_method: updated.payment_method,
+        payment_reference: updated.payment_reference,
+        payment_bank: updated.payment_bank,
+        payment_date: updated.payment_date,
+      },
+    },
+  });
+
+  const entityCode = await resolveEntityCode(updated.entity_id);
+  const enriched = await enrichDisbursementExtras([{ ...updated, entity_code: entityCode }]);
+  return enriched[0];
+};
+
+/**
+ * Create a receipt upload reservation and issue a pre-signed upload URL (R5 / D4).
+ */
+const createReceiptUpload = async ({ entityId, entityCode, userId, user: _user, filename, contentType, size }) => {
+  let resolvedCode = entityCode;
+  if (!resolvedCode || resolvedCode === entityId) {
+    resolvedCode = (await resolveEntityCode(entityId)) || 'ATA';
+  }
+  const cryptoUUID = crypto.randomUUID();
+  const sanitizedFilename = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const objectKey = `entities/${resolvedCode}/disbursements/receipts/${cryptoUUID}-${sanitizedFilename}`;
+
+  const uploadUrl = await storageService.getSignedUploadUrl({
+    path: objectKey,
+    contentType,
+    expiresInSeconds: 900,
+  });
+
+  const reservation = createReservation({
+    uploadId: cryptoUUID,
+    userId,
+    entityId,
+    entityCode,
+    objectKey,
+    filename,
+    contentType,
+    size,
+    expiresInSeconds: 900,
+  });
+
+  return {
+    uploadId: reservation.uploadId,
+    uploadUrl,
+    objectKey: reservation.objectKey,
+    expiresAt: reservation.expiresAt,
+  };
+};
+
+/**
+ * Verify receipt upload completion in storage and mark reservation completed (R5 / D4).
+ */
+const completeReceiptUpload = async ({ entityId, uploadId, userId, user: _user }) => {
+  const reservation = getReservation(uploadId);
+  if (!reservation) {
+    throw new AppError({
+      statusCode: 404,
+      title: 'Not Found',
+      detail: 'Receipt upload reservation not found or expired.',
+      code: 'UPLOAD_RESERVATION_NOT_FOUND',
+    });
+  }
+
+  if (reservation.userId !== userId || (reservation.entityId && reservation.entityId !== entityId)) {
+    throw new AppError({
+      statusCode: 403,
+      title: 'Forbidden',
+      detail: 'Cannot complete receipt upload reservation belonging to another user or entity.',
+      code: 'UPLOAD_RESERVATION_MISMATCH',
+    });
+  }
+
+  if (reservation.status === 'consumed') {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Receipt upload reservation has already been consumed and cannot be re-completed.',
+      code: 'RECEIPT_RESERVATION_ALREADY_CONSUMED',
+    });
+  }
+
+  if (reservation.status === 'claimed') {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Receipt upload reservation is currently being claimed by an active voucher request.',
+      code: 'RECEIPT_RESERVATION_ALREADY_CLAIMED',
+    });
+  }
+
+  const verification = await storageService.verifyReceiptObject({
+    path: reservation.objectKey,
+    expectedSize: reservation.size,
+    expectedContentType: reservation.contentType,
+  });
+
+  if (!verification.valid) {
+    throw new AppError({
+      statusCode: 422,
+      title: 'Unprocessable Entity',
+      detail: verification.error || 'Receipt upload verification failed.',
+      code: verification.code || 'RECEIPT_UPLOAD_VERIFICATION_FAILED',
+    });
+  }
+
+  const completeResult = completeReservation(uploadId, { userId, entityId });
+  if (completeResult && completeResult.error === 'ALREADY_CONSUMED') {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Receipt upload reservation has already been consumed.',
+      code: 'RECEIPT_RESERVATION_ALREADY_CONSUMED',
+    });
+  }
+  if (completeResult && completeResult.error === 'ALREADY_CLAIMED') {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Receipt upload reservation is currently being claimed by an active voucher request.',
+      code: 'RECEIPT_RESERVATION_ALREADY_CLAIMED',
+    });
+  }
+
+  if (!completeResult || completeResult.error) {
+    throw new AppError({ statusCode: 409, title: 'Receipt upload unavailable',
+      detail: 'Upload expired or cleanup started during verification. Create a new upload.',
+      code: 'RECEIPT_RESERVATION_UNAVAILABLE' });
+  }
+
+  return {
+    receiptS3Key: reservation.objectKey,
+    receiptFilename: reservation.filename,
+  };
+};
+
+/**
+ * Retrieve an authorized pre-signed download URL or explicit unavailable state for legacy vouchers (R5 / D4).
+ */
+const getReceiptUrl = async ({ entityId, id, userId: _userId, user }) => {
+  const voucher = await getDisbursementById({ entityId, id, user });
+
+  // Case 1: No supporting document attached
+  if (!voucher.receipt_s3_key && !voucher.receipt_filename) {
+    throw new AppError({
+      statusCode: 404,
+      title: 'Not Found',
+      detail: 'Disbursement has no supporting document attached.',
+      code: 'RECEIPT_NOT_FOUND',
+    });
+  }
+
+  // Case 2: Legacy record with receipt_filename present but receipt_s3_key is null
+  if (!voucher.receipt_s3_key && voucher.receipt_filename) {
+    return {
+      status: 'unavailable',
+      filename: voucher.receipt_filename,
+      reason: 'legacy_attachment_missing',
+    };
+  }
+
+  // Case 3: Valid receipt_s3_key
+  const url = await storageService.getSignedDownloadUrl({
+    path: voucher.receipt_s3_key,
+    expiresInSeconds: 300,
+  });
+
+  const ext = (voucher.receipt_filename || voucher.receipt_s3_key).split('.').pop()?.toLowerCase();
+  let contentType = 'application/octet-stream';
+  if (ext === 'pdf') contentType = 'application/pdf';
+  else if (ext === 'png') contentType = 'image/png';
+  else if (ext === 'jpg' || ext === 'jpeg') contentType = 'image/jpeg';
+
+  return {
+    url,
+    filename: voucher.receipt_filename || voucher.receipt_s3_key.split('/').pop(),
+    contentType,
+    expiresAt: new Date(Date.now() + 300 * 1000).toISOString(),
+  };
 };
 
 /**
@@ -1360,4 +1861,30 @@ const deleteDisbursement = async ({ entityId, id, userId }) => {
   });
 };
 
-module.exports.deleteDisbursement = deleteDisbursement;
+module.exports = {
+  listDisbursements,
+  createDisbursement,
+  getDisbursementById,
+  updateDisbursement,
+  deleteDisbursement,
+  archiveDisbursement,
+  unarchiveDisbursement,
+  submitDisbursement,
+  approveDisbursement,
+  releaseDisbursement,
+  fundDisbursement,
+  rejectDisbursement,
+  forwardDisbursement,
+  enrichDisbursementExtras,
+  getDisbursementCounts,
+  listDisbursementTemplates,
+  createDisbursementTemplate,
+  updateDisbursementTemplate,
+  deleteDisbursementTemplate,
+  updateDisbursementStatus,
+  updatePaymentDetails,
+  createReceiptUpload,
+  completeReceiptUpload,
+  getReceiptUrl,
+  cleanupExpiredReservations,
+};
