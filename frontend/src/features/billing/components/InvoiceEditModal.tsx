@@ -604,7 +604,7 @@ export function InvoiceEditModal({
               <h4 className="text-xs font-bold text-[#0F172A] uppercase tracking-wide">
                 Line Items
               </h4>
-              <p className="text-[11px] text-[#475569]">
+              <p className="text-xs text-[#475569]">
                 At least 1 item required. Total = Subtotal.
               </p>
             </div>
