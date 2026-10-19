@@ -299,6 +299,11 @@ describe('Parcel P0-G: Disbursement Approvals & Status Routing', () => {
         .post(`/v1/disbursements/${pendingDisbursementId}/approve`)
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
+        .send({
+          method: 'Cash',
+          date: '2026-10-18',
+          expectedVersion: 1,
+        })
         .expect(200);
 
       expect(['Approved', 'Released']).toContain(res.body.data.status);
@@ -330,6 +335,11 @@ describe('Parcel P0-G: Disbursement Approvals & Status Routing', () => {
         .post(`/v1/disbursements/${pendingDisbursementId}/approve`)
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
+        .send({
+          method: 'Cash',
+          date: '2026-10-18',
+          expectedVersion: 1,
+        })
         .expect(200);
 
       // Second approval must return 409 Conflict
@@ -337,6 +347,11 @@ describe('Parcel P0-G: Disbursement Approvals & Status Routing', () => {
         .post(`/v1/disbursements/${pendingDisbursementId}/approve`)
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
+        .send({
+          method: 'Cash',
+          date: '2026-10-18',
+          expectedVersion: 2,
+        })
         .expect(409);
 
       expect(secondRes.body.title).toMatch(/invalid transition|conflict/i);
@@ -365,6 +380,11 @@ describe('Parcel P0-G: Disbursement Approvals & Status Routing', () => {
         .post(`/v1/disbursements/${draftRes.body.data.id}/approve`)
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
+        .send({
+          method: 'Cash',
+          date: '2026-10-18',
+          expectedVersion: 1,
+        })
         .expect(200);
 
       expect(['Approved', 'Released']).toContain(approveRes.body.data.status);
@@ -499,6 +519,11 @@ describe('Parcel P0-G: Disbursement Approvals & Status Routing', () => {
         .post(`/v1/disbursements/${pendingDisbursementId}/approve`)
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
+        .send({
+          method: 'Cash',
+          date: '2026-10-18',
+          expectedVersion: 1,
+        })
         .expect(200);
 
       // Attempt to reject an Approved disbursement -> 409 Conflict

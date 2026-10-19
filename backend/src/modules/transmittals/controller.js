@@ -68,6 +68,7 @@ const createTransmittal = async (req, res, next) => {
       entityId: req.activeEntity,
       entityCode: req.entityCode || req.headers['x-active-entity'],
       userId: req.user.id,
+      user: req.user,
       data: validated,
     });
     res.status(201).json({ data });
@@ -98,6 +99,7 @@ const updateTransmittal = async (req, res, next) => {
       entityId: req.activeEntity,
       id: req.params.id,
       userId: req.user.id,
+      user: req.user,
       data: validated,
     });
     res.json({ data });
@@ -127,6 +129,7 @@ const sendTransmittal = async (req, res, next) => {
       entityId: req.activeEntity,
       id: req.params.id,
       userId: req.user.id,
+      user: req.user,
       boardOrder: req.body?.boardOrder,
     });
     res.json({ data });

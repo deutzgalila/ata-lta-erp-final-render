@@ -166,6 +166,20 @@ function resolveEntity(options = {}) {
                   if (disb?.entity_id) {
                     resolvedUUID = disb.entity_id;
                     resolvedCode = await resolveEntityCode(disb.entity_id);
+                  } else {
+                    // Inline transmittal edits and detail reads have no clientId body.
+                    const { data: transmittal, error: transmittalErr } = await supabaseAdmin
+                      .from('transmittals')
+                      .select('entity_id')
+                      .eq('id', routeParamId)
+                      .maybeSingle();
+                    if (transmittalErr) {
+                      throw new AppError({ statusCode: 500, title: 'Database Error', detail: 'Unable to resolve entity for transmittal' });
+                    }
+                    if (transmittal?.entity_id) {
+                      resolvedUUID = transmittal.entity_id;
+                      resolvedCode = await resolveEntityCode(transmittal.entity_id);
+                    }
                   }
                 }
               }

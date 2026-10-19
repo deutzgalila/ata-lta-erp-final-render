@@ -59,6 +59,25 @@ const createDisbursementSchema = createDisbursementBaseSchema.superRefine((data,
       path: ['linkedWorkRequestId'],
     });
   }
+
+  // Enforce paired receipt metadata (R5 / F9)
+  // Vouchers cannot be created with a receipt filename without a verified receiptS3Key.
+  if (data.receiptFilename && !data.receiptS3Key) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'receiptS3Key is required when receiptFilename is provided',
+      path: ['receiptS3Key'],
+    });
+  }
+
+  // Vouchers cannot be created with a receiptS3Key without a paired receiptFilename.
+  if (data.receiptS3Key && !data.receiptFilename) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'receiptFilename is required when receiptS3Key is provided',
+      path: ['receiptFilename'],
+    });
+  }
 });
 
 /**
@@ -69,6 +88,15 @@ const updateDisbursementSchema = createDisbursementBaseSchema.partial().extend({
   archived: z.boolean().optional(),
   // OCC guard (Spec 2.2 / R-10): update applies only if the stored version matches.
   expectedVersion: z.number().int().positive().optional(),
+}).superRefine((data, ctx) => {
+  // Reject contradictory payload: clearing key while supplying filename
+  if (data.receiptS3Key === null && data.receiptFilename) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Cannot set receiptFilename when receiptS3Key is null',
+      path: ['receiptFilename'],
+    });
+  }
 });
 
 /**
@@ -79,13 +107,59 @@ const rejectSchema = z.object({
 });
 
 /**
- * Schema for release payment details.
+ * Schema for receipt upload reservation.
+ */
+const createReceiptUploadSchema = z.object({
+  filename: z.string().trim().min(1, 'Filename is required').max(255),
+  contentType: z.enum(['application/pdf', 'image/png', 'image/jpeg'], {
+    errorMap: () => ({ message: 'contentType must be application/pdf, image/png, or image/jpeg' }),
+  }),
+  size: z.number().int().positive('Size must be positive').max(10485760, 'Size must not exceed 10 MiB'),
+});
+
+const calendarDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
+  .refine((value) => {
+    const parsed = new Date(`${value}T00:00:00Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+  }, 'Date must be a valid calendar date');
+
+/**
+ * Schema for direct admin approval or payment release.
+ */
+const approveDisbursementSchema = z.object({
+  method: z.string().trim().min(1, 'Payment method is required').max(50),
+  reference: z.string().trim().max(100).optional().nullable(),
+  bank: z.string().trim().max(100).optional().nullable(),
+  date: calendarDateSchema,
+  expectedVersion: z.number().int().positive('expectedVersion must be a positive integer'),
+});
+
+/**
+ * Schema for disbursement payment release (Milestone 1 - R1).
+ */
+const releaseDisbursementSchema = approveDisbursementSchema;
+
+/**
+ * Schema for release payment details (legacy).
  */
 const releasePaymentSchema = z.object({
   method: z.string().max(50).optional(),
   reference: z.string().max(100).optional(),
   bank: z.string().max(100).optional(),
   date: z.string().optional(),
+});
+
+/**
+ * Schema for updating payment details on Released/Funded vouchers.
+ */
+const updatePaymentDetailsSchema = z.object({
+  method: z.string().trim().min(1, 'Payment method is required').max(50),
+  reference: z.string().trim().max(100).optional().nullable(),
+  bank: z.string().trim().max(100).optional().nullable(),
+  date: calendarDateSchema,
+  expectedVersion: z.number().int().positive('expectedVersion must be a positive integer'),
 });
 
 /**
@@ -108,7 +182,12 @@ module.exports = {
   updateDisbursementSchema,
   rejectSchema,
   releasePaymentSchema,
+  createReceiptUploadSchema,
+  approveDisbursementSchema,
+  releaseDisbursementSchema,
+  updatePaymentDetailsSchema,
   disbursementTemplateSchema,
+  calendarDateSchema,
   FUND_SOURCES,
   DISBURSEMENT_CATEGORIES,
 };

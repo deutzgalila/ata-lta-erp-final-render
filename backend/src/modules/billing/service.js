@@ -635,6 +635,34 @@ const updateInvoice = async ({ entityId, id, userId, data, user }) => {
     }
   }
 
+  // Restrict financial field, line item, and date/terms edits strictly to Draft invoices (R4 / D3)
+  const FINANCIAL_FIELDS = [
+    'clientId',
+    'workRequestId',
+    'work_request_id',
+    'taskId',
+    'task_id',
+    'linkedTaskId',
+    'linked_task_id',
+    'linkedTransmittalId',
+    'invoiceNumber',
+    'issueDate',
+    'dueDate',
+    'lineItems',
+    'terms',
+  ];
+  const hasFinancialEdit = FINANCIAL_FIELDS.some((field) => data[field] !== undefined);
+
+  if (hasFinancialEdit && existing.status !== 'Draft') {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail:
+        'Financial fields and line items can only be modified while invoice is in Draft status.',
+      code: 'INVOICE_NOT_DRAFT',
+    });
+  }
+
   // Atomic update (Spec 2.3 / R-11) with OCC guard (Spec 2.2 / R-10): field
   // updates, line-item replacement, total/balance recomputation, and the
   // version bump happen inside one PostgreSQL function transaction. When
@@ -689,6 +717,24 @@ const updateInvoice = async ({ entityId, id, userId, data, user }) => {
   });
 
   if (error) {
+    if (error.message?.includes('ERR_CONCURRENCY_CONFLICT') || error.code === 'P0001') {
+      throw new AppError({
+        statusCode: 409,
+        title: 'Conflict',
+        detail:
+          'The record was modified by another user. Please reload the latest version before editing.',
+        code: 'ERR_CONCURRENCY_CONFLICT',
+      });
+    }
+    if (error.message?.includes('INVOICE_NOT_DRAFT') || error.code === 'P0002') {
+      throw new AppError({
+        statusCode: 409,
+        title: 'Conflict',
+        detail:
+          'Financial fields and line items can only be modified while invoice is in Draft status.',
+        code: 'INVOICE_NOT_DRAFT',
+      });
+    }
     throw new AppError({
       statusCode: 500,
       title: 'Database Error',

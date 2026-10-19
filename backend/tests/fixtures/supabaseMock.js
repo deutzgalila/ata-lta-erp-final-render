@@ -36,10 +36,13 @@ const mockTables = {
   retainer_template_generations: new Map(),
   ground_workers: new Map(),
   standard_task_templates: new Map(),
+  task_templates: new Map(),
   idempotency_keys: new Map(),
   status_history: new Map(),
   document_sequences: new Map(),
 };
+
+const mockStorageObjects = new Map();
 
 let sequence = 0;
 const nextId = () => {
@@ -64,6 +67,23 @@ const VERSIONED_TABLES = new Set([
   'pending_changes',
   'documents',
 ]);
+
+const TABLE_COLUMNS = {
+  pending_changes: new Set([
+    'id',
+    'entity_id',
+    'table_name',
+    'parent_record_id',
+    'proposed_data',
+    'submitted_by',
+    'status',
+    'rejection_reason',
+    'reviewed_by',
+    'reviewed_at',
+    'created_at',
+    'version',
+  ]),
+};
 
 const nowIso = () => new Date().toISOString();
 
@@ -102,6 +122,11 @@ const registerUser = (user) => {
     preferences: user.preferences || {},
     password_updated_at: user.passwordUpdatedAt || null,
   };
+  if (Array.isArray(user.departments)) {
+    record.user_departments = user.departments.map((deptName) => ({
+      departments: { name: deptName },
+    }));
+  }
   mockUsers.set(token, record);
   mockTokens.set(record.auth_user_id, token);
   mockTables.users.set(id, record);
@@ -275,12 +300,28 @@ const tableQuery = (table) => {
 
   const builder = {
     select: (_columns, options = {}) => {
+      if (table === 'tasks' && _columns) {
+        const cols = String(_columns).split(',').map((x) => x.trim());
+        if (cols.includes('entity_id')) {
+          builder._queryError = {
+            code: '42703',
+            message: 'column tasks.entity_id does not exist',
+          };
+        }
+      }
       if (options.count) {
         countOptions = options;
       }
       return builder;
     },
     eq: (column, value) => {
+      const known = TABLE_COLUMNS[table];
+      if (known && !known.has(column)) {
+        builder._queryError = {
+          message: `column "${column}" does not exist`,
+          code: '42703',
+        };
+      }
       filters.push({ column, value });
       return builder;
     },
@@ -430,15 +471,27 @@ const tableQuery = (table) => {
       return builder;
     },
     maybeSingle: () => {
+      if (builder._queryError) {
+        return Promise.resolve({ data: null, error: builder._queryError });
+      }
       if (builder._insertError) {
         return Promise.resolve({ data: null, error: builder._insertError });
+      }
+      if (builder._queryError) {
+        return Promise.resolve({ data: null, error: builder._queryError });
       }
       const result = execute();
       return Promise.resolve({ data: result[0] || null, error: null });
     },
     single: () => {
+      if (builder._queryError) {
+        return Promise.resolve({ data: null, error: builder._queryError });
+      }
       if (builder._insertError) {
         return Promise.resolve({ data: null, error: builder._insertError });
+      }
+      if (builder._queryError) {
+        return Promise.resolve({ data: null, error: builder._queryError });
       }
       const result = execute();
       if (result.length === 0) {
@@ -447,8 +500,14 @@ const tableQuery = (table) => {
       return Promise.resolve({ data: result[0], error: null });
     },
     count: (options = {}) => {
+      if (builder._queryError) {
+        return Promise.resolve({ data: null, count: null, error: builder._queryError });
+      }
       if (builder._insertError) {
         return Promise.resolve({ data: null, error: builder._insertError });
+      }
+      if (builder._queryError) {
+        return Promise.resolve({ data: null, error: builder._queryError });
       }
       const result = execute();
       const count = result.length;
@@ -458,8 +517,14 @@ const tableQuery = (table) => {
       return Promise.resolve({ data: [{ count }], count, error: null });
     },
     then: (resolve) => {
+      if (builder._queryError) {
+        return Promise.resolve({ data: null, count: null, error: builder._queryError }).then(resolve);
+      }
       if (builder._insertError) {
         return Promise.resolve({ data: null, error: builder._insertError }).then(resolve);
+      }
+      if (builder._queryError) {
+        return Promise.resolve({ data: null, error: builder._queryError }).then(resolve);
       }
       const result = execute();
       const response = { data: result, error: null };
@@ -511,6 +576,14 @@ const rpcImpl = {
       ? params.p_from_statuses
       : [params.p_from_statuses];
     if (!fromStatuses.includes(row.status)) return { data: [], error: null };
+
+    if (
+      params.p_expected_version !== null &&
+      params.p_expected_version !== undefined &&
+      row.version !== Number(params.p_expected_version)
+    ) {
+      return { data: [], error: null };
+    }
 
     const now = nowIso();
     row.status = params.p_to_status;
@@ -763,7 +836,38 @@ const rpcImpl = {
       params.p_expected_version !== undefined &&
       invoice.version !== Number(params.p_expected_version)
     ) {
-      return { data: null, error: null };
+      return {
+        data: null,
+        error: {
+          message: `ERR_CONCURRENCY_CONFLICT: Invoice version mismatch (expected ${params.p_expected_version}, found ${invoice.version})`,
+          code: 'P0001',
+        },
+      };
+    }
+
+    const u = params.p_updates || {};
+    const isFinancial =
+      (params.p_line_items !== null && params.p_line_items !== undefined) ||
+      u.client_id !== undefined ||
+      u.work_request_id !== undefined ||
+      u.task_id !== undefined ||
+      u.linked_task_id !== undefined ||
+      u.taskId !== undefined ||
+      u.linkedTaskId !== undefined ||
+      u.linked_transmittal_id !== undefined ||
+      u.invoice_number !== undefined ||
+      u.issue_date !== undefined ||
+      u.due_date !== undefined ||
+      u.terms !== undefined;
+
+    if (isFinancial && invoice.status !== 'Draft') {
+      return {
+        data: null,
+        error: {
+          message: `INVOICE_NOT_DRAFT: Cannot modify financial fields or line items of non-draft invoice (current status ${invoice.status})`,
+          code: 'P0002',
+        },
+      };
     }
 
     let subtotal = null;
@@ -788,7 +892,6 @@ const rpcImpl = {
       subtotal = params.p_line_items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
     }
 
-    const u = params.p_updates || {};
     Object.keys(u).forEach((key) => {
       invoice[key] = u[key];
     });
@@ -916,16 +1019,57 @@ const supabaseAdmin = {
     listBuckets: () => Promise.resolve({ data: [{ name: 'test-bucket' }], error: null }),
     createBucket: () => Promise.resolve({ data: { name: 'avatars' }, error: null }),
     updateBucket: () => Promise.resolve({ data: { name: 'avatars' }, error: null }),
-    from: () => ({
-      createSignedUploadUrl: () =>
-        Promise.resolve({ data: { signedUrl: 'https://storage.example.com/upload' }, error: null }),
-      createSignedUrl: () =>
+    from: (_bucketName) => ({
+      createSignedUploadUrl: (_path) =>
         Promise.resolve({
-          data: { signedUrl: 'https://storage.example.com/download' },
+          data: {
+            signedUrl: 'https://storage.example.com/upload',
+          },
           error: null,
         }),
-      remove: () => Promise.resolve({ data: null, error: null }),
-      upload: () => Promise.resolve({ data: { path: 'test-path' }, error: null }),
+      createSignedUrl: (_path, _expiresIn) =>
+        Promise.resolve({
+          data: {
+            signedUrl: 'https://storage.example.com/download',
+          },
+          error: null,
+        }),
+      remove: (paths) => {
+        (paths || []).forEach((p) => mockStorageObjects.delete(p));
+        return Promise.resolve({ data: null, error: null });
+      },
+      upload: (path, buffer, options) => {
+        mockStorageObjects.set(path, {
+          buffer: buffer || Buffer.from('mock-bytes'),
+          size: buffer ? buffer.length : 1024,
+          contentType: options?.contentType || 'application/octet-stream',
+        });
+        return Promise.resolve({ data: { path }, error: null });
+      },
+      list: (folder, _options) => {
+        const prefix = folder ? (folder.endsWith('/') ? folder : folder + '/') : '';
+        const items = Array.from(mockStorageObjects.keys())
+          .filter((k) => k.startsWith(prefix))
+          .map((k) => ({
+            name: k.slice(prefix.length),
+            metadata: { size: mockStorageObjects.get(k)?.size || 1024 },
+          }));
+        return Promise.resolve({ data: items, error: null });
+      },
+      download: (path) => {
+        if (!mockStorageObjects.has(path)) {
+          return Promise.resolve({ data: null, error: { message: 'Object not found' } });
+        }
+        const obj = mockStorageObjects.get(path);
+        let buffer = obj.buffer || Buffer.from('mock-bytes');
+        if (!Buffer.isBuffer(buffer)) {
+          buffer = Buffer.from(buffer);
+        }
+        buffer.contentType = obj.contentType;
+        buffer.type = obj.contentType;
+        buffer.size = obj.size !== undefined ? obj.size : buffer.length;
+        return Promise.resolve({ data: buffer, error: null });
+      },
     }),
   },
 };
@@ -933,6 +1077,7 @@ const supabaseAdmin = {
 const resetMock = () => {
   mockUsers.clear();
   mockTokens.clear();
+  mockStorageObjects.clear();
   Object.keys(mockTables).forEach((key) => mockTables[key].clear());
   sequence = 0;
   try {
@@ -949,4 +1094,5 @@ module.exports = {
   seedDefaults,
   resetMock,
   mockTables,
+  mockStorageObjects,
 };
