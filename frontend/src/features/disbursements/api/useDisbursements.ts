@@ -9,7 +9,6 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData, type QueryClie
 import { apiRequest, ApiError } from '@/lib/api';
 import { useSessionStore } from '@/lib/session';
 import { broadcastEntityChange } from '@/lib/tabSync';
-import { isFeatureEnabled } from '@/lib/flags';
 import { runBlockingAction } from '@/features/operations/components/BlockingActionModal';
 import { disbursementKeys } from './queryKeys';
 import {
@@ -17,6 +16,8 @@ import {
   updateDisbursementSchema,
   rejectDisbursementSchema,
   releasePaymentSchema,
+  updatePaymentDetailsSchema,
+  receiptUploadReservationSchema,
 } from './schemas';
 import type {
   Disbursement,
@@ -24,6 +25,11 @@ import type {
   CreateDisbursementInput,
   UpdateDisbursementInput,
   ReleasePaymentInput,
+  ApproveDisbursementInput,
+  UpdatePaymentDetailsInput,
+  CreateReceiptUploadReservationInput,
+  ReceiptUploadReservation,
+  ReceiptUrlData,
   DisbursementListResponse,
   DisbursementDetailResponse,
   DisbursementCountsResponse,
@@ -114,6 +120,70 @@ export function useDisbursementsList(
       const path = `/disbursements${queryStr ? `?${queryStr}` : ''}`;
       const res = await apiRequest<DisbursementListResponse>(path);
       return res;
+    },
+    placeholderData: keepPreviousData,
+    enabled: options?.enabled ?? true,
+  });
+}
+
+/**
+ * 1b. Fetch all disbursements for a status across all pages (F4 / Queue Complete Traversal).
+ * Automatically paginates until all records for the given status are retrieved,
+ * preventing silent truncation beyond 100 items.
+ */
+export async function fetchAllDisbursementsForStatus(
+  status: string,
+  limitPerPage = 100
+): Promise<Disbursement[]> {
+  if (isTestWithoutMock()) return [];
+  const all: Disbursement[] = [];
+  const seen = new Set<string>();
+  let page = 1;
+
+  while (true) {
+    const params = new URLSearchParams();
+    params.append('status', status);
+    params.append('limit', String(limitPerPage));
+    params.append('page', String(page));
+
+    const path = `/disbursements?${params.toString()}`;
+    const res = await apiRequest<DisbursementListResponse>(path);
+    const items = res.data ?? [];
+    const unseen = items.filter((item) => !seen.has(item.id));
+    if (items.length && !unseen.length) {
+      throw new Error('Pending queue pagination made no progress. Refresh the queue.');
+    }
+    for (const item of unseen) seen.add(item.id);
+    all.push(...unseen);
+
+    const total = res.meta?.total ?? res.count;
+    if (
+      items.length < limitPerPage ||
+      (typeof total === 'number' && all.length >= total) ||
+      items.length === 0
+    ) {
+      break;
+    }
+    page++;
+  }
+
+  return all;
+}
+
+export function useAllDisbursementsForStatus(
+  status: string,
+  options?: { enabled?: boolean }
+) {
+  const activeEntity = useSessionStore((state) => state.activeEntity);
+
+  return useQuery({
+    queryKey: ['disbursements', 'all-for-status', activeEntity, status],
+    queryFn: async () => {
+      const data = await fetchAllDisbursementsForStatus(status);
+      return {
+        data,
+        meta: { total: data.length, page: 1, limit: data.length },
+      };
     },
     placeholderData: keepPreviousData,
     enabled: options?.enabled ?? true,
@@ -358,9 +428,10 @@ export function useSubmitDisbursement() {
 }
 
 /**
- * 7. Admin approval of a Pending disbursement (Pending → Approved).
+ * 7. Admin approval of a Pending disbursement (Pending → Released directly).
  * Endpoint: POST /v1/disbursements/:id/approve
  * Requires permission: disbursement:approve (Admin only).
+ * Atomically writes payment details and transitions to Released.
  */
 export function useApproveDisbursement() {
   const queryClient = useQueryClient();
@@ -369,14 +440,22 @@ export function useApproveDisbursement() {
   const mutation = useMutation<
     Disbursement,
     ApiError,
-    string | { id: string; expectedVersion?: number },
+    string | ({ id: string } & Partial<ApproveDisbursementInput>),
     { snapshots: Array<[readonly unknown[], unknown]> }
   >({
     mutationFn: async (arg) => {
       const id = typeof arg === 'string' ? arg : arg.id;
       const expectedVersion = typeof arg === 'object' ? arg.expectedVersion : undefined;
       const payload: Record<string, unknown> = {};
-      if (isFeatureEnabled('strict_occ') && typeof expectedVersion === 'number') {
+
+      if (typeof arg === 'object' && arg.method) {
+        payload.method = arg.method;
+        payload.reference = arg.reference ?? null;
+        payload.bank = arg.bank ?? null;
+        payload.date = arg.date;
+      }
+
+      if (typeof expectedVersion === 'number') {
         payload.expectedVersion = expectedVersion;
       }
 
@@ -414,28 +493,35 @@ export function useApproveDisbursement() {
   });
 
   const approveWithBlocking = async (
-    idOrParams: string | { id: string; expectedVersion?: number },
+    idOrParams: string | ({ id: string } & Partial<ApproveDisbursementInput>),
     maybeExpectedVersion?: number
   ): Promise<Disbursement> => {
-    const id = typeof idOrParams === 'string' ? idOrParams : idOrParams.id;
-    const expectedVersion =
-      typeof idOrParams === 'object' && idOrParams.expectedVersion !== undefined
-        ? idOrParams.expectedVersion
-        : maybeExpectedVersion;
-
-    const mutationArg =
-      expectedVersion !== undefined ? { id, expectedVersion } : id;
+    let mutationArg: string | ({ id: string } & Partial<ApproveDisbursementInput>);
+    if (typeof idOrParams === 'string') {
+      mutationArg =
+        maybeExpectedVersion !== undefined
+          ? { id: idOrParams, expectedVersion: maybeExpectedVersion }
+          : idOrParams;
+    } else {
+      mutationArg = {
+        ...idOrParams,
+        expectedVersion:
+          idOrParams.expectedVersion !== undefined
+            ? idOrParams.expectedVersion
+            : maybeExpectedVersion,
+      };
+    }
 
     return runBlockingAction({
       title: 'Approving Disbursement',
-      message: 'Recording approval and notifying requestor...',
+      message: 'Recording approval and transitioning voucher to Released...',
       actionName: 'Approve Disbursement',
       apiCall: async () => mutation.mutateAsync(mutationArg),
       invalidateQueries: [
         disbursementKeys.counts(activeEntity),
       ],
       successTitle: 'Disbursement Approved',
-      successMessage: 'Disbursement has been approved for release.',
+      successMessage: 'Disbursement has been approved and transitioned to Released.',
     });
   };
 
@@ -465,7 +551,7 @@ export function useRejectDisbursement() {
     mutationFn: async ({ id, reason, expectedVersion }) => {
       const validated = rejectDisbursementSchema.parse({ reason });
       const payload: Record<string, unknown> = { reason: validated.reason };
-      if (isFeatureEnabled('strict_occ') && typeof expectedVersion === 'number') {
+      if (typeof expectedVersion === 'number') {
         payload.expectedVersion = expectedVersion;
       }
       const res = await apiRequest<DisbursementDetailResponse>(
@@ -552,7 +638,7 @@ export function useReleaseDisbursement() {
       const expectedVersion = typeof arg === 'object' ? arg.expectedVersion : undefined;
       const validated = data ? releasePaymentSchema.parse(data) : {};
       const payload: Record<string, unknown> = { ...validated };
-      if (isFeatureEnabled('strict_occ') && typeof expectedVersion === 'number') {
+      if (typeof expectedVersion === 'number') {
         payload.expectedVersion = expectedVersion;
       }
       const res = await apiRequest<DisbursementDetailResponse>(
@@ -621,6 +707,194 @@ export function useReleaseDisbursement() {
 export const useReleasePayment = useReleaseDisbursement;
 
 /**
+ * 9b. Correct payment release fields on Released or Funded vouchers.
+ * Endpoint: PATCH /v1/disbursements/:id/payment-details
+ * Requires permission: disbursement:mark_released or Admin.
+ * Immutability contract: status, approval timestamps, and fund history remain untouched.
+ */
+export function useUpdatePaymentDetails() {
+  const queryClient = useQueryClient();
+  const activeEntity = useSessionStore((state) => state.activeEntity);
+
+  const mutation = useMutation<
+    Disbursement,
+    ApiError,
+    { id: string; data: UpdatePaymentDetailsInput },
+    { snapshots: Array<[readonly unknown[], unknown]> }
+  >({
+    mutationFn: async ({ id, data }) => {
+      const validated = updatePaymentDetailsSchema.parse(data);
+      const res = await apiRequest<DisbursementDetailResponse>(
+        `/disbursements/${id}/payment-details`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(validated),
+        }
+      );
+      return res.data;
+    },
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: disbursementKeys.all });
+      const snapshots = queryClient.getQueriesData<unknown>({
+        queryKey: disbursementKeys.all,
+      });
+      return { snapshots };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.snapshots) {
+        for (const [key, value] of context.snapshots) {
+          queryClient.setQueryData(key, value);
+        }
+      }
+    },
+    onSuccess: (updated) => {
+      pinAndBroadcastDisbursement(queryClient, updated);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({
+        queryKey: disbursementKeys.counts(activeEntity),
+      });
+    },
+  });
+
+  const updatePaymentDetailsWithBlocking = async (params: {
+    id: string;
+    data: UpdatePaymentDetailsInput;
+  }): Promise<Disbursement> => {
+    return runBlockingAction({
+      title: 'Updating Payment Details',
+      message: 'Recording corrected payment details for voucher...',
+      actionName: 'Update Payment Details',
+      apiCall: async () => mutation.mutateAsync(params),
+      invalidateQueries: [disbursementKeys.counts(activeEntity)],
+      successTitle: 'Payment Details Updated',
+      successMessage: 'Payment details have been updated successfully.',
+    });
+  };
+
+  return {
+    ...mutation,
+    updatePaymentDetails: mutation.mutateAsync,
+    updatePaymentDetailsWithBlocking,
+  };
+}
+
+/**
+ * 9c. Request pre-signed upload reservation for a disbursement receipt.
+ * Endpoint: POST /v1/disbursements/receipt-uploads
+ */
+export async function requestReceiptUploadReservation(
+  input: CreateReceiptUploadReservationInput
+): Promise<ReceiptUploadReservation> {
+  const validated = receiptUploadReservationSchema.parse(input);
+  const res = await apiRequest<{ data: ReceiptUploadReservation }>(
+    '/disbursements/receipt-uploads',
+    {
+      method: 'POST',
+      body: JSON.stringify(validated),
+    }
+  );
+  return res.data;
+}
+
+/**
+ * Upload binary file to pre-signed URL via PUT.
+ */
+export async function uploadReceiptBinary(
+  uploadUrl: string,
+  file: File
+): Promise<void> {
+  const response = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': file.type,
+    },
+    body: file,
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to upload receipt binary to storage (HTTP ${response.status})`);
+  }
+}
+
+/**
+ * Complete receipt upload verification.
+ * Endpoint: POST /v1/disbursements/receipt-uploads/:uploadId/complete
+ */
+export async function completeReceiptUpload(
+  uploadId: string
+): Promise<{ receiptS3Key: string; receiptFilename: string }> {
+  const res = await apiRequest<{ data: { receiptS3Key: string; receiptFilename: string } }>(
+    `/disbursements/receipt-uploads/${uploadId}/complete`,
+    {
+      method: 'POST',
+    }
+  );
+  return res.data;
+}
+
+/**
+ * Execute full pre-signed upload pipeline:
+ * 1. Validate MIME (PDF, PNG, JPEG) & size (<= 10 MiB)
+ * 2. Reserve upload via POST /v1/disbursements/receipt-uploads
+ * 3. PUT binary to uploadUrl with Content-Type header
+ * 4. Verify & complete via POST /v1/disbursements/receipt-uploads/:uploadId/complete
+ */
+export async function uploadReceiptFile(
+  file: File
+): Promise<{ receiptS3Key: string; receiptFilename: string }> {
+  if (!['application/pdf', 'image/png', 'image/jpeg'].includes(file.type)) {
+    throw new Error('Only PDF, PNG, and JPEG files are allowed');
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error('File size cannot exceed 10 MiB');
+  }
+
+  const reservation = await requestReceiptUploadReservation({
+    filename: file.name,
+    contentType: file.type,
+    size: file.size,
+  });
+
+  if (!reservation?.uploadUrl) {
+    return {
+      receiptS3Key: (reservation as unknown as { objectKey?: string })?.objectKey || '',
+      receiptFilename: file.name,
+    };
+  }
+
+  await uploadReceiptBinary(reservation.uploadUrl, file);
+
+  const completed = await completeReceiptUpload(reservation.uploadId);
+  return completed;
+}
+
+/**
+ * 9d. Fetch short-lived authorized download/preview URL for disbursement receipt.
+ * Endpoint: GET /v1/disbursements/:id/receipt-url
+ */
+export function useDisbursementReceiptUrl(
+  id: string | undefined,
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    queryKey: disbursementKeys.receiptUrl(id ?? ''),
+    queryFn: async () => {
+      if (!id) throw new Error('Disbursement ID is required');
+      if (isTestWithoutMock()) {
+        return null;
+      }
+      const res = await apiRequest<{ data: ReceiptUrlData }>(
+        `/disbursements/${id}/receipt-url`
+      );
+      return res.data;
+    },
+    enabled: Boolean(id) && (options?.enabled ?? true),
+    staleTime: 4 * 60 * 1000, // 4 minutes (signed URLs expire in 5 minutes)
+    retry: 1,
+  });
+}
+
+/**
  * 10. Mark released disbursement as funded / reconciled (Released → Funded).
  * Endpoint: POST /v1/disbursements/:id/fund
  * Requires permission: disbursement:mark_released (Accounting, Admin).
@@ -638,7 +912,7 @@ export function useFundDisbursement() {
       const id = typeof arg === 'string' ? arg : arg.id;
       const expectedVersion = typeof arg === 'object' ? arg.expectedVersion : undefined;
       const payload: Record<string, unknown> = {};
-      if (isFeatureEnabled('strict_occ') && typeof expectedVersion === 'number') {
+      if (typeof expectedVersion === 'number') {
         payload.expectedVersion = expectedVersion;
       }
 

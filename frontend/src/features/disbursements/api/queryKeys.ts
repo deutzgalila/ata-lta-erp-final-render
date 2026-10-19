@@ -22,6 +22,10 @@ export const disbursementKeys = {
   counts: (entity: string | null) =>
     [...disbursementKeys.all, 'counts', entity] as const,
 
+  // --- Receipt Download/Preview URL ---
+  receiptUrl: (id: string) =>
+    [...disbursementKeys.all, 'receiptUrl', id] as const,
+
   // --- Templates ---
   templates: (entity: string | null) =>
     [...disbursementKeys.all, 'templates', entity] as const,

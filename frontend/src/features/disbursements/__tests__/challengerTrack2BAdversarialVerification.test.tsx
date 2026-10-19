@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -56,6 +56,8 @@ vi.mock('@/lib/session', async (importOriginal) => {
   };
 });
 
+let activeQueryClient: QueryClient | null = null;
+
 function createHarness() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -63,6 +65,7 @@ function createHarness() {
       mutations: { retry: false },
     },
   });
+  activeQueryClient = queryClient;
 
   const wrapper = ({ children }: { children: React.ReactNode }) =>
     React.createElement(
@@ -117,6 +120,14 @@ const mockDraftDisbursement: Disbursement = {
 
 describe('Empirical Challenger: Track 2B Adversarial Verification Harness', () => {
   const originalFetch = global.fetch;
+  const safeMockFetch = vi.fn().mockImplementation(() =>
+    Promise.resolve({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: async () => ({ data: [] }),
+    })
+  );
 
   beforeAll(() => {
     window.HTMLElement.prototype.scrollIntoView = vi.fn();
@@ -124,13 +135,25 @@ describe('Empirical Challenger: Track 2B Adversarial Verification Harness', () =
     window.HTMLElement.prototype.releasePointerCapture = vi.fn();
   });
 
+  afterAll(() => {
+    global.fetch = originalFetch;
+  });
+
   beforeEach(() => {
+    cleanup();
     localStorage.clear();
     useBlockingModalStore.getState().reset();
+    global.fetch = safeMockFetch;
   });
 
   afterEach(async () => {
-    global.fetch = originalFetch;
+    if (activeQueryClient) {
+      activeQueryClient.cancelQueries();
+      activeQueryClient.clear();
+      activeQueryClient = null;
+    }
+    cleanup();
+    global.fetch = safeMockFetch;
     localStorage.clear();
     await supabase.removeAllChannels();
     useBlockingModalStore.getState().reset();
@@ -568,6 +591,11 @@ describe('Empirical Challenger: Track 2B Adversarial Verification Harness', () =
       fireEvent.click(directApproveBtn);
 
       await waitFor(() => {
+        expect(screen.getByTestId('admin-approval-modal')).toBeInTheDocument();
+      });
+      fireEvent.click(screen.getByTestId('btn-confirm-approve'));
+
+      await waitFor(() => {
         expect(approvedCalled).toBe(true);
       });
     });
@@ -892,6 +920,8 @@ describe('Empirical Challenger: Track 2B Adversarial Verification Harness', () =
       });
 
       fireEvent.click(screen.getByTestId('submit-create-disbursement-btn'));
+      const confirmBtn = screen.queryByTestId('btn-confirm-no-receipt');
+      if (confirmBtn) fireEvent.click(confirmBtn);
 
       await waitFor(() => {
         expect(createdPayload).not.toBeNull();

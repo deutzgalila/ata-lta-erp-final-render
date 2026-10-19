@@ -55,7 +55,7 @@ export const createDisbursementSchema = z.object({
   }),
   linkedWorkRequestId: z.string().uuid('Valid Work Request UUID is required'),
   clientId: z.string().uuid('Invalid Client UUID').nullable().optional(),
-  employeeId: z.string().uuid('Invalid Employee UUID').nullable().optional(),
+  employeeId: z.string().max(100).nullable().optional(),
   linkedInvoiceId: z.string().uuid('Invalid Invoice UUID').nullable().optional(),
   linkedTaskId: z.string().uuid('Invalid Task UUID').nullable().optional(),
   linkedTransmittalId: z.string().uuid('Invalid Transmittal UUID').nullable().optional(),
@@ -101,6 +101,60 @@ export const releasePaymentSchema = z.object({
   reference: z.string().max(100, 'Payment reference cannot exceed 100 characters').optional(),
   bank: z.string().max(100, 'Bank name cannot exceed 100 characters').optional(),
   date: z.string().optional(),
+});
+
+/**
+ * Client validation schema for Admin direct approval to Released.
+ */
+export const approveDisbursementSchema = z.object({
+  method: z
+    .string({ required_error: 'Payment method is required' })
+    .trim()
+    .min(1, 'Payment method is required')
+    .max(50, 'Payment method cannot exceed 50 characters'),
+  reference: z
+    .string()
+    .trim()
+    .max(100, 'Payment reference cannot exceed 100 characters')
+    .nullable()
+    .optional(),
+  bank: z
+    .string()
+    .trim()
+    .max(100, 'Bank name cannot exceed 100 characters')
+    .nullable()
+    .optional(),
+  date: z
+    .string({ required_error: 'Payment date is required' })
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Valid date YYYY-MM-DD is required'),
+  expectedVersion: z
+    .number({ required_error: 'Expected version is required' })
+    .int('Expected version must be an integer')
+    .positive('Expected version must be a positive integer'),
+});
+
+/**
+ * Client validation schema for correcting payment details on Released/Funded vouchers.
+ */
+export const updatePaymentDetailsSchema = approveDisbursementSchema;
+
+/**
+ * Client validation schema for pre-signed receipt upload reservation.
+ */
+export const receiptUploadReservationSchema = z.object({
+  filename: z
+    .string({ required_error: 'Filename is required' })
+    .trim()
+    .min(1, 'Filename is required')
+    .max(255, 'Filename cannot exceed 255 characters'),
+  contentType: z.enum(['application/pdf', 'image/png', 'image/jpeg'], {
+    errorMap: () => ({ message: 'Only PDF, PNG, and JPEG files are allowed' }),
+  }),
+  size: z
+    .number({ required_error: 'File size is required' })
+    .int()
+    .positive('File size must be positive')
+    .max(10485760, 'File size cannot exceed 10 MiB'),
 });
 
 /**
