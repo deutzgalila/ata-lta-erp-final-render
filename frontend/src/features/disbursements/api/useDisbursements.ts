@@ -1104,3 +1104,10 @@ export function useRestoreDisbursement() {
     restoreWithBlocking,
   };
 }
+
+/** Generate the same voucher shown in preview, with a stable key per header variant. */
+export async function fetchDisbursementPdfUrl(id: string, options: { noLogo?: boolean; includeCompanyDetails?: boolean } = {}): Promise<string> {
+  const params = new URLSearchParams({ noLogo: String(options.noLogo === true), includeCompanyDetails: String(options.includeCompanyDetails !== false) });
+  const res = await apiRequest<{ data: { url: string } }>(`/disbursements/${id}/pdf?${params}`);
+  return res.data.url;
+}

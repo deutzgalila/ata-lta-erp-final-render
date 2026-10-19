@@ -75,6 +75,13 @@ export const createDisbursementSchema = z.object({
  * Client validation schema for updating a disbursement.
  */
 export const updateDisbursementSchema = createDisbursementSchema.partial().extend({
+  printDetails: z.object({
+    requesterName: z.string().max(500).optional(), referenceNumber: z.string().max(500).optional(),
+    submittedDate: z.string().max(500).optional(), workRequestName: z.string().max(500).optional(),
+    paymentDate: z.string().max(500).optional(), paymentMethod: z.string().max(500).optional(),
+    paymentReference: z.string().max(500).optional(), paymentBank: z.string().max(500).optional(),
+    preparedBy: z.string().max(500).optional(), approvedBy: z.string().max(500).optional(), releasedBy: z.string().max(500).optional(),
+  }).strict().optional(),
   archived: z.boolean().optional(),
   expectedVersion: z.number().int().positive('Expected version must be a positive integer').optional(),
 });
