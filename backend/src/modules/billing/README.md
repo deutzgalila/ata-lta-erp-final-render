@@ -68,3 +68,9 @@ Migration `000067_invoice_statement_details_admin_edit.js` adds invoice `print_d
 `GET /invoices/:id/pdf?includeCompanyDetails=false` omits company name/logo and uses the generic statement layout. Omitting the parameter preserves branding. The PDF uses `statementDocument.js`, equivalent to the frontend statement builder; keep both renderers synchronized. Logos are embedded from backend assets. PDFs keep A4 padding and omit browser headers/footers, and each branding variant uses its documented stable storage key.
 
 The regression suite is `tests/billing.statement.spec.js` alongside existing billing/address/OCC tests. Migration up/down and rejected-write rollback were additionally verified in a temporary PostgreSQL runtime; no remote database was changed during development.
+
+### Invoice update HTTP 500 / address schema repair
+
+Migration `000069_add_invoice_address_snapshot.js` adds the missing nullable `invoices.address` snapshot used by the transactional update function. The earlier billing schema did not create this column, so PostgreSQL raised `42703` on every update, including signature-only edits. NULL preserves the existing master-client address fallback; the migration does not change client records or invoice contents. Apply this migration after `000067` and `000068`.
+
+`tests/integration/invoice-address-migration.test.js` exercises the original billing schema and actual invoice transaction function in an isolated PostgreSQL schema inside a rolled-back transaction. Set `BILLING_MIGRATION_TEST_DATABASE_URL` explicitly to run it. It verifies the original failure, idempotent repair, full inline/signature updates, snapshot-only address changes, and stale-write rejection.
