@@ -259,7 +259,7 @@ export function InvoiceArchiveTab({ onSelectInvoice }: InvoiceArchiveTabProps) {
                           variant="outline"
                           size="sm"
                           onClick={() => handleRestoreSingle(inv)}
-                          className="h-7 text-xs text-[#1E293B] hover:bg-[#F8FAFC] border-[#E2E8F0] rounded-[6px] gap-1 cursor-pointer font-mono"
+                          className="h-7 text-xs text-[#1E293B] hover:bg-[#F8FAFC] border-[#E2E8F0] rounded-[6px] gap-1 cursor-pointer"
                           data-testid={`restore-invoice-btn-${inv.id}`}
                         >
                           <RotateCcw className="w-3 h-3" />

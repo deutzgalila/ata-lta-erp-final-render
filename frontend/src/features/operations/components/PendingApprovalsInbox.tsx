@@ -402,7 +402,7 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
                 <div
                   key={req.id}
                   onClick={() => setSelectedRequestId(req.id)}
-                  className={`p-3 cursor-pointer transition-colors space-y-1.5 font-mono ${
+                  className={`p-3 cursor-pointer transition-colors space-y-1.5 ${
                     isSelected
                       ? 'bg-[#FFFFFF] border-l-4 border-l-[#1D4ED8]'
                       : 'hover:bg-[#F8FAFC]/60 border-l-4 border-l-transparent'
@@ -501,7 +501,7 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
                         variant="ghost"
                         size="xs"
                         onClick={() => onNavigateToWr(wrId)}
-                        className="text-xs text-[#1E293B] hover:text-[#DC2626] hover:bg-[#F8FAFC] rounded-[6px] h-6 px-1.5 underline"
+                        className="text-xs text-[#1E293B] hover:text-[#1D4ED8] hover:bg-[#F8FAFC] rounded-[6px] h-6 px-1.5 underline"
                       >
                         Open Details
                       </Button>
@@ -707,9 +707,9 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
                         </span>
                         <ul className="space-y-1 pl-4 list-disc text-[#475569]">
                           {gateEvaluation.incompleteTasks.map((t) => (
-                            <li key={t.id} className="text-xs font-mono">
+                            <li key={t.id} className="text-xs">
                               <span className="font-medium text-[#1E293B]">{t.title}</span> —{' '}
-                              <Badge variant="outline" size="compact" className="text-xs font-mono rounded-[8px] border-[#E2E8F0]">
+                              <Badge variant="outline" size="compact" className="text-xs rounded-[8px] border-[#E2E8F0]">
                                 {t.status}
                               </Badge>
                             </li>

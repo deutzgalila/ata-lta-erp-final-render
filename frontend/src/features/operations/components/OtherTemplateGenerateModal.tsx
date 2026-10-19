@@ -305,7 +305,7 @@ export function OtherTemplateGenerateModal({
               </SelectTrigger>
               <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
                 {otherTemplates.map((t) => (
-                  <SelectItem key={t.id} value={t.id} className="text-xs font-mono">
+                  <SelectItem key={t.id} value={t.id} className="text-xs">
                     {t.name || t.title} ({(t.tasks || []).length} tasks)
                   </SelectItem>
                 ))}
@@ -364,7 +364,7 @@ export function OtherTemplateGenerateModal({
                   </div>
                 ) : (
                   filteredClients.map((c) => (
-                    <SelectItem key={c.id} value={c.id} className="text-xs font-mono">
+                    <SelectItem key={c.id} value={c.id} className="text-xs">
                       {c.name} {c.entity ? `(${c.entity})` : ''}
                     </SelectItem>
                   ))

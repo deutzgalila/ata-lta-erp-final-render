@@ -127,7 +127,7 @@ export function RetainerTemplateList({
                       {tpl.recurrence === 'annual' ? (
                         <Badge
                           variant="outline"
-                          className="text-xs font-mono py-0 px-1.5 border-purple-200 bg-purple-50 text-purple-700 font-semibold gap-1"
+                          className="text-xs py-0 px-1.5 border-purple-200 bg-purple-50 text-purple-700 font-semibold gap-1"
                           data-testid={`template-recurrence-${tpl.id}`}
                         >
                           <Repeat className="h-3 w-3" />

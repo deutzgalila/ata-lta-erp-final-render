@@ -148,7 +148,7 @@ export function TimeEntryEditModal({
             <select
               value={taskId}
               onChange={(e) => setTaskId(e.target.value)}
-              className="w-full text-xs font-mono rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] px-3 py-2 text-[#1E293B] shadow-none focus:border-[#E2E8F0] focus:outline-none"
+              className="w-full text-xs rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] px-3 py-2 text-[#1E293B] shadow-none focus:border-[#E2E8F0] focus:outline-none"
               data-testid="edit-task-select"
             >
               {tasks.map((t) => (

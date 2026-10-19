@@ -491,7 +491,7 @@ export function ClientModal({
 
               {/* TIN */}
               <div className="space-y-1">
-                <label className="text-xs font-mono tracking-normal font-bold text-[#1E293B]">
+                <label className="text-xs tracking-normal font-bold text-[#1E293B]">
                   Tax Identification Number (TIN) <span className="text-[#DC2626]">*</span>
                 </label>
                 <Input
@@ -509,7 +509,7 @@ export function ClientModal({
                   required
                 />
                 {errors.tin && (
-                  <p className="text-xs font-mono text-[#DC2626]" data-testid="error-client-tin">
+                  <p className="text-xs text-[#DC2626]" data-testid="error-client-tin">
                     {errors.tin}
                   </p>
                 )}
@@ -657,7 +657,7 @@ export function ClientModal({
                       <SelectItem
                         key={u.id}
                         value={u.id}
-                        className="text-xs font-mono"
+                        className="text-xs"
                         data-testid={`poc-user-${u.id}`}
                       >
                         {u.name} {u.role ? `(${u.role})` : u.email ? `(${u.email})` : ''}
@@ -813,7 +813,7 @@ export function ClientModal({
                                 key={c.id}
                                 value={c.id}
                                 disabled={selectedOtherIds.has(c.id)}
-                                className="text-xs font-mono"
+                                className="text-xs"
                                 data-testid={`related-client-option-${c.id}`}
                               >
                                 {c.name} {c.entity ? `(${c.entity})` : ''}
@@ -826,7 +826,7 @@ export function ClientModal({
                               <SelectItem
                                 key={rc.relatedClientId}
                                 value={rc.relatedClientId}
-                                className="text-xs font-mono"
+                                className="text-xs"
                               >
                                 Client ID: {rc.relatedClientId}
                               </SelectItem>

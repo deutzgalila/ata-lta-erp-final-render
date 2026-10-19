@@ -407,7 +407,7 @@ export function TransmittalFormModal({
                 </SelectContent>
               </Select>
               {errors.clientId && (
-                <p className="text-xs font-mono text-rose-600 flex items-center gap-1">
+                <p className="text-xs text-rose-600 flex items-center gap-1">
                   <AlertCircle className="h-3 w-3" />
                   {errors.clientId}
                 </p>
@@ -444,7 +444,7 @@ export function TransmittalFormModal({
                 </SelectContent>
               </Select>
               {errors.workRequestId && (
-                <p className="text-xs font-mono text-rose-600 flex items-center gap-1">
+                <p className="text-xs text-rose-600 flex items-center gap-1">
                   <AlertCircle className="h-3 w-3" />
                   {errors.workRequestId}
                 </p>
@@ -499,7 +499,7 @@ export function TransmittalFormModal({
                 </SelectContent>
               </Select>
               {errors.selectedTaskId && (
-                <p className="text-xs font-mono text-rose-600 flex items-center gap-1" data-testid="task-error-message">
+                <p className="text-xs text-rose-600 flex items-center gap-1" data-testid="task-error-message">
                   <AlertCircle className="h-3 w-3" />
                   {errors.selectedTaskId}
                 </p>

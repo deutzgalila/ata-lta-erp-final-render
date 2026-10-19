@@ -143,7 +143,7 @@ export function RerouteModal({
                 {failedTasks.map((t) => (
                   <li
                     key={t.id}
-                    className="text-xs font-mono text-[#1E293B] flex items-center justify-between py-1 border-b border-[#E2E8F0] last:border-none"
+                    className="text-xs text-[#1E293B] flex items-center justify-between py-1 border-b border-[#E2E8F0] last:border-none"
                   >
                     <span className="truncate pr-2">{t.title}</span>
                     <Badge variant="destructive" size="compact" className="rounded-[6px] text-xs">

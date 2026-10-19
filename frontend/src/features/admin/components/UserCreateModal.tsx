@@ -212,7 +212,7 @@ export function UserCreateModal({
               required
               data-testid="create-user-password-input"
             />
-            {errors.password && <p className="text-xs font-mono text-rose-600">{errors.password}</p>}
+            {errors.password && <p className="text-xs text-rose-600">{errors.password}</p>}
           </div>
 
           {/* Role Selection */}

@@ -495,55 +495,6 @@ export function WorkRequestSidePeek({
                     </div>
                   )}
 
-                                    {/* 4-Step Visual Phase Stepper */}
-                  <div className="p-3 bg-[#FFFFFF] border border-[#E2E8F0] rounded-[8px] shadow-soft space-y-2" data-testid="side-peek-phase-stepper">
-                    <div className="flex items-center justify-between text-xs font-medium text-[#475569]">
-                      <span className="font-semibold text-[#1E293B]">Phase Progress</span>
-                      <span>
-                        Active: <strong className="text-[#2563EB]">{getPhaseBadgeInfo(workRequest.phase).label}</strong>
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {[
-                        { id: 'pre_processing', label: '1. Pre-process', number: 1 },
-                        { id: 'processing', label: '2. Processing', number: 2 },
-                        { id: 'quality_assurance', label: '3. QA Review', number: 3 },
-                        { id: 'completion', label: '4. Completion', number: 4 },
-                      ].map((step, idx) => {
-                        const PHASES_LIST = ['pre_processing', 'processing', 'quality_assurance', 'completion'];
-                        const currentIdx = PHASES_LIST.indexOf(workRequest.phase || 'pre_processing');
-                        const isPast = idx < currentIdx;
-                        const isCurrent = idx === currentIdx;
-
-                        return (
-                          <div
-                            key={step.id}
-                            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-[6px] border text-xs ${
-                              isCurrent
-                                ? 'bg-[#EFF6FF] border-[#2563EB] text-[#1D4ED8] font-semibold ring-1 ring-[#2563EB]/20'
-                                : isPast
-                                ? 'bg-[#F0FDF4] border-[#BBF7D0] text-[#166534] font-medium'
-                                : 'bg-[#F8FAFC] border-[#E2E8F0] text-[#64748B]'
-                            }`}
-                          >
-                            <div
-                              className={`w-4 h-4 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                                isCurrent
-                                  ? 'bg-[#1D4ED8] text-white'
-                                  : isPast
-                                  ? 'bg-[#166534] text-white'
-                                  : 'bg-[#E2E8F0] text-[#64748B]'
-                              }`}
-                            >
-                              {isPast ? <Check className="w-3 h-3" /> : step.number}
-                            </div>
-                            <span className="truncate">{step.label}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
                   {/* 1. Gate Blocker Warning */}
                   {blockerInfo.hasBlockers && (
                     <div
@@ -1006,7 +957,7 @@ export function WorkRequestSidePeek({
             </div>
 
             {/* Footer Actions */}
-            <div className="px-6 py-3.5 border-t border-[#E2E8F0] bg-[#F8FAFC] flex items-center justify-between font-mono">
+            <div className="px-6 py-3.5 border-t border-[#E2E8F0] bg-[#F8FAFC] flex items-center justify-between">
               <span className="text-xs text-[#475569]">
                 ID: {workRequestId}
               </span>

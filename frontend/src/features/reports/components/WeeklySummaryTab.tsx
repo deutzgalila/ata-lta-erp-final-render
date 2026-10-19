@@ -353,7 +353,7 @@ export function WeeklySummaryTab() {
                     <TableBody>
                       {details.invoices.map((inv) => (
                         <TableRow key={inv.id}>
-                          <TableCell className="font-mono font-medium text-[#1E293B] tabular-nums">
+                          <TableCell className="font-medium text-[#1E293B] tabular-nums">
                             {inv.invoice_number}
                           </TableCell>
                           <TableCell>
@@ -400,7 +400,7 @@ export function WeeklySummaryTab() {
                     <TableBody>
                       {details.payments.map((p) => (
                         <TableRow key={p.id}>
-                          <TableCell className="text-right font-mono font-bold text-[#1E293B] tabular-nums">
+                          <TableCell className="text-right font-bold text-[#1E293B] tabular-nums">
                             {formatCurrency(p.amount)}
                           </TableCell>
                           <TableCell className="text-[#1E293B] tabular-nums text-xs">{p.method}</TableCell>
@@ -441,7 +441,7 @@ export function WeeklySummaryTab() {
                     <TableBody>
                       {details.disbursements.map((d) => (
                         <TableRow key={d.id}>
-                          <TableCell className="font-mono font-medium text-[#1E293B] tabular-nums">
+                          <TableCell className="font-medium text-[#1E293B] tabular-nums">
                             {d.disbursement_number}
                           </TableCell>
                           <TableCell>

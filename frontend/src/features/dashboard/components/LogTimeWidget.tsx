@@ -489,7 +489,7 @@ export function LogTimeWidget() {
               type="submit"
               size="sm"
               disabled={!canCreateLog || createMutation.isPending || isTimerRunning || !selectedTaskId}
-              className="w-full text-xs font-mono font-semibold tracking-normal gap-1.5 h-9 rounded-[8px] border-[#E2E8F0] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs hover:bg-[#222220] shadow-none cursor-pointer"
+              className="w-full text-xs font-semibold tracking-normal gap-1.5 h-9 rounded-[8px] border-[#E2E8F0] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs hover:bg-[#222220] shadow-none cursor-pointer"
               data-testid="submit-timelog-btn"
             >
               <Plus className="h-4 w-4" />

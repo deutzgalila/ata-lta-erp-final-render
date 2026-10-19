@@ -189,7 +189,7 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                             </span>
                           )}
                           <span
-                            className={` text-xs font-mono ${
+                            className={`text-xs ${
                               isGranted ? 'font-semibold text-[#1E293B]' : 'text-[#475569]'
                             }`}
                           >

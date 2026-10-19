@@ -285,7 +285,7 @@ export function RetainerGenerateModal({
                   const meta = metaParts.length > 0 ? ` (${metaParts.join(' • ')})` : '';
 
                   return (
-                    <SelectItem key={tpl.id} value={tpl.id} className="font-mono text-xs">
+                    <SelectItem key={tpl.id} value={tpl.id} className="text-xs">
                       {tpl.name}{meta}
                     </SelectItem>
                   );
@@ -328,13 +328,13 @@ export function RetainerGenerateModal({
                 value={clientId || 'all'}
                 onValueChange={(val) => setClientId(val === 'all' ? '' : val)}
               >
-                <SelectTrigger className="h-9 bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px] font-mono text-xs text-[#1E293B]" data-testid="client-select">
+                <SelectTrigger className="h-9 bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px] text-xs text-[#1E293B]" data-testid="client-select">
                   <SelectValue placeholder="All retainer clients" />
                 </SelectTrigger>
                 <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
-                  <SelectItem value="all" className="font-mono text-xs">— All Retainer Clients —</SelectItem>
+                  <SelectItem value="all" className="text-xs">— All Retainer Clients —</SelectItem>
                   {clients.map((c) => (
-                    <SelectItem key={c.id} value={c.id} className="font-mono text-xs">
+                    <SelectItem key={c.id} value={c.id} className="text-xs">
                       {c.name} ({c.entity})
                     </SelectItem>
                   ))}
@@ -497,9 +497,9 @@ export function RetainerGenerateModal({
                                   ⚠️ Unmapped ({unmappedName || 'Template Default'})
                                 </SelectItem>
                               )}
-                              <SelectItem value="unassigned" className="font-mono text-xs">— Unassigned —</SelectItem>
+                              <SelectItem value="unassigned" className="text-xs">— Unassigned —</SelectItem>
                               {projectTeam.map((m) => (
-                                <SelectItem key={m.id} value={m.id} className="text-xs font-mono">
+                                <SelectItem key={m.id} value={m.id} className="text-xs">
                                   {m.name} ({m.role})
                                 </SelectItem>
                               ))}

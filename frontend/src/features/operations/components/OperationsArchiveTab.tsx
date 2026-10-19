@@ -173,7 +173,7 @@ export function OperationsArchiveTab({
               filteredList.map((wr) => (
                 <TableRow key={wr.id} className="hover:bg-[#F8FAFC]/60 border-b border-[#E2E8F0]" data-testid={`archive-row-${wr.id}`}>
                   {/* Title */}
-                  <TableCell className="font-mono text-xs text-[#1E293B]">
+                  <TableCell className="text-xs text-[#1E293B]">
                     <div className="flex flex-col">
                       <span className="font-semibold">{wr.title}</span>
                       {wr.description && (
@@ -255,7 +255,7 @@ export function OperationsArchiveTab({
                         variant="outline"
                         size="xs"
                         onClick={() => handleOpenRestore(wr)}
-                        className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] text-[#1E293B] font-mono text-xs tracking-normal gap-1"
+                        className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] text-[#1E293B] text-xs tracking-normal gap-1"
                         data-testid={`restore-btn-${wr.id}`}
                       >
                         <RotateCcw className="h-3 w-3" />

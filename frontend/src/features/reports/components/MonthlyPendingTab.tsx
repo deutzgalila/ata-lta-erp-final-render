@@ -298,7 +298,7 @@ export function MonthlyPendingTab() {
                     <TableBody>
                       {overdueInvoices.items.map((inv) => (
                         <TableRow key={inv.id}>
-                          <TableCell className="font-mono font-medium text-[#1E293B] tabular-nums">
+                          <TableCell className="font-medium text-[#1E293B] tabular-nums">
                             {inv.invoice_number}
                           </TableCell>
                           <TableCell className="font-medium text-[#1E293B]">
@@ -353,7 +353,7 @@ export function MonthlyPendingTab() {
                     <TableBody>
                       {pendingDisbursements.items.map((d) => (
                         <TableRow key={d.id}>
-                          <TableCell className="font-mono font-medium text-[#1E293B] tabular-nums">
+                          <TableCell className="font-medium text-[#1E293B] tabular-nums">
                             {d.disbursement_number}
                           </TableCell>
                           <TableCell className="text-xs text-[#475569]">

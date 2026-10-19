@@ -732,7 +732,7 @@ export function DocumentViewerModal({
                       )}
 
                       {!isReadOnly && !isEditing && Boolean(comment.id) && (isAuthor || isAdmin) && (
-                        <div className="flex justify-end gap-2 pt-1 border-t border-[#E2E8F0] text-xs font-mono text-[#475569]">
+                        <div className="flex justify-end gap-2 pt-1 border-t border-[#E2E8F0] text-xs text-[#475569]">
                           {isAuthor && <button
                             type="button"
                             onClick={() => {

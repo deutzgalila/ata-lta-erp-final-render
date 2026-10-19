@@ -1008,7 +1008,7 @@ export function TaskDetailModal({
                           </SelectTrigger>
                           <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
                             {scopedTeamList.map((m) => (
-                              <SelectItem key={m.id} value={m.id} className="text-xs font-mono">
+                              <SelectItem key={m.id} value={m.id} className="text-xs">
                                 {m.name} {m.id === task.assigneeId ? '(Primary)' : `(${m.role})`}
                               </SelectItem>
                             ))}
@@ -1032,7 +1032,7 @@ export function TaskDetailModal({
                           </SelectTrigger>
                           <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
                             {availableTeamMembers.map((m) => (
-                              <SelectItem key={m.id} value={m.id} className="text-xs font-mono">
+                              <SelectItem key={m.id} value={m.id} className="text-xs">
                                 {m.name} ({m.role})
                               </SelectItem>
                             ))}
@@ -1066,7 +1066,7 @@ export function TaskDetailModal({
                   {assignedTeamMembers.map((member) => (
                     <div
                       key={member.id}
-                      className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-[8px] border text-xs font-mono ${
+                      className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-[8px] border text-xs ${
                         member.isLead
                           ? 'bg-[#F8FAFC] border-[#E2E8F0] text-[#1E293B]'
                           : 'bg-[#FFFFFF] border-[#E2E8F0] text-[#1E293B]'
@@ -1093,7 +1093,7 @@ export function TaskDetailModal({
                             <button
                               type="button"
                               onClick={() => handleSetLeadAssignee(member.id)}
-                              className="text-xs text-[#1E293B] hover:underline font-bold px-1 font-mono"
+                              className="text-xs text-[#1E293B] hover:underline font-bold px-1"
                               title="Make this member the primary assignee"
                               data-testid={`make-lead-btn-${member.id}`}
                             >
@@ -1199,7 +1199,7 @@ export function TaskDetailModal({
               {task.checklist && task.checklist.length > 0 ? (
                 <div className="p-2 border-[#E2E8F0] rounded-[6px] divide-y divide-[#CBD5E1] bg-[#FFFFFF]">
                   {task.checklist.map((item) => (
-                    <div key={item.id} className="py-2 px-2 flex items-center justify-between text-xs font-mono">
+                    <div key={item.id} className="py-2 px-2 flex items-center justify-between text-xs">
                       <label className="flex items-center gap-2 cursor-pointer flex-1">
                         <input
                           type="checkbox"
@@ -1730,7 +1730,7 @@ export function TaskDetailModal({
           </div>
 
           {/* Footer */}
-          <DialogFooter className="px-6 py-3 border-t border-[#E2E8F0] bg-[#F8FAFC] flex items-center justify-between font-mono">
+          <DialogFooter className="px-6 py-3 border-t border-[#E2E8F0] bg-[#F8FAFC] flex items-center justify-between">
             <span className="text-xs text-[#475569]">
               Task ID: {task.id}
             </span>

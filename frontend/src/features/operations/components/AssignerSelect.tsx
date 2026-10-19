@@ -125,9 +125,9 @@ export function AssignerSelect({
               <SelectValue placeholder={managerOnlyPrimary ? 'Select Manager' : 'Select Assignee'} />
             </SelectTrigger>
             <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
-              <SelectItem value="unassigned" className="font-mono text-xs">— Unassigned —</SelectItem>
+              <SelectItem value="unassigned" className="text-xs">— Unassigned —</SelectItem>
               {primaryCandidates.map((m) => (
-                <SelectItem key={m.id} value={m.id} className="font-mono text-xs">
+                <SelectItem key={m.id} value={m.id} className="text-xs">
                   {m.name} ({m.role})
                 </SelectItem>
               ))}
@@ -201,7 +201,7 @@ export function AssignerSelect({
             </SelectTrigger>
             <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
               {eligibleCoAssignees.map((m) => (
-                <SelectItem key={m.id} value={m.id} className="text-xs font-mono">
+                <SelectItem key={m.id} value={m.id} className="text-xs">
                   {m.name} ({m.role})
                 </SelectItem>
               ))}

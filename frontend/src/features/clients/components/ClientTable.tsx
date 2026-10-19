@@ -66,10 +66,10 @@ export function ClientTable({
       <Table data-testid="clients-table">
         <TableHeader>
           <TableRow className="bg-[#F8FAFC] border-b border-[#E2E8F0] hover:bg-[#F8FAFC]">
-            <TableHead className="font-mono font-bold tracking-normal text-xs text-[#1E293B] w-1/4">Client Name</TableHead>
-            <TableHead className="font-mono font-bold tracking-normal text-xs text-[#1E293B]">TIN & RDO</TableHead>
-            <TableHead className="font-mono font-bold tracking-normal text-xs text-[#1E293B]">Entity</TableHead>
-            <TableHead className="font-mono font-bold tracking-normal text-xs text-[#1E293B]">Agreement</TableHead>
+            <TableHead className="font-bold tracking-normal text-xs text-[#1E293B] w-1/4">Client Name</TableHead>
+            <TableHead className="font-bold tracking-normal text-xs text-[#1E293B]">TIN & RDO</TableHead>
+            <TableHead className="font-bold tracking-normal text-xs text-[#1E293B]">Entity</TableHead>
+            <TableHead className="font-bold tracking-normal text-xs text-[#1E293B]">Agreement</TableHead>
             <TableHead className="font-bold tracking-normal text-xs text-[#1E293B]">Contact</TableHead>
             <TableHead className="font-bold tracking-normal text-xs text-[#1E293B] text-right">Actions</TableHead>
           </TableRow>
@@ -137,7 +137,7 @@ export function ClientTable({
                     <div className="space-y-0.5">
                       <Badge
                         variant="secondary"
-                        className="bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs border-[#E2E8F0] rounded-[6px] text-xs font-mono font-bold uppercase flex items-center gap-1 w-fit"
+                        className="bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs border-[#E2E8F0] rounded-[6px] text-xs font-bold uppercase flex items-center gap-1 w-fit"
                         data-testid={`client-retainer-badge-${client.id}`}
                       >
                         <CheckCircle className="h-3 w-3 text-[#FFFFFF]" />
