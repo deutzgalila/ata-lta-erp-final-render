@@ -846,7 +846,7 @@ export function WorkRequestModal({
                   setDueDate(value);
                   setIsDirty(true);
                 }}
-                className="h-9 bg-white text-xs"
+                className="h-9 bg-white"
                 data-testid="wr-modal-due-date"
               />
             </div>
