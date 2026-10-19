@@ -523,6 +523,8 @@ describe('CHALLENGER FIN 2 EMPIRICAL ADVERSARIAL SUITE', () => {
       });
 
       fireEvent.click(screen.getByTestId('submit-create-disbursement-btn'));
+      const confirmBtn = screen.queryByTestId('btn-confirm-no-receipt');
+      if (confirmBtn) fireEvent.click(confirmBtn);
 
       await waitFor(() => {
         expect(dispatchedBody).not.toBeNull();

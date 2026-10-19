@@ -208,7 +208,7 @@ export default function DisbursementsPage() {
             data-testid="tab-pending-approvals"
           >
             <Clock className="h-3.5 w-3.5 text-amber-600" />
-            <span>Pending Approvals</span>
+            <span>{canApprove ? 'Pending Approvals' : 'Pending Submissions'}</span>
             {canApprove && (
               <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-800">
                 Admin

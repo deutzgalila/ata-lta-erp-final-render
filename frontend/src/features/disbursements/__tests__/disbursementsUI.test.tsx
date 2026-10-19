@@ -252,8 +252,15 @@ describe('Disbursements UI Components & Integration', () => {
         target: { value: 'Official court filing fee payment' },
       });
 
-      // Submit
+      // Submit (triggers in-app no-receipt confirmation dialog)
       fireEvent.click(screen.getByTestId('submit-create-disbursement-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('no-receipt-confirm-dialog')).toBeInTheDocument();
+      });
+
+      // Confirm creation
+      fireEvent.click(screen.getByTestId('btn-confirm-no-receipt'));
 
       await waitFor(() => {
         expect(dispatchedBody).not.toBeNull();
@@ -306,39 +313,17 @@ describe('Disbursements UI Components & Integration', () => {
       expect(screen.getByTestId('select-work-request-task')).toBeDisabled();
     });
 
-    it('renders Employee select dropdown and receipt dropzone with clean label without optional or asterisk', async () => {
-      const mockTeamMembers = [
-        { id: '11111111-2222-3333-4444-555555555555', name: 'Maria Santos', email: 'maria@ata-lta.ph', role: 'Staff' },
-        { id: '22222222-3333-4444-5555-666666666666', name: 'Juan Dela Cruz', email: 'juan@ata-lta.ph', role: 'Manager' },
-      ];
-
-      global.fetch = vi.fn().mockImplementation(async (url: string) => {
-        const u = String(url);
-        if (u.includes('/me/team')) {
-          return {
-            ok: true,
-            status: 200,
-            headers: new Headers({ 'content-type': 'application/json' }),
-            json: async () => ({ data: mockTeamMembers }),
-          };
-        }
-        return {
-          ok: true,
-          status: 200,
-          headers: new Headers({ 'content-type': 'application/json' }),
-          json: async () => ({ data: [] }),
-        };
-      });
-
+    it('renders locked requester display and receipt dropzone with clean label without optional or asterisk', async () => {
       const { wrapper } = createHarness();
       render(
         <CreateDisbursementModal isOpen={true} onClose={() => {}} />,
         { wrapper }
       );
 
-      // Verify select-employee dropdown
-      const employeeSelect = screen.getByTestId('select-employee') as HTMLSelectElement;
-      expect(employeeSelect).toBeInTheDocument();
+      // Verify locked requester display (R2/D1)
+      const requesterDisplay = screen.getByTestId('requester-locked-display');
+      expect(requesterDisplay).toBeInTheDocument();
+      expect(requesterDisplay).toHaveTextContent('Session Locked');
 
       // Verify receipt-dropzone
       const receiptDropzone = screen.getByTestId('receipt-dropzone');
@@ -353,22 +338,12 @@ describe('Disbursements UI Components & Integration', () => {
       // Verify no optional indicators in dropzone container
       expect(receiptDropzone.textContent).not.toMatch(/optional/i);
       expect(receiptDropzone.textContent).not.toContain('*');
-
-      // Verify options in employee select
-      await waitFor(() => {
-        expect(screen.getByText('Maria Santos')).toBeInTheDocument();
-        expect(screen.getByText('Juan Dela Cruz')).toBeInTheDocument();
-      });
     });
 
-    it('submits successfully with employee selected and without receipt (receiptFilename is null)', async () => {
+    it('submits successfully with session user identity and without receipt after in-app confirmation', async () => {
       let dispatchedBody: Record<string, unknown> | null = null;
-      const mockTeamMembers = [
-        { id: '11111111-2222-3333-4444-555555555555', name: 'Maria Santos', email: 'maria@ata-lta.ph', role: 'Staff' },
-      ];
 
-      global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
-        const u = String(url);
+      global.fetch = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
         if (init?.method === 'POST') {
           dispatchedBody = JSON.parse(init.body as string);
           return {
@@ -382,14 +357,6 @@ describe('Disbursements UI Components & Integration', () => {
                 ...dispatchedBody,
               },
             }),
-          };
-        }
-        if (u.includes('/me/team')) {
-          return {
-            ok: true,
-            status: 200,
-            headers: new Headers({ 'content-type': 'application/json' }),
-            json: async () => ({ data: mockTeamMembers }),
           };
         }
         return {
@@ -410,37 +377,72 @@ describe('Disbursements UI Components & Integration', () => {
         { wrapper }
       );
 
-      await waitFor(() => {
-        expect(screen.getByText('Maria Santos')).toBeInTheDocument();
-      });
-
-      // Select employee
-      fireEvent.change(screen.getByTestId('select-employee'), {
-        target: { value: '11111111-2222-3333-4444-555555555555' },
-      });
-
       // Fill in amount & description
       fireEvent.change(screen.getByTestId('input-amount'), { target: { value: '1200' } });
       fireEvent.change(screen.getByTestId('textarea-description'), {
         target: { value: 'Travel allowance for client visit' },
       });
 
-      // Submit without dropping any receipt
+      // Submit without dropping any receipt -> in-app confirmation
       fireEvent.click(screen.getByTestId('submit-create-disbursement-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('no-receipt-confirm-dialog')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId('btn-confirm-no-receipt'));
 
       await waitFor(() => {
         expect(dispatchedBody).not.toBeNull();
       });
 
-      expect(dispatchedBody!.employeeId).toBe('11111111-2222-3333-4444-555555555555');
+      expect(dispatchedBody!.employeeId).toBe('u-admin-1');
       expect(dispatchedBody!.receiptFilename).toBeNull();
+      expect(dispatchedBody!.receiptS3Key).toBeNull();
     });
 
-    it('submits successfully with receipt attached via dropzone (receiptFilename is receipt.pdf)', async () => {
+    it('submits successfully with receipt attached via dropzone using pre-signed upload flow', async () => {
       let dispatchedBody: Record<string, unknown> | null = null;
 
-      global.fetch = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
-        if (init?.method === 'POST') {
+      global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes('/disbursements/receipt-uploads/') && u.includes('/complete')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({
+              data: {
+                receiptS3Key: 'entities/ATA/disbursements/receipts/opaque-uuid-receipt.pdf',
+                receiptFilename: 'receipt.pdf',
+              },
+            }),
+          };
+        }
+        if (u.includes('/disbursements/receipt-uploads')) {
+          return {
+            ok: true,
+            status: 201,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({
+              data: {
+                uploadId: 'upload-reservation-1',
+                uploadUrl: 'https://storage.test/upload-binary',
+                objectKey: 'entities/ATA/disbursements/receipts/opaque-uuid-receipt.pdf',
+                expiresAt: '2026-10-17T16:00:00.000Z',
+              },
+            }),
+          };
+        }
+        if (u.includes('upload-binary') && init?.method === 'PUT') {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers(),
+            text: async () => '',
+          };
+        }
+        if (u.includes('/disbursements') && init?.method === 'POST') {
           dispatchedBody = JSON.parse(init.body as string);
           return {
             ok: true,
@@ -501,20 +503,22 @@ describe('Disbursements UI Components & Integration', () => {
       });
 
       expect(dispatchedBody!.receiptFilename).toBe('receipt.pdf');
-      expect(dispatchedBody!.receiptS3Key).toMatch(/^disbursements\/receipts\/.*receipt\.pdf$/);
+      expect(dispatchedBody!.receiptS3Key).toBe('entities/ATA/disbursements/receipts/opaque-uuid-receipt.pdf');
     });
 
-    it('prompts soft-warning when storage upload fails despite selecting a receipt file', async () => {
-      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
-      const storageSpy = vi.spyOn(supabase.storage, 'from').mockReturnValue({
-        upload: vi.fn().mockResolvedValue({ data: null, error: new Error('Storage network unreachable') }),
-        remove: vi.fn().mockResolvedValue({ data: [], error: null }),
-        getPublicUrl: vi.fn().mockReturnValue({ data: { publicUrl: '' } }),
-      } as any);
-
+    it('aborts creation and displays error when receipt upload fails', async () => {
       let dispatched = false;
-      global.fetch = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
-        if (init?.method === 'POST') {
+      global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes('/disbursements/receipt-uploads')) {
+          return {
+            ok: false,
+            status: 500,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({ title: 'Internal Server Error', detail: 'Storage failure' }),
+          };
+        }
+        if (u.includes('/disbursements') && init?.method === 'POST') {
           dispatched = true;
           return {
             ok: true,
@@ -561,14 +565,9 @@ describe('Disbursements UI Components & Integration', () => {
       fireEvent.click(screen.getByTestId('submit-create-disbursement-btn'));
 
       await waitFor(() => {
-        expect(confirmSpy).toHaveBeenCalledWith(
-          'No Government Assessment Document attached. Proceed anyway?'
-        );
+        expect(screen.getByTestId('error-receipt')).toBeInTheDocument();
       });
       expect(dispatched).toBe(false);
-
-      confirmSpy.mockRestore();
-      storageSpy.mockRestore();
     });
 
     it('allows removing an attached receipt before submission', async () => {
@@ -603,8 +602,7 @@ describe('Disbursements UI Components & Integration', () => {
       });
     });
 
-    it('prompts soft-warning when submitting without receipt and cancels when rejected', async () => {
-      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    it('prompts in-app confirmation when submitting without receipt and cancels when cancelled', async () => {
       let dispatched = false;
 
       global.fetch = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
@@ -642,11 +640,14 @@ describe('Disbursements UI Components & Integration', () => {
 
       fireEvent.click(screen.getByTestId('submit-create-disbursement-btn'));
 
-      expect(confirmSpy).toHaveBeenCalledWith(
-        'No Government Assessment Document attached. Proceed anyway?'
-      );
+      await waitFor(() => {
+        expect(screen.getByTestId('no-receipt-confirm-dialog')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId('btn-cancel-no-receipt'));
+
       expect(dispatched).toBe(false);
-      confirmSpy.mockRestore();
+      expect(screen.queryByTestId('no-receipt-confirm-dialog')).not.toBeInTheDocument();
     });
   });
 
@@ -673,7 +674,7 @@ describe('Disbursements UI Components & Integration', () => {
       expect(screen.queryByTestId('admin-approval-queue-unauthorized')).not.toBeInTheDocument();
     });
 
-    it('renders pending items for Admin and executes approve workflow', async () => {
+    it('renders pending items for Admin and executes approve workflow via AdminApprovalModal', async () => {
       setAdminSession();
       let approvedCall = false;
 
@@ -684,7 +685,7 @@ describe('Disbursements UI Components & Integration', () => {
             ok: true,
             status: 200,
             headers: new Headers({ 'content-type': 'application/json' }),
-            json: async () => ({ data: { id: 'disb-101', status: 'Approved' } }),
+            json: async () => ({ data: { id: 'disb-101', status: 'Released', version: 2 } }),
           };
         }
         return {
@@ -707,9 +708,16 @@ describe('Disbursements UI Components & Integration', () => {
 
       expect(screen.getByText('Messenger delivery to SEC office')).toBeInTheDocument();
 
-      // Click Approve
+      // Click Approve opens AdminApprovalModal
       const approveBtn = screen.getByTestId('approve-btn-disb-101');
       fireEvent.click(approveBtn);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('admin-approval-modal')).toBeInTheDocument();
+      });
+
+      // Submit payment details in modal
+      fireEvent.click(screen.getByTestId('btn-confirm-approve'));
 
       await waitFor(() => {
         expect(approvedCall).toBe(true);

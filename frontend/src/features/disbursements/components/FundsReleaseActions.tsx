@@ -52,15 +52,17 @@ export function ReleaseFundsModal({
 
     const payload: ReleasePaymentInput = {
       method: method.trim() || undefined,
-      reference: reference.trim() || undefined,
-      bank: bank.trim() || undefined,
+      reference: reference.trim() || null,
+      bank: bank.trim() || null,
       date: date || undefined,
+      expectedVersion: disbursement.version,
     };
 
     try {
       await releaseWithBlocking({
         id: disbursement.id,
         data: payload,
+        expectedVersion: disbursement.version,
       });
       resetForm();
       onClose();

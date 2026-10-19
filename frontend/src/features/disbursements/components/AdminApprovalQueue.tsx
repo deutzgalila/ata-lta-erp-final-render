@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   CheckCircle2,
   XCircle,
@@ -13,9 +13,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { RejectReasonModal } from '@/features/operations/components/RejectReasonModal';
+import { AdminApprovalModal } from './AdminApprovalModal';
 import {
-  useDisbursementsList,
-  useApproveDisbursement,
+  useAllDisbursementsForStatus,
   useRejectDisbursement,
 } from '../api/useDisbursements';
 import { DisbursementStatusBadge } from './DisbursementStatusBadge';
@@ -31,37 +31,47 @@ export interface AdminApprovalQueueProps {
 export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueProps) {
   const [search, setSearch] = useState('');
   const [rejectingItem, setRejectingItem] = useState<Disbursement | null>(null);
+  const [approvingItem, setApprovingItem] = useState<Disbursement | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const permissions = useSessionStore((state) => state.permissions);
   const currentUser = useSessionStore((state) => state.user);
   const canApprove = hasPermission(permissions, 'disbursement:approve');
 
-  // Query pending and pending admin approval items
-  const { data: responsePending, isLoading: isLoadingPending } = useDisbursementsList({
-    status: 'Pending',
-  });
-  const { data: responsePendingAdmin, isLoading: isLoadingPendingAdmin } = useDisbursementsList({
-    status: 'Pending Admin Approval',
-  });
-  const isLoading = isLoadingPending || isLoadingPendingAdmin;
+  // Query submitted, pending, and pending admin approval items across all pages (F4)
+  const { data: responseSubmitted, isLoading: isLoadingSubmitted } = useAllDisbursementsForStatus('Submitted');
+  const { data: responsePending, isLoading: isLoadingPending } = useAllDisbursementsForStatus('Pending');
+  const { data: responsePendingAdmin, isLoading: isLoadingPendingAdmin } = useAllDisbursementsForStatus('Pending Admin Approval');
+  const isLoading = isLoadingSubmitted || isLoadingPending || isLoadingPendingAdmin;
 
   const items = useMemo(() => {
+    const listSubmitted = responseSubmitted?.data ?? [];
     const listPending = responsePending?.data ?? [];
     const listPendingAdmin = responsePendingAdmin?.data ?? [];
     const map = new Map<string, Disbursement>();
+    for (const item of listSubmitted) map.set(item.id, item);
     for (const item of listPending) map.set(item.id, item);
     for (const item of listPendingAdmin) map.set(item.id, item);
     const raw = Array.from(map.values());
+    raw.sort((a, b) => {
+      const timeA = new Date(a.created_at || a.createdAt || 0).getTime();
+      const timeB = new Date(b.created_at || b.createdAt || 0).getTime();
+      return timeB - timeA;
+    });
     if (canApprove) return raw;
     return raw.filter((item) => {
       const creator = item.created_by || item.createdBy;
-      const emp = item.employee_id || item.employeeId;
-      return (creator && creator === currentUser?.id) || (emp && emp === currentUser?.id);
+      const requester = item.requested_by || item.requestedBy;
+      return (creator && creator === currentUser?.id) || (requester && requester === currentUser?.id);
     });
-  }, [responsePending, responsePendingAdmin, canApprove, currentUser?.id]);
+  }, [responseSubmitted, responsePending, responsePendingAdmin, canApprove, currentUser?.id]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
 
   // Mutations
-  const { approveWithBlocking } = useApproveDisbursement();
   const { rejectDisbursement } = useRejectDisbursement();
 
   // Filtered items
@@ -82,12 +92,21 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
     });
   }, [items, search]);
 
-  const handleApprove = async (item: Disbursement) => {
-    try {
-      await approveWithBlocking(item.id);
-    } catch {
-      // Captured by BlockingActionModal
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
     }
+  }, [page, totalPages]);
+
+  const paginatedItems = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredItems.slice(start, start + pageSize);
+  }, [filteredItems, page, pageSize]);
+
+  const handleApprove = (item: Disbursement) => {
+    setApprovingItem(item);
   };
 
   return (
@@ -142,7 +161,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
       ) : (
         /* Items list */
         <div className="grid gap-3" data-testid="pending-queue-items-list">
-          {filteredItems.map((item) => {
+          {paginatedItems.map((item) => {
             const disbNumber =
               item.disbursement_number || item.disbursementNumber || `DISB-${item.id.slice(0, 8)}`;
             const clientName =
@@ -194,10 +213,12 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
                     <span className="flex items-center gap-1">
                       <FileText className="h-3 w-3 text-slate-400" />
                       WR:{' '}
-                      <span className="font-mono">
-                        {item.linked_work_request_name ||
-                          item.linked_work_request_order_number ||
-                          `${(workRequestId || '').slice(0, 8)}...`}
+                      <span className="font-mono" data-testid={`pending-item-wr-${item.id}`}>
+                        {item.linked_work_request_order_number && item.linked_work_request_name
+                          ? `${item.linked_work_request_order_number} — ${item.linked_work_request_name}`
+                          : item.linked_work_request_name ||
+                            item.linked_work_request_order_number ||
+                            'Work Request Linked'}
                       </span>
                     </span>
                   )}
@@ -301,6 +322,42 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
         </div>
       )}
 
+      {/* Pagination Controls */}
+      {filteredItems.length > pageSize && (
+        <div className="flex items-center justify-between px-2 pt-2 text-xs text-slate-600 border-t border-slate-200" data-testid="queue-pagination-bar">
+          <span data-testid="queue-page-info">
+            Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filteredItems.length)} of {filteredItems.length}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              data-testid="queue-prev-page"
+              className="h-7 px-2 text-xs"
+            >
+              Previous
+            </Button>
+            <span data-testid="queue-page-indicator">
+              Page {page} of {totalPages}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              data-testid="queue-next-page"
+              className="h-7 px-2 text-xs"
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Generalized Reject Modal */}
       {rejectingItem && (
         <RejectReasonModal
@@ -319,6 +376,16 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
           invalidateQueries={[disbursementKeys.all]}
           onClose={() => setRejectingItem(null)}
           onSuccess={() => setRejectingItem(null)}
+        />
+      )}
+
+      {/* Admin Direct Approval Modal with Payment Collection */}
+      {approvingItem && (
+        <AdminApprovalModal
+          isOpen={Boolean(approvingItem)}
+          disbursement={approvingItem}
+          onClose={() => setApprovingItem(null)}
+          onSuccess={() => setApprovingItem(null)}
         />
       )}
     </div>

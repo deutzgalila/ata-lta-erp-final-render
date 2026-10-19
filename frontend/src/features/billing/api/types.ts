@@ -151,6 +151,7 @@ export interface CreateLineItemInput {
   description: string;
   amount: number;
   type?: LineItemType;
+  sortOrder?: number;
 }
 
 export interface CreateInvoiceInput {
