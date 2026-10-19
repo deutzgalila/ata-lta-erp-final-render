@@ -93,8 +93,7 @@ it.each([
     expect(html).toContain('Payment Voucher');
     expect(html).toContain('2026-10-15');
     expect(html).toContain('CHK-123');
-    expect(html).toContain('margin: 15mm 20mm');
-    expect(html).toContain('@top-left { content: ""; }');
+    expect(html).toContain('@page { size: A4; margin: 0; padding: 15mm 20mm; }');
     expect(uploadBuffer.mock.calls[0][0].path).toBe(
       `entities/ATA/disbursements/${voucher.id}/pdf/${voucher.disbursement_number}${suffix}.pdf`
     );
