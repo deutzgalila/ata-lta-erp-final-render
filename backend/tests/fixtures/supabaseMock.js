@@ -36,6 +36,7 @@ const mockTables = {
   retainer_template_generations: new Map(),
   ground_workers: new Map(),
   standard_task_templates: new Map(),
+  task_templates: new Map(),
   idempotency_keys: new Map(),
   status_history: new Map(),
   document_sequences: new Map(),
@@ -121,6 +122,11 @@ const registerUser = (user) => {
     preferences: user.preferences || {},
     password_updated_at: user.passwordUpdatedAt || null,
   };
+  if (Array.isArray(user.departments)) {
+    record.user_departments = user.departments.map((deptName) => ({
+      departments: { name: deptName },
+    }));
+  }
   mockUsers.set(token, record);
   mockTokens.set(record.auth_user_id, token);
   mockTables.users.set(id, record);
@@ -294,6 +300,15 @@ const tableQuery = (table) => {
 
   const builder = {
     select: (_columns, options = {}) => {
+      if (table === 'tasks' && _columns) {
+        const cols = String(_columns).split(',').map((x) => x.trim());
+        if (cols.includes('entity_id')) {
+          builder._queryError = {
+            code: '42703',
+            message: 'column tasks.entity_id does not exist',
+          };
+        }
+      }
       if (options.count) {
         countOptions = options;
       }
@@ -462,6 +477,9 @@ const tableQuery = (table) => {
       if (builder._insertError) {
         return Promise.resolve({ data: null, error: builder._insertError });
       }
+      if (builder._queryError) {
+        return Promise.resolve({ data: null, error: builder._queryError });
+      }
       const result = execute();
       return Promise.resolve({ data: result[0] || null, error: null });
     },
@@ -471,6 +489,9 @@ const tableQuery = (table) => {
       }
       if (builder._insertError) {
         return Promise.resolve({ data: null, error: builder._insertError });
+      }
+      if (builder._queryError) {
+        return Promise.resolve({ data: null, error: builder._queryError });
       }
       const result = execute();
       if (result.length === 0) {
@@ -485,6 +506,9 @@ const tableQuery = (table) => {
       if (builder._insertError) {
         return Promise.resolve({ data: null, error: builder._insertError });
       }
+      if (builder._queryError) {
+        return Promise.resolve({ data: null, error: builder._queryError });
+      }
       const result = execute();
       const count = result.length;
       if (options.head) {
@@ -498,6 +522,9 @@ const tableQuery = (table) => {
       }
       if (builder._insertError) {
         return Promise.resolve({ data: null, error: builder._insertError }).then(resolve);
+      }
+      if (builder._queryError) {
+        return Promise.resolve({ data: null, error: builder._queryError }).then(resolve);
       }
       const result = execute();
       const response = { data: result, error: null };
