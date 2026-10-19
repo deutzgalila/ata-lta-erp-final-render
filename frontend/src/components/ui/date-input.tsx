@@ -189,18 +189,26 @@ export const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function D
           actionBar: { actions: required ? ['cancel', 'accept'] : ['clear', 'cancel', 'accept'] },
         }}
         sx={{
-          height: '100%',
           '& .MuiPickersInputBase-root': {
             height: '100%',
-            minHeight: 'inherit',
+            minHeight: 0,
             fontFamily: 'var(--font-sans)',
             fontSize: 'inherit',
-            borderRadius: '8px',
+            lineHeight: 'inherit',
+            borderRadius: 'var(--radius-md, 12px)',
             backgroundColor: 'white',
             color: '#1e293b',
             boxSizing: 'border-box',
+            boxShadow: 'var(--shadow-xs, 0 1px 2px 0 rgba(0, 0, 0, 0.05))',
+            paddingLeft: '12px',
+            paddingRight: '6px',
+            transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
           },
-          '& .MuiPickersSectionList-root': {
+          '& .MuiPickersSectionList-root, & .MuiPickersInputBase-sectionsContainer': {
+            padding: 0,
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
             fontFamily: 'var(--font-sans)',
             fontSize: 'inherit',
             letterSpacing: 'normal',
@@ -220,7 +228,8 @@ export const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function D
             color: '#94a3b8',
           },
           '& .MuiPickersOutlinedInput-notchedOutline': {
-            borderColor: '#e2e8f0',
+            borderColor: '#f0f0f5',
+            borderRadius: 'var(--radius-md, 12px)',
             transition: 'border-color 0.15s ease',
           },
           '&:hover .MuiPickersOutlinedInput-notchedOutline': {
@@ -228,9 +237,28 @@ export const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function D
           },
           '&.Mui-focused .MuiPickersOutlinedInput-notchedOutline, & .MuiPickersInputBase-root.Mui-focused .MuiPickersOutlinedInput-notchedOutline': {
             borderColor: '#2563eb',
-            borderWidth: '1.5px',
+            borderWidth: '2px',
           },
-          '& .MuiIconButton-root': {
+          '&.Mui-error .MuiPickersOutlinedInput-notchedOutline, & .MuiPickersInputBase-root.Mui-error .MuiPickersOutlinedInput-notchedOutline': {
+            borderColor: '#ef4444',
+          },
+          '&.Mui-disabled, & .MuiPickersInputBase-root.Mui-disabled': {
+            cursor: 'not-allowed',
+            opacity: 0.5,
+            backgroundColor: '#f8fafc',
+          },
+          '&.Mui-disabled .MuiPickersOutlinedInput-notchedOutline, & .MuiPickersInputBase-root.Mui-disabled .MuiPickersOutlinedInput-notchedOutline': {
+            borderColor: '#f0f0f5',
+          },
+          '& .MuiInputAdornment-root': {
+            height: '100%',
+            maxHeight: 'none',
+            margin: 0,
+            marginRight: 0,
+          },
+          '& .MuiIconButton-root, & .MuiIconButton-edgeEnd': {
+            margin: 0,
+            marginRight: 0,
             padding: '4px',
             color: '#64748b',
             '&:hover': {
