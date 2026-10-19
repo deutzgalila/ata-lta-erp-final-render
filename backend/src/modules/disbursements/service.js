@@ -130,7 +130,13 @@ const getDisbursementCounts = async ({ entityId, user }) => {
 
   const isAdmin = user?.role === 'Admin';
   const isAccounting =
-    (user?.departments || []).includes('Accounting') || user?.role === 'Accounting';
+    String(user?.role || '').toLowerCase() === 'accounting' ||
+    (user?.departments || []).some((d) => String(d).toLowerCase() === 'accounting');
+  if (!isAdmin && !isAccounting) {
+    if (!user?.id) {
+      return { active: 0, archived: 0, rejected: 0, awaitingRelease: 0 };
+    }
+  }
 
   const runCount = async (query) => {
     const { count, error } = await query;
@@ -151,7 +157,7 @@ const getDisbursementCounts = async ({ entityId, user }) => {
       .in('entity_id', entityIds)
       .is('deleted_at', null);
     if (!isAdmin && !isAccounting) {
-      q = q.or(`requested_by.eq.${user.id},created_by.eq.${user.id}`);
+      q = q.eq('created_by', user.id);
     }
     return q;
   };
@@ -346,9 +352,13 @@ const listDisbursements = async ({ entityId, filters = {}, user }) => {
   // Role restriction and strict voucher ownership (R2 / D1)
   const isAdmin = user?.role === 'Admin';
   const isAccounting =
-    (user?.departments || []).includes('Accounting') || user?.role === 'Accounting';
+    String(user?.role || '').toLowerCase() === 'accounting' ||
+    (user?.departments || []).some((d) => String(d).toLowerCase() === 'accounting');
   if (!isAdmin && !isAccounting) {
-    query = query.or(`requested_by.eq.${user.id},created_by.eq.${user.id}`);
+    if (!user?.id) {
+      return { data: [], count: 0 };
+    }
+    query = query.eq('created_by', user.id);
   }
 
   if (status) query = query.eq('status', status);
@@ -364,9 +374,12 @@ const listDisbursements = async ({ entityId, filters = {}, user }) => {
     query = query.or(`description.ilike.%${search}%,disbursement_number.ilike.%${search}%`);
   }
 
-
-  const offset = (page - 1) * limit;
-  query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+  const effectiveLimit = Number(limit) || 50;
+  const effectiveOffset =
+    filters.offset !== undefined ? Number(filters.offset) : (page - 1) * effectiveLimit;
+  query = query
+    .order('created_at', { ascending: false })
+    .range(effectiveOffset, effectiveOffset + effectiveLimit - 1);
 
   const { data, error, count } = await query;
 
@@ -629,7 +642,7 @@ const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
  * @param {string} params.id
  * @returns {Promise<object>}
  */
-const getDisbursementById = async ({ entityId, id, user }) => {
+const getDisbursementById = async ({ entityId, id, user, internal = false }) => {
   let query = supabaseAdmin
     .from('disbursements')
     .select('*, clients(name)')
@@ -650,15 +663,23 @@ const getDisbursementById = async ({ entityId, id, user }) => {
     });
   }
 
-  // Role restriction & strict ownership enforcement (R2 / D1)
-  if (user) {
+  // Role restriction
+  if (!internal) {
+    if (!user || !user.id) {
+      throw new AppError({
+        statusCode: 401,
+        title: 'Unauthorized',
+        detail: 'Authentication required to view disbursement',
+      });
+    }
+
     const isAdmin = user.role === 'Admin';
     const isAccounting =
-      (user.departments || []).includes('Accounting') || user.role === 'Accounting';
-    const isOwner = data.requested_by === user.id || data.created_by === user.id;
+      String(user.role || '').toLowerCase() === 'accounting' ||
+      (user.departments || []).some((d) => String(d).toLowerCase() === 'accounting');
 
     if (!isAdmin && !isAccounting) {
-      if (!isOwner) {
+      if (data.created_by !== user.id) {
         throw new AppError({
           statusCode: 403,
           title: 'Forbidden',
@@ -692,7 +713,7 @@ const getDisbursementById = async ({ entityId, id, user }) => {
  * @returns {Promise<object>}
  */
 const updateDisbursement = async ({ entityId, id, userId, data, user }) => {
-  const existing = await getDisbursementById({ entityId, id });
+  const existing = await getDisbursementById({ entityId, id, user, internal: true });
 
   if (data.status === 'Approved' && existing.status === 'Draft') {
     return approveDisbursement({ entityId, id, userId, user });
@@ -709,8 +730,8 @@ const updateDisbursement = async ({ entityId, id, userId, data, user }) => {
   }
 
   const isAccountingUser =
-    effectiveUser?.role === 'Accounting' ||
-    (effectiveUser?.departments || []).includes('Accounting');
+    String(effectiveUser?.role || '').toLowerCase() === 'accounting' ||
+    (effectiveUser?.departments || []).some((d) => String(d).toLowerCase() === 'accounting');
   const isAdminUser = effectiveUser?.role === 'Admin';
 
   const financialFields = ['category', 'description', 'amount', 'fundSource'];
@@ -1044,7 +1065,7 @@ const updateDisbursement = async ({ entityId, id, userId, data, user }) => {
  * Archive a disbursement.
  */
 const archiveDisbursement = async ({ entityId, id, userId }) => {
-  const existing = await getDisbursementById({ entityId, id });
+  const existing = await getDisbursementById({ entityId, id, internal: true });
   const { data: updated, error } = await supabaseAdmin
     .from('disbursements')
     .update({ archived: true, updated_by: userId, updated_at: new Date().toISOString() })
@@ -1078,7 +1099,7 @@ const archiveDisbursement = async ({ entityId, id, userId }) => {
  * Unarchive a disbursement.
  */
 const unarchiveDisbursement = async ({ entityId, id, userId }) => {
-  const existing = await getDisbursementById({ entityId, id });
+  const existing = await getDisbursementById({ entityId, id, internal: true });
   const { data: updated, error } = await supabaseAdmin
     .from('disbursements')
     .update({ archived: false, updated_by: userId, updated_at: new Date().toISOString() })
@@ -1179,7 +1200,7 @@ const performTransition = async ({ entityId, id, userId, action, extraUpdates = 
   }
 
   if (!rows || rows.length === 0) {
-    const current = await getDisbursementById({ entityId, id });
+    const current = await getDisbursementById({ entityId, id, internal: true });
     if (!current) {
       throw new AppError({
         statusCode: 404,
@@ -1836,7 +1857,7 @@ const getReceiptUrl = async ({ entityId, id, userId: _userId, user }) => {
  * @returns {Promise<void>}
  */
 const deleteDisbursement = async ({ entityId, id, userId }) => {
-  const existing = await getDisbursementById({ entityId, id });
+  const existing = await getDisbursementById({ entityId, id, internal: true });
   const { error } = await supabaseAdmin
     .from('disbursements')
     .update({ deleted_at: new Date().toISOString(), updated_by: userId })

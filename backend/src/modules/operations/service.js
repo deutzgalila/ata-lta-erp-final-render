@@ -2577,7 +2577,12 @@ const deleteTask = async ({ workRequestId, taskId, entityId }) => {
  * @param {string} params.entityId - Entity UUID
  * @returns {Promise<{ invoices: object[], disbursements: object[], transmittals: object[], documents: object[] }>}
  */
-const getWorkRequestRelated = async ({ id, entityId: _entityId }) => {
+const getWorkRequestRelated = async (arg1, arg2) => {
+  const { id, entityId: _entityId, caller, user } =
+    typeof arg1 === 'object' && arg1 !== null
+      ? arg1
+      : { id: arg1, caller: arg2 };
+
   const { data: wr } = await supabaseAdmin
     .from('work_requests')
     .select('id, entity_id')
@@ -2590,6 +2595,7 @@ const getWorkRequestRelated = async ({ id, entityId: _entityId }) => {
   }
 
   const relatedEntityId = wr.entity_id;
+  const effectiveCaller = caller || user;
 
   const [{ data: invoices }, { data: disbursements }, { data: transmittals }, { data: documents }] =
     await Promise.all([
@@ -2600,13 +2606,25 @@ const getWorkRequestRelated = async ({ id, entityId: _entityId }) => {
         .eq('work_request_id', id)
         .is('deleted_at', null)
         .order('created_at', { ascending: false }),
-      supabaseAdmin
-        .from('disbursements')
-        .select('*, clients(name)')
-        .eq('entity_id', relatedEntityId)
-        .eq('linked_work_request_id', id)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false }),
+      (() => {
+        let q = supabaseAdmin
+          .from('disbursements')
+          .select('*, clients(name)')
+          .eq('entity_id', relatedEntityId)
+          .eq('linked_work_request_id', id)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false });
+        if (effectiveCaller) {
+          const isAdmin = effectiveCaller.role === 'Admin';
+          const isAccounting =
+            String(effectiveCaller.role || '').toLowerCase() === 'accounting' ||
+            (effectiveCaller.departments || []).some((d) => String(d).toLowerCase() === 'accounting');
+          if (!isAdmin && !isAccounting) {
+            q = q.eq('created_by', effectiveCaller.id || '00000000-0000-0000-0000-000000000000');
+          }
+        }
+        return q;
+      })(),
       supabaseAdmin
         .from('transmittals')
         .select('*, clients(name), transmittal_items(*)')
@@ -2631,9 +2649,21 @@ const getWorkRequestRelated = async ({ id, entityId: _entityId }) => {
     };
   });
 
+  const filteredDisbursements = (() => {
+    if (!effectiveCaller) return disbursements || [];
+    const isAdmin = effectiveCaller.role === 'Admin';
+    const isAccounting =
+      String(effectiveCaller.role || '').toLowerCase() === 'accounting' ||
+      (effectiveCaller.departments || []).some((d) => String(d).toLowerCase() === 'accounting');
+    if (!isAdmin && !isAccounting) {
+      return (disbursements || []).filter((d) => d.created_by === effectiveCaller.id);
+    }
+    return disbursements || [];
+  })();
+
   return {
     invoices: invoices || [],
-    disbursements: disbursements || [],
+    disbursements: filteredDisbursements,
     transmittals: mappedTransmittals,
     documents: documents || [],
   };
@@ -2644,12 +2674,16 @@ const getWorkRequestRelated = async ({ id, entityId: _entityId }) => {
  * Because task linkage is stored through the parent work request, the endpoint
  * returns invoices/disbursements for the task's work request; callers filter by
  * linkedTaskId when they need task-scoped records.
- * @param {object} params
- * @param {string} params.id - Task UUID
- * @param {string} params.entityId - Entity UUID
+ * @param {object|string} arg1 - Task UUID or params object
+ * @param {object} [arg2] - Caller user object when arg1 is string
  * @returns {Promise<{ invoices: object[], disbursements: object[] }>}
  */
-const getTaskRelated = async ({ id, entityId }) => {
+const getTaskRelated = async (arg1, arg2) => {
+  const { id, entityId, caller, user } =
+    typeof arg1 === 'object' && arg1 !== null
+      ? arg1
+      : { id: arg1, caller: arg2 };
+
   const { data: task } = await supabaseAdmin
     .from('tasks')
     .select('id, work_request_id')
@@ -2673,6 +2707,7 @@ const getTaskRelated = async ({ id, entityId }) => {
   }
 
   const relatedEntityId = entityId && entityId !== 'ALL' ? entityId : wr.entity_id;
+  const effectiveCaller = caller || user;
 
   const [{ data: invoices }, { data: disbursements }, { data: transmittals }] = await Promise.all([
     supabaseAdmin
@@ -2682,13 +2717,25 @@ const getTaskRelated = async ({ id, entityId }) => {
       .eq('work_request_id', task.work_request_id)
       .is('deleted_at', null)
       .order('created_at', { ascending: false }),
-    supabaseAdmin
-      .from('disbursements')
-      .select('*, clients(name)')
-      .eq('entity_id', relatedEntityId)
-      .eq('linked_work_request_id', task.work_request_id)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false }),
+    (() => {
+      let q = supabaseAdmin
+        .from('disbursements')
+        .select('*, clients(name)')
+        .eq('entity_id', relatedEntityId)
+        .or(`linked_task_id.eq.${id},linked_work_request_id.eq.${task.work_request_id}`)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+      if (effectiveCaller) {
+        const isAdmin = effectiveCaller.role === 'Admin';
+        const isAccounting =
+          String(effectiveCaller.role || '').toLowerCase() === 'accounting' ||
+          (effectiveCaller.departments || []).some((d) => String(d).toLowerCase() === 'accounting');
+        if (!isAdmin && !isAccounting) {
+          q = q.eq('created_by', effectiveCaller.id || '00000000-0000-0000-0000-000000000000');
+        }
+      }
+      return q;
+    })(),
     supabaseAdmin
       .from('transmittals')
       .select('*, clients(name)')
@@ -2698,9 +2745,21 @@ const getTaskRelated = async ({ id, entityId }) => {
       .order('created_at', { ascending: false }),
   ]);
 
+  const filteredDisbursements = (() => {
+    if (!effectiveCaller) return disbursements || [];
+    const isAdmin = effectiveCaller.role === 'Admin';
+    const isAccounting =
+      String(effectiveCaller.role || '').toLowerCase() === 'accounting' ||
+      (effectiveCaller.departments || []).some((d) => String(d).toLowerCase() === 'accounting');
+    if (!isAdmin && !isAccounting) {
+      return (disbursements || []).filter((d) => d.created_by === effectiveCaller.id);
+    }
+    return disbursements || [];
+  })();
+
   return {
     invoices: invoices || [],
-    disbursements: disbursements || [],
+    disbursements: filteredDisbursements,
     transmittals: transmittals || [],
   };
 };
@@ -2709,7 +2768,18 @@ const getTaskRelated = async ({ id, entityId }) => {
 // Retainer Templates
 // ============================================================
 
-const listRetainerTemplates = async ({ entityId, type }) => {
+const listRetainerTemplates = async ({ entityId, type, user }) => {
+  const isPrivileged = user?.role === 'Admin' || user?.role === 'Manager';
+  const requestedType = type ? String(type).toLowerCase() : null;
+
+  if (requestedType === 'retainer' && !isPrivileged) {
+    throw new AppError({
+      statusCode: 403,
+      title: 'Forbidden',
+      detail: 'Only Admin and Managers can access retainer templates',
+    });
+  }
+
   let query = supabaseAdmin
     .from('retainer_templates')
     .select('*, entities(code), clients(name)')
@@ -2720,8 +2790,10 @@ const listRetainerTemplates = async ({ entityId, type }) => {
     query = query.eq('entity_id', entityId);
   }
 
-  if (type) {
-    query = query.eq('template_type', type);
+  if (requestedType) {
+    query = query.eq('template_type', requestedType);
+  } else if (!isPrivileged) {
+    query = query.eq('template_type', 'other');
   }
 
   const { data, error } = await query;
@@ -2853,6 +2925,15 @@ const generateRetainerTemplate = async ({ entityId, templateId, user, data = {} 
       statusCode: 404,
       title: 'Not Found',
       detail: 'Retainer template not found',
+    });
+  }
+
+  const isPrivileged = user?.role === 'Admin' || user?.role === 'Manager';
+  if (template.template_type !== 'other' && !isPrivileged) {
+    throw new AppError({
+      statusCode: 403,
+      title: 'Forbidden',
+      detail: 'Only Admin and Managers can generate from retainer templates',
     });
   }
 

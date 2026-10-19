@@ -45,6 +45,7 @@ const listDisbursements = async (req, res, next) => {
       linkedTransmittalId: req.query.linkedTransmittalId,
       search: req.query.search,
       archived: req.query.archived,
+      offset: req.query.offset !== undefined ? parseInt(req.query.offset, 10) : undefined,
       page: parseInt(req.query.page, 10) || 1,
       limit: Math.min(parseInt(req.query.limit, 10) || 50, 100),
     };
