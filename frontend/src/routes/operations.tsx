@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/api';
 import {
   FileText,
   Clock,
@@ -25,7 +26,6 @@ import { RetainerTemplateModal } from '@/features/admin';
 import { OtherTemplateModal } from '@/features/operations/components/OtherTemplateModal';
 import { OtherTemplateGenerateModal } from '@/features/operations/components/OtherTemplateGenerateModal';
 import { BlockingActionModal } from '@/features/operations/components/BlockingActionModal';
-import { useOperationsRequestCounts } from '@/features/operations/api/usePhaseTransitions';
 import { useWorkRequestCounts } from '@/features/operations/api/useWorkRequests';
 import { useRetainerTemplates, useRetainerMutations } from '@/features/operations/api/useRetainers';
 import { operationsKeys } from '@/features/operations/api/queryKeys';
@@ -34,22 +34,98 @@ import { hasPermission } from '@/lib/permissions';
 import { useEntityRealtimeSync, resolveEntityCodeFromUUID } from '@/lib/realtime';
 import type { WorkRequest, EntityCode, RetainerTemplate } from '@/features/operations/api/types';
 
+export const allowedTabs = ['work-requests', 'templates', 'other-templates', 'pending-approvals', 'archive'];
+export const ALLOWED_TABS = allowedTabs;
+
 export default function OperationsPage() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Session & RBAC
+  const user = useSessionStore((state) => state.user);
+  const permissions = useSessionStore((state) => state.permissions);
+  const activeEntity = useSessionStore((state) => state.activeEntity);
+  const setActiveEntity = useSessionStore((state) => state.setActiveEntity);
+
+  // Permission Checks
+  const canViewModule = hasPermission(permissions, 'workflow:view');
+  const canEdit = hasPermission(permissions, 'workflow:edit');
+  const canUseRetainers = hasPermission(permissions, 'retainers:use');
+  const canEditRetainers = hasPermission(permissions, 'retainers:edit') || user?.role === 'Admin';
+
+  const canAccessRetainerTemplates = Boolean(
+    user?.role === 'Admin' || (user?.role === 'Manager' && canUseRetainers)
+  );
+
+  const isAccounting =
+    String(user?.role || '').toLowerCase() === 'accounting' ||
+    (Array.isArray(user?.departments) &&
+      user.departments.some((d) => String(d).toLowerCase() === 'accounting'));
+
+  // Approval authority check: Admin, Manager, Accounting (for bills/disbursements), or explicit approval permission.
+  // Personal submissions remain accessible for individual users via requestedBy / my-submissions filtering.
+  const canApprove = Boolean(
+    user?.role === 'Admin' ||
+    user?.role === 'Manager' ||
+    isAccounting ||
+    hasPermission(permissions, 'workflow:phase_transition') ||
+    hasPermission(permissions, 'workflow:qa_review') ||
+    hasPermission(permissions, 'workflow:transition_request') ||
+    hasPermission(permissions, 'workflow:task_approve') ||
+    hasPermission(permissions, 'disbursement:approve') ||
+    hasPermission(permissions, 'transmittal:approve') ||
+    hasPermission(permissions, 'approve_change:disbursements') ||
+    hasPermission(permissions, 'approve_change:invoices') ||
+    hasPermission(permissions, 'approve_change:tasks') ||
+    hasPermission(permissions, 'approve_change:*')
+  );
+  const canViewPendingApprovals = canApprove;
+  const hasApprovalAuthority = canViewPendingApprovals;
+
   const rawTab = searchParams.get('tab') || 'work-requests';
-  const activeTab =
-    rawTab === 'pending' || rawTab === 'pending-items' || rawTab === 'pending-approvals'
-      ? 'pending-approvals'
-      : rawTab === 'work-requests' || rawTab === 'requests'
-        ? 'work-requests'
-        : rawTab === 'templates' || rawTab === 'retainer-templates'
-          ? 'retainer-templates'
-          : rawTab === 'other-templates' || rawTab === 'other-template'
-            ? 'other-templates'
-            : rawTab === 'archived' || rawTab === 'archive'
-              ? 'archive'
-              : rawTab;
+  const activeTab = useMemo(() => {
+    if (rawTab === 'pending' || rawTab === 'pending-items' || rawTab === 'pending-approvals') {
+      return hasApprovalAuthority ? 'pending-approvals' : 'work-requests';
+    }
+    if (rawTab === 'templates' || rawTab === 'retainer-templates') {
+      return canAccessRetainerTemplates ? 'retainer-templates' : 'work-requests';
+    }
+    if (rawTab === 'other-templates' || rawTab === 'other-template') {
+      return canUseRetainers ? 'other-templates' : 'work-requests';
+    }
+    if (rawTab === 'archived' || rawTab === 'archive') {
+      return 'archive';
+    }
+    if (rawTab === 'work-requests' || rawTab === 'requests') {
+      return 'work-requests';
+    }
+    return allowedTabs.includes(rawTab) ? rawTab : 'work-requests';
+  }, [rawTab, hasApprovalAuthority, canAccessRetainerTemplates, canUseRetainers]);
+
+  const isPendingApprovalsTab = activeTab === 'pending-approvals';
+
+  useEffect(() => {
+    if (
+      (rawTab === 'pending' || rawTab === 'pending-items' || rawTab === 'pending-approvals') &&
+      !hasApprovalAuthority
+    ) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('tab', 'work-requests');
+        return next;
+      }, { replace: true });
+    } else if (
+      (rawTab === 'templates' || rawTab === 'retainer-templates') &&
+      !canAccessRetainerTemplates
+    ) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('tab', 'work-requests');
+        return next;
+      }, { replace: true });
+    }
+  }, [rawTab, hasApprovalAuthority, canAccessRetainerTemplates, setSearchParams]);
+
   const activeView = searchParams.get('view') || 'list';
 
   // Modal Visibility States
@@ -64,18 +140,6 @@ export default function OperationsPage() {
   const [generateOtherTemplateId, setGenerateOtherTemplateId] = useState<string | null>(null);
 
   const { deleteTemplate } = useRetainerMutations();
-
-  // Session & RBAC
-  const user = useSessionStore((state) => state.user);
-  const permissions = useSessionStore((state) => state.permissions);
-  const activeEntity = useSessionStore((state) => state.activeEntity);
-  const setActiveEntity = useSessionStore((state) => state.setActiveEntity);
-
-  // Permission Checks
-  const canViewModule = hasPermission(permissions, 'workflow:view');
-  const canEdit = hasPermission(permissions, 'workflow:edit');
-  const canUseRetainers = hasPermission(permissions, 'retainers:use');
-  const canEditRetainers = hasPermission(permissions, 'retainers:edit') || user?.role === 'Admin';
 
   // Top-level CDC Subscriptions across all Operations views (List & Board)
   useEntityRealtimeSync({
@@ -95,18 +159,27 @@ export default function OperationsPage() {
     listRootKey: operationsKeys.requests(),
     detailQueryKey: (id) => operationsKeys.requestDetail(id),
     activeEntity,
-    enabled: canViewModule,
+    enabled: Boolean(canViewModule && hasApprovalAuthority),
   });
 
   // Collaborative Realtime CDC Subscriptions for Time Logging across Operations (SPEC-REALTIME-TIME-LOGGING-001)
-  const isTimeLoggingEnabled = Boolean(canViewModule && activeTab !== 'pending-approvals');
+  const isTimeLoggingEnabled = Boolean(canViewModule && !isPendingApprovalsTab);
   useEntityRealtimeSync({ table: 'time_entries', enabled: isTimeLoggingEnabled });
   useEntityRealtimeSync({ table: 'task_time_logs', enabled: isTimeLoggingEnabled });
 
   // Badge Counts Queries
-  const { data: requestCounts } = useOperationsRequestCounts();
+  const { data: requestCounts } = useQuery({
+    queryKey: operationsKeys.requestCounts(activeEntity),
+    queryFn: async () => {
+      const res = await apiRequest<{ data: Record<string, number> }>(
+        '/operations-requests/counts'
+      );
+      return res.data;
+    },
+    enabled: Boolean(canViewModule && hasApprovalAuthority),
+  });
   const { data: wrCounts } = useWorkRequestCounts();
-  const { data: retainerTemplates = [] } = useRetainerTemplates({ enabled: canUseRetainers, type: 'retainer' });
+  const { data: retainerTemplates = [] } = useRetainerTemplates({ enabled: canAccessRetainerTemplates, type: 'retainer' });
   const { data: otherTemplates = [] } = useRetainerTemplates({ enabled: canUseRetainers, type: 'other' });
   const templates = retainerTemplates;
 
@@ -266,14 +339,16 @@ export default function OperationsPage() {
             </TabsTrigger>
 
             {/* Tab 2: Retainer Templates */}
-            <TabsTrigger
-              value="retainer-templates"
-              className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 rounded-none px-1 pb-2 text-xs font-semibold flex items-center gap-1.5 bg-transparent shadow-none"
-              data-testid="tab-retainer-templates"
-            >
-              <Layers className="h-4 w-4" />
-              <span>Retainer Templates ({templates.length})</span>
-            </TabsTrigger>
+            {canAccessRetainerTemplates && (
+              <TabsTrigger
+                value="retainer-templates"
+                className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 rounded-none px-1 pb-2 text-xs font-semibold flex items-center gap-1.5 bg-transparent shadow-none"
+                data-testid="tab-retainer-templates"
+              >
+                <Layers className="h-4 w-4" />
+                <span>Retainer Templates ({templates.length})</span>
+              </TabsTrigger>
+            )}
 
             {/* Tab 2.5: Other Templates */}
             {canUseRetainers && (
@@ -288,24 +363,26 @@ export default function OperationsPage() {
             )}
 
             {/* Tab 3: Pending Approvals */}
-            <TabsTrigger
-              value="pending-approvals"
-              className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 rounded-none px-1 pb-2 text-xs font-semibold flex items-center gap-1.5 bg-transparent shadow-none"
-              data-testid="tab-pending-approvals"
-            >
-              <Clock className="h-4 w-4" />
-              <span>Pending Approvals</span>
-              {pendingApprovalsCount > 0 && (
-                <Badge
-                  variant="warning"
-                  size="compact"
-                  className="font-bold px-1.5"
-                  data-testid="tab-pending-badge"
-                >
-                  {pendingApprovalsCount}
-                </Badge>
-              )}
-            </TabsTrigger>
+            {hasApprovalAuthority && (
+              <TabsTrigger
+                value="pending-approvals"
+                className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 rounded-none px-1 pb-2 text-xs font-semibold flex items-center gap-1.5 bg-transparent shadow-none"
+                data-testid="tab-pending-approvals"
+              >
+                <Clock className="h-4 w-4" />
+                <span>Pending Approvals</span>
+                {pendingApprovalsCount > 0 && (
+                  <Badge
+                    variant="warning"
+                    size="compact"
+                    className="font-bold px-1.5"
+                    data-testid="tab-pending-badge"
+                  >
+                    {pendingApprovalsCount}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            )}
 
             {/* Tab 4: Archive */}
             <TabsTrigger
@@ -384,7 +461,8 @@ export default function OperationsPage() {
         </TabsContent>
 
         {/* Tab 2 Content: Retainer Templates */}
-        <TabsContent value="retainer-templates" className="mt-0">
+        {canAccessRetainerTemplates && (
+          <TabsContent value="retainer-templates" className="mt-0">
           <div className="p-6 bg-white border border-slate-200 rounded-lg space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
@@ -476,6 +554,7 @@ export default function OperationsPage() {
             </div>
           </div>
         </TabsContent>
+        )}
 
         {/* Tab 2.5 Content: Other Templates */}
         {canUseRetainers && (
@@ -629,18 +708,20 @@ export default function OperationsPage() {
         )}
 
         {/* Tab 3 Content: Pending Approvals Inbox */}
-        <TabsContent value="pending-approvals" className="mt-0">
-          <PendingApprovalsInbox
-            onNavigateToWr={(wrId) => {
-              setSearchParams((prev) => {
-                const next = new URLSearchParams(prev);
-                next.set('tab', 'work-requests');
-                next.set('wrId', wrId);
-                return next;
-              });
-            }}
-          />
-        </TabsContent>
+        {hasApprovalAuthority && (
+          <TabsContent value="pending-approvals" className="mt-0">
+            <PendingApprovalsInbox
+              onNavigateToWr={(wrId) => {
+                setSearchParams((prev) => {
+                  const next = new URLSearchParams(prev);
+                  next.set('tab', 'work-requests');
+                  next.set('wrId', wrId);
+                  return next;
+                });
+              }}
+            />
+          </TabsContent>
+        )}
 
         {/* Tab 4 Content: Operations Archive */}
         <TabsContent value="archive" className="mt-0">

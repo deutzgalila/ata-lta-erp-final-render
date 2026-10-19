@@ -51,6 +51,8 @@ import { useWorkRequestTasks } from '@/features/operations/api/useTasks';
 import { useCreateTransmittal, useUpdateTransmittal } from '../api/useTransmittals';
 import { DOCUMENT_CATEGORIES } from '../api/schemas';
 import type { Transmittal, CreateTransmittalItemInput } from '../api/types';
+import { useSessionStore } from '@/lib/session';
+import { isTaskAssignee, isUserAdmin } from '@/features/operations/lib/taskScope';
 
 /**
  * Frozen Financial Prefill Contract (UAT2-7-contract-side)
@@ -84,6 +86,14 @@ export function TransmittalFormModal({
   prefill,
 }: TransmittalFormModalProps) {
   const isEditMode = Boolean(transmittalToEdit);
+
+  const user = useSessionStore((state) => state.user);
+  const isAdmin = isUserAdmin(user);
+  const isDocUser = !isAdmin && Boolean(
+    (Array.isArray(user?.departments) &&
+      user.departments.some((d) => String(d).toLowerCase() === 'documentation')) ||
+    String(user?.role || '').toLowerCase() === 'documentation'
+  );
 
   const createMutation = useCreateTransmittal();
   const updateMutation = useUpdateTransmittal();
@@ -125,6 +135,14 @@ export function TransmittalFormModal({
     enabled: isOpen && Boolean(workRequestId),
   });
   const tasks = tasksData || [];
+
+  // Filter available tasks: For Documentation users, only tasks where caller is assigned
+  const availableTasks = React.useMemo(() => {
+    if (isDocUser) {
+      return tasks.filter((task) => isTaskAssignee(user, task));
+    }
+    return tasks;
+  }, [tasks, isDocUser, user]);
 
   // Reset or Populate form on open/change
   useEffect(() => {
@@ -273,6 +291,10 @@ export function TransmittalFormModal({
     const invalidRow = items.find((i) => !i.description.trim());
     if (invalidRow) {
       newErrors.items = 'All document rows must have a valid description';
+    }
+
+    if (isDocUser && !selectedTaskId) {
+      newErrors.selectedTaskId = 'Task selection is required for Documentation users';
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -430,18 +452,27 @@ export function TransmittalFormModal({
               )}
             </div>
 
-            {/* Linked Task (Optional) */}
+            {/* Linked Task */}
             <div className="space-y-1.5 md:col-span-2">
               <Label
                 htmlFor="workRequestTask"
                 className="text-xs font-semibold flex items-center gap-1 text-slate-700"
               >
                 <Briefcase className="h-3.5 w-3.5" />
-                Linked Task (Optional)
+                Linked Task {isDocUser ? '*' : '(Optional)'}
               </Label>
               <Select
-                value={selectedTaskId || '__none__'}
-                onValueChange={(val) => setSelectedTaskId(val === '__none__' ? '' : val)}
+                value={selectedTaskId || (isDocUser ? undefined : '__none__')}
+                onValueChange={(val) => {
+                  setSelectedTaskId(val === '__none__' ? '' : val);
+                  if (errors.selectedTaskId) {
+                    setErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.selectedTaskId;
+                      return next;
+                    });
+                  }
+                }}
                 disabled={isTaskLocked || !workRequestId}
               >
                 <SelectTrigger id="workRequestTask" className="text-xs" data-testid="task-select">
@@ -449,19 +480,31 @@ export function TransmittalFormModal({
                     placeholder={
                       !workRequestId
                         ? 'Select work request first...'
-                        : 'Select linked task (optional)...'
+                        : isDocUser
+                          ? availableTasks.length === 0
+                            ? 'No assigned tasks available'
+                            : 'Select linked task (required)...'
+                          : 'Select linked task (optional)...'
                     }
                   />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">None (No linked task)</SelectItem>
-                  {tasks.map((task) => (
+                  <SelectItem value="__none__" disabled={isDocUser}>
+                    None (No linked task)
+                  </SelectItem>
+                  {availableTasks.map((task) => (
                     <SelectItem key={task.id} value={task.id}>
                       {task.title}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {errors.selectedTaskId && (
+                <p className="text-[11px] text-rose-600 flex items-center gap-1" data-testid="task-error-message">
+                  <AlertCircle className="h-3 w-3" />
+                  {errors.selectedTaskId}
+                </p>
+              )}
             </div>
 
             {/* Recipient Person Name */}

@@ -23,6 +23,24 @@ export function isTaskAssignee(user: UserProfile | null | undefined, task: Task 
   return false;
 }
 
+export function isUserDocumentation(user: UserProfile | null | undefined): boolean {
+  if (!user) return false;
+  return (
+    String(user.role || '').toLowerCase() === 'documentation' ||
+    (Array.isArray(user.departments) &&
+      user.departments.some((d) => String(d).toLowerCase() === 'documentation'))
+  );
+}
+
+export function isUserAccounting(user: UserProfile | null | undefined): boolean {
+  if (!user) return false;
+  return (
+    String(user.role || '').toLowerCase() === 'accounting' ||
+    (Array.isArray(user.departments) &&
+      user.departments.some((d) => String(d).toLowerCase() === 'accounting'))
+  );
+}
+
 /**
  * Checks if a user is part of the parent Work Request:
  * - Lead manager/assignee on the WR
@@ -54,7 +72,11 @@ export function isUserAdmin(user: UserProfile | null | undefined): boolean {
  */
 export function isManagerWithOperations(user: UserProfile | null | undefined): boolean {
   if (!user) return false;
-  return user.role === 'Manager' && Array.isArray(user.departments) && user.departments.includes('Operations');
+  return (
+    user.role === 'Manager' &&
+    Array.isArray(user.departments) &&
+    user.departments.some((d) => String(d).toLowerCase() === 'operations')
+  );
 }
 
 /**
@@ -99,7 +121,7 @@ export function canLinkInvoice(
   if (!user) return false;
   if (isUserAdmin(user)) return true;
   if (isTaskAssignee(user, task)) return true;
-  const isAccounting = Array.isArray(user.departments) && user.departments.includes('Accounting');
+  const isAccounting = isUserAccounting(user);
   if (isAccounting && isWrTeamMember(user, workRequest, tasks)) return true;
   return false;
 }
@@ -124,26 +146,26 @@ export function canLinkDisbursement(
  * Linking Transmittal:
  * Allowed for:
  * 1. Admin
- * 2. Assigned employee on the task
- * 3. Documentation users who are part of the Work Request
+ * 2. Assigned employee on the task (Documentation users strictly require isTaskAssignee; no WR fallback)
  */
 export function canLinkTransmittal(
   user: UserProfile | null | undefined,
   task: Task | null | undefined,
-  workRequest: WorkRequest | null | undefined,
-  tasks: Task[] = []
+  _workRequest?: WorkRequest | null | undefined,
+  _tasks: Task[] = []
 ): boolean {
-  if (!user) return false;
+  if (!user || !task) return false;
   if (isUserAdmin(user)) return true;
-  if (isTaskAssignee(user, task)) return true;
-  const isDocumentation = Array.isArray(user.departments) && user.departments.includes('Documentation');
-  if (isDocumentation && isWrTeamMember(user, workRequest, tasks)) return true;
-  return false;
+  if (isUserDocumentation(user)) {
+    return isTaskAssignee(user, task);
+  }
+  return isTaskAssignee(user, task);
 }
 
 /**
  * Request Invoice from Accounting:
  * Allowed for Operations, HR, Management, or assigned employee when invoice is needed.
+ * Non-Admin accounts with effective Documentation membership cannot request invoice billing.
  */
 export function canRequestInvoice(
   user: UserProfile | null | undefined,
@@ -153,12 +175,18 @@ export function canRequestInvoice(
 ): boolean {
   if (!user || !task) return false;
   if (isUserAdmin(user)) return false; // Admin links directly
-  const isAccounting = Array.isArray(user.departments) && user.departments.includes('Accounting');
+  const isAccounting = isUserAccounting(user);
   if (isAccounting) return false; // Accounting links directly
 
-  const hasAllowedDept = (user.departments || []).some((d) =>
-    ['Operations', 'HR', 'Management'].includes(d)
-  ) || user.role === 'Manager' || user.role === 'Staff';
+  // Non-Admin Documentation cannot request invoice billing (even if assigned or in Operations)
+  if (isUserDocumentation(user)) return false;
+
+  const allowedDepts = ['operations', 'hr', 'management'];
+  const hasAllowedDept =
+    (Array.isArray(user.departments) &&
+      user.departments.some((d) => allowedDepts.includes(String(d).toLowerCase()))) ||
+    user.role === 'Manager' ||
+    user.role === 'Staff';
 
   return isTaskAssignee(user, task) || (hasAllowedDept && isWrTeamMember(user, workRequest, tasks));
 }
@@ -175,12 +203,14 @@ export function canRequestTransmittal(
 ): boolean {
   if (!user || !task) return false;
   if (isUserAdmin(user)) return false; // Admin links directly
-  const isDoc = Array.isArray(user.departments) && user.departments.includes('Documentation');
-  if (isDoc) return false; // Documentation links directly
+  if (isUserDocumentation(user)) return false; // Documentation links directly
 
-  const hasAllowedDept = (user.departments || []).some((d) =>
-    ['Operations', 'HR', 'Management'].includes(d)
-  ) || user.role === 'Manager' || user.role === 'Staff';
+  const allowedDepts = ['operations', 'hr', 'management'];
+  const hasAllowedDept =
+    (Array.isArray(user.departments) &&
+      user.departments.some((d) => allowedDepts.includes(String(d).toLowerCase()))) ||
+    user.role === 'Manager' ||
+    user.role === 'Staff';
 
   return isTaskAssignee(user, task) || (hasAllowedDept && isWrTeamMember(user, workRequest, tasks));
 }

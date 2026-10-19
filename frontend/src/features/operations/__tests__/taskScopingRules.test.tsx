@@ -156,7 +156,7 @@ describe('Task Scoping Utility Unit Tests (taskScope.ts)', () => {
     expect(canUploadTaskDocument(userDocTeam, mockTask)).toBe(false);
   });
 
-  it('enforces billing invoice permissions (Admin, assigned, Accounting in WR; others request)', () => {
+  it('enforces billing invoice permissions (Admin/Accounting direct, non-Admin Doc denied, others request)', () => {
     // Direct link
     expect(canLinkInvoice(userAdmin, mockTask, mockWr, [mockTask])).toBe(true);
     expect(canLinkInvoice(userAssignedStaff, mockTask, mockWr, [mockTask])).toBe(true);
@@ -167,18 +167,47 @@ describe('Task Scoping Utility Unit Tests (taskScope.ts)', () => {
     expect(canRequestInvoice(userUnassignedManager, mockTask, mockWr, [mockTask])).toBe(false); // Unassigned manager not in WR
     expect(canRequestInvoice(userAccountingTeam, mockTask, mockWr, [mockTask])).toBe(false); // Accounting links directly
     expect(canRequestInvoice(userAdmin, mockTask, mockWr, [mockTask])).toBe(false); // Admin links directly
+
+    // Documentation users strictly denied invoice requests
+    expect(canRequestInvoice(userDocTeam, mockTask, mockWr, [mockTask])).toBe(false);
+
+    // Documentation user assigned to task is still denied invoice request
+    const userDocAssigned: UserProfile = {
+      ...userDocTeam,
+      id: 'emp-assigned-1',
+    };
+    expect(canRequestInvoice(userDocAssigned, mockTask, mockWr, [mockTask])).toBe(false);
+
+    // Multi-department user with Documentation + Operations is still denied invoice request
+    const userDocAndOps: UserProfile = {
+      ...userAssignedStaff,
+      departments: ['Operations', 'Documentation'],
+    };
+    expect(canRequestInvoice(userDocAndOps, mockTask, mockWr, [mockTask])).toBe(false);
+
+    // Assigned staff without Documentation CAN request invoice
+    expect(canRequestInvoice(userAssignedStaff, mockTask, mockWr, [mockTask])).toBe(true);
   });
 
-  it('enforces transmittal permissions (Admin, assigned, Documentation in WR; others request)', () => {
+  it('enforces transmittal permissions (Admin and assigned can link; Doc requires task assignee, no WR fallback)', () => {
     // Direct link
     expect(canLinkTransmittal(userAdmin, mockTask, mockWr, [mockTask])).toBe(true);
     expect(canLinkTransmittal(userAssignedStaff, mockTask, mockWr, [mockTask])).toBe(true);
-    expect(canLinkTransmittal(userDocTeam, mockTask, mockWr, [mockTask])).toBe(true);
+    // Unassigned Documentation user in WR is NOT allowed (no WR fallback)
+    expect(canLinkTransmittal(userDocTeam, mockTask, mockWr, [mockTask])).toBe(false);
     expect(canLinkTransmittal(userUnassignedManager, mockTask, mockWr, [mockTask])).toBe(false);
+
+    // Assigned Documentation user CAN link transmittal
+    const userDocAssigned: UserProfile = {
+      ...userDocTeam,
+      id: 'emp-assigned-1',
+    };
+    expect(canLinkTransmittal(userDocAssigned, mockTask, mockWr, [mockTask])).toBe(true);
 
     // Request from documentation
     expect(canRequestTransmittal(userDocTeam, mockTask, mockWr, [mockTask])).toBe(false); // Doc links directly
     expect(canRequestTransmittal(userAdmin, mockTask, mockWr, [mockTask])).toBe(false); // Admin links directly
+    expect(canRequestTransmittal(userAssignedStaff, mockTask, mockWr, [mockTask])).toBe(true); // Assigned staff can request transmittal
   });
 
   it('enforces disbursement permissions (Admin or assigned employee with permission)', () => {
