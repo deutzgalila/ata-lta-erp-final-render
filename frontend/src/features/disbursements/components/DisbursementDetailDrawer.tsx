@@ -1,3 +1,4 @@
+import { DisbursementEditModal } from './DisbursementEditModal';
 import { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -83,6 +84,8 @@ export function DisbursementDetailDrawer({
   const { rejectDisbursement } = useRejectDisbursement();
   const { fundWithBlocking } = useFundDisbursement();
 
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isInlineEditing, setIsInlineEditing] = useState(false);
   const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -121,6 +124,7 @@ export function DisbursementDetailDrawer({
     setImageLoadError(false);
   }, [receiptData?.url]);
 
+  useEffect(() => { setIsEditModalOpen(false); setIsInlineEditing(false); }, [effectiveId, isOpen]);
   if (!isOpen) return null;
 
   const handleSubmit = async () => {
@@ -213,6 +217,13 @@ export function DisbursementDetailDrawer({
           </div>
         ) : (
           <div className="space-y-5 text-xs text-[#0A0A0A]">
+            {user?.role === 'Admin' && <div className="space-y-3">
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setIsEditModalOpen(true)} data-testid="edit-disbursement-button"><Pencil className="w-4 h-4" />Edit Voucher</Button>
+                <Button variant="outline" size="sm" onClick={() => setIsInlineEditing(!isInlineEditing)}>{isInlineEditing ? 'Close inline editor' : 'Edit inline'}</Button>
+              </div>
+              {isInlineEditing && <DisbursementEditModal inline isOpen disbursement={item} onClose={() => setIsInlineEditing(false)} />}
+            </div>}
             {/* Rejection Alert Banner */}
             {item.status === 'Rejected' && (
               <div
@@ -684,6 +695,7 @@ export function DisbursementDetailDrawer({
           </div>
         )}
 
+        {item && user?.role === 'Admin' && isEditModalOpen && <DisbursementEditModal isOpen disbursement={item} onClose={() => setIsEditModalOpen(false)} />}
         {/* Print Modal */}
         {item && (
           <DisbursementPrintModal

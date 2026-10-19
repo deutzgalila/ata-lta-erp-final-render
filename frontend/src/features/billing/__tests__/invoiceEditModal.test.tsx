@@ -106,7 +106,9 @@ describe('InvoiceEditModal Component (R4 / D3)', () => {
           status: 200,
           headers: new Headers({ 'content-type': 'application/json' }),
           json: async () => ({
-            data: [{ id: 'wr-11111111-1111-1111-1111-111111111111', title: 'Corporate Retainer WR' }],
+            data: [
+              { id: 'wr-11111111-1111-1111-1111-111111111111', title: 'Corporate Retainer WR' },
+            ],
           }),
         };
       }
@@ -121,14 +123,9 @@ describe('InvoiceEditModal Component (R4 / D3)', () => {
 
   it('renders prefilled form fields, line items, and live financial calculations', async () => {
     const { wrapper } = createHarness();
-    render(
-      <InvoiceEditModal
-        isOpen={true}
-        onClose={() => {}}
-        invoice={mockDraftInvoice}
-      />,
-      { wrapper }
-    );
+    render(<InvoiceEditModal isOpen={true} onClose={() => {}} invoice={mockDraftInvoice} />, {
+      wrapper,
+    });
 
     expect(screen.getByTestId('invoice-edit-modal')).toBeInTheDocument();
     expect(screen.getByTestId('input-edit-invoice-number')).toHaveValue('ATA-SI-2026-0042');
@@ -155,21 +152,18 @@ describe('InvoiceEditModal Component (R4 / D3)', () => {
 
   it('supports dynamic line item operations: add, remove, and reorder', async () => {
     const { wrapper } = createHarness();
-    render(
-      <InvoiceEditModal
-        isOpen={true}
-        onClose={() => {}}
-        invoice={mockDraftInvoice}
-      />,
-      { wrapper }
-    );
+    render(<InvoiceEditModal isOpen={true} onClose={() => {}} invoice={mockDraftInvoice} />, {
+      wrapper,
+    });
 
     // Add item
     fireEvent.click(screen.getByTestId('btn-add-line-item'));
     expect(screen.getByTestId('line-item-row-2')).toBeInTheDocument();
 
     // Type description and amount for new item
-    fireEvent.change(screen.getByTestId('line-item-desc-2'), { target: { value: 'Documentary Stamp Tax' } });
+    fireEvent.change(screen.getByTestId('line-item-desc-2'), {
+      target: { value: 'Documentary Stamp Tax' },
+    });
     fireEvent.change(screen.getByTestId('line-item-amount-2'), { target: { value: '5000' } });
 
     expect(screen.getByTestId('edit-calc-total')).toHaveTextContent('₱30,000.00');
@@ -185,20 +179,58 @@ describe('InvoiceEditModal Component (R4 / D3)', () => {
     expect(screen.getByTestId('line-item-desc-1')).toHaveValue('Corporate Secretarial Services');
   });
 
-  it('restricts financial edits and line items on non-Draft invoices', async () => {
+  it.each([false, true])(
+    'allows admins to persist released invoice fields in modal/inline mode (%s)',
+    async (inline) => {
+      let payload: Record<string, unknown> | undefined;
+      const originalFetch = global.fetch;
+      global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+        if (init?.method === 'PATCH') {
+          payload = JSON.parse(String(init.body));
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ data: { ...mockNonDraftInvoice, version: 5 } }),
+          };
+        }
+        return originalFetch(url, init);
+      });
+      const { wrapper } = createHarness();
+      render(
+        <InvoiceEditModal inline={inline} isOpen invoice={mockNonDraftInvoice} onClose={vi.fn()} />,
+        { wrapper }
+      );
+      expect(screen.getByTestId('line-item-amount-0')).toBeEnabled();
+      fireEvent.change(screen.getByTestId('line-item-amount-0'), { target: { value: '18000' } });
+      fireEvent.change(screen.getByLabelText('Noted by'), { target: { value: 'R. Cruz' } });
+      fireEvent.change(screen.getByLabelText('Prepared by'), { target: { value: 'M. Santos' } });
+      fireEvent.change(screen.getByLabelText('Received by'), { target: { value: 'L. Tan' } });
+      fireEvent.change(screen.getByLabelText('Bank / branch'), { target: { value: 'BDO Manila' } });
+      fireEvent.click(screen.getByTestId('btn-save-invoice-edit'));
+      await waitFor(() => expect(payload).toBeDefined());
+      expect(payload!.expectedVersion).toBe(4);
+      expect(payload!.printDetails).toMatchObject({
+        notedBy: 'R. Cruz',
+        preparedBy: 'M. Santos',
+        receivedBy: 'L. Tan',
+        bankBranch: 'BDO Manila',
+      });
+      expect((payload!.lineItems as Array<{ amount: number }>)[0]!.amount).toBe(18000);
+    }
+  );
+
+  it('restricts non-admin financial edits and line items on non-Draft invoices', async () => {
+    useSessionStore.setState((state) => ({ user: { ...state.user!, role: 'Accounting' } }));
     const { wrapper } = createHarness();
-    render(
-      <InvoiceEditModal
-        isOpen={true}
-        onClose={() => {}}
-        invoice={mockNonDraftInvoice}
-      />,
-      { wrapper }
-    );
+    render(<InvoiceEditModal isOpen={true} onClose={() => {}} invoice={mockNonDraftInvoice} />, {
+      wrapper,
+    });
 
     // Warning banner displayed
     expect(screen.getByTestId('non-draft-warning')).toBeInTheDocument();
-    expect(screen.getByTestId('non-draft-warning')).toHaveTextContent(/Financial fields and line items can only be modified while invoice is in Draft status/i);
+    expect(screen.getByTestId('non-draft-warning')).toHaveTextContent(
+      /Financial fields and line items can only be modified while invoice is in Draft status/i
+    );
 
     // Financial inputs disabled
     expect(screen.getByTestId('input-edit-invoice-number')).toBeDisabled();
@@ -338,14 +370,9 @@ describe('InvoiceEditModal Component (R4 / D3)', () => {
     });
 
     const { wrapper } = createHarness();
-    render(
-      <InvoiceEditModal
-        isOpen={true}
-        onClose={() => {}}
-        invoice={mockDraftInvoice}
-      />,
-      { wrapper }
-    );
+    render(<InvoiceEditModal isOpen={true} onClose={() => {}} invoice={mockDraftInvoice} />, {
+      wrapper,
+    });
 
     // Modify a line item
     fireEvent.change(screen.getByTestId('line-item-desc-0'), {
@@ -366,11 +393,7 @@ describe('InvoiceEditModal Component (R4 / D3)', () => {
   it('integrates with InvoiceDetailModal via Edit Invoice button for Draft status', async () => {
     const { wrapper } = createHarness();
     render(
-      <InvoiceDetailModal
-        isOpen={true}
-        onClose={() => {}}
-        initialInvoice={mockDraftInvoice}
-      />,
+      <InvoiceDetailModal isOpen={true} onClose={() => {}} initialInvoice={mockDraftInvoice} />,
       { wrapper }
     );
 

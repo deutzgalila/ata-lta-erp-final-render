@@ -260,8 +260,8 @@ export async function recordPaymentAction(
   });
 }
 
-export async function fetchInvoicePdfUrl(id: string): Promise<string> {
-  const res = await apiRequest<{ data: { url: string } }>(`/invoices/${id}/pdf`);
+export async function fetchInvoicePdfUrl(id: string, includeCompanyDetails = true): Promise<string> {
+  const res = await apiRequest<{ data: { url: string } }>(`/invoices/${id}/pdf?includeCompanyDetails=${includeCompanyDetails}`);
   return res.data.url;
 }
 
