@@ -116,10 +116,8 @@ export function getInvoicePrintDetails(inv: StatementPrintInvoice): InvoicePrint
 
 export const STATEMENT_CSS = `
 * { box-sizing: border-box; }
-@page { size: A4; margin: 15mm 20mm;
-  @top-left { content: ""; } @top-center { content: ""; } @top-right { content: ""; }
-  @bottom-left { content: ""; } @bottom-center { content: ""; } @bottom-right { content: ""; }
-}
+/* Zero margins suppress browser headers/footers; page padding repeats on every sheet. */
+@page { size: A4; margin: 0; padding: 15mm 20mm; }
 body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #000; box-sizing: border-box; max-width: 210mm; margin: 0 auto; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
 /* Generic Header Styles */
@@ -188,7 +186,6 @@ body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; line-height:
 .footer-container { margin-top: 30px; text-align: center; }
 .thank-you { font-size: 11pt; font-weight: 700; letter-spacing: 1px; margin-bottom: 4px; }
 .footer-text { font-size: 9pt; font-weight: bold; }
-.footer-text.underline { text-decoration: underline; }
 
 .vat-breakdown { background: #f8fafc; padding: 12px; border-radius: 12px; margin-top: 12px; font-size: 9pt; border: 1px solid #cbd5e1; }
 .vat-breakdown p { margin: 2px 0; }
@@ -355,7 +352,7 @@ export function buildStatementDocument(
     `<div class="footer-container"><div class="thank-you">THANK YOU !!!</div>` +
     (!includeCompanyDetails || entity === 'ATA'
       ? `<div class="footer-text">customer's copy</div>`
-      : `<div class="footer-text underline">Should you have any enquiries concerning this statement, please contact us on 742-8582/404-4928</div>`) +
+      : '') +
     `</div>`;
 
   const notesHtml = inv.notes

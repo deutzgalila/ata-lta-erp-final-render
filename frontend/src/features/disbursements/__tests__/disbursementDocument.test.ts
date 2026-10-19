@@ -82,7 +82,7 @@ describe('Canonical expense document', () => {
   ])('keeps amount words consistent with currency rounding (%s)', (value, expected) =>
     expect(disbursementAmountInWords(Number(value))).toBe(expected)
   );
-  it('prints only the canonical document with blank corners and A4 margins', async () => {
+  it('prints the canonical document without browser headers/footers and with page padding', async () => {
     const write = vi.fn();
     const print = vi.fn();
     vi.spyOn(window, 'open').mockReturnValue({
@@ -96,8 +96,6 @@ describe('Canonical expense document', () => {
     expect(write.mock.calls[0]![0]).toContain(buildDisbursementDocument(item, { noLogo: true }));
     expect(write.mock.calls[0]![0]).not.toContain('Print Document');
     expect(print).toHaveBeenCalledOnce();
-    expect(DISBURSEMENT_PAGE_CSS).toContain('margin: 15mm 20mm');
-    for (const corner of ['top-left', 'top-right', 'bottom-left', 'bottom-right'])
-      expect(DISBURSEMENT_PAGE_CSS).toContain(`@${corner} { content: ""; }`);
+    expect(DISBURSEMENT_PAGE_CSS).toContain('@page { size: A4; margin: 0; padding: 15mm 20mm; }');
   });
 });
