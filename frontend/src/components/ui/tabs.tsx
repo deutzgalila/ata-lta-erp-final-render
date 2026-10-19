@@ -13,7 +13,7 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      'inline-flex items-center justify-start rounded-none bg-[#EAE8E3] p-0 text-[#4A4945] border border-[#0A0A0A] border-b-2 overflow-x-auto max-w-full w-full gap-0 h-auto',
+      'inline-flex items-center justify-start rounded-[8px] bg-[#F1F5F9] p-1 text-[#475569] border border-[#CBD5E1] overflow-x-auto scrollbar-none max-w-full w-full gap-1 h-auto',
       density === 'compact' ? 'min-h-[34px]' : 'min-h-[40px]',
       className
     )}
@@ -31,8 +31,8 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      'inline-flex items-center justify-center whitespace-nowrap rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold tracking-wider text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E61919] disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 select-none',
-      density === 'compact' ? 'px-3 py-1.5' : 'px-4 py-2.5',
+      'inline-flex items-center justify-center whitespace-nowrap rounded-[6px] text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1D4ED8] disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-[background-color,color,box-shadow] duration-150 cursor-pointer shrink-0 select-none',
+      density === 'compact' ? 'px-3 py-1.5' : 'px-3.5 py-2',
       className
     )}
     {...props}
@@ -47,7 +47,7 @@ const TabsContent = React.forwardRef<
   <TabsPrimitive.Content
     ref={ref}
     className={cn(
-      'mt-4 ring-offset-[#F4F4F0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E61919]',
+      'mt-4 ring-offset-[#F8FAFC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1D4ED8]',
       className
     )}
     {...props}

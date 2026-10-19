@@ -67,30 +67,30 @@ export default function LoginPage() {
 
   return (
     <div
-      className="flex min-h-screen w-full items-center justify-center p-4 sm:p-6 bg-[#F4F4F0]"
+      className="flex min-h-screen w-full items-center justify-center p-4 sm:p-6 bg-[#F8FAFC]"
       data-testid="login-page"
     >
       <div className="w-full max-w-md">
         {/* Brand Header */}
         <div className="text-center mb-6">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-none bg-[#0A0A0A] text-[#FAF9F5] font-black text-xl border-2 border-[#0A0A0A] shadow-[4px_4px_0px_#0A0A0A] mb-3">
+          <div className="inline-flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#1E3A8A] text-[#FFFFFF] font-bold text-xl shadow-card mb-3">
             ERP
           </div>
-          <h1 className="text-3xl font-black text-[#0A0A0A] uppercase tracking-tight font-display">
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#0F172A] tracking-tight">
             ATA &amp; LTA ERP
           </h1>
-          <p className="font-mono text-xs font-semibold uppercase tracking-wider text-[#4A4945] mt-1">
-            ENTERPRISE LEDGER &bull; AUTHENTICATION DOSSIER
+          <p className="text-xs sm:text-sm text-[#475569] mt-1">
+            Enterprise Ledger &bull; Institutional Access
           </p>
         </div>
 
-        <Card className="border-2 border-[#0A0A0A] shadow-[6px_6px_0px_#0A0A0A] bg-[#FAF9F5] rounded-none p-0">
-          <CardHeader className="space-y-1 p-6 border-b border-[#0A0A0A] bg-[#EAE8E3]">
-            <CardTitle className="text-lg font-bold uppercase tracking-tight text-[#0A0A0A]">
-              Security Access Control
+        <Card className="border border-[#CBD5E1] shadow-float bg-[#FFFFFF] rounded-[12px] p-0 overflow-hidden">
+          <CardHeader className="space-y-1 p-6 border-b border-[#CBD5E1] bg-[#F1F5F9]">
+            <CardTitle className="text-lg font-semibold tracking-tight text-[#0F172A]">
+              Sign in to your account
             </CardTitle>
-            <CardDescription className="font-mono text-xs text-[#4A4945]">
-              ENTER AUTHORIZED CREDENTIALS TO INITIALIZE SESSION
+            <CardDescription className="text-xs sm:text-sm text-[#475569]">
+              Enter your corporate credentials to access the ledger
             </CardDescription>
           </CardHeader>
           <form onSubmit={handleLogin}>
@@ -98,26 +98,26 @@ export default function LoginPage() {
               {error && (
                 <div
                   data-testid="login-error"
-                  className="flex items-center gap-2 rounded-none bg-[#FCE8E8] p-3 text-xs font-mono text-[#A81212] border border-[#E61919]"
+                  className="flex items-center gap-2 rounded-[6px] bg-[#FEF2F2] p-3 text-xs text-[#991B1B] border border-[#FCA5A5]"
                 >
-                  <AlertCircle className="h-4 w-4 shrink-0 text-[#E61919]" />
+                  <AlertCircle className="h-4 w-4 shrink-0 text-[#DC2626]" />
                   <span>{error}</span>
                 </div>
               )}
 
               <div className="space-y-1.5">
-                <label className="font-mono text-xs font-semibold uppercase tracking-wider text-[#0A0A0A]" htmlFor="email">
-                  Operator Identity (Email)
+                <label className="text-xs font-semibold text-[#0F172A]" htmlFor="email">
+                  Email Address
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-2.5 h-4 w-4 text-[#4A4945]" />
+                  <Mail className="absolute left-3 top-2.5 h-4 w-4 text-[#64748B]" />
                   <Input
                     id="email"
                     type="email"
                     placeholder="user@ata-lta.ph"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-9 rounded-none border border-[#111111] bg-[#FFFFFF] font-mono text-xs"
+                    className="pl-9"
                     data-testid="login-email"
                     required
                   />
@@ -125,25 +125,25 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="font-mono text-xs font-semibold uppercase tracking-wider text-[#0A0A0A]" htmlFor="password">
-                  Security Passkey
+                <label className="text-xs font-semibold text-[#0F172A]" htmlFor="password">
+                  Password
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-[#4A4945]" />
+                  <Lock className="absolute left-3 top-2.5 h-4 w-4 text-[#64748B]" />
                   <Input
                     id="password"
                     type={showPassword ? 'text' : 'password'}
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-9 pr-10 rounded-none border border-[#111111] bg-[#FFFFFF] font-mono text-xs"
+                    className="pl-9 pr-10"
                     data-testid="login-password"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute right-3 top-2.5 text-[#4A4945] hover:text-[#0A0A0A] focus:outline-none focus:ring-1 focus:ring-[#E61919] transition-colors cursor-pointer"
+                    className="absolute right-3 top-2.5 text-[#64748B] hover:text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#1D4ED8] rounded-[4px] p-0.5 transition-colors cursor-pointer"
                     data-testid="password-toggle-btn"
                     id="password-toggle-btn"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
@@ -163,18 +163,18 @@ export default function LoginPage() {
             <CardFooter className="flex flex-col space-y-4 p-6 pt-0">
               <Button
                 type="submit"
-                className="w-full gap-2 rounded-none bg-[#0A0A0A] text-[#FAF9F5] border border-[#0A0A0A] hover:bg-[#222220] font-mono uppercase tracking-wider text-xs font-bold h-10 cursor-pointer"
+                className="w-full gap-2 h-10 cursor-pointer"
                 disabled={loading}
                 data-testid="login-submit"
               >
-                {loading ? 'AUTHENTICATING...' : 'AUTHORIZE SESSION'}
-                <ArrowRight className="h-4 w-4 text-[#E61919]" />
+                {loading ? 'Signing In...' : 'Sign In'}
+                <ArrowRight className="h-4 w-4" />
               </Button>
 
               {/* Dev quick-login buttons */}
-              <div className="pt-2 text-center w-full border-t border-[#C8C5BC]">
-                <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#4A4945] block mb-2">
-                  DEVELOPMENT SEED KEYS
+              <div className="pt-2 text-center w-full border-t border-[#CBD5E1]">
+                <span className="text-xs font-semibold text-[#475569] block mb-2">
+                  Quick Development Access
                 </span>
                 <div className="flex flex-wrap gap-2 justify-center">
                   <Button
@@ -183,7 +183,6 @@ export default function LoginPage() {
                     size="xs"
                     onClick={() => fillCredentials('dev-admin@ata-lta.ph')}
                     data-testid="dev-admin-btn"
-                    className="font-mono text-xs"
                   >
                     Admin (Full)
                   </Button>
@@ -193,7 +192,6 @@ export default function LoginPage() {
                     size="xs"
                     onClick={() => fillCredentials('dev-docs@ata-lta.ph')}
                     data-testid="dev-docs-btn"
-                    className="font-mono text-xs"
                   >
                     Manager (Docs)
                   </Button>
@@ -203,7 +201,6 @@ export default function LoginPage() {
                     size="xs"
                     onClick={() => fillCredentials('dev-accs@ata-lta.ph')}
                     data-testid="dev-accs-btn"
-                    className="font-mono text-xs"
                   >
                     Accounting
                   </Button>

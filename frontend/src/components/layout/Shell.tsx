@@ -5,7 +5,7 @@ import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 
 export function Shell() {
   return (
-    <div className="flex h-dvh min-h-screen w-full overflow-hidden bg-[#F4F4F0] text-[#0A0A0A]" data-testid="app-shell">
+    <div className="flex h-dvh min-h-screen w-full overflow-hidden bg-[#F8FAFC] text-[#0F172A]" data-testid="app-shell">
       {/* Sidebar: Desktop fixed rail */}
       <Sidebar />
 

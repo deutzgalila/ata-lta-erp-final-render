@@ -13,41 +13,41 @@ export function ModulePlaceholder({ name, description }: ModulePlaceholderProps)
 
   return (
     <div className="space-y-6" data-testid={`module-placeholder-${name.toLowerCase()}`}>
-      <div className="border-b-2 border-[#0A0A0A] pb-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+      <div className="border-b border-[#CBD5E1] pb-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <div className="font-mono text-xs font-semibold uppercase tracking-widest text-[#4A4945] mb-1">
-            MODULES // {name.toUpperCase()}
+          <div className="text-xs font-medium text-[#475569] mb-1">
+            Modules / {name}
           </div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-[#0A0A0A]">{name}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-[#0F172A]">{name}</h1>
             <Badge variant={enabled ? 'success' : 'secondary'} className="text-xs">
               {enabled ? 'Active Module' : 'Phase 2 Target'}
             </Badge>
           </div>
-          <p className="text-xs text-[#4A4945] mt-1 font-mono">
+          <p className="text-sm text-[#475569] mt-1">
             {description || `${name} management ledger and workflows for ATA & LTA ERP.`}
           </p>
         </div>
       </div>
 
-      <Card className="border-dashed border-2 border-[#0A0A0A] bg-[#FAF9F5] rounded-none shadow-none">
+      <Card className="border-dashed border border-[#CBD5E1] bg-[#FFFFFF] rounded-[8px] shadow-card">
         <CardHeader className="text-center pb-2">
-          <div className="mx-auto my-3 flex h-14 w-14 items-center justify-center rounded-none bg-[#EAE8E3] text-[#0A0A0A] border border-[#0A0A0A]">
-            {enabled ? <Layers className="h-7 w-7 text-[#0A0A0A]" /> : <Construction className="h-7 w-7 text-[#E61919]" />}
+          <div className="mx-auto my-3 flex h-14 w-14 items-center justify-center rounded-[8px] bg-[#F1F5F9] text-[#1D4ED8] border border-[#CBD5E1]">
+            {enabled ? <Layers className="h-7 w-7 text-[#1D4ED8]" /> : <Construction className="h-7 w-7 text-[#854D0E]" />}
           </div>
-          <CardTitle className="text-base font-bold uppercase tracking-tight text-[#0A0A0A]">
-            {name} Compartment Frame
+          <CardTitle className="text-base font-semibold tracking-tight text-[#0F172A]">
+            {name} Workspace Frame
           </CardTitle>
-          <CardDescription className="max-w-md mx-auto text-xs text-[#4A4945]">
+          <CardDescription className="max-w-md mx-auto text-xs sm:text-sm text-[#475569]">
             {enabled
               ? 'This module is enabled in feature flags and ready for Phase 2 implementation.'
-              : 'This module is gated by Phase 1 enterprise architecture rules (R1, R5). Business workflows and CRUD operations will be integrated in Phase 2 after backend contract freeze.'}
+              : 'This module is gated by Phase 1 enterprise architecture rules. Business workflows and operations will be integrated in Phase 2.'}
           </CardDescription>
         </CardHeader>
-        <CardContent className="text-center text-xs text-[#4A4945] pt-2 pb-6">
-          <div className="inline-flex items-center gap-2 rounded-none bg-[#EAE8E3] px-4 py-2 border border-[#0A0A0A] font-mono text-xs">
-            <span className="h-2 w-2 rounded-none bg-[#E61919] animate-pulse" />
-            <span>FROZEN TOOLCHAIN: REACT 19 &bull; TS 5.7 &bull; VITE 6 &bull; QUERY 5</span>
+        <CardContent className="text-center text-xs text-[#475569] pt-2 pb-6">
+          <div className="inline-flex items-center gap-2 rounded-[6px] bg-[#F1F5F9] px-3.5 py-1.5 border border-[#CBD5E1] text-xs text-[#334155]">
+            <span className="h-2 w-2 rounded-full bg-[#1D4ED8]" />
+            <span>React 19 &bull; TS 5.7 &bull; Vite 6 &bull; TanStack Query 5</span>
           </div>
         </CardContent>
       </Card>

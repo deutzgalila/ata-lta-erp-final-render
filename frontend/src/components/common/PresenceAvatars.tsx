@@ -20,12 +20,12 @@ export interface PresenceAvatarsProps {
 }
 
 const AVATAR_BG_COLORS = [
-  'bg-[#0A0A0A] text-white',
-  'bg-[#3A3935] text-white',
-  'bg-[#103F6E] text-white',
-  'bg-[#0F5223] text-white',
-  'bg-[#734800] text-white',
-  'bg-[#4A4945] text-white',
+  'bg-[#1E3A8A] text-white',
+  'bg-[#0369A1] text-white',
+  'bg-[#1D4ED8] text-white',
+  'bg-[#166534] text-white',
+  'bg-[#854D0E] text-white',
+  'bg-[#334155] text-white',
 ];
 
 export function getInitials(name: string): string {
@@ -47,7 +47,7 @@ export function getAvatarColorClass(idOrName: string): string {
     hash |= 0;
   }
   const index = Math.abs(hash) % AVATAR_BG_COLORS.length;
-  return AVATAR_BG_COLORS[index] ?? 'bg-[#0A0A0A] text-white';
+  return AVATAR_BG_COLORS[index] ?? 'bg-[#1E3A8A] text-white';
 }
 
 export function getCachedUserAvatar(userIdOrKey?: string, userEmail?: string): string | null {
@@ -326,13 +326,13 @@ export function PresenceAvatars({
             onBlur={() => setHoveredUserId(null)}
           >
             <div
-              className={`h-7 w-7 rounded-none flex items-center justify-center font-mono text-xs font-bold border border-[#0A0A0A] shadow-none cursor-pointer ${colorClass}`}
+              className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-semibold border-2 border-white shadow-2xs cursor-pointer ${colorClass}`}
             >
               {hasValidAvatar && effectiveAvatarUrl ? (
                 <img
                   src={effectiveAvatarUrl}
                   alt={viewer.name}
-                  className="h-full w-full rounded-none object-cover"
+                  className="h-full w-full rounded-full object-cover"
                   onError={() => {
                     setFailedAvatarIds((prev) => ({ ...prev, [viewer.userId]: true }));
                   }}
@@ -344,7 +344,7 @@ export function PresenceAvatars({
 
             {/* Live presence active green dot */}
             <span
-              className="absolute -bottom-0.5 -right-0.5 block h-2 w-2 rounded-none bg-[#0F5223] border border-[#FAF9F5]"
+              className="absolute -bottom-0.5 -right-0.5 block h-2 w-2 rounded-full bg-[#166534] border border-[#FFFFFF]"
               aria-hidden="true"
             />
 
@@ -353,7 +353,7 @@ export function PresenceAvatars({
               <div
                 role="tooltip"
                 data-testid={`presence-tooltip-${viewer.userId}`}
-                className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 px-2 py-1 bg-[#0A0A0A] text-[#FAF9F5] font-mono text-xs font-medium rounded-none border border-[#0A0A0A] shadow-[2px_2px_0px_#0A0A0A] max-w-xs break-words sm:whitespace-nowrap z-50 pointer-events-none"
+                className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 px-2.5 py-1 bg-[#0F172A] text-[#FFFFFF] text-xs font-medium rounded-[6px] border border-[#334155] shadow-float max-w-xs break-words sm:whitespace-nowrap z-50 pointer-events-none"
               >
                 {tooltipText}
               </div>
@@ -364,7 +364,7 @@ export function PresenceAvatars({
 
       {overflowCount > 0 && (
         <div
-          className={`relative h-7 w-7 rounded-none flex items-center justify-center font-mono text-xs font-bold border border-[#0A0A0A] bg-[#EAE8E3] text-[#0A0A0A] cursor-default focus:outline-none ${isOverflowHovered ? 'z-30' : 'z-0'}`}
+          className={`relative h-7 w-7 rounded-full flex items-center justify-center font-mono text-xs font-semibold border-2 border-white bg-[#F1F5F9] text-[#0F172A] shadow-2xs cursor-default focus:outline-none ${isOverflowHovered ? 'z-30' : 'z-0'}`}
           title={overflowTooltipText}
           aria-label={`${overflowCount} more viewers: ${overflowViewers.map((v) => v.name).join(', ')}`}
           data-testid="presence-avatars-overflow"
@@ -379,7 +379,7 @@ export function PresenceAvatars({
             <div
               role="tooltip"
               data-testid="presence-tooltip-overflow"
-              className="absolute top-full right-0 mt-1.5 px-2.5 py-1 bg-[#0A0A0A] text-[#FAF9F5] font-mono text-xs font-medium rounded-none border border-[#0A0A0A] shadow-[2px_2px_0px_#0A0A0A] max-w-xs sm:max-w-sm break-words z-50 pointer-events-none"
+              className="absolute top-full right-0 mt-1.5 px-2.5 py-1 bg-[#0F172A] text-[#FFFFFF] text-xs font-medium rounded-[6px] border border-[#334155] shadow-float max-w-xs sm:max-w-sm break-words z-50 pointer-events-none"
             >
               {overflowTooltipText}
             </div>

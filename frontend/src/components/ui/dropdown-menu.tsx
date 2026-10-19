@@ -19,14 +19,14 @@ const DropdownMenuSubTrigger = React.forwardRef<
   <DropdownMenuPrimitive.SubTrigger
     ref={ref}
     className={cn(
-      'flex cursor-default gap-2 select-none items-center rounded-none px-2 py-1.5 text-sm outline-none focus:bg-[#E4E2DC] data-[state=open]:bg-[#E4E2DC] text-[#0A0A0A] [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+      'flex cursor-default gap-2 select-none items-center rounded-[6px] px-2 py-1.5 text-sm outline-none focus:bg-[#F1F5F9] data-[state=open]:bg-[#F1F5F9] text-[#0F172A] transition-colors duration-150 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
       inset && 'pl-8',
       className
     )}
     {...props}
   >
     {children}
-    <ChevronRight className="ml-auto text-[#0A0A0A]" />
+    <ChevronRight className="ml-auto text-[#475569]" />
   </DropdownMenuPrimitive.SubTrigger>
 ));
 DropdownMenuSubTrigger.displayName = DropdownMenuPrimitive.SubTrigger.displayName;
@@ -38,7 +38,7 @@ const DropdownMenuSubContent = React.forwardRef<
   <DropdownMenuPrimitive.SubContent
     ref={ref}
     className={cn(
-      'z-50 min-w-[8rem] overflow-hidden rounded-none border-2 border-[#0A0A0A] bg-[#FAF9F5] p-1 text-[#0A0A0A] shadow-[4px_4px_0px_#0A0A0A] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+      'z-50 min-w-[8rem] overflow-hidden rounded-[8px] border border-[#CBD5E1] bg-[#FFFFFF] p-1 text-[#0F172A] shadow-float overscroll-contain data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 duration-150',
       className
     )}
     {...props}
@@ -55,7 +55,7 @@ const DropdownMenuContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        'z-50 min-w-[8rem] overflow-hidden rounded-none border-2 border-[#0A0A0A] bg-[#FAF9F5] p-1 text-[#0A0A0A] shadow-[4px_4px_0px_#0A0A0A] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+        'z-50 min-w-[8rem] overflow-hidden rounded-[8px] border border-[#CBD5E1] bg-[#FFFFFF] p-1 text-[#0F172A] shadow-float overscroll-contain data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 duration-150',
         className
       )}
       {...props}
@@ -74,7 +74,7 @@ const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex cursor-pointer select-none items-center gap-2 rounded-none outline-none transition-colors focus:bg-[#E4E2DC] focus:text-[#0A0A0A] text-[#0A0A0A] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>svg]:size-4 [&>svg]:shrink-0',
+      'relative flex cursor-pointer select-none items-center gap-2 rounded-[6px] outline-none transition-colors duration-150 focus:bg-[#F1F5F9] focus:text-[#0F172A] text-[#0F172A] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>svg]:size-4 [&>svg]:shrink-0',
       density === 'compact' ? 'px-2 py-1 text-xs' : 'px-2.5 py-1.5 text-sm',
       inset && 'pl-8',
       className
@@ -91,7 +91,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   <DropdownMenuPrimitive.CheckboxItem
     ref={ref}
     className={cn(
-      'relative flex cursor-default select-none items-center rounded-none py-1.5 pl-8 pr-2 text-sm outline-none transition-colors focus:bg-[#E4E2DC] focus:text-[#0A0A0A] text-[#0A0A0A] data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      'relative flex cursor-default select-none items-center rounded-[6px] py-1.5 pl-8 pr-2 text-sm outline-none transition-colors duration-150 focus:bg-[#F1F5F9] focus:text-[#0F172A] text-[#0F172A] data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
       className
     )}
     checked={checked}
@@ -99,7 +99,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <DropdownMenuPrimitive.ItemIndicator>
-        <Check className="h-4 w-4 text-[#0A0A0A]" />
+        <Check className="h-4 w-4 text-[#1D4ED8]" />
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
     {children}
@@ -114,14 +114,14 @@ const DropdownMenuRadioItem = React.forwardRef<
   <DropdownMenuPrimitive.RadioItem
     ref={ref}
     className={cn(
-      'relative flex cursor-default select-none items-center rounded-none py-1.5 pl-8 pr-2 text-sm outline-none transition-colors focus:bg-[#E4E2DC] focus:text-[#0A0A0A] text-[#0A0A0A] data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      'relative flex cursor-default select-none items-center rounded-[6px] py-1.5 pl-8 pr-2 text-sm outline-none transition-colors duration-150 focus:bg-[#F1F5F9] focus:text-[#0F172A] text-[#0F172A] data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
       className
     )}
     {...props}
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <DropdownMenuPrimitive.ItemIndicator>
-        <Circle className="h-2 w-2 fill-current text-[#0A0A0A]" />
+        <Circle className="h-2 w-2 fill-[#1D4ED8] text-[#1D4ED8]" />
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
     {children}
@@ -138,7 +138,7 @@ const DropdownMenuLabel = React.forwardRef<
   <DropdownMenuPrimitive.Label
     ref={ref}
     className={cn(
-      'px-2 py-1.5 font-mono text-xs font-semibold uppercase tracking-wider text-[#4A4945]',
+      'px-2 py-1.5 text-xs font-semibold text-[#475569]',
       inset && 'pl-8',
       className
     )}
@@ -153,7 +153,7 @@ const DropdownMenuSeparator = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DropdownMenuPrimitive.Separator
     ref={ref}
-    className={cn('-mx-1 my-1 h-px bg-[#C8C5BC]', className)}
+    className={cn('-mx-1 my-1 h-px bg-[#CBD5E1]', className)}
     {...props}
   />
 ));

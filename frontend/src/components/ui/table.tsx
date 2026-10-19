@@ -10,7 +10,7 @@ const TableDensityContext = React.createContext<'standard' | 'compact'>('standar
 const Table = React.forwardRef<HTMLTableElement, TableProps>(
   ({ className, density = 'standard', ...props }, ref) => (
     <TableDensityContext.Provider value={density}>
-      <div className="relative w-full overflow-auto border border-[#0A0A0A] bg-[#FAF9F5] rounded-none">
+      <div className="relative w-full overflow-auto rounded-[8px] border border-[#CBD5E1] bg-[#FFFFFF] shadow-card">
         <table
           ref={ref}
           className={cn(
@@ -32,7 +32,7 @@ const TableHeader = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <thead
     ref={ref}
-    className={cn('bg-[#EAE8E3] border-b-2 border-[#0A0A0A] [&_tr]:border-b-2 [&_tr]:border-[#0A0A0A]', className)}
+    className={cn('bg-[#F1F5F9] border-b border-[#CBD5E1] [&_tr]:border-b [&_tr]:border-[#CBD5E1]', className)}
     {...props}
   />
 ));
@@ -57,7 +57,7 @@ const TableFooter = React.forwardRef<
   <tfoot
     ref={ref}
     className={cn(
-      'border-t-2 border-[#0A0A0A] bg-[#EAE8E3] font-semibold text-[#0A0A0A] [&>tr]:last:border-b-0',
+      'border-t border-[#CBD5E1] bg-[#F1F5F9] font-semibold text-[#0F172A] [&>tr]:last:border-b-0',
       className
     )}
     {...props}
@@ -72,7 +72,7 @@ const TableRow = React.forwardRef<
   <tr
     ref={ref}
     className={cn(
-      'border-b border-[#C8C5BC] transition-colors hover:bg-[#E4E2DC]/60 data-[state=selected]:bg-[#DDDAD2]',
+      'border-b border-[#E2E8F0] transition-colors duration-150 hover:bg-[#F1F5F9]/80 data-[state=selected]:bg-[#EFF6FF]',
       className
     )}
     {...props}
@@ -91,7 +91,7 @@ const TableHead = React.forwardRef<
     <th
       ref={ref}
       className={cn(
-        'font-mono text-xs font-semibold text-[#0A0A0A] uppercase tracking-wider text-left align-middle [&:has([role=checkbox])]:pr-0',
+        'text-xs font-semibold text-[#334155] text-left align-middle [&:has([role=checkbox])]:pr-0',
         density === 'compact' ? 'h-8 px-2.5 py-1' : 'h-10 px-4 py-2',
         className
       )}
@@ -112,7 +112,7 @@ const TableCell = React.forwardRef<
     <td
       ref={ref}
       className={cn(
-        'align-middle [&:has([role=checkbox])]:pr-0 text-[#0A0A0A]',
+        'align-middle [&:has([role=checkbox])]:pr-0 text-[#0F172A]',
         density === 'compact' ? 'p-2 text-xs' : 'p-3.5 text-[13px]',
         className
       )}
@@ -128,7 +128,7 @@ const TableCaption = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <caption
     ref={ref}
-    className={cn('mt-4 font-mono text-xs text-[#4A4945]', className)}
+    className={cn('mt-4 text-xs text-[#475569]', className)}
     {...props}
   />
 ));

@@ -93,7 +93,7 @@ export function SidebarNavLinks({ onNavigate }: { onNavigate?: () => void }) {
   });
 
   return (
-    <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-4" data-testid="sidebar-nav">
+    <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-3" data-testid="sidebar-nav">
       {visibleNavItems.map((item) => {
         const Icon = item.icon;
         return (
@@ -104,15 +104,15 @@ export function SidebarNavLinks({ onNavigate }: { onNavigate?: () => void }) {
             data-testid={`nav-item-${item.name.toLowerCase()}`}
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-3 rounded-none px-3 py-2 text-xs font-mono font-medium transition-colors border-l-4 border-transparent',
+                'flex items-center gap-3 rounded-[6px] px-3 py-2 text-sm font-medium transition-colors duration-150',
                 isActive
-                  ? 'bg-[#0A0A0A] text-[#FAF9F5] border-l-[#E61919] font-bold shadow-none'
-                  : 'text-[#0A0A0A] hover:bg-[#E4E2DC] hover:text-[#0A0A0A]'
+                  ? 'bg-[#DBEAFE]/80 text-[#1E40AF] font-semibold border-l-3 border-l-[#1D4ED8]'
+                  : 'text-[#334155] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A]'
               )
             }
           >
             <Icon className="h-4 w-4 shrink-0" />
-            <span className="uppercase tracking-wider">{item.name}</span>
+            <span>{item.name}</span>
           </NavLink>
         );
       })}
@@ -123,17 +123,17 @@ export function SidebarNavLinks({ onNavigate }: { onNavigate?: () => void }) {
 export function Sidebar() {
   return (
     <aside
-      className="hidden lg:flex h-dvh w-[232px] flex-col border-r-2 border-[#0A0A0A] bg-[#EAE8E3] transition-all select-none shrink-0"
+      className="hidden lg:flex h-dvh w-[232px] flex-col border-r border-[#CBD5E1] bg-[#F1F5F9] transition-all select-none shrink-0"
       data-testid="app-sidebar"
     >
       {/* Brand Header */}
-      <div className="flex h-14 items-center gap-3 border-b-2 border-[#0A0A0A] px-4 bg-[#EAE8E3]">
-        <div className="flex h-8 w-8 items-center justify-center rounded-none bg-[#0A0A0A] text-[#FAF9F5] font-black text-xs border border-[#0A0A0A]">
+      <div className="flex h-14 items-center gap-3 border-b border-[#CBD5E1] px-4 bg-[#FFFFFF]">
+        <div className="flex h-8 w-8 items-center justify-center rounded-[6px] bg-[#1E3A8A] text-[#FFFFFF] font-bold text-xs shadow-2xs">
           ERP
         </div>
         <div className="flex flex-col">
-          <span className="text-xs font-black uppercase tracking-tight text-[#0A0A0A] leading-tight">ATA &amp; LTA</span>
-          <span className="font-mono text-xs font-semibold text-[#4A4945] tracking-widest">LEDGER // v2.0</span>
+          <span className="text-sm font-bold tracking-tight text-[#0F172A] leading-tight">ATA &amp; LTA</span>
+          <span className="text-xs text-[#475569] leading-none">Accounting Firm</span>
         </div>
       </div>
 
@@ -141,10 +141,10 @@ export function Sidebar() {
       <SidebarNavLinks />
 
       {/* Footer Telemetry */}
-      <div className="border-t-2 border-[#0A0A0A] p-3 font-mono text-xs text-[#4A4945] bg-[#EAE8E3]">
+      <div className="border-t border-[#CBD5E1] p-3 text-xs text-[#475569] bg-[#F1F5F9]">
         <div className="flex items-center justify-between px-1">
-          <span className="font-semibold uppercase tracking-wider">SYSTEM ACTIVE</span>
-          <span className="rounded-none border border-[#0A0A0A] bg-[#FAF9F5] px-1.5 py-0.5 text-xs font-bold text-[#0A0A0A]">
+          <span className="font-medium text-[#475569]">System Active</span>
+          <span className="rounded-[4px] border border-[#CBD5E1] bg-[#FFFFFF] px-1.5 py-0.5 text-xs font-mono font-medium text-[#334155] shadow-2xs">
             v2.0
           </span>
         </div>

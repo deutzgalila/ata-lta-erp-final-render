@@ -4,18 +4,18 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-none font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E61919] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 select-none cursor-pointer',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[6px] text-sm font-medium transition-[background-color,border-color,color,box-shadow,transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1D4ED8] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 select-none cursor-pointer',
   {
     variants: {
       variant: {
-        default: 'border border-[#0A0A0A] bg-[#0A0A0A] text-[#FAF9F5] shadow-none hover:bg-[#222220]',
-        destructive: 'border border-[#0A0A0A] bg-[#E61919] text-[#FAF9F5] shadow-none hover:bg-[#C41212]',
-        outline: 'border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A] shadow-none hover:bg-[#E4E2DC] hover:text-[#0A0A0A]',
-        secondary: 'border border-[#0A0A0A] bg-[#EAE8E3] text-[#0A0A0A] shadow-none hover:bg-[#E4E2DC]',
-        ghost: 'text-[#0A0A0A] hover:bg-[#E4E2DC] hover:text-[#0A0A0A]',
-        link: 'text-[#0A0A0A] underline-offset-4 hover:underline p-0 h-auto font-normal',
-        ata: 'border border-[#0A0A0A] bg-[#0A0A0A] text-[#FAF9F5] hover:bg-[#222220]',
-        lta: 'border border-[#0A0A0A] bg-[#3A3935] text-[#FAF9F5] hover:bg-[#222220]',
+        default: 'border border-[#1D4ED8] bg-[#1D4ED8] text-[#FFFFFF] shadow-2xs hover:bg-[#1E40AF] hover:border-[#1E40AF]',
+        destructive: 'border border-[#DC2626] bg-[#DC2626] text-[#FFFFFF] shadow-2xs hover:bg-[#991B1B] hover:border-[#991B1B]',
+        outline: 'border border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A] shadow-2xs hover:bg-[#F1F5F9] hover:border-[#94A3B8]',
+        secondary: 'border border-[#CBD5E1] bg-[#F1F5F9] text-[#0F172A] hover:bg-[#E2E8F0] hover:border-[#94A3B8]',
+        ghost: 'text-[#334155] hover:bg-[#F1F5F9] hover:text-[#0F172A]',
+        link: 'text-[#1D4ED8] underline-offset-4 hover:underline p-0 h-auto font-normal',
+        ata: 'border border-[#1E3A8A] bg-[#1E3A8A] text-[#FFFFFF] hover:bg-[#1E40AF] hover:border-[#1E40AF]',
+        lta: 'border border-[#0369A1] bg-[#0369A1] text-[#FFFFFF] hover:bg-[#075985] hover:border-[#075985]',
       },
       size: {
         default: 'h-9 px-4 py-2 text-sm',
@@ -39,16 +39,22 @@ export interface ButtonProps
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
   density?: 'standard' | 'compact';
+  static?: boolean;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, density, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, density, static: isStatic = false, asChild = false, ...props }, ref) => {
     const Comp = asChild ? Slot : 'button';
     const effectiveSize = density === 'compact' && (!size || size === 'default') ? 'sm' : size;
+    const shouldScale = !isStatic && variant !== 'link';
 
     return (
       <Comp
-        className={cn(buttonVariants({ variant, size: effectiveSize, className }))}
+        className={cn(
+          buttonVariants({ variant, size: effectiveSize }),
+          shouldScale && 'motion-safe:enabled:active:scale-[0.96]',
+          className
+        )}
         ref={ref}
         {...props}
       />
