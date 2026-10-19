@@ -114,7 +114,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
       {/* Header bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-bold text-[#0F172A] flex items-center gap-2">
+          <h2 className="text-base font-bold text-[#1E293B] flex items-center gap-2">
             <Clock className="h-5 w-5 text-amber-600" />
             {canApprove ? 'Admin Approval Queue' : 'My Submitted Approvals'}
           </h2>
@@ -145,11 +145,11 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
       ) : filteredItems.length === 0 ? (
         /* Empty state */
         <div
-          className="p-10 text-center bg-[#F1F5F9] border-[#CBD5E1] rounded-[6px]"
+          className="p-10 text-center bg-[#F8FAFC] border-[#E2E8F0] rounded-[6px]"
           data-testid="pending-queue-empty"
         >
           <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto mb-3" />
-          <h3 className="text-sm font-bold text-[#0F172A]">
+          <h3 className="text-sm font-bold text-[#1E293B]">
             {canApprove ? 'Queue is Clear' : 'No Pending Submissions'}
           </h3>
           <p className="text-xs text-[#475569] mt-1">
@@ -171,40 +171,40 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
             return (
               <div
                 key={item.id}
-                className="p-4 bg-white border-[#CBD5E1] rounded-[6px] hover:border-[#CBD5E1] transition-colors shadow-none space-y-3"
+                className="p-4 bg-white border-[#E2E8F0] rounded-[6px] hover:border-[#E2E8F0] transition-colors shadow-none space-y-3"
                 data-testid={`pending-item-${item.id}`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-[#0F172A]">
+                      <span className="text-xs font-bold text-[#1E293B]">
                         {disbNumber}
                       </span>
                       <DisbursementStatusBadge status={item.status} />
-                      <span className="text-xs font-mono font-medium px-2 py-0.5 rounded-[6px] bg-[#F1F5F9] text-[#475569]">
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-[6px] bg-[#F8FAFC] text-[#475569]">
                         {item.category}
                       </span>
-                      <span className="text-xs font-mono font-medium px-2 py-0.5 rounded-[6px] bg-[#F1F5F9] text-[#0F172A]">
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-[6px] bg-[#F8FAFC] text-[#1E293B]">
                         {item.fund_source || item.fundSource}
                       </span>
                     </div>
-                    <p className="text-xs text-[#0F172A] font-medium line-clamp-2">
+                    <p className="text-xs text-[#1E293B] font-medium line-clamp-2">
                       {item.description}
                     </p>
                   </div>
 
                   <div className="text-right shrink-0">
-                    <span className="text-sm font-bold text-[#0F172A] block" data-testid={`item-amount-${item.id}`}>
+                    <span className="text-sm font-bold text-[#1E293B] block" data-testid={`item-amount-${item.id}`}>
                       ₱{item.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                     </span>
-                    <span className="text-xs font-mono text-[#475569]">
+                    <span className="text-xs tabular-nums text-[#475569]">
                       {new Date(item.created_at || item.createdAt || '').toLocaleDateString()}
                     </span>
                   </div>
                 </div>
 
                 {/* Metadata strip */}
-                <div className="flex flex-wrap items-center gap-4 text-xs font-mono text-[#475569] pt-1 border-t border-[#CBD5E1]">
+                <div className="flex flex-wrap items-center gap-4 text-xs text-[#475569] pt-1 border-t border-[#E2E8F0]">
                   <span className="flex items-center gap-1">
                     <Building className="h-3 w-3 text-[#475569]" />
                     {clientName}
@@ -247,7 +247,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
                     </span>
                   )}
                   {(item.receipt_filename || item.receiptFilename) && (
-                    <span className="flex items-center gap-1 text-[#0F172A]">
+                    <span className="flex items-center gap-1 text-[#1E293B]">
                       <Receipt className="h-3 w-3" />
                       {item.receipt_filename || item.receiptFilename}
                     </span>
@@ -267,7 +267,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
                     <p className="text-rose-700 pl-4.5">
                       Reason: {item.rejection_reason || item.rejectionReason || 'No reason specified'}
                     </p>
-                    <p className="text-xs font-mono text-rose-600 pl-4.5">
+                    <p className="text-xs text-rose-600 pl-4.5">
                       Rejected by: {item.rejected_by_name || item.rejectedByName || item.rejected_by || item.rejectedBy || 'Admin'}
                       {(item.rejected_at || item.rejectedAt) &&
                         ` on ${new Date(item.rejected_at || item.rejectedAt || '').toLocaleString()}`}
@@ -276,7 +276,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
                 )}
 
                 {/* Actions */}
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#CBD5E1]">
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E2E8F0]">
                   {onSelectDisbursement && (
                     <Button
                       type="button"
@@ -324,7 +324,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
 
       {/* Pagination Controls */}
       {filteredItems.length > pageSize && (
-        <div className="flex items-center justify-between px-2 pt-2 text-xs text-[#475569] border-t border-[#CBD5E1]" data-testid="queue-pagination-bar">
+        <div className="flex items-center justify-between px-2 pt-2 text-xs text-[#475569] border-t border-[#E2E8F0]" data-testid="queue-pagination-bar">
           <span data-testid="queue-page-info">
             Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filteredItems.length)} of {filteredItems.length}
           </span>

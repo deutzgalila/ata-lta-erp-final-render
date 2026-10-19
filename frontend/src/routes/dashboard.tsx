@@ -27,7 +27,7 @@ export default function DashboardPage() {
   return (
     <div className="w-full space-y-6" data-testid="dashboard-page">
       {/* 1. Unified Module Header */}
-      <div className="border-b border-[#CBD5E1] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div className="border-b border-[#E2E8F0] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <nav
             aria-label="Breadcrumb"
@@ -35,9 +35,9 @@ export default function DashboardPage() {
           >
             <span>Modules</span>
             <span aria-hidden="true">/</span>
-            <span className="text-[#0F172A] font-semibold">Dashboard</span>
+            <span className="text-[#1E293B] font-semibold">Dashboard</span>
           </nav>
-          <h1 className="text-2xl font-semibold tracking-tight text-[#0F172A]">
+          <h1 className="text-2xl font-semibold tracking-tight text-[#1E293B]">
             Welcome back, {user?.name || 'User'}
           </h1>
           <p className="text-xs sm:text-sm text-[#475569] pt-0.5">
@@ -47,7 +47,7 @@ export default function DashboardPage() {
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
           {/* Soft Segmented Entity Switcher */}
           <div
-            className="flex items-center bg-[#F1F5F9] p-1 rounded-[8px] border border-[#CBD5E1]"
+            className="flex items-center bg-[#F8FAFC] p-1 rounded-[8px] border border-[#E2E8F0]"
             data-testid="entity-switcher"
           >
             {(['ATA', 'LTA', 'ALL'] as const).map((ent) => (
@@ -58,7 +58,7 @@ export default function DashboardPage() {
                 className={`px-3 py-1 rounded-[6px] text-xs font-semibold transition-colors cursor-pointer ${
                   activeEntity === ent
                     ? 'bg-[#1D4ED8] text-[#FFFFFF] shadow-2xs font-semibold'
-                    : 'text-[#475569] hover:text-[#0F172A] hover:bg-[#E2E8F0]/60'
+                    : 'text-[#475569] hover:text-[#1E293B] hover:bg-[#E2E8F0]/60'
                 }`}
                 data-testid={`entity-btn-${ent.toLowerCase()}`}
               >
@@ -66,7 +66,7 @@ export default function DashboardPage() {
               </button>
             ))}
           </div>
-          <Badge variant="secondary" className="text-xs font-medium rounded-[6px] border border-[#CBD5E1] bg-[#F1F5F9] text-[#0F172A] px-2.5 py-1">
+          <Badge variant="secondary" className="text-xs font-medium rounded-[6px] border border-[#E2E8F0] bg-[#F8FAFC] text-[#1E293B] px-2.5 py-1">
             Role: {user?.role || 'Staff'}
           </Badge>
         </div>
@@ -74,50 +74,50 @@ export default function DashboardPage() {
 
       {/* 2. Overview Stat Cards (Unified Structured KPI Band) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 bg-[#FFFFFF] border border-[#CBD5E1] rounded-[8px] shadow-card space-y-2">
+        <div className="p-4 bg-[#FFFFFF] border border-[#E2E8F0] rounded-[8px] shadow-card space-y-2">
           <div className="flex flex-row items-center justify-between pb-1">
             <span className="text-xs font-medium text-[#475569]">Current Role</span>
             <ShieldCheck className="h-4 w-4 text-[#1D4ED8]" />
           </div>
           <div>
-            <div className="text-2xl font-semibold font-mono tabular-nums text-[#0F172A]" data-testid="stat-role">{user?.role}</div>
+            <div className="text-2xl font-semibold tabular-nums text-[#1E293B]" data-testid="stat-role">{user?.role}</div>
             <p className="text-xs text-[#475569] mt-1">
               {permissions.size} active permissions granted
             </p>
           </div>
         </div>
 
-        <div className="p-4 bg-[#FFFFFF] border border-[#CBD5E1] rounded-[8px] shadow-card space-y-2">
+        <div className="p-4 bg-[#FFFFFF] border border-[#E2E8F0] rounded-[8px] shadow-card space-y-2">
           <div className="flex flex-row items-center justify-between pb-1">
             <span className="text-xs font-medium text-[#475569]">Active Entity</span>
             <Building2 className="h-4 w-4 text-[#1D4ED8]" />
           </div>
           <div>
-            <div className="text-2xl font-semibold font-mono tabular-nums text-[#0F172A]" data-testid="stat-entity">{activeEntity}</div>
+            <div className="text-2xl font-semibold tabular-nums text-[#1E293B]" data-testid="stat-entity">{activeEntity}</div>
             <p className="text-xs text-[#475569] mt-1">
               Entities: {(user?.entities || []).join(', ') || 'None'}
             </p>
           </div>
         </div>
 
-        <div className="p-4 bg-[#FFFFFF] border border-[#CBD5E1] rounded-[8px] shadow-card space-y-2">
+        <div className="p-4 bg-[#FFFFFF] border border-[#E2E8F0] rounded-[8px] shadow-card space-y-2">
           <div className="flex flex-row items-center justify-between pb-1">
             <span className="text-xs font-medium text-[#475569]">Notifications</span>
             <Bell className="h-4 w-4 text-[#1D4ED8]" />
           </div>
           <div>
-            <div className="text-2xl font-semibold font-mono tabular-nums text-[#0F172A]" data-testid="stat-unread-count">{unreadCount}</div>
+            <div className="text-2xl font-semibold tabular-nums text-[#1E293B]" data-testid="stat-unread-count">{unreadCount}</div>
             <p className="text-xs text-[#475569] mt-1">Unread alerts requiring attention</p>
           </div>
         </div>
 
-        <div className="p-4 bg-[#FFFFFF] border border-[#CBD5E1] rounded-[8px] shadow-card space-y-2">
+        <div className="p-4 bg-[#FFFFFF] border border-[#E2E8F0] rounded-[8px] shadow-card space-y-2">
           <div className="flex flex-row items-center justify-between pb-1">
             <span className="text-xs font-medium text-[#475569]">Today's Time Logged</span>
             <Clock className="h-4 w-4 text-[#1D4ED8]" />
           </div>
           <div>
-            <div className="text-2xl font-semibold font-mono tabular-nums text-[#0F172A]" data-testid="stat-today-hours">
+            <div className="text-2xl font-semibold tabular-nums text-[#1E293B]" data-testid="stat-today-hours">
               {formattedTodayTime}
             </div>
             <p className="text-xs text-[#475569] mt-1">

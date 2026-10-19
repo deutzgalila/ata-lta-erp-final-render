@@ -39,7 +39,7 @@ export const ReportLoadingState: React.FC<ReportLoadingStateProps> = ({
           {Array.from({ length: columns }).map((_, idx) => (
             <div
               key={idx}
-              className="bg-[#FFFFFF] rounded-[8px] border border-[#CBD5E1] p-4 shadow-card"
+              className="bg-[#FFFFFF] rounded-[8px] border border-[#E2E8F0] p-4 shadow-card"
             >
               <div className="h-4 w-24 bg-[#E2E8F0] rounded-[4px] mb-3" />
               <div className="h-7 w-32 bg-[#E2E8F0] rounded-[4px]" />
@@ -49,8 +49,8 @@ export const ReportLoadingState: React.FC<ReportLoadingStateProps> = ({
       )}
 
       {(type === 'full' || type === 'table') && (
-        <div className="bg-[#FFFFFF] rounded-[8px] border border-[#CBD5E1] shadow-card overflow-hidden">
-          <div className="p-4 bg-[#F1F5F9] border-b border-[#CBD5E1] flex items-center justify-between">
+        <div className="bg-[#FFFFFF] rounded-[8px] border border-[#E2E8F0] shadow-card overflow-hidden">
+          <div className="p-4 bg-[#F8FAFC] border-b border-[#E2E8F0] flex items-center justify-between">
             <div className="h-5 w-36 bg-[#CBD5E1] rounded-[4px]" />
             <div className="h-4 w-16 bg-[#CBD5E1] rounded-[4px]" />
           </div>
@@ -97,7 +97,7 @@ export const ReportErrorState: React.FC<ReportErrorStateProps> = ({
     <div
       data-testid={dataTestId}
       className={cn(
-        'p-5 sm:p-6 bg-[#FFFFFF] border border-[#FCA5A5] rounded-[8px] shadow-card text-[#0F172A] space-y-3',
+        'p-5 sm:p-6 bg-[#FFFFFF] border border-[#FCA5A5] rounded-[8px] shadow-card text-[#1E293B] space-y-3',
         className
       )}
     >
@@ -109,7 +109,7 @@ export const ReportErrorState: React.FC<ReportErrorStateProps> = ({
               {title}
             </h3>
             {staleDataNotice && (
-              <span className="inline-flex items-center gap-1 text-xs font-mono font-medium px-2 py-0.5 rounded-[4px] bg-[#FEFCE8] text-[#854D0E] border border-[#FDE047]">
+              <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-[4px] bg-[#FEFCE8] text-[#854D0E] border border-[#FDE047]">
                 <AlertTriangle className="w-3 h-3 text-[#854D0E]" />
                 Showing previously loaded data
               </span>
@@ -124,7 +124,7 @@ export const ReportErrorState: React.FC<ReportErrorStateProps> = ({
             size="sm"
             variant="outline"
             onClick={onRetry}
-            className="text-xs font-semibold h-8 px-3.5 bg-[#FFFFFF] border border-[#CBD5E1] text-[#0F172A] hover:bg-[#F1F5F9] hover:border-[#94A3B8] rounded-[6px] cursor-pointer shadow-2xs shrink-0 transition-colors"
+            className="text-xs font-semibold h-8 px-3.5 bg-[#FFFFFF] border border-[#E2E8F0] text-[#1E293B] hover:bg-[#F8FAFC] hover:border-[#94A3B8] rounded-[6px] cursor-pointer shadow-2xs shrink-0 transition-colors"
             data-testid="report-error-retry-btn"
           >
             <RefreshCw className="w-3 h-3 mr-1.5" />
@@ -162,14 +162,14 @@ export const ReportEmptyState: React.FC<ReportEmptyStateProps> = ({
     <div
       data-testid={dataTestId}
       className={cn(
-        'p-8 sm:p-10 bg-[#FFFFFF] rounded-[8px] border border-dashed border-[#CBD5E1] text-center shadow-card my-4',
+        'p-8 sm:p-10 bg-[#FFFFFF] rounded-[8px] border border-dashed border-[#E2E8F0] text-center shadow-card my-4',
         className
       )}
     >
-      <div className="w-10 h-10 rounded-[6px] bg-[#F1F5F9] border border-[#CBD5E1] text-[#475569] flex items-center justify-center mx-auto mb-3">
+      <div className="w-10 h-10 rounded-[6px] bg-[#F8FAFC] border border-[#E2E8F0] text-[#475569] flex items-center justify-center mx-auto mb-3">
         {icon || <Inbox className="w-5 h-5 text-[#475569]" />}
       </div>
-      <h3 className="text-sm font-semibold tracking-tight text-[#0F172A]">{title}</h3>
+      <h3 className="text-sm font-semibold tracking-tight text-[#1E293B]">{title}</h3>
       {description && (
         <p className="text-xs text-[#475569] mt-1 max-w-sm mx-auto leading-relaxed">
           {description}

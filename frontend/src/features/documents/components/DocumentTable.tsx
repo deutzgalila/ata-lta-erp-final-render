@@ -85,9 +85,9 @@ export function DocumentTable({
 
   if (isLoading) {
     return (
-      <div className="rounded-[8px] border-[#CBD5E1] bg-white p-8 text-center">
+      <div className="rounded-[8px] border-[#E2E8F0] bg-white p-8 text-center">
         <div className="flex flex-col items-center justify-center space-y-3">
-          <div className="h-6 w-6 animate-spin rounded-full border-[#CBD5E1] border-t-transparent" />
+          <div className="h-6 w-6 animate-spin rounded-full border-[#E2E8F0] border-t-transparent" />
           <p className="text-sm text-[#475569]">Loading documents...</p>
         </div>
       </div>
@@ -97,14 +97,14 @@ export function DocumentTable({
   if (documents.length === 0) {
     return (
       <div
-        className="rounded-[8px] border-[#CBD5E1] bg-white p-12 text-center"
+        className="rounded-[8px] border-[#E2E8F0] bg-white p-12 text-center"
         data-testid="documents-empty-state"
       >
         <div className="flex flex-col items-center justify-center max-w-sm mx-auto space-y-3">
-          <div className="p-3 bg-[#F1F5F9] rounded-[6px] text-[#475569]">
+          <div className="p-3 bg-[#F8FAFC] rounded-[6px] text-[#475569]">
             <FolderOpen className="h-8 w-8" />
           </div>
-          <h3 className="font-semibold text-[#0F172A]">No documents found</h3>
+          <h3 className="font-semibold text-[#1E293B]">No documents found</h3>
           <p className="text-sm text-[#475569]">
             No document records match your current filter parameters or tab selection.
           </p>
@@ -115,7 +115,7 @@ export function DocumentTable({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-[8px] border-[#CBD5E1] bg-white overflow-hidden">
+      <div className="rounded-[8px] border-[#E2E8F0] bg-white overflow-hidden">
         <Table data-testid="documents-table">
           <TableHeader>
             <TableRow>
@@ -139,7 +139,7 @@ export function DocumentTable({
                   {/* Document Name & Meta */}
                   <TableCell>
                     <div className="flex items-start gap-3">
-                      <div className="p-2 rounded-[8px] border-[#CBD5E1] bg-[#F1F5F9] text-[#0F172A] shrink-0 mt-0.5">
+                      <div className="p-2 rounded-[8px] border-[#E2E8F0] bg-[#F8FAFC] text-[#1E293B] shrink-0 mt-0.5">
                         {isExternal ? (
                           <ExternalLink className="h-4 w-4" />
                         ) : (
@@ -150,7 +150,7 @@ export function DocumentTable({
                         <button
                           type="button"
                           onClick={() => onView(doc)}
-                          className="font-medium text-sm text-[#0F172A] hover:text-[#0F172A] truncate block text-left"
+                          className="font-medium text-sm text-[#1E293B] hover:text-[#1E293B] truncate block text-left"
                           title={displayName}
                           data-testid={`document-name-${doc.id}`}
                         >
@@ -158,7 +158,7 @@ export function DocumentTable({
                         </button>
                         <div className="flex items-center gap-2 text-xs text-[#475569] mt-0.5 truncate">
                           {isExternal ? (
-                            <span className="text-[#0F172A]">External Link</span>
+                            <span className="text-[#1E293B]">External Link</span>
                           ) : (
                             <span>{formatFileSize(doc.file_size)}</span>
                           )}

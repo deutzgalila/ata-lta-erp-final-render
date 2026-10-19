@@ -134,7 +134,7 @@ export default function ClientsPage() {
   return (
     <div className="w-full space-y-6" data-testid="clients-page">
       {/* 1. Unified Module Header */}
-      <div className="border-b border-[#CBD5E1] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div className="border-b border-[#E2E8F0] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <nav
             aria-label="Breadcrumb"
@@ -142,9 +142,9 @@ export default function ClientsPage() {
           >
             <span>Modules</span>
             <span aria-hidden="true">/</span>
-            <span className="text-[#0F172A] font-semibold">Clients</span>
+            <span className="text-[#1E293B] font-semibold">Clients</span>
           </nav>
-          <h1 className="text-2xl font-semibold tracking-tight text-[#0F172A] flex items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight text-[#1E293B] flex items-center gap-2">
             <Building2 className="h-6 w-6 text-[#1D4ED8]" />
             Clients &amp; Master Records
           </h1>

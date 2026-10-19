@@ -64,26 +64,26 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="border-[#CBD5E1] rounded-[12px] shadow-float p-6 bg-[#FFFFFF] max-h-[90vh] overflow-y-auto max-w-2xl border"
+      <DialogContent className="border-[#E2E8F0] rounded-[12px] shadow-float p-6 bg-[#FFFFFF] max-h-[90vh] overflow-y-auto max-w-2xl border"
         data-testid="user-detail-modal"
       >
         <DialogHeader>
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[6px] bg-[#F1F5F9] text-[#0F172A] font-bold text-sm">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[6px] bg-[#F8FAFC] text-[#1E293B] font-bold text-sm">
               {user.name.charAt(0).toUpperCase()}
             </div>
             <div>
-              <DialogTitle className="text-base font-bold text-[#0F172A] flex items-center gap-2">
+              <DialogTitle className="text-base font-bold text-[#1E293B] flex items-center gap-2">
                 <span>{user.name}</span>
                 <Badge variant="outline" className="text-xs">
                   {user.role}
                 </Badge>
                 {user.isActive ? (
-                  <span className="rounded-[6px] bg-emerald-50 px-2 py-0.5 text-xs font-mono font-medium text-emerald-700 border-emerald-200">
+                  <span className="rounded-[6px] bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 border-emerald-200">
                     Active
                   </span>
                 ) : (
-                  <span className="rounded-[6px] bg-[#F1F5F9] px-2 py-0.5 text-xs font-mono font-medium text-[#475569] border-[#CBD5E1]">
+                  <span className="rounded-[6px] bg-[#F8FAFC] px-2 py-0.5 text-xs font-medium text-[#475569] border-[#E2E8F0]">
                     Disabled
                   </span>
                 )}
@@ -96,11 +96,11 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
         </DialogHeader>
 
         {/* Profile Card */}
-        <div className="rounded-[8px] border-[#CBD5E1] bg-[#F1F5F9]/60 p-3.5 space-y-2 text-xs">
+        <div className="rounded-[8px] border-[#E2E8F0] bg-[#F8FAFC]/60 p-3.5 space-y-2 text-xs">
           <div className="grid grid-cols-2 gap-3">
             <div className="flex items-center gap-2 text-[#475569]">
               <Mail className="h-3.5 w-3.5 text-[#475569]" />
-              <span className="font-mono text-[#0F172A]">{user.email}</span>
+              <span className="text-[#1E293B]">{user.email}</span>
             </div>
             <div className="flex items-center gap-2 text-[#475569]">
               <Building2 className="h-3.5 w-3.5 text-[#475569]" />
@@ -124,7 +124,7 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
           </div>
 
           {effectiveInfo.isAdminSuperUser && (
-            <div className="flex items-center gap-1.5 rounded-[6px] bg-amber-50 border-amber-200 p-2 text-xs font-mono text-amber-800 font-medium">
+            <div className="flex items-center gap-1.5 rounded-[6px] bg-amber-50 border-amber-200 p-2 text-xs text-amber-800 font-medium">
               <ShieldCheck className="h-4 w-4 text-amber-600 shrink-0" />
               <span>
                 <strong>Administrator Super-Privilege:</strong> Inherits all department permissions across all 5 departments plus all 8 exclusive administrative operations.
@@ -136,10 +136,10 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
         {/* Permissions Inspector Section */}
         <div className="space-y-3 pt-1">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-[#0F172A]">
-              <KeyRound className="h-4 w-4 text-[#0F172A]" />
+            <div className="flex items-center gap-1.5 text-xs font-bold text-[#1E293B]">
+              <KeyRound className="h-4 w-4 text-[#1E293B]" />
               <span>Effective Permissions Inspector</span>
-              <Badge variant="outline" className="text-xs font-mono ml-1 bg-[#F1F5F9] text-[#0F172A]">
+              <Badge variant="outline" className="text-xs ml-1 bg-[#F8FAFC] text-[#1E293B]">
                 {effectiveInfo.effectivePermissions.length} / {PERMISSION_KEYS.length} granted
               </Badge>
             </div>
@@ -158,10 +158,10 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
           </div>
 
           {/* Grouped Permission Keys Table */}
-          <div className="rounded-[8px] border-[#CBD5E1] divide-y divide-slate-200 max-h-72 overflow-y-auto bg-white text-xs">
+          <div className="rounded-[8px] border-[#E2E8F0] divide-y divide-slate-200 max-h-72 overflow-y-auto bg-white text-xs">
             {Array.from(groupedKeys.entries()).map(([moduleName, keys]) => (
               <div key={moduleName} className="p-3 space-y-2">
-                <h4 className="font-semibold text-[#0F172A] text-xs font-mono uppercase tracking-wider text-[#475569]">
+                <h4 className="font-semibold text-[#1E293B] text-xs tracking-normal text-[#475569]">
                   {moduleName}
                 </h4>
                 <div className="grid grid-cols-1 gap-1.5">
@@ -173,7 +173,7 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                       <div
                         key={permKey}
                         className={`flex items-center justify-between rounded-[6px] p-1.5 text-xs ${
-                          isGranted ? 'bg-emerald-50/50' : 'bg-[#F1F5F9]/50 opacity-60'
+                          isGranted ? 'bg-emerald-50/50' : 'bg-[#F8FAFC]/50 opacity-60'
                         }`}
                         data-testid={`user-perm-${permKey}`}
                         data-granted={isGranted ? 'true' : 'false'}
@@ -184,13 +184,13 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                               <Check className="h-3 w-3" />
                             </span>
                           ) : (
-                            <span className="flex h-4 w-4 items-center justify-center rounded-[6px] bg-[#E2E8F0] text-[#475569] font-bold text-xs font-mono">
+                            <span className="flex h-4 w-4 items-center justify-center rounded-[6px] bg-[#E2E8F0] text-[#475569] font-bold text-xs">
                               —
                             </span>
                           )}
                           <span
-                            className={`font-mono text-xs font-mono ${
-                              isGranted ? 'font-semibold text-[#0F172A]' : 'text-[#475569]'
+                            className={` text-xs font-mono ${
+                              isGranted ? 'font-semibold text-[#1E293B]' : 'text-[#475569]'
                             }`}
                           >
                             {permKey}
@@ -200,7 +200,7 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                         {/* Grant Origin / Source Badges */}
                         <div className="flex items-center gap-1">
                           {effectiveInfo.isAdminSuperUser && isGranted ? (
-                            <Badge variant="outline" className="text-xs font-mono py-0 px-1 border-amber-200 bg-amber-50 text-amber-700">
+                            <Badge variant="outline" className="text-xs py-0 px-1 border-amber-200 bg-amber-50 text-amber-700">
                               Admin
                             </Badge>
                           ) : (
@@ -208,7 +208,7 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                               <Badge
                                 key={src}
                                 variant="outline"
-                                className="text-xs font-mono py-0 px-1 border-[#CBD5E1] bg-[#F1F5F9] text-[#0F172A]"
+                                className="text-xs py-0 px-1 border-[#E2E8F0] bg-[#F8FAFC] text-[#1E293B]"
                               >
                                 {src}
                               </Badge>

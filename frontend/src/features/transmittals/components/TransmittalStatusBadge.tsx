@@ -17,7 +17,7 @@ export function TransmittalStatusBadge({ status, className = '' }: TransmittalSt
       return (
         <Badge
           variant="outline"
-          className={`bg-[#F1F5F9] text-[#475569] border-[#CBD5E1] rounded-[6px] font-mono text-xs font-medium flex items-center gap-1 ${className}`}
+          className={`bg-[#F8FAFC] text-[#475569] border-[#E2E8F0] rounded-[6px]  text-xs font-medium flex items-center gap-1 ${className}`}
           data-testid="transmittal-status-badge"
           data-status="Draft"
         >
@@ -29,7 +29,7 @@ export function TransmittalStatusBadge({ status, className = '' }: TransmittalSt
       return (
         <Badge
           variant="outline"
-          className={`bg-[#F0F9FF] text-[#075985] border-[#7DD3FC] rounded-[6px] font-mono text-xs font-medium flex items-center gap-1 ${className}`}
+          className={`bg-[#F0F9FF] text-[#075985] border-[#7DD3FC] rounded-[6px]  text-xs font-medium flex items-center gap-1 ${className}`}
           data-testid="transmittal-status-badge"
           data-status="Sent"
         >
@@ -41,7 +41,7 @@ export function TransmittalStatusBadge({ status, className = '' }: TransmittalSt
       return (
         <Badge
           variant="outline"
-          className={`bg-[#F0FDF4] text-[#166534] border-[#86EFAC] rounded-[6px] font-mono text-xs font-medium flex items-center gap-1 ${className}`}
+          className={`bg-[#F0FDF4] text-[#166534] border-[#86EFAC] rounded-[6px]  text-xs font-medium flex items-center gap-1 ${className}`}
           data-testid="transmittal-status-badge"
           data-status="Acknowledged"
         >
@@ -53,7 +53,7 @@ export function TransmittalStatusBadge({ status, className = '' }: TransmittalSt
       return (
         <Badge
           variant="outline"
-          className={`bg-[#FEF2F2] text-[#991B1B] border-[#FCA5A5] rounded-[6px] font-mono text-xs font-medium flex items-center gap-1 ${className}`}
+          className={`bg-[#FEF2F2] text-[#991B1B] border-[#FCA5A5] rounded-[6px]  text-xs font-medium flex items-center gap-1 ${className}`}
           data-testid="transmittal-status-badge"
           data-status="Cancelled"
         >
@@ -63,7 +63,7 @@ export function TransmittalStatusBadge({ status, className = '' }: TransmittalSt
       );
     default:
       return (
-        <Badge variant="outline" className={`rounded-[6px] border-[#CBD5E1] bg-[#F1F5F9] text-[#475569] font-mono text-xs font-medium ${className}`} data-testid="transmittal-status-badge">
+        <Badge variant="outline" className={`rounded-[6px] border-[#E2E8F0] bg-[#F8FAFC] text-[#475569]  text-xs font-medium ${className}`} data-testid="transmittal-status-badge">
           {status}
         </Badge>
       );
@@ -90,7 +90,7 @@ export function TransmittalApprovalBadge({
     return (
       <Badge
         variant="outline"
-        className={`bg-[#EFF6FF] text-[#1E40AF] border-[#93C5FD] rounded-[6px] flex items-center gap-1 font-mono font-medium text-xs ${className}`}
+        className={`bg-[#EFF6FF] text-[#1E40AF] border-[#93C5FD] rounded-[6px] flex items-center gap-1  font-medium text-xs ${className}`}
         data-testid="transmittal-approval-badge"
         data-approved="true"
       >
@@ -103,7 +103,7 @@ export function TransmittalApprovalBadge({
   return (
     <Badge
       variant="outline"
-      className={`bg-[#FEFCE8] text-[#854D0E] border-[#FDE047] rounded-[6px] flex items-center gap-1 font-mono font-medium text-xs ${className}`}
+      className={`bg-[#FEFCE8] text-[#854D0E] border-[#FDE047] rounded-[6px] flex items-center gap-1  font-medium text-xs ${className}`}
       data-testid="transmittal-approval-badge"
       data-approved="false"
     >

@@ -92,7 +92,7 @@ export function DisbursementsTable({
   return (
     <div className="space-y-3" data-testid="disbursements-table-container">
       {/* Filter and Search Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 bg-white p-3 rounded-[8px] border-[#CBD5E1]">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 bg-white p-3 rounded-[8px] border-[#E2E8F0]">
         <div className="flex flex-wrap items-center gap-2 flex-1">
           {/* Search */}
           <div className="relative w-full sm:w-60">
@@ -118,7 +118,7 @@ export function DisbursementsTable({
                 setSelectedStatus(e.target.value as DisbursementStatus | '');
                 setPage(1);
               }}
-              className="text-xs h-8 px-2.5 border rounded-[6px] bg-white border-[#CBD5E1] text-[#0F172A] focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="text-xs h-8 px-2.5 border rounded-[6px] bg-white border-[#E2E8F0] text-[#1E293B] focus:outline-none focus:ring-1 focus:ring-blue-500"
               data-testid="filter-status-select"
             >
               <option value="">All Statuses</option>
@@ -137,7 +137,7 @@ export function DisbursementsTable({
               setSelectedCategory(e.target.value);
               setPage(1);
             }}
-            className="text-xs h-8 px-2.5 border rounded-[6px] bg-white border-[#CBD5E1] text-[#0F172A] focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="text-xs h-8 px-2.5 border rounded-[6px] bg-white border-[#E2E8F0] text-[#1E293B] focus:outline-none focus:ring-1 focus:ring-blue-500"
             data-testid="filter-category-select"
           >
             <option value="">All Categories</option>
@@ -155,7 +155,7 @@ export function DisbursementsTable({
               setSelectedFundSource(e.target.value as FundSource | '');
               setPage(1);
             }}
-            className="text-xs h-8 px-2.5 border rounded-[6px] bg-white border-[#CBD5E1] text-[#0F172A] focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="text-xs h-8 px-2.5 border rounded-[6px] bg-white border-[#E2E8F0] text-[#1E293B] focus:outline-none focus:ring-1 focus:ring-blue-500"
             data-testid="filter-fund-source-select"
           >
             <option value="">All Fund Sources</option>
@@ -172,7 +172,7 @@ export function DisbursementsTable({
               variant="ghost"
               size="sm"
               onClick={resetFilters}
-              className="text-xs h-8 text-[#475569] hover:text-[#0F172A]"
+              className="text-xs h-8 text-[#475569] hover:text-[#1E293B]"
               data-testid="reset-filters-btn"
             >
               Reset
@@ -186,23 +186,23 @@ export function DisbursementsTable({
             variant="ghost"
             size="sm"
             onClick={() => refetch()}
-            className="text-xs h-8 px-2 text-[#475569] hover:text-[#0F172A]"
+            className="text-xs h-8 px-2 text-[#475569] hover:text-[#1E293B]"
             title="Refresh"
             data-testid="refresh-table-btn"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
           </Button>
           <span className="text-xs text-[#475569]">
-            Total: <span className="font-semibold text-[#0F172A]">{total}</span>
+            Total: <span className="font-semibold text-[#1E293B]">{total}</span>
           </span>
         </div>
       </div>
 
       {/* Table Data */}
-      <div className="bg-white rounded-[8px] border-[#CBD5E1] overflow-hidden shadow-none">
+      <div className="bg-white rounded-[8px] border-[#E2E8F0] overflow-hidden shadow-none">
         <Table data-testid="disbursements-table">
           <TableHeader>
-            <TableRow className="bg-[#F1F5F9]/80 text-[#0F172A] hover:bg-[#F1F5F9]/80">
+            <TableRow className="bg-[#F8FAFC]/80 text-[#1E293B] hover:bg-[#F8FAFC]/80">
               <TableHead className="w-40 text-xs font-bold">Voucher #</TableHead>
               <TableHead className="text-xs font-bold">Description</TableHead>
               <TableHead className="w-32 text-xs font-bold">Category</TableHead>
@@ -224,8 +224,8 @@ export function DisbursementsTable({
                 <TableCell colSpan={7} className="h-32 text-center text-xs text-[#475569]" data-testid="table-empty">
                   <div className="space-y-1">
                     <Filter className="h-6 w-6 text-[#94A3B8] mx-auto" />
-                    <p className="font-medium text-[#0F172A]">No disbursements found</p>
-                    <p className="text-xs font-mono text-[#475569]">
+                    <p className="font-medium text-[#1E293B]">No disbursements found</p>
+                    <p className="text-xs text-[#475569]">
                       Try adjusting your search criteria or create a new voucher.
                     </p>
                   </div>
@@ -241,19 +241,19 @@ export function DisbursementsTable({
                 return (
                   <TableRow
                     key={item.id}
-                    className="hover:bg-[#F1F5F9]/60 cursor-pointer transition-colors"
+                    className="hover:bg-[#F8FAFC]/60 cursor-pointer transition-colors"
                     onClick={() => onSelectDisbursement(item.id)}
                     data-testid={`disbursement-row-${item.id}`}
                   >
-                    <TableCell className="font-mono text-xs font-bold text-[#0F172A]">
+                    <TableCell className="font-mono text-xs font-bold text-[#1E293B]">
                       {disbNumber}
                     </TableCell>
                     <TableCell>
                       <div className="space-y-0.5">
-                        <p className="text-xs font-medium text-[#0F172A] line-clamp-1">
+                        <p className="text-xs font-medium text-[#1E293B] line-clamp-1">
                           {item.description}
                         </p>
-                        <p className="text-xs font-mono text-[#475569]">
+                        <p className="text-xs tabular-nums text-[#475569]">
                           {new Date(item.created_at || item.createdAt || '').toLocaleDateString()}
                           {item.client_name ? ` • ${item.client_name}` : ''}
                           {item.linked_work_request_name
@@ -264,13 +264,13 @@ export function DisbursementsTable({
                         </p>
                       </div>
                     </TableCell>
-                    <TableCell className="text-xs text-[#0F172A]">{item.category}</TableCell>
+                    <TableCell className="text-xs text-[#1E293B]">{item.category}</TableCell>
                     <TableCell>
-                      <span className="text-xs font-mono font-medium px-2 py-0.5 rounded-[6px] bg-[#F1F5F9] text-[#0F172A]">
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-[6px] bg-[#F8FAFC] text-[#1E293B]">
                         {item.fund_source || item.fundSource}
                       </span>
                     </TableCell>
-                    <TableCell className="text-xs font-bold text-[#0F172A] text-right">
+                    <TableCell className="text-xs font-bold text-[#1E293B] text-right">
                       ₱{item.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                     </TableCell>
                     <TableCell className="text-center">
@@ -284,7 +284,7 @@ export function DisbursementsTable({
                           variant="ghost"
                           size="sm"
                           onClick={() => onSelectDisbursement(item.id)}
-                          className="h-7 w-7 p-0 text-[#475569] hover:text-[#0F172A]"
+                          className="h-7 w-7 p-0 text-[#475569] hover:text-[#1E293B]"
                           title="View Details"
                           data-testid={`view-action-${item.id}`}
                         >
@@ -301,10 +301,10 @@ export function DisbursementsTable({
 
         {/* Pagination Bar */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-2.5 border-t border-[#CBD5E1] bg-[#F1F5F9]/50 text-xs text-[#475569]">
+          <div className="flex items-center justify-between px-4 py-2.5 border-t border-[#E2E8F0] bg-[#F8FAFC]/50 text-xs text-[#475569]">
             <span>
-              Page <span className="font-semibold text-[#0F172A]">{page}</span> of{' '}
-              <span className="font-semibold text-[#0F172A]">{totalPages}</span>
+              Page <span className="font-semibold text-[#1E293B]">{page}</span> of{' '}
+              <span className="font-semibold text-[#1E293B]">{totalPages}</span>
             </span>
             <div className="flex items-center gap-1">
               <Button

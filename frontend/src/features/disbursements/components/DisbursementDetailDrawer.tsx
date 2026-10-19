@@ -171,19 +171,19 @@ export function DisbursementDetailDrawer({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90vh] space-y-5 border-[#CBD5E1] overflow-y-auto border p-6 shadow-float rounded-[12px] max-w-2xl bg-[#FFFFFF]"
+      <DialogContent className="max-h-[90vh] space-y-5 border-[#E2E8F0] overflow-y-auto border p-6 shadow-float rounded-[12px] max-w-2xl bg-[#FFFFFF]"
         data-testid="disbursement-detail-drawer"
       >
-        <DialogHeader className="border-b border-[#CBD5E1] pb-3">
+        <DialogHeader className="border-b border-[#E2E8F0] pb-3">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <DialogTitle className="font-mono text-base font-bold text-[#0F172A]">
+                <DialogTitle className="text-base font-bold text-[#1E293B]">
                   {disbNumber || 'Disbursement Details'}
                 </DialogTitle>
                 {item && <DisbursementStatusBadge status={item.status} />}
                 {item?.entity_code && (
-                  <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded-[6px] bg-[#F1F5F9] text-[#475569]">
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded-[6px] bg-[#F8FAFC] text-[#475569]">
                     {item.entity_code}
                   </span>
                 )}
@@ -200,10 +200,10 @@ export function DisbursementDetailDrawer({
             </div>
             {item && (
               <div className="text-right">
-                <span className="text-lg font-bold text-[#0F172A] block" data-testid="drawer-amount">
+                <span className="text-lg font-bold text-[#1E293B] block" data-testid="drawer-amount">
                   ₱{item.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                 </span>
-                <span className="text-xs text-[#0F172A] font-medium">
+                <span className="text-xs text-[#1E293B] font-medium">
                   {item.fund_source || item.fundSource}
                 </span>
               </div>
@@ -216,7 +216,7 @@ export function DisbursementDetailDrawer({
             Loading disbursement details...
           </div>
         ) : (
-          <div className="space-y-5 text-xs text-[#0F172A]">
+          <div className="space-y-5 text-xs text-[#1E293B]">
             {user?.role === 'Admin' && <div className="space-y-3">
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={() => setIsEditModalOpen(true)} data-testid="edit-disbursement-button"><Pencil className="w-4 h-4" />Edit Voucher</Button>
@@ -238,7 +238,7 @@ export function DisbursementDetailDrawer({
                   {item.rejection_reason || item.rejectionReason || 'No reason specified.'}
                 </p>
                 {(item.rejected_by_name || item.rejected_by || item.rejectedBy || item.rejected_at || item.rejectedAt) && (
-                  <div className="text-xs font-mono text-rose-600 pl-5">
+                  <div className="text-xs text-rose-600 pl-5">
                     By {item.rejected_by_name || item.rejected_by || item.rejectedBy || 'Admin'} on{' '}
                     {item.rejected_at || item.rejectedAt
                       ? new Date(item.rejected_at || item.rejectedAt || '').toLocaleString()
@@ -263,21 +263,21 @@ export function DisbursementDetailDrawer({
             )}
 
             {/* General Information Grid */}
-            <div className="grid grid-cols-2 gap-4 p-3 bg-[#F1F5F9] rounded-[8px] border-[#CBD5E1]">
+            <div className="grid grid-cols-2 gap-4 p-3 bg-[#F8FAFC] rounded-[8px] border-[#E2E8F0]">
               <div className="space-y-1">
-                <span className="text-[#475569] block text-xs font-mono">Category</span>
-                <span className="font-semibold text-[#0F172A]">{item.category}</span>
+                <span className="text-[#475569] block text-xs">Category</span>
+                <span className="font-semibold text-[#1E293B]">{item.category}</span>
               </div>
               <div className="space-y-1">
-                <span className="text-[#475569] block text-xs font-mono">Client Association</span>
-                <span className="font-semibold text-[#0F172A] flex items-center gap-1">
+                <span className="text-[#475569] block text-xs">Client Association</span>
+                <span className="font-semibold text-[#1E293B] flex items-center gap-1">
                   <Building className="h-3 w-3 text-[#475569]" />
                   {clientName}
                 </span>
               </div>
               <div className="space-y-1">
-                <span className="text-[#475569] block text-xs font-mono">Linked Work Request</span>
-                <span className="font-mono text-[#0F172A] flex items-center gap-1" data-testid="drawer-work-request">
+                <span className="text-[#475569] block text-xs">Linked Work Request</span>
+                <span className="text-[#1E293B] flex items-center gap-1" data-testid="drawer-work-request">
                   <FileText className="h-3 w-3 text-[#475569]" />
                   {item.linked_work_request_order_number && item.linked_work_request_name
                     ? `${item.linked_work_request_order_number} — ${item.linked_work_request_name}`
@@ -287,8 +287,8 @@ export function DisbursementDetailDrawer({
                 </span>
               </div>
               <div className="space-y-1">
-                <span className="text-[#475569] block text-xs font-mono">Due Date</span>
-                <span className="text-[#0F172A] flex items-center gap-1">
+                <span className="text-[#475569] block text-xs">Due Date</span>
+                <span className="text-[#1E293B] flex items-center gap-1">
                   <Calendar className="h-3 w-3 text-[#475569]" />
                   {item.due_date || item.dueDate || 'No due date'}
                 </span>
@@ -297,8 +297,8 @@ export function DisbursementDetailDrawer({
 
             {/* Description */}
             <div className="space-y-1">
-              <h4 className="font-semibold text-[#0F172A] text-xs">Expense Description</h4>
-              <p className="text-xs text-[#0F172A] bg-white p-3 rounded-[8px] border-[#CBD5E1] whitespace-pre-wrap">
+              <h4 className="font-semibold text-[#1E293B] text-xs">Expense Description</h4>
+              <p className="text-xs text-[#1E293B] bg-white p-3 rounded-[8px] border-[#E2E8F0] whitespace-pre-wrap">
                 {item.description}
               </p>
             </div>
@@ -306,8 +306,8 @@ export function DisbursementDetailDrawer({
             {/* Notes */}
             {(item.notes) && (
               <div className="space-y-1">
-                <h4 className="font-semibold text-[#0F172A] text-xs">Internal Notes</h4>
-                <p className="text-xs text-[#475569] bg-white p-3 rounded-[8px] border-[#CBD5E1] whitespace-pre-wrap">
+                <h4 className="font-semibold text-[#1E293B] text-xs">Internal Notes</h4>
+                <p className="text-xs text-[#475569] bg-white p-3 rounded-[8px] border-[#E2E8F0] whitespace-pre-wrap">
                   {item.notes}
                 </p>
               </div>
@@ -315,16 +315,16 @@ export function DisbursementDetailDrawer({
 
             {/* Receipt Attachment */}
             {(item.receipt_filename || item.receiptFilename || item.receipt_s3_key || item.receiptS3Key) && (
-              <div className="p-3 bg-[#F1F5F9]/60 border-[#CBD5E1]/80 rounded-[6px] space-y-2">
+              <div className="p-3 bg-[#F8FAFC]/60 border-[#E2E8F0]/80 rounded-[6px] space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Receipt className="h-4 w-4 text-[#0F172A]" />
+                    <Receipt className="h-4 w-4 text-[#1E293B]" />
                     <div>
                       <span className="font-medium text-blue-900 block text-xs">
                         {item.receipt_filename || item.receiptFilename || 'Supporting Document'}
                       </span>
                       {(item.receipt_s3_key || item.receiptS3Key) && (
-                        <span className="font-mono text-xs font-mono text-[#0F172A] block">
+                        <span className="text-xs font-mono text-[#1E293B] block">
                           {item.receipt_s3_key || item.receiptS3Key}
                         </span>
                       )}
@@ -334,7 +334,7 @@ export function DisbursementDetailDrawer({
                   {/* Receipt Action / Status */}
                   {isReceiptError ? (
                     <div className="flex items-center gap-2" data-testid="receipt-error-state">
-                      <span className="text-xs font-mono text-rose-600 font-medium flex items-center gap-1">
+                      <span className="text-xs text-rose-600 font-medium flex items-center gap-1">
                         <AlertCircle className="h-3.5 w-3.5 text-rose-500" />
                         {(receiptError as Error)?.message || 'Preview unavailable'}
                       </span>
@@ -346,7 +346,7 @@ export function DisbursementDetailDrawer({
                           setImageLoadError(false);
                           void refetchReceiptUrl();
                         }}
-                        className="text-xs font-mono h-6 px-2 text-rose-700 border-rose-200 hover:bg-rose-50 cursor-pointer"
+                        className="text-xs h-6 px-2 text-rose-700 border-rose-200 hover:bg-rose-50 cursor-pointer"
                         data-testid="btn-retry-receipt"
                       >
                         <RefreshCw className={cn('h-3 w-3 mr-1', isFetchingReceipt && 'animate-spin')} />
@@ -355,7 +355,7 @@ export function DisbursementDetailDrawer({
                     </div>
                   ) : receiptData?.status === 'unavailable' ? (
                     <span
-                      className="text-xs font-mono font-medium px-2 py-0.5 rounded bg-amber-100 text-amber-800 border-amber-200"
+                      className="text-xs font-medium px-2 py-0.5 rounded bg-amber-100 text-amber-800 border-amber-200"
                       data-testid="receipt-legacy-unavailable"
                     >
                       Supporting document unavailable (legacy record)
@@ -366,7 +366,7 @@ export function DisbursementDetailDrawer({
                         href={receiptData.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs font-mono font-medium px-2.5 py-1 rounded bg-[#1D4ED8] hover:bg-[#1E40AF] text-white shadow-2xs cursor-pointer"
+                        className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded bg-[#1D4ED8] hover:bg-[#1E40AF] text-white shadow-2xs cursor-pointer"
                         data-testid="btn-preview-receipt"
                       >
                         <FileText className="h-3 w-3" />
@@ -380,7 +380,7 @@ export function DisbursementDetailDrawer({
                           setImageLoadError(false);
                           void refetchReceiptUrl();
                         }}
-                        className="text-xs font-mono h-6 px-2 text-[#0F172A] border-[#CBD5E1] hover:bg-[#F1F5F9] cursor-pointer"
+                        className="text-xs h-6 px-2 text-[#1E293B] border-[#E2E8F0] hover:bg-[#F8FAFC] cursor-pointer"
                         title="Refresh signed URL (valid for 5 minutes)"
                         data-testid="btn-refresh-receipt"
                       >
@@ -389,7 +389,7 @@ export function DisbursementDetailDrawer({
                       </Button>
                     </div>
                   ) : isLoadingReceipt || isFetchingReceipt ? (
-                    <span className="text-xs font-mono text-[#475569] flex items-center gap-1">
+                    <span className="text-xs text-[#475569] flex items-center gap-1">
                       <RefreshCw className="h-3 w-3 animate-spin text-blue-500" />
                       Loading document link...
                     </span>
@@ -408,7 +408,7 @@ export function DisbursementDetailDrawer({
                           <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
                           <span>Image preview failed to load or signed link expired</span>
                         </div>
-                        <p className="text-xs font-mono text-amber-700">
+                        <p className="text-xs text-amber-700">
                           Signed receipt URLs expire after 5 minutes. Refresh to obtain a new signed preview.
                         </p>
                         <Button
@@ -419,7 +419,7 @@ export function DisbursementDetailDrawer({
                             setImageLoadError(false);
                             void refetchReceiptUrl();
                           }}
-                          className="text-xs font-mono h-6 px-2 border-amber-300 text-amber-800 hover:bg-amber-100 cursor-pointer"
+                          className="text-xs h-6 px-2 border-amber-300 text-amber-800 hover:bg-amber-100 cursor-pointer"
                           data-testid="btn-retry-image-preview"
                         >
                           <RefreshCw className={cn('h-3 w-3 mr-1', isFetchingReceipt && 'animate-spin')} />
@@ -430,7 +430,7 @@ export function DisbursementDetailDrawer({
                       <img
                         src={receiptData.url}
                         alt={item.receipt_filename || item.receiptFilename || 'Receipt Preview'}
-                        className="max-h-48 rounded border-[#CBD5E1] object-contain mx-auto"
+                        className="max-h-48 rounded border-[#E2E8F0] object-contain mx-auto"
                         onError={() => setImageLoadError(true)}
                         data-testid="receipt-preview-image"
                       />
@@ -454,7 +454,7 @@ export function DisbursementDetailDrawer({
                       variant="outline"
                       size="sm"
                       onClick={() => setIsEditPaymentModalOpen(true)}
-                      className="text-xs font-mono h-6 px-2 text-purple-700 border-purple-200 hover:bg-purple-100 cursor-pointer"
+                      className="text-xs h-6 px-2 text-purple-700 border-purple-200 hover:bg-purple-100 cursor-pointer"
                       data-testid="btn-edit-payment-details"
                     >
                       <Pencil className="h-3 w-3 mr-1" />
@@ -462,28 +462,28 @@ export function DisbursementDetailDrawer({
                     </Button>
                   )}
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
                     <span className="text-[#475569]">Method: </span>
-                    <span className="font-medium text-[#0F172A]" data-testid="detail-payment-method">
+                    <span className="font-medium text-[#1E293B]" data-testid="detail-payment-method">
                       {item.payment_method || item.paymentMethod || 'N/A'}
                     </span>
                   </div>
                   <div>
                     <span className="text-[#475569]">Reference: </span>
-                    <span className="font-medium text-[#0F172A]" data-testid="detail-payment-reference">
+                    <span className="font-medium text-[#1E293B]" data-testid="detail-payment-reference">
                       {item.payment_reference || item.paymentReference || 'N/A'}
                     </span>
                   </div>
                   <div>
                     <span className="text-[#475569]">Bank: </span>
-                    <span className="font-medium text-[#0F172A]" data-testid="detail-payment-bank">
+                    <span className="font-medium text-[#1E293B]" data-testid="detail-payment-bank">
                       {item.payment_bank || item.paymentBank || 'N/A'}
                     </span>
                   </div>
                   <div>
                     <span className="text-[#475569]">Payment Date: </span>
-                    <span className="font-medium text-[#0F172A]" data-testid="detail-payment-date">
+                    <span className="font-medium text-[#1E293B]" data-testid="detail-payment-date">
                       {item.payment_date || item.paymentDate || 'N/A'}
                     </span>
                   </div>
@@ -492,17 +492,17 @@ export function DisbursementDetailDrawer({
             )}
 
             {/* Lifecycle Audit Trail */}
-            <div className="space-y-2 border-t border-[#CBD5E1] pt-3">
-              <h4 className="font-semibold text-[#0F172A] text-xs flex items-center gap-1.5">
+            <div className="space-y-2 border-t border-[#E2E8F0] pt-3">
+              <h4 className="font-semibold text-[#1E293B] text-xs flex items-center gap-1.5">
                 <Clock className="h-3.5 w-3.5 text-[#475569]" />
                 Lifecycle Audit Timeline
               </h4>
-              <div className="space-y-1.5 text-xs font-mono text-[#475569] pl-2">
+              <div className="space-y-1.5 text-xs text-[#475569] pl-2">
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-[6px] bg-slate-400 shrink-0" />
                   <span>
                     Created by{' '}
-                    <span className="font-medium text-[#0F172A]">
+                    <span className="font-medium text-[#1E293B]">
                       {item.created_by_name ||
                         item.createdByName ||
                         item.requested_by_name ||
@@ -520,10 +520,10 @@ export function DisbursementDetailDrawer({
                 </div>
                 {(item.approved_at || item.approvedAt) && (
                   <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-[6px] bg-[#F1F5F9]0 shrink-0" />
+                    <span className="w-2 h-2 rounded-[6px] bg-[#F8FAFC]0 shrink-0" />
                     <span>
                       Approved by{' '}
-                      <span className="font-medium text-[#0F172A]">
+                      <span className="font-medium text-[#1E293B]">
                         {item.approved_by_name ||
                           item.approvedByName ||
                           item.approved_by ||
@@ -539,7 +539,7 @@ export function DisbursementDetailDrawer({
                     <span className="w-2 h-2 rounded-[6px] bg-purple-500 shrink-0" />
                     <span>
                       Released by{' '}
-                      <span className="font-medium text-[#0F172A]">
+                      <span className="font-medium text-[#1E293B]">
                         {item.released_by_name ||
                           item.releasedByName ||
                           item.released_by ||
@@ -564,7 +564,7 @@ export function DisbursementDetailDrawer({
                     <span className="w-2 h-2 rounded-[6px] bg-rose-500 shrink-0" />
                     <span>
                       Rejected by{' '}
-                      <span className="font-medium text-[#0F172A]">
+                      <span className="font-medium text-[#1E293B]">
                         {item.rejected_by_name ||
                           item.rejectedByName ||
                           item.rejected_by ||
@@ -581,7 +581,7 @@ export function DisbursementDetailDrawer({
             </div>
 
             {/* Contextual Action Bar */}
-            <div className="flex items-center justify-end gap-2 border-t border-[#CBD5E1] pt-3">
+            <div className="flex items-center justify-end gap-2 border-t border-[#E2E8F0] pt-3">
               {/* Draft -> Direct Approve (Admin) vs Submit for Approval (Non-Admin) */}
               {item.status === 'Draft' && (
                 isAdmin ? (
@@ -675,7 +675,7 @@ export function DisbursementDetailDrawer({
                 variant="outline"
                 size="sm"
                 onClick={() => setIsPrintModalOpen(true)}
-                className="text-xs font-medium border-[#CBD5E1]"
+                className="text-xs font-medium border-[#E2E8F0]"
                 data-testid="drawer-print-btn"
               >
                 <Printer className="h-3.5 w-3.5 mr-1 text-[#475569]" />

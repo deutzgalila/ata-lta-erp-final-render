@@ -10,9 +10,9 @@ const buttonVariants = cva(
       variant: {
         default: 'border border-[#1D4ED8] bg-[#1D4ED8] text-[#FFFFFF] shadow-2xs hover:bg-[#1E40AF] hover:border-[#1E40AF]',
         destructive: 'border border-[#DC2626] bg-[#DC2626] text-[#FFFFFF] shadow-2xs hover:bg-[#991B1B] hover:border-[#991B1B]',
-        outline: 'border border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A] shadow-2xs hover:bg-[#F1F5F9] hover:border-[#94A3B8]',
-        secondary: 'border border-[#CBD5E1] bg-[#F1F5F9] text-[#0F172A] hover:bg-[#E2E8F0] hover:border-[#94A3B8]',
-        ghost: 'text-[#334155] hover:bg-[#F1F5F9] hover:text-[#0F172A]',
+        outline: 'border border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B] shadow-2xs hover:bg-[#F8FAFC] hover:border-[#94A3B8]',
+        secondary: 'border border-[#E2E8F0] bg-[#F8FAFC] text-[#1E293B] hover:bg-[#E2E8F0] hover:border-[#94A3B8]',
+        ghost: 'text-[#334155] hover:bg-[#F8FAFC] hover:text-[#1E293B]',
         link: 'text-[#1D4ED8] underline-offset-4 hover:underline p-0 h-auto font-normal',
         ata: 'border border-[#1E3A8A] bg-[#1E3A8A] text-[#FFFFFF] hover:bg-[#1E40AF] hover:border-[#1E40AF]',
         lta: 'border border-[#0369A1] bg-[#0369A1] text-[#FFFFFF] hover:bg-[#075985] hover:border-[#075985]',

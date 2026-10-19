@@ -171,7 +171,7 @@ export default function DocumentsPage() {
   return (
     <div className="w-full space-y-6" data-testid="documents-page">
       {/* 1. Unified Module Header */}
-      <div className="border-b border-[#CBD5E1] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div className="border-b border-[#E2E8F0] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <nav
             aria-label="Breadcrumb"
@@ -179,9 +179,9 @@ export default function DocumentsPage() {
           >
             <span>Modules</span>
             <span aria-hidden="true">/</span>
-            <span className="text-[#0F172A] font-semibold">Documents</span>
+            <span className="text-[#1E293B] font-semibold">Documents</span>
           </nav>
-          <h1 className="text-2xl font-semibold tracking-tight text-[#0F172A] flex items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight text-[#1E293B] flex items-center gap-2">
             <FolderOpen className="h-6 w-6 text-[#1D4ED8]" />
             <span>Document Management System</span>
           </h1>
@@ -206,17 +206,17 @@ export default function DocumentsPage() {
 
       {/* 2. Tabs: Active vs. Archived */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full space-y-4">
-        <TabsList className="w-full justify-start rounded-[8px] bg-[#F1F5F9] p-1 border border-[#CBD5E1] gap-1 h-auto overflow-x-auto scrollbar-none flex flex-nowrap">
+        <TabsList className="w-full justify-start rounded-[8px] bg-[#F8FAFC] p-1 border border-[#E2E8F0] gap-1 h-auto overflow-x-auto scrollbar-none flex flex-nowrap">
           <TabsTrigger
             value="active"
-            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-active-documents"
           >
             <FolderOpen className="h-4 w-4" />
             <span>Active Documents</span>
             <Badge
               variant="secondary"
-              className="ml-1.5 text-xs font-mono px-1.5 py-0 rounded-[4px] border border-[#CBD5E1] bg-[#E2E8F0]/70 text-[#0F172A]"
+              className="ml-1.5 text-xs tabular-nums px-1.5 py-0 rounded-[4px] border border-[#E2E8F0] bg-[#E2E8F0]/70 text-[#1E293B]"
               data-testid="badge-active-count"
             >
               {countsData?.active ?? 0}
@@ -225,14 +225,14 @@ export default function DocumentsPage() {
 
           <TabsTrigger
             value="archived"
-            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-archived-documents"
           >
             <Archive className="h-4 w-4" />
             <span>Archived</span>
             <Badge
               variant="secondary"
-              className="ml-1.5 text-xs font-mono px-1.5 py-0 rounded-[4px] border border-[#CBD5E1] bg-[#E2E8F0]/70 text-[#0F172A]"
+              className="ml-1.5 text-xs tabular-nums px-1.5 py-0 rounded-[4px] border border-[#E2E8F0] bg-[#E2E8F0]/70 text-[#1E293B]"
               data-testid="badge-archived-count"
             >
               {countsData?.archived ?? 0}

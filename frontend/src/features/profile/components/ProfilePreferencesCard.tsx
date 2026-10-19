@@ -108,7 +108,7 @@ export function ProfilePreferencesCard({ profile, isLoading = false }: ProfilePr
             <div className="space-y-1.5">
               <label
                 htmlFor="profile-theme-select"
-                className="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+                className="text-xs font-semibold text-muted-foreground tracking-normal"
               >
                 Theme
               </label>
@@ -147,7 +147,7 @@ export function ProfilePreferencesCard({ profile, isLoading = false }: ProfilePr
             <div className="space-y-1.5">
               <label
                 htmlFor="profile-default-view-select"
-                className="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+                className="text-xs font-semibold text-muted-foreground tracking-normal"
               >
                 Default List View
               </label>
@@ -186,7 +186,7 @@ export function ProfilePreferencesCard({ profile, isLoading = false }: ProfilePr
             <div className="space-y-1.5">
               <label
                 htmlFor="profile-default-form-view-select"
-                className="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+                className="text-xs font-semibold text-muted-foreground tracking-normal"
               >
                 Default Form View
               </label>

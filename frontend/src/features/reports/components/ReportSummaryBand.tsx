@@ -32,17 +32,17 @@ export const ReportSummaryCard: React.FC<ReportSummaryCardProps> = ({
     <div
       data-testid={dataTestId}
       className={cn(
-        'rounded-[8px] border border-[#CBD5E1] bg-[#FFFFFF] p-4 shadow-card transition-colors',
+        'rounded-[8px] border border-[#E2E8F0] bg-[#FFFFFF] p-4 shadow-card transition-colors',
         attention
           ? 'border-warning-border border-t-2 border-t-[#D97706] bg-[#FEFCE8]/40'
-          : 'hover:bg-[#F1F5F9]',
+          : 'hover:bg-[#F8FAFC]',
         className
       )}
     >
       <div className="text-xs font-medium text-[#475569]">
         {label}
       </div>
-      <div className="text-2xl font-bold text-[#0F172A] font-mono tabular-nums tracking-tight mt-1">
+      <div className="text-2xl font-bold text-[#1E293B] tabular-nums tracking-tight mt-1">
         {value}
       </div>
       {subtext && <div className="text-xs text-[#475569] mt-1">{subtext}</div>}
@@ -102,7 +102,7 @@ export const ReportSummaryBand: React.FC<ReportSummaryBandProps> = ({
         {Array.from({ length: skeletonCount }).map((_, idx) => (
           <div
             key={idx}
-            className="rounded-[8px] border border-[#CBD5E1] bg-[#FFFFFF] p-4 shadow-card animate-pulse motion-reduce:animate-none"
+            className="rounded-[8px] border border-[#E2E8F0] bg-[#FFFFFF] p-4 shadow-card animate-pulse motion-reduce:animate-none"
           >
             <div className="h-4 w-24 bg-[#E2E8F0] rounded-[4px] mb-3" />
             <div className="h-7 w-32 bg-[#E2E8F0] rounded-[4px]" />

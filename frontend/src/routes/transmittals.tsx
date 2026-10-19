@@ -145,7 +145,7 @@ export default function TransmittalsPage() {
   return (
     <div className="w-full space-y-6" data-testid="transmittals-page">
       {/* 1. Unified Module Header */}
-      <div className="border-b border-[#CBD5E1] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div className="border-b border-[#E2E8F0] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <nav
             aria-label="Breadcrumb"
@@ -153,9 +153,9 @@ export default function TransmittalsPage() {
           >
             <span>Modules</span>
             <span aria-hidden="true">/</span>
-            <span className="text-[#0F172A] font-semibold">Transmittals</span>
+            <span className="text-[#1E293B] font-semibold">Transmittals</span>
           </nav>
-          <h1 className="text-2xl font-semibold tracking-tight text-[#0F172A] flex items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight text-[#1E293B] flex items-center gap-2">
             <Send className="h-6 w-6 text-[#1D4ED8]" />
             Document Transmittals
           </h1>
@@ -168,7 +168,7 @@ export default function TransmittalsPage() {
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
           {/* Active Entity Toggle */}
           <div
-            className="flex items-center bg-[#F1F5F9] p-1 rounded-[8px] border border-[#CBD5E1]"
+            className="flex items-center bg-[#F8FAFC] p-1 rounded-[8px] border border-[#E2E8F0]"
             data-testid="transmittals-entity-toggle"
           >
             {(['ATA', 'LTA', 'ALL'] as const).map((ent) => (
@@ -179,7 +179,7 @@ export default function TransmittalsPage() {
                 className={`px-3 py-1 rounded-[6px] text-xs font-semibold transition-colors cursor-pointer ${
                   activeEntity === ent
                     ? 'bg-[#1D4ED8] text-[#FFFFFF] shadow-2xs font-semibold'
-                    : 'text-[#475569] hover:text-[#0F172A] hover:bg-[#E2E8F0]/60'
+                    : 'text-[#475569] hover:text-[#1E293B] hover:bg-[#E2E8F0]/60'
                 }`}
                 data-testid={`entity-btn-${ent.toLowerCase()}`}
               >
@@ -208,71 +208,71 @@ export default function TransmittalsPage() {
 
       {/* 2. Metric Summary KPI Cards (Unified Structured KPI Band) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="p-4 bg-[#FFFFFF] border border-[#CBD5E1] rounded-[8px] shadow-card space-y-1">
+        <div className="p-4 bg-[#FFFFFF] border border-[#E2E8F0] rounded-[8px] shadow-card space-y-1">
           <div className="flex items-center justify-between text-xs font-medium text-[#475569]">
             <span>Active Manifests</span>
             <Layers className="h-4 w-4 text-[#1D4ED8]" />
           </div>
-          <div className="text-2xl font-semibold font-mono tabular-nums text-[#0F172A]" data-testid="kpi-active-count">
+          <div className="text-2xl font-semibold tabular-nums text-[#1E293B]" data-testid="kpi-active-count">
             {activeCount}
           </div>
         </div>
 
-        <div className="p-4 bg-[#FFFFFF] border border-[#CBD5E1] rounded-[8px] shadow-card space-y-1">
+        <div className="p-4 bg-[#FFFFFF] border border-[#E2E8F0] rounded-[8px] shadow-card space-y-1">
           <div className="flex items-center justify-between text-xs font-medium text-[#475569]">
             <span>Drafts</span>
             <Clock className="h-4 w-4 text-[#1D4ED8]" />
           </div>
-          <div className="text-xl font-semibold font-mono tabular-nums text-[#0F172A]" data-testid="kpi-draft-count">
+          <div className="text-xl font-semibold tabular-nums text-[#1E293B]" data-testid="kpi-draft-count">
             {draftCount}
           </div>
         </div>
 
-        <div className="p-4 bg-[#FFFFFF] border border-[#CBD5E1] rounded-[8px] shadow-card space-y-1">
+        <div className="p-4 bg-[#FFFFFF] border border-[#E2E8F0] rounded-[8px] shadow-card space-y-1">
           <div className="flex items-center justify-between text-xs font-medium text-[#475569]">
             <span>In Transit / Sent</span>
             <Send className="h-4 w-4 text-[#1D4ED8]" />
           </div>
-          <div className="text-xl font-semibold font-mono tabular-nums text-[#0F172A]" data-testid="kpi-sent-count">
+          <div className="text-xl font-semibold tabular-nums text-[#1E293B]" data-testid="kpi-sent-count">
             {sentCount}
           </div>
         </div>
 
-        <div className="p-4 bg-[#FFFFFF] border border-[#CBD5E1] rounded-[8px] shadow-card space-y-1">
+        <div className="p-4 bg-[#FFFFFF] border border-[#E2E8F0] rounded-[8px] shadow-card space-y-1">
           <div className="flex items-center justify-between text-xs font-medium text-[#475569]">
             <span>Acknowledged</span>
             <CheckCircle2 className="h-4 w-4 text-[#1D4ED8]" />
           </div>
-          <div className="text-xl font-semibold font-mono tabular-nums text-[#0F172A]" data-testid="kpi-acknowledged-count">
+          <div className="text-xl font-semibold tabular-nums text-[#1E293B]" data-testid="kpi-acknowledged-count">
             {ackCount}
           </div>
         </div>
       </div>
 
       {/* 3. Navigation Tabs and View Switcher Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-[#CBD5E1] pb-2">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-[#E2E8F0] pb-2">
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full sm:w-auto">
-          <TabsList className="w-full sm:w-auto justify-start rounded-[8px] bg-[#F1F5F9] p-1 border border-[#CBD5E1] gap-1 h-auto overflow-x-auto scrollbar-none flex flex-nowrap" data-testid="transmittal-tabs">
+          <TabsList className="w-full sm:w-auto justify-start rounded-[8px] bg-[#F8FAFC] p-1 border border-[#E2E8F0] gap-1 h-auto overflow-x-auto scrollbar-none flex flex-nowrap" data-testid="transmittal-tabs">
             <TabsTrigger
               value="active"
-              className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+              className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
               data-testid="tab-active"
             >
               <Layers className="h-3.5 w-3.5" />
               Active Transmittals
-              <Badge variant="secondary" className="text-xs font-mono py-0 px-1.5 rounded-[4px] border border-[#CBD5E1] bg-[#E2E8F0]/70 text-[#0F172A] font-medium ml-1.5">
+              <Badge variant="secondary" className="text-xs tabular-nums py-0 px-1.5 rounded-[4px] border border-[#E2E8F0] bg-[#E2E8F0]/70 text-[#1E293B] font-medium ml-1.5">
                 {activeCount}
               </Badge>
             </TabsTrigger>
 
             <TabsTrigger
               value="archived"
-              className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+              className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
               data-testid="tab-archived"
             >
               <Archive className="h-3.5 w-3.5" />
               Archived
-              <Badge variant="secondary" className="text-xs font-mono py-0 px-1.5 rounded-[4px] border border-[#CBD5E1] bg-[#E2E8F0]/70 text-[#0F172A] font-medium ml-1.5">
+              <Badge variant="secondary" className="text-xs tabular-nums py-0 px-1.5 rounded-[4px] border border-[#E2E8F0] bg-[#E2E8F0]/70 text-[#1E293B] font-medium ml-1.5">
                 {archivedCount}
               </Badge>
             </TabsTrigger>

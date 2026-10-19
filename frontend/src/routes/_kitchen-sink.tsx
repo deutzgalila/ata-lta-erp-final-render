@@ -55,7 +55,7 @@ export default function KitchenSinkPage() {
             <Palette className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-[#0F172A]">Design System Kitchen Sink</h1>
+            <h1 className="text-2xl font-semibold tracking-tight text-[#1E293B]">Design System Kitchen Sink</h1>
             <p className="text-xs sm:text-sm text-[#475569]">
               Institutional Finance Ledger UI showcase rendering all 12 themed UI primitives in standard and compact densities.
             </p>
@@ -73,7 +73,7 @@ export default function KitchenSinkPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <span className="text-xs font-semibold text-[#475569] uppercase tracking-wider block mb-2">
+            <span className="text-xs font-semibold text-[#475569] tracking-normal block mb-2">
               Standard Density (h-9, 14px text)
             </span>
             <div className="flex flex-wrap gap-2.5">
@@ -90,7 +90,7 @@ export default function KitchenSinkPage() {
           </div>
 
           <div>
-            <span className="text-xs font-semibold text-[#475569] uppercase tracking-wider block mb-2">
+            <span className="text-xs font-semibold text-[#475569] tracking-normal block mb-2">
               Compact Density (h-8/h-7, 13px/12px text)
             </span>
             <div className="flex flex-wrap gap-2 items-center">
@@ -117,22 +117,22 @@ export default function KitchenSinkPage() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-medium text-[#0F172A] block mb-1">Standard Density (h-9)</label>
+              <label className="text-xs font-medium text-[#1E293B] block mb-1">Standard Density (h-9)</label>
               <Input placeholder="Enter work request title..." />
             </div>
             <div>
-              <label className="text-xs font-medium text-[#0F172A] block mb-1">Standard (Disabled)</label>
+              <label className="text-xs font-medium text-[#1E293B] block mb-1">Standard (Disabled)</label>
               <Input value="Locked invoice number #INV-2026-001" disabled />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-medium text-[#0F172A] block mb-1">Compact Density (h-8, 12px)</label>
+              <label className="text-xs font-medium text-[#1E293B] block mb-1">Compact Density (h-8, 12px)</label>
               <Input density="compact" placeholder="Filter line items..." />
             </div>
             <div>
-              <label className="text-xs font-medium text-[#0F172A] block mb-1">Compact (Disabled)</label>
+              <label className="text-xs font-medium text-[#1E293B] block mb-1">Compact (Disabled)</label>
               <Input density="compact" value="Tax code: VAT-EXEMPT" disabled />
             </div>
           </div>
@@ -147,7 +147,7 @@ export default function KitchenSinkPage() {
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="text-xs font-medium text-[#0F172A] block mb-1">Standard Select</label>
+            <label className="text-xs font-medium text-[#1E293B] block mb-1">Standard Select</label>
             <Select value={selectVal} onValueChange={setSelectVal}>
               <SelectTrigger>
                 <SelectValue placeholder="Choose entity" />
@@ -161,7 +161,7 @@ export default function KitchenSinkPage() {
           </div>
 
           <div>
-            <label className="text-xs font-medium text-[#0F172A] block mb-1">Compact Select (h-8)</label>
+            <label className="text-xs font-medium text-[#1E293B] block mb-1">Compact Select (h-8)</label>
             <Select value={selectVal} onValueChange={setSelectVal}>
               <SelectTrigger density="compact">
                 <SelectValue placeholder="Choose entity" />
@@ -184,7 +184,7 @@ export default function KitchenSinkPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <div>
-            <span className="text-xs font-semibold text-[#475569] uppercase tracking-wider block mb-2">
+            <span className="text-xs font-semibold text-[#475569] tracking-normal block mb-2">
               Standard Density
             </span>
             <div className="flex flex-wrap gap-2">
@@ -201,7 +201,7 @@ export default function KitchenSinkPage() {
           </div>
 
           <div>
-            <span className="text-xs font-semibold text-[#475569] uppercase tracking-wider block mb-2">
+            <span className="text-xs font-semibold text-[#475569] tracking-normal block mb-2">
               Compact Density (High Density Tables)
             </span>
             <div className="flex flex-wrap gap-2">
@@ -227,7 +227,7 @@ export default function KitchenSinkPage() {
             <CardDescription>Default 24px padding with soft corporate drop shadow.</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-[#0F172A]">
+            <p className="text-sm text-[#1E293B]">
               Standard card content used for primary dashboard panels and configuration forms.
             </p>
           </CardContent>
@@ -242,7 +242,7 @@ export default function KitchenSinkPage() {
             <CardDescription density="compact">12px padding for high-density layouts.</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-[#0F172A]">
+            <p className="text-xs text-[#1E293B]">
               Compact card content used in sidebar widgets and rapid review drawers.
             </p>
           </CardContent>
@@ -260,7 +260,7 @@ export default function KitchenSinkPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           <div>
-            <span className="text-xs font-semibold text-[#475569] uppercase tracking-wider block mb-2">
+            <span className="text-xs font-semibold text-[#475569] tracking-normal block mb-2">
               Standard Density Table
             </span>
             <Table>
@@ -275,25 +275,25 @@ export default function KitchenSinkPage() {
               </TableHeader>
               <TableBody>
                 <TableRow>
-                  <TableCell className="font-medium font-mono text-xs">WR-2026-081</TableCell>
+                  <TableCell className="font-medium text-xs">WR-2026-081</TableCell>
                   <TableCell>Acme Holding Corp</TableCell>
                   <TableCell><Badge variant="ata" density="compact">ATA</Badge></TableCell>
                   <TableCell><Badge variant="success" density="compact">Completed</Badge></TableCell>
-                  <TableCell className="text-right font-mono tabular-nums">PHP 45,000.00</TableCell>
+                  <TableCell className="text-right tabular-nums">PHP 45,000.00</TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell className="font-medium font-mono text-xs">WR-2026-082</TableCell>
+                  <TableCell className="font-medium text-xs">WR-2026-082</TableCell>
                   <TableCell>Beta Logistics Inc</TableCell>
                   <TableCell><Badge variant="lta" density="compact">LTA</Badge></TableCell>
                   <TableCell><Badge variant="warning" density="compact">Pending Review</Badge></TableCell>
-                  <TableCell className="text-right font-mono tabular-nums">PHP 12,500.00</TableCell>
+                  <TableCell className="text-right tabular-nums">PHP 12,500.00</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
           </div>
 
           <div>
-            <span className="text-xs font-semibold text-[#475569] uppercase tracking-wider block mb-2">
+            <span className="text-xs font-semibold text-[#475569] tracking-normal block mb-2">
               High-Density Table (Compact Padding, 12px row height)
             </span>
             <Table density="compact">
@@ -308,18 +308,18 @@ export default function KitchenSinkPage() {
               </TableHeader>
               <TableBody>
                 <TableRow>
-                  <TableCell density="compact" className="font-mono">VOUCH-109</TableCell>
+                  <TableCell density="compact" className="">VOUCH-109</TableCell>
                   <TableCell density="compact">Delta Shipping</TableCell>
                   <TableCell density="compact"><Badge variant="ata" density="compact">ATA</Badge></TableCell>
                   <TableCell density="compact"><Badge variant="success" density="compact">Released</Badge></TableCell>
-                  <TableCell density="compact" className="text-right font-mono tabular-nums">PHP 8,200.00</TableCell>
+                  <TableCell density="compact" className="text-right tabular-nums">PHP 8,200.00</TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell density="compact" className="font-mono">VOUCH-110</TableCell>
+                  <TableCell density="compact" className="">VOUCH-110</TableCell>
                   <TableCell density="compact">Epsilon Mining</TableCell>
                   <TableCell density="compact"><Badge variant="lta" density="compact">LTA</Badge></TableCell>
                   <TableCell density="compact"><Badge variant="info" density="compact">Draft</Badge></TableCell>
-                  <TableCell density="compact" className="text-right font-mono tabular-nums">PHP 3,450.00</TableCell>
+                  <TableCell density="compact" className="text-right tabular-nums">PHP 3,450.00</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
@@ -346,7 +346,7 @@ export default function KitchenSinkPage() {
                   This action will authorize disbursement payment and notify Accounting.
                 </DialogDescription>
               </DialogHeader>
-              <div className="py-2 text-xs text-[#0F172A] space-y-1">
+              <div className="py-2 text-xs text-[#1E293B] space-y-1">
                 <p>Payment Reference: <strong>DV-2026-0042</strong></p>
                 <p>Payee: <strong>Bureau of Internal Revenue</strong></p>
                 <p>Total Amount: <strong>PHP 150,000.00</strong></p>
@@ -390,7 +390,7 @@ export default function KitchenSinkPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           <div>
-            <span className="text-xs font-semibold text-[#475569] uppercase tracking-wider block mb-2">
+            <span className="text-xs font-semibold text-[#475569] tracking-normal block mb-2">
               Standard Tabs
             </span>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -400,17 +400,17 @@ export default function KitchenSinkPage() {
                 <TabsTrigger value="completed">Completed (124)</TabsTrigger>
               </TabsList>
               <TabsContent value="overview">
-                <p className="text-xs text-[#0F172A] p-3 bg-[#FFFFFF] rounded-[6px] border border-[#CBD5E1]">
+                <p className="text-xs text-[#1E293B] p-3 bg-[#FFFFFF] rounded-[6px] border border-[#E2E8F0]">
                   Showing all active records across assigned departments.
                 </p>
               </TabsContent>
               <TabsContent value="pending">
-                <p className="text-xs text-[#0F172A] p-3 bg-[#FFFFFF] rounded-[6px] border border-[#CBD5E1]">
+                <p className="text-xs text-[#1E293B] p-3 bg-[#FFFFFF] rounded-[6px] border border-[#E2E8F0]">
                   Showing items pending Manager review or QA verification.
                 </p>
               </TabsContent>
               <TabsContent value="completed">
-                <p className="text-xs text-[#0F172A] p-3 bg-[#FFFFFF] rounded-[6px] border border-[#CBD5E1]">
+                <p className="text-xs text-[#1E293B] p-3 bg-[#FFFFFF] rounded-[6px] border border-[#E2E8F0]">
                   Archived and released transmittals.
                 </p>
               </TabsContent>
@@ -418,7 +418,7 @@ export default function KitchenSinkPage() {
           </div>
 
           <div>
-            <span className="text-xs font-semibold text-[#475569] uppercase tracking-wider block mb-2">
+            <span className="text-xs font-semibold text-[#475569] tracking-normal block mb-2">
               Compact Tabs
             </span>
             <Tabs defaultValue="day">
@@ -524,10 +524,10 @@ export default function KitchenSinkPage() {
                 const isColor = val.startsWith('#') || val.startsWith('rgba');
                 return (
                   <TableRow key={key}>
-                    <TableCell density="compact" className="font-mono text-xs font-semibold text-[#0F172A]">
+                    <TableCell density="compact" className="text-xs font-semibold text-[#1E293B]">
                       {key}
                     </TableCell>
-                    <TableCell density="compact" className="font-mono text-xs text-[#475569]">
+                    <TableCell density="compact" className="text-xs text-[#475569]">
                       {val}
                     </TableCell>
                     <TableCell density="compact">

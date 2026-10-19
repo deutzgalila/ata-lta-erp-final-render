@@ -85,14 +85,14 @@ export function TransmittalDetailModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="border-[#CBD5E1] max-w-2xl border max-h-[90vh] rounded-[12px] bg-[#FFFFFF] shadow-float overflow-y-auto"
+      <DialogContent className="border-[#E2E8F0] max-w-2xl border max-h-[90vh] rounded-[12px] bg-[#FFFFFF] shadow-float overflow-y-auto"
         data-testid="transmittal-detail-modal"
       >
         <DialogHeader className="border-b pb-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-[#0F172A]" />
-              <DialogTitle className="font-mono text-lg font-bold text-[#0F172A]" data-testid="detail-tracking-number">
+              <FileText className="h-5 w-5 text-[#1E293B]" />
+              <DialogTitle className="font-mono text-lg font-bold text-[#1E293B]" data-testid="detail-tracking-number">
                 {transmittal?.tracking_number || 'Loading...'}
               </DialogTitle>
               {transmittal?.entity_code && (
@@ -124,12 +124,12 @@ export function TransmittalDetailModal({
             {/* Client and Recipient Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Client Info */}
-              <div className="bg-[#F1F5F9] p-3.5 rounded-[8px] border-[#CBD5E1] space-y-2">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-[#0F172A] uppercase tracking-wider">
+              <div className="bg-[#F8FAFC] p-3.5 rounded-[8px] border-[#E2E8F0] space-y-2">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-[#1E293B] tracking-normal">
                   <Building className="h-3.5 w-3.5 text-[#475569]" />
                   Client Details
                 </div>
-                <div className="text-sm font-semibold text-[#0F172A]" data-testid="detail-client-name">
+                <div className="text-sm font-semibold text-[#1E293B]" data-testid="detail-client-name">
                   {transmittal.clients?.name || 'Client not assigned'}
                 </div>
                 {transmittal.clients?.address && (
@@ -146,12 +146,12 @@ export function TransmittalDetailModal({
               </div>
 
               {/* Recipient Info */}
-              <div className="bg-[#F1F5F9] p-3.5 rounded-[8px] border-[#CBD5E1] space-y-2">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-[#0F172A] uppercase tracking-wider">
+              <div className="bg-[#F8FAFC] p-3.5 rounded-[8px] border-[#E2E8F0] space-y-2">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-[#1E293B] tracking-normal">
                   <User className="h-3.5 w-3.5 text-[#475569]" />
                   Delivery Recipient
                 </div>
-                <div className="text-sm font-semibold text-[#0F172A]" data-testid="detail-recipient-name">
+                <div className="text-sm font-semibold text-[#1E293B]" data-testid="detail-recipient-name">
                   {transmittal.recipient_name || 'No recipient person specified'}
                 </div>
                 {transmittal.recipient_details && (
@@ -165,15 +165,15 @@ export function TransmittalDetailModal({
             {/* Document Line Items Table (Item-rows-only fix) */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-[#0F172A] uppercase tracking-wider flex items-center gap-1.5">
-                  <Layers className="h-3.5 w-3.5 text-[#0F172A]" />
+                <h4 className="text-xs font-bold text-[#1E293B] tracking-normal flex items-center gap-1.5">
+                  <Layers className="h-3.5 w-3.5 text-[#1E293B]" />
                   Manifest Documents ({transmittal.items?.length ?? 0})
                 </h4>
               </div>
 
-              <div className="border-[#CBD5E1] rounded-[6px] overflow-hidden">
+              <div className="border-[#E2E8F0] rounded-[6px] overflow-hidden">
                 <table className="w-full text-left text-xs" data-testid="detail-items-table">
-                  <thead className="bg-[#F1F5F9] text-[#0F172A] font-semibold border-b text-xs font-mono">
+                  <thead className="bg-[#F8FAFC] text-[#1E293B] font-semibold border-b text-xs">
                     <tr>
                       <th className="py-2.5 px-3 w-10 text-center">#</th>
                       <th className="py-2.5 px-3 w-28">Category</th>
@@ -190,19 +190,19 @@ export function TransmittalDetailModal({
                       </tr>
                     ) : (
                       transmittal.items.map((item, idx) => (
-                        <tr key={item.id || idx} className="hover:bg-[#F1F5F9]/50">
+                        <tr key={item.id || idx} className="hover:bg-[#F8FAFC]/50">
                           <td className="py-2.5 px-3 font-mono text-center text-[#475569]">
                             {idx + 1}
                           </td>
                           <td className="py-2.5 px-3">
-                            <Badge variant="outline" className="text-xs font-mono py-0 px-1 font-medium bg-[#F1F5F9]">
+                            <Badge variant="outline" className="text-xs py-0 px-1 font-medium bg-[#F8FAFC]">
                               {item.document_type || item.documentType || 'Others'}
                             </Badge>
                           </td>
-                          <td className="py-2.5 px-3 font-medium text-[#0F172A]">
+                          <td className="py-2.5 px-3 font-medium text-[#1E293B]">
                             {item.description}
                           </td>
-                          <td className="py-2.5 px-3 font-mono font-semibold text-center text-[#0F172A]">
+                          <td className="py-2.5 px-3 tabular-nums font-semibold text-center text-[#1E293B]">
                             {item.quantity}
                           </td>
                         </tr>
@@ -215,24 +215,24 @@ export function TransmittalDetailModal({
 
             {/* Notes Section */}
             {transmittal.notes && (
-              <div className="p-3 bg-[#F1F5F9] rounded-[8px] border-[#CBD5E1] space-y-1">
-                <div className="text-xs font-semibold text-[#0F172A]">Delivery Notes:</div>
+              <div className="p-3 bg-[#F8FAFC] rounded-[8px] border-[#E2E8F0] space-y-1">
+                <div className="text-xs font-semibold text-[#1E293B]">Delivery Notes:</div>
                 <p className="text-xs text-[#475569] whitespace-pre-wrap">{transmittal.notes}</p>
               </div>
             )}
 
             {/* Audit Trail Metadata */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-[#F1F5F9]/75 rounded-[8px] border-[#CBD5E1] text-xs font-mono text-[#475569]">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-[#F8FAFC]/75 rounded-[8px] border-[#E2E8F0] text-xs text-[#475569]">
               <div>
-                <span className="font-semibold block text-[#0F172A]">Created At:</span>
+                <span className="font-semibold block text-[#1E293B]">Created At:</span>
                 <span>{new Date(transmittal.created_at).toLocaleString()}</span>
               </div>
               <div>
-                <span className="font-semibold block text-[#0F172A]">Sent At:</span>
+                <span className="font-semibold block text-[#1E293B]">Sent At:</span>
                 <span>{transmittal.sent_at ? new Date(transmittal.sent_at).toLocaleString() : 'Not sent'}</span>
               </div>
               <div>
-                <span className="font-semibold block text-[#0F172A]">Acknowledged:</span>
+                <span className="font-semibold block text-[#1E293B]">Acknowledged:</span>
                 <span>
                   {transmittal.acknowledged_at
                     ? new Date(transmittal.acknowledged_at).toLocaleString()
@@ -240,14 +240,14 @@ export function TransmittalDetailModal({
                 </span>
               </div>
               <div>
-                <span className="font-semibold block text-[#0F172A]">OCC Version:</span>
-                <span className="font-mono">v{transmittal.version}</span>
+                <span className="font-semibold block text-[#1E293B]">OCC Version:</span>
+                <span className="">v{transmittal.version}</span>
               </div>
             </div>
           </div>
         )}
 
-        <DialogFooter className="pt-4 border-t border-[#CBD5E1] flex flex-wrap items-center justify-between gap-2">
+        <DialogFooter className="pt-4 border-t border-[#E2E8F0] flex flex-wrap items-center justify-between gap-2">
           {/* Left Actions: Print, Edit, Delete */}
           <div className="flex items-center gap-1.5">
             {transmittal && onPrint && (

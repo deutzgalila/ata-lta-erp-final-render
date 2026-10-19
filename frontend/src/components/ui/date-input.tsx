@@ -251,7 +251,7 @@ export const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function D
             fontSize: 'inherit',
           },
           '& .MuiPickersSectionList-sectionContent': {
-            fontFamily: 'var(--font-mono)',
+            fontFamily: 'var(--)',
             fontSize: 'inherit',
             fontVariantNumeric: 'tabular-nums',
           },

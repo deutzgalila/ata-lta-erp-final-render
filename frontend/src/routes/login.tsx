@@ -76,7 +76,7 @@ export default function LoginPage() {
           <div className="inline-flex h-12 w-12 items-center justify-center rounded-[10px] bg-[#1E3A8A] text-[#FFFFFF] font-bold text-xl shadow-card mb-3">
             ERP
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#0F172A] tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#1E293B] tracking-tight">
             ATA &amp; LTA ERP
           </h1>
           <p className="text-xs sm:text-sm text-[#475569] mt-1">
@@ -84,9 +84,9 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <Card className="border border-[#CBD5E1] shadow-float bg-[#FFFFFF] rounded-[12px] p-0 overflow-hidden">
-          <CardHeader className="space-y-1 p-6 border-b border-[#CBD5E1] bg-[#F1F5F9]">
-            <CardTitle className="text-lg font-semibold tracking-tight text-[#0F172A]">
+        <Card className="border border-[#E2E8F0] shadow-float bg-[#FFFFFF] rounded-[12px] p-0 overflow-hidden">
+          <CardHeader className="space-y-1 p-6 border-b border-[#E2E8F0] bg-[#F8FAFC]">
+            <CardTitle className="text-lg font-semibold tracking-tight text-[#1E293B]">
               Sign in to your account
             </CardTitle>
             <CardDescription className="text-xs sm:text-sm text-[#475569]">
@@ -106,7 +106,7 @@ export default function LoginPage() {
               )}
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-[#0F172A]" htmlFor="email">
+                <label className="text-xs font-semibold text-[#1E293B]" htmlFor="email">
                   Email Address
                 </label>
                 <div className="relative">
@@ -125,7 +125,7 @@ export default function LoginPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-[#0F172A]" htmlFor="password">
+                <label className="text-xs font-semibold text-[#1E293B]" htmlFor="password">
                   Password
                 </label>
                 <div className="relative">
@@ -143,7 +143,7 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute right-3 top-2.5 text-[#64748B] hover:text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#1D4ED8] rounded-[4px] p-0.5 transition-colors cursor-pointer"
+                    className="absolute right-3 top-2.5 text-[#64748B] hover:text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1D4ED8] rounded-[4px] p-0.5 transition-colors cursor-pointer"
                     data-testid="password-toggle-btn"
                     id="password-toggle-btn"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
@@ -172,7 +172,7 @@ export default function LoginPage() {
               </Button>
 
               {/* Dev quick-login buttons */}
-              <div className="pt-2 text-center w-full border-t border-[#CBD5E1]">
+              <div className="pt-2 text-center w-full border-t border-[#E2E8F0]">
                 <span className="text-xs font-semibold text-[#475569] block mb-2">
                   Quick Development Access
                 </span>

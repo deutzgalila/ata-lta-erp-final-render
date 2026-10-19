@@ -235,7 +235,7 @@ export default function OperationsPage() {
   return (
     <div className="w-full space-y-6" data-testid="operations-page">
       {/* 1. Unified Module Header */}
-      <div className="border-b border-[#CBD5E1] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div className="border-b border-[#E2E8F0] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <nav
             aria-label="Breadcrumb"
@@ -243,9 +243,9 @@ export default function OperationsPage() {
           >
             <span>Modules</span>
             <span aria-hidden="true">/</span>
-            <span className="text-[#0F172A] font-semibold">Operations</span>
+            <span className="text-[#1E293B] font-semibold">Operations</span>
           </nav>
-          <h1 className="text-2xl font-semibold tracking-tight text-[#0F172A]">
+          <h1 className="text-2xl font-semibold tracking-tight text-[#1E293B]">
             Operations &amp; Engagements
           </h1>
           <p className="text-xs sm:text-sm text-[#475569] pt-0.5">
@@ -257,7 +257,7 @@ export default function OperationsPage() {
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
           {/* Active Entity Toggle */}
           <div
-            className="flex items-center bg-[#F1F5F9] p-1 rounded-[8px] border border-[#CBD5E1]"
+            className="flex items-center bg-[#F8FAFC] p-1 rounded-[8px] border border-[#E2E8F0]"
             data-testid="operations-entity-toggle"
           >
             {(['ATA', 'LTA', 'ALL'] as const).map((ent) => (
@@ -268,7 +268,7 @@ export default function OperationsPage() {
                 className={`px-3 py-1 rounded-[6px] text-xs font-semibold transition-colors cursor-pointer ${
                   activeEntity === ent
                     ? 'bg-[#1D4ED8] text-[#FFFFFF] shadow-2xs font-semibold'
-                    : 'text-[#475569] hover:text-[#0F172A] hover:bg-[#E2E8F0]/60'
+                    : 'text-[#475569] hover:text-[#1E293B] hover:bg-[#E2E8F0]/60'
                 }`}
                 data-testid={`entity-btn-${ent.toLowerCase()}`}
               >
@@ -287,7 +287,7 @@ export default function OperationsPage() {
                 setEditingTemplate(null);
                 setIsTemplateModalOpen(true);
               }}
-              className="text-xs font-medium rounded-[6px] border border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A] hover:bg-[#F1F5F9] gap-1.5 shadow-2xs cursor-pointer"
+              className="text-xs font-medium rounded-[6px] border border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B] hover:bg-[#F8FAFC] gap-1.5 shadow-2xs cursor-pointer"
               data-testid="page-new-template-btn"
             >
               <Plus className="h-4 w-4 text-[#475569]" /> New Template
@@ -300,7 +300,7 @@ export default function OperationsPage() {
               variant="outline"
               size="sm"
               onClick={() => setIsGenerateModalOpen(true)}
-              className="text-xs font-medium rounded-[6px] border border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A] hover:bg-[#F1F5F9] gap-1.5 shadow-2xs cursor-pointer"
+              className="text-xs font-medium rounded-[6px] border border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B] hover:bg-[#F8FAFC] gap-1.5 shadow-2xs cursor-pointer"
               data-testid="generate-retainer-btn"
             >
               <Zap className="h-3.5 w-3.5 text-[#1D4ED8]" /> Generate Retainer
@@ -326,12 +326,12 @@ export default function OperationsPage() {
 
       {/* 2. Module Navigation Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#CBD5E1] pb-2">
-          <TabsList className="w-full sm:w-auto justify-start rounded-[8px] bg-[#F1F5F9] p-1 border border-[#CBD5E1] gap-1 h-auto overflow-x-auto scrollbar-none flex flex-nowrap">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E2E8F0] pb-2">
+          <TabsList className="w-full sm:w-auto justify-start rounded-[8px] bg-[#F8FAFC] p-1 border border-[#E2E8F0] gap-1 h-auto overflow-x-auto scrollbar-none flex flex-nowrap">
             {/* Tab 1: Work Requests */}
             <TabsTrigger
               value="work-requests"
-              className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+              className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
               data-testid="tab-work-requests"
             >
               <FileText className="h-4 w-4" />
@@ -342,7 +342,7 @@ export default function OperationsPage() {
             {canAccessRetainerTemplates && (
               <TabsTrigger
                 value="retainer-templates"
-                className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+                className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
                 data-testid="tab-retainer-templates"
               >
                 <Layers className="h-4 w-4" />
@@ -354,7 +354,7 @@ export default function OperationsPage() {
             {canUseRetainers && (
               <TabsTrigger
                 value="other-templates"
-                className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+                className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
                 data-testid="tab-other-templates"
               >
                 <Layers className="h-4 w-4" />
@@ -366,7 +366,7 @@ export default function OperationsPage() {
             {hasApprovalAuthority && (
               <TabsTrigger
                 value="pending-approvals"
-                className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+                className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
                 data-testid="tab-pending-approvals"
               >
                 <Clock className="h-4 w-4" />
@@ -375,7 +375,7 @@ export default function OperationsPage() {
                   <Badge
                     variant="warning"
                     size="compact"
-                    className="font-mono font-medium px-1.5 rounded-[4px] border border-[#FDE047] bg-[#FEFCE8] text-[#854D0E]"
+                    className="font-medium px-1.5 rounded-[4px] border border-[#FDE047] bg-[#FEFCE8] text-[#854D0E]"
                     data-testid="tab-pending-badge"
                   >
                     {pendingApprovalsCount}
@@ -387,13 +387,13 @@ export default function OperationsPage() {
             {/* Tab 4: Archive */}
             <TabsTrigger
               value="archive"
-              className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+              className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
               data-testid="tab-archive"
             >
               <ArchiveIcon className="h-4 w-4" />
               <span>Archive</span>
               {archivedCount > 0 && (
-                <Badge variant="secondary" size="compact" className="text-xs font-mono rounded-[4px] border border-[#CBD5E1] bg-[#E2E8F0]/70 text-[#0F172A]">
+                <Badge variant="secondary" size="compact" className="text-xs tabular-nums rounded-[4px] border border-[#E2E8F0] bg-[#E2E8F0]/70 text-[#1E293B]">
                   {archivedCount}
                 </Badge>
               )}
@@ -402,7 +402,7 @@ export default function OperationsPage() {
 
           {/* View Switcher (when on Work Requests tab) */}
           {activeTab === 'work-requests' && (
-            <div className="flex items-center bg-[#F1F5F9] p-1 rounded-[8px] border border-[#CBD5E1] gap-1 self-end sm:self-auto">
+            <div className="flex items-center bg-[#F8FAFC] p-1 rounded-[8px] border border-[#E2E8F0] gap-1 self-end sm:self-auto">
               <Button
                 type="button"
                 variant="ghost"
@@ -411,7 +411,7 @@ export default function OperationsPage() {
                 className={`text-xs font-medium rounded-[6px] h-7 gap-1 px-2.5 transition-colors cursor-pointer ${
                   activeView === 'list'
                     ? 'bg-[#FFFFFF] text-[#1E40AF] font-semibold shadow-2xs'
-                    : 'text-[#475569] hover:text-[#0F172A] hover:bg-[#E2E8F0]/60'
+                    : 'text-[#475569] hover:text-[#1E293B] hover:bg-[#E2E8F0]/60'
                 }`}
                 data-testid="view-switcher-list"
               >
@@ -425,7 +425,7 @@ export default function OperationsPage() {
                 className={`text-xs font-medium rounded-[6px] h-7 gap-1 px-2.5 transition-colors cursor-pointer ${
                   activeView === 'board'
                     ? 'bg-[#FFFFFF] text-[#1E40AF] font-semibold shadow-2xs'
-                    : 'text-[#475569] hover:text-[#0F172A] hover:bg-[#E2E8F0]/60'
+                    : 'text-[#475569] hover:text-[#1E293B] hover:bg-[#E2E8F0]/60'
                 }`}
                 data-testid="view-switcher-board"
               >

@@ -6,15 +6,15 @@ export function NotFound() {
   return (
     <div
       data-testid="not-found-screen"
-      className="flex min-h-[500px] flex-col items-center justify-center p-8 text-center rounded-[8px] border border-[#CBD5E1] bg-[#FFFFFF] shadow-card"
+      className="flex min-h-[500px] flex-col items-center justify-center p-8 text-center rounded-[8px] border border-[#E2E8F0] bg-[#FFFFFF] shadow-card"
     >
       <div className="rounded-full bg-[#EFF6FF] p-4 text-[#1D4ED8] mb-4 border border-[#BFDBFE]">
         <FileQuestion className="h-10 w-10 text-[#1D4ED8]" />
       </div>
-      <h1 className="text-4xl font-bold tracking-tight text-[#0F172A] mb-1">
+      <h1 className="text-4xl font-bold tracking-tight text-[#1E293B] mb-1">
         404
       </h1>
-      <h2 className="text-xs font-semibold uppercase tracking-wider text-[#475569] mb-2">
+      <h2 className="text-xs font-semibold tracking-normal text-[#475569] mb-2">
         Page Not Found
       </h2>
       <p className="text-sm text-[#475569] max-w-md mb-6">

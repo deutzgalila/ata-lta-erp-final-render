@@ -188,10 +188,10 @@ export function ConflictResolutionModal({
     <Dialog open={isModalOpen} onOpenChange={handleOpenChange}>
       <DialogContent
         data-testid="conflict-resolution-modal"
-        className="max-w-xl w-full p-6 space-y-4 rounded-[12px] border border-[#CBD5E1] bg-[#FFFFFF] shadow-float overscroll-contain"
+        className="max-w-xl w-full p-6 space-y-4 rounded-[12px] border border-[#E2E8F0] bg-[#FFFFFF] shadow-float overscroll-contain"
       >
         <DialogHeader className="text-left space-y-1">
-          <DialogTitle className="text-lg font-semibold tracking-tight text-[#0F172A]">
+          <DialogTitle className="text-lg font-semibold tracking-tight text-[#1E293B]">
             {title || 'Record Out of Sync'}
           </DialogTitle>
           <DialogDescription className="text-xs text-[#475569]">
@@ -234,17 +234,17 @@ export function ConflictResolutionModal({
         {/* Side-by-Side Comparison Container */}
         <div
           data-testid="conflict-comparison-view"
-          className="space-y-3 rounded-[8px] border border-[#CBD5E1] bg-[#F1F5F9] p-3.5"
+          className="space-y-3 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3.5"
         >
           {/* Column Headers */}
-          <div className="grid grid-cols-2 gap-3 pb-2 border-b border-[#CBD5E1] text-xs font-semibold">
-            <div className="flex items-center justify-between text-[#0F172A]">
+          <div className="grid grid-cols-2 gap-3 pb-2 border-b border-[#E2E8F0] text-xs font-semibold">
+            <div className="flex items-center justify-between text-[#1E293B]">
               <span>Your Attempted Changes</span>
               <Badge variant="outline" className="text-xs">
                 {localVer !== null && localVer !== undefined ? `v${localVer}` : 'Local Draft'}
               </Badge>
             </div>
-            <div className="flex items-center justify-between text-[#0F172A]">
+            <div className="flex items-center justify-between text-[#1E293B]">
               <span>Authoritative Server Record</span>
               <Badge variant="default" className="text-xs">
                 {serverVersion !== null && serverVersion !== undefined ? `v${serverVersion}` : 'Server Truth'}
@@ -262,13 +262,13 @@ export function ConflictResolutionModal({
                 <div className="grid grid-cols-2 gap-3">
                   <div
                     data-testid="conflict-local-value"
-                    className="font-mono text-xs text-[#0F172A] bg-[#FFFFFF] p-2 rounded-[6px] border border-[#CBD5E1] break-words"
+                    className="text-xs text-[#1E293B] bg-[#FFFFFF] p-2 rounded-[6px] border border-[#E2E8F0] break-words"
                   >
                     {comp.localValue ?? '—'}
                   </div>
                   <div
                     data-testid="conflict-server-value"
-                    className="font-mono text-xs font-semibold text-[#1E3A8A] bg-[#EFF6FF] p-2 rounded-[6px] border border-[#93C5FD] break-words"
+                    className="text-xs font-semibold text-[#1E3A8A] bg-[#EFF6FF] p-2 rounded-[6px] border border-[#93C5FD] break-words"
                   >
                     {comp.serverValue ?? '—'}
                   </div>

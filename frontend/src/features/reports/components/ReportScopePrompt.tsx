@@ -33,7 +33,7 @@ export const ReportScopePrompt: React.FC<ReportScopePromptProps> = ({
     <div
       data-testid={dataTestId}
       className={cn(
-        'p-6 sm:p-8 bg-[#FFFFFF] border border-[#CBD5E1] rounded-[8px] text-center max-w-xl mx-auto my-8 shadow-card',
+        'p-6 sm:p-8 bg-[#FFFFFF] border border-[#E2E8F0] rounded-[8px] text-center max-w-xl mx-auto my-8 shadow-card',
         className
       )}
     >
@@ -41,7 +41,7 @@ export const ReportScopePrompt: React.FC<ReportScopePromptProps> = ({
         <AlertTriangle className="w-5 h-5" />
       </div>
 
-      <h3 className="text-base sm:text-lg font-semibold tracking-tight text-[#0F172A]">
+      <h3 className="text-base sm:text-lg font-semibold tracking-tight text-[#1E293B]">
         {message}
       </h3>
 

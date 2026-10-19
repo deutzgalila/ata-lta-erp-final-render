@@ -81,7 +81,7 @@ export default function DisbursementsPage() {
   return (
     <div className="w-full space-y-6" data-testid="disbursements-page">
       {/* 1. Unified Module Header */}
-      <div className="border-b border-[#CBD5E1] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div className="border-b border-[#E2E8F0] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <nav
             aria-label="Breadcrumb"
@@ -89,9 +89,9 @@ export default function DisbursementsPage() {
           >
             <span>Modules</span>
             <span aria-hidden="true">/</span>
-            <span className="text-[#0F172A] font-semibold">Disbursements</span>
+            <span className="text-[#1E293B] font-semibold">Disbursements</span>
           </nav>
-          <h1 className="text-2xl font-semibold tracking-tight text-[#0F172A] flex items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight text-[#1E293B] flex items-center gap-2">
             <Wallet className="h-6 w-6 text-[#1D4ED8]" />
             Disbursements &amp; Expenses
           </h1>
@@ -104,7 +104,7 @@ export default function DisbursementsPage() {
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
           {/* Active Entity Toggle */}
           <div
-            className="flex items-center bg-[#F1F5F9] p-1 rounded-[8px] border border-[#CBD5E1]"
+            className="flex items-center bg-[#F8FAFC] p-1 rounded-[8px] border border-[#E2E8F0]"
             data-testid="disbursements-entity-toggle"
           >
             {(['ATA', 'LTA', 'ALL'] as const).map((ent) => (
@@ -115,7 +115,7 @@ export default function DisbursementsPage() {
                 className={`px-3 py-1 rounded-[6px] text-xs font-semibold transition-colors cursor-pointer ${
                   activeEntity === ent
                     ? 'bg-[#1D4ED8] text-[#FFFFFF] shadow-2xs font-semibold'
-                    : 'text-[#475569] hover:text-[#0F172A] hover:bg-[#E2E8F0]/60'
+                    : 'text-[#475569] hover:text-[#1E293B] hover:bg-[#E2E8F0]/60'
                 }`}
                 data-testid={`entity-btn-${ent.toLowerCase()}`}
               >
@@ -141,42 +141,42 @@ export default function DisbursementsPage() {
 
       {/* 2. Metric Summary KPI Cards (Unified Structured KPI Band) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="p-4 bg-[#FFFFFF] border border-[#CBD5E1] rounded-[8px] shadow-card space-y-1">
+        <div className="p-4 bg-[#FFFFFF] border border-[#E2E8F0] rounded-[8px] shadow-card space-y-1">
           <div className="flex items-center justify-between text-xs font-medium text-[#475569]">
             <span>Active Vouchers</span>
             <Layers className="h-4 w-4 text-[#1D4ED8]" />
           </div>
-          <div className="text-2xl font-semibold font-mono tabular-nums text-[#0F172A]" data-testid="kpi-active-count">
+          <div className="text-2xl font-semibold tabular-nums text-[#1E293B]" data-testid="kpi-active-count">
             {activeCount}
           </div>
         </div>
 
-        <div className="p-4 bg-[#FFFFFF] border border-[#CBD5E1] rounded-[8px] shadow-card space-y-1">
+        <div className="p-4 bg-[#FFFFFF] border border-[#E2E8F0] rounded-[8px] shadow-card space-y-1">
           <div className="flex items-center justify-between text-xs font-medium text-[#475569]">
             <span>Awaiting Release</span>
             <DollarSign className="h-4 w-4 text-[#1D4ED8]" />
           </div>
-          <div className="text-2xl font-semibold font-mono tabular-nums text-[#0F172A]" data-testid="kpi-awaiting-release-count">
+          <div className="text-2xl font-semibold tabular-nums text-[#1E293B]" data-testid="kpi-awaiting-release-count">
             {awaitingReleaseCount}
           </div>
         </div>
 
-        <div className="p-4 bg-[#FFFFFF] border border-[#CBD5E1] border-t-2 border-t-[#DC2626] rounded-[8px] shadow-card space-y-1">
+        <div className="p-4 bg-[#FFFFFF] border border-[#E2E8F0] border-t-2 border-t-[#DC2626] rounded-[8px] shadow-card space-y-1">
           <div className="flex items-center justify-between text-xs font-medium text-[#991B1B]">
             <span>Rejected</span>
             <XCircle className="h-4 w-4 text-[#DC2626]" />
           </div>
-          <div className="text-2xl font-semibold font-mono tabular-nums text-[#991B1B]" data-testid="kpi-rejected-count">
+          <div className="text-2xl font-semibold tabular-nums text-[#991B1B]" data-testid="kpi-rejected-count">
             {rejectedCount}
           </div>
         </div>
 
-        <div className="p-4 bg-[#FFFFFF] border border-[#CBD5E1] rounded-[8px] shadow-card space-y-1">
+        <div className="p-4 bg-[#FFFFFF] border border-[#E2E8F0] rounded-[8px] shadow-card space-y-1">
           <div className="flex items-center justify-between text-xs font-medium text-[#475569]">
             <span>Archived</span>
             <Archive className="h-4 w-4 text-[#475569]" />
           </div>
-          <div className="text-2xl font-semibold font-mono tabular-nums text-[#475569]" data-testid="kpi-archived-count">
+          <div className="text-2xl font-semibold tabular-nums text-[#475569]" data-testid="kpi-archived-count">
             {archivedCount}
           </div>
         </div>
@@ -184,10 +184,10 @@ export default function DisbursementsPage() {
 
       {/* 3. Navigation Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-        <TabsList className="w-full justify-start rounded-[8px] bg-[#F1F5F9] p-1 border border-[#CBD5E1] gap-1 h-auto overflow-x-auto scrollbar-none flex flex-nowrap">
+        <TabsList className="w-full justify-start rounded-[8px] bg-[#F8FAFC] p-1 border border-[#E2E8F0] gap-1 h-auto overflow-x-auto scrollbar-none flex flex-nowrap">
           <TabsTrigger
             value="all"
-            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0"
+            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0"
             data-testid="tab-all"
           >
             All Disbursements
@@ -195,7 +195,7 @@ export default function DisbursementsPage() {
 
           <TabsTrigger
             value="drafts"
-            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0"
+            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0"
             data-testid="tab-drafts"
           >
             Drafts
@@ -203,13 +203,13 @@ export default function DisbursementsPage() {
 
           <TabsTrigger
             value="pending-approvals"
-            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-pending-approvals"
           >
             <Clock className="h-3.5 w-3.5" />
             <span>{canApprove ? 'Pending Approvals' : 'Pending Submissions'}</span>
             {canApprove && (
-              <Badge variant="secondary" className="text-xs font-mono px-1.5 py-0 rounded-[4px] border border-[#CBD5E1] bg-[#E2E8F0]/70 text-[#0F172A]">
+              <Badge variant="secondary" className="text-xs px-1.5 py-0 rounded-[4px] border border-[#E2E8F0] bg-[#E2E8F0]/70 text-[#1E293B]">
                 Admin
               </Badge>
             )}
@@ -217,13 +217,13 @@ export default function DisbursementsPage() {
 
           <TabsTrigger
             value="approved"
-            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-approved"
           >
             <FileCheck2 className="h-3.5 w-3.5" />
             <span>Approved</span>
             {awaitingReleaseCount > 0 && (
-              <Badge variant="secondary" className="text-xs font-mono px-1.5 py-0 rounded-[4px] border border-[#CBD5E1] bg-[#E2E8F0]/70 text-[#0F172A]">
+              <Badge variant="secondary" className="text-xs tabular-nums px-1.5 py-0 rounded-[4px] border border-[#E2E8F0] bg-[#E2E8F0]/70 text-[#1E293B]">
                 {awaitingReleaseCount}
               </Badge>
             )}
@@ -231,7 +231,7 @@ export default function DisbursementsPage() {
 
           <TabsTrigger
             value="released"
-            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-released"
           >
             <DollarSign className="h-3.5 w-3.5" />
@@ -240,7 +240,7 @@ export default function DisbursementsPage() {
 
           <TabsTrigger
             value="funded"
-            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-funded"
           >
             <CheckCircle2 className="h-3.5 w-3.5" />
@@ -249,7 +249,7 @@ export default function DisbursementsPage() {
 
           <TabsTrigger
             value="rejected"
-            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-rejected"
           >
             <XCircle className="h-3.5 w-3.5 text-[#DC2626]" />
@@ -258,7 +258,7 @@ export default function DisbursementsPage() {
 
           <TabsTrigger
             value="archive"
-            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-archive"
           >
             <Archive className="h-3.5 w-3.5" />
@@ -266,7 +266,7 @@ export default function DisbursementsPage() {
             {archivedCount > 0 && (
               <Badge
                 variant="secondary"
-                className="text-xs font-mono px-1.5 py-0 rounded-[4px] border border-[#CBD5E1] bg-[#E2E8F0]/70 text-[#0F172A] font-medium"
+                className="text-xs tabular-nums px-1.5 py-0 rounded-[4px] border border-[#E2E8F0] bg-[#E2E8F0]/70 text-[#1E293B] font-medium"
                 data-testid="badge-archived-count"
               >
                 {archivedCount}

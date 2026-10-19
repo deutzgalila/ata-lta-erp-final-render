@@ -260,12 +260,12 @@ export function InvoiceCreateModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="overflow-y-auto shadow-float rounded-[6px] max-h-[90vh] rounded-[12px] bg-white bg-[#FFFFFF] p-6 max-w-2xl border-[#CBD5E1] border"
+      <DialogContent className="overflow-y-auto shadow-float rounded-[6px] max-h-[90vh] rounded-[12px] bg-white bg-[#FFFFFF] p-6 max-w-2xl border-[#E2E8F0] border"
         data-testid="invoice-create-modal"
       >
         <DialogHeader>
-          <DialogTitle className="text-base font-bold text-[#0F172A] flex items-center gap-2">
-            <FileText className="w-5 h-5 text-[#0F172A]" />
+          <DialogTitle className="text-base font-bold text-[#1E293B] flex items-center gap-2">
+            <FileText className="w-5 h-5 text-[#1E293B]" />
             <span>Create New Invoice</span>
           </DialogTitle>
           <p className="text-xs text-[#475569]">
@@ -290,7 +290,7 @@ export function InvoiceCreateModal({
             <div>
               <label
                 htmlFor="create-invoice-client"
-                className="text-xs font-semibold text-[#0F172A] block mb-1"
+                className="text-xs font-semibold text-[#1E293B] block mb-1"
               >
                 Client*
               </label>
@@ -315,7 +315,7 @@ export function InvoiceCreateModal({
             <div>
               <label
                 htmlFor="create-invoice-wr"
-                className="text-xs font-semibold text-[#0F172A] block mb-1"
+                className="text-xs font-semibold text-[#1E293B] block mb-1"
               >
                 Associated Work Request*
               </label>
@@ -344,7 +344,7 @@ export function InvoiceCreateModal({
             <div>
               <label
                 htmlFor="create-invoice-task"
-                className="text-xs font-semibold text-[#0F172A] block mb-1"
+                className="text-xs font-semibold text-[#1E293B] block mb-1"
               >
                 Linked Task (Optional)
               </label>
@@ -378,7 +378,7 @@ export function InvoiceCreateModal({
             <div>
               <label
                 htmlFor="create-invoice-number"
-                className="text-xs font-semibold text-[#0F172A] block mb-1"
+                className="text-xs font-semibold text-[#1E293B] block mb-1"
               >
                 Invoice Number*
               </label>
@@ -388,7 +388,7 @@ export function InvoiceCreateModal({
                 value={invoiceNumber}
                 readOnly
                 placeholder="e.g. ATA-SI-2026-0042"
-                className="h-9 text-xs bg-slate-50 cursor-not-allowed font-mono text-[#0F172A]"
+                className="h-9 text-xs font-mono bg-slate-50 cursor-not-allowed text-[#1E293B]"
                 required
                 data-testid="input-invoice-number"
               />
@@ -398,7 +398,7 @@ export function InvoiceCreateModal({
               <div>
                 <label
                   htmlFor="create-invoice-issue-date"
-                  className="text-xs font-semibold text-[#0F172A] block mb-1"
+                  className="text-xs font-semibold text-[#1E293B] block mb-1"
                 >
                   Issue Date*
                 </label>
@@ -416,7 +416,7 @@ export function InvoiceCreateModal({
               <div>
                 <label
                   htmlFor="create-invoice-due-date"
-                  className="text-xs font-semibold text-[#0F172A] block mb-1"
+                  className="text-xs font-semibold text-[#1E293B] block mb-1"
                 >
                   Due Date*
                 </label>
@@ -435,13 +435,13 @@ export function InvoiceCreateModal({
           </div>
 
           {/* 2. Dynamic Line Items Section */}
-          <div className="space-y-2 pt-2 border-t border-[#CBD5E1]">
+          <div className="space-y-2 pt-2 border-t border-[#E2E8F0]">
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="text-xs font-bold text-[#0F172A] uppercase tracking-wide">
+                <h4 className="text-xs font-bold text-[#1E293B] uppercase tracking-wide">
                   Line Items
                 </h4>
-                <p className="text-xs font-mono text-[#475569]">
+                <p className="text-xs tabular-nums text-[#475569]">
                   Minimum 1 item required. Total = Subtotal (tax-exempt).
                 </p>
               </div>
@@ -462,10 +462,10 @@ export function InvoiceCreateModal({
               {lineItems.map((item, index) => (
                 <div
                   key={item.id}
-                  className="flex items-center gap-2 p-2.5 bg-[#F1F5F9] border-[#CBD5E1] rounded-[6px]"
+                  className="flex items-center gap-2 p-2.5 bg-[#F8FAFC] border-[#E2E8F0] rounded-[6px]"
                   data-testid={`line-item-row-${index}`}
                 >
-                  <span className="text-xs font-mono text-[#475569] w-4 text-center">
+                  <span className="text-xs text-[#475569] w-4 text-center">
                     {index + 1}
                   </span>
 
@@ -513,7 +513,7 @@ export function InvoiceCreateModal({
                       value={item.amount}
                       onChange={(e) => handleUpdateLineItem(index, 'amount', e.target.value)}
                       placeholder="0.00"
-                      className="h-8 text-xs bg-white text-right font-mono"
+                      className="h-8 text-xs bg-white text-right tabular-nums"
                       required
                       data-testid={`line-item-amount-${index}`}
                     />
@@ -525,7 +525,7 @@ export function InvoiceCreateModal({
                       type="button"
                       disabled={index === 0}
                       onClick={() => handleMoveLineItem(index, 'up')}
-                      className="p-1 text-[#475569] hover:text-[#0F172A] disabled:opacity-30 cursor-pointer"
+                      className="p-1 text-[#475569] hover:text-[#1E293B] disabled:opacity-30 cursor-pointer"
                       title="Move up"
                       data-testid={`btn-move-up-${index}`}
                     >
@@ -535,7 +535,7 @@ export function InvoiceCreateModal({
                       type="button"
                       disabled={index === lineItems.length - 1}
                       onClick={() => handleMoveLineItem(index, 'down')}
-                      className="p-1 text-[#475569] hover:text-[#0F172A] disabled:opacity-30 cursor-pointer"
+                      className="p-1 text-[#475569] hover:text-[#1E293B] disabled:opacity-30 cursor-pointer"
                       title="Move down"
                       data-testid={`btn-move-down-${index}`}
                     >
@@ -558,14 +558,14 @@ export function InvoiceCreateModal({
 
             {/* Subtotal & Total display */}
             <div className="flex justify-end pt-2">
-              <div className="w-60 bg-[#F1F5F9] p-2.5 rounded-[8px] border-[#CBD5E1] text-xs space-y-1">
+              <div className="w-60 bg-[#F8FAFC] p-2.5 rounded-[8px] border-[#E2E8F0] text-xs space-y-1">
                 <div className="flex justify-between text-[#475569]">
                   <span>Subtotal:</span>
-                  <span className="font-mono">{formatCurrency(totals.subtotal)}</span>
+                  <span className="tabular-nums">{formatCurrency(totals.subtotal)}</span>
                 </div>
-                <div className="flex justify-between font-bold text-[#0F172A] border-t border-[#CBD5E1] pt-1">
+                <div className="flex justify-between font-bold text-[#1E293B] border-t border-[#E2E8F0] pt-1">
                   <span>Total Amount:</span>
-                  <span className="font-mono text-sm" data-testid="calculated-total">
+                  <span className="tabular-nums text-sm" data-testid="calculated-total">
                     {formatCurrency(totals.total)}
                   </span>
                 </div>
@@ -574,11 +574,11 @@ export function InvoiceCreateModal({
           </div>
 
           {/* 3. Notes & Terms */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#CBD5E1]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#E2E8F0]">
             <div>
               <label
                 htmlFor="create-invoice-notes"
-                className="text-xs font-semibold text-[#0F172A] block mb-1"
+                className="text-xs font-semibold text-[#1E293B] block mb-1"
               >
                 Notes
               </label>
@@ -595,7 +595,7 @@ export function InvoiceCreateModal({
             <div>
               <label
                 htmlFor="create-invoice-terms"
-                className="text-xs font-semibold text-[#0F172A] block mb-1"
+                className="text-xs font-semibold text-[#1E293B] block mb-1"
               >
                 Payment Terms
               </label>

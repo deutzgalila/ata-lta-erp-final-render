@@ -364,7 +364,7 @@ export function PresenceAvatars({
 
       {overflowCount > 0 && (
         <div
-          className={`relative h-7 w-7 rounded-full flex items-center justify-center font-mono text-xs font-semibold border-2 border-white bg-[#F1F5F9] text-[#0F172A] shadow-2xs cursor-default focus:outline-none ${isOverflowHovered ? 'z-30' : 'z-0'}`}
+          className={`relative h-7 w-7 rounded-full flex items-center justify-center tabular-nums text-xs font-semibold border-2 border-white bg-[#F8FAFC] text-[#1E293B] shadow-2xs cursor-default focus:outline-none ${isOverflowHovered ? 'z-30' : 'z-0'}`}
           title={overflowTooltipText}
           aria-label={`${overflowCount} more viewers: ${overflowViewers.map((v) => v.name).join(', ')}`}
           data-testid="presence-avatars-overflow"

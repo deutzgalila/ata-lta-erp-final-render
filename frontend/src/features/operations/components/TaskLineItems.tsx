@@ -193,10 +193,10 @@ export function TaskLineItems({
   return (
     <div className="space-y-3 notion-line-items" data-testid="task-line-items">
       <div className="flex items-center justify-between">
-        <h4 className="text-xs font-bold text-[#0F172A] uppercase tracking-wider font-mono">
+        <h4 className="text-xs font-bold text-[#1E293B] tracking-normal">
           Tasks ({tasks.length})
         </h4>
-        <span className="text-xs text-[#475569] font-mono">
+        <span className="text-xs text-[#475569]">
           Paste a list — we'll split it
         </span>
       </div>
@@ -204,7 +204,7 @@ export function TaskLineItems({
       {/* Cycle Detection Warning Banner */}
       {cycleResult.hasCycle && (
         <div
-          className="p-2.5 bg-[#FFFFFF] border-2 border-[#FCA5A5] rounded-[6px] flex items-center gap-2 text-xs font-mono text-[#DC2626]"
+          className="p-2.5 bg-[#FFFFFF] border-2 border-[#FCA5A5] rounded-[6px] flex items-center gap-2 text-xs text-[#DC2626]"
           data-testid="dependency-cycle-warning"
         >
           <AlertTriangle className="h-4 w-4 text-[#DC2626] shrink-0" />
@@ -213,7 +213,7 @@ export function TaskLineItems({
       )}
 
       {/* Line Items Container */}
-      <div className="border-[#CBD5E1] rounded-[6px] divide-y divide-[#CBD5E1] bg-[#FFFFFF] font-mono">
+      <div className="border-[#E2E8F0] rounded-[6px] divide-y divide-[#CBD5E1] bg-[#FFFFFF]">
         {tasks.map((task, index) => {
           const isExpanded = expandedRow === task.localId;
           const tokenizer = parseTaskDelimiterInput(task.title);
@@ -253,8 +253,12 @@ export function TaskLineItems({
           return (
             <div
               key={task.localId}
-              className={`p-2.5 space-y-2 transition-colors ${
-                isExpanded ? 'bg-[#F1F5F9]/60' : 'hover:bg-[#F1F5F9]/30'
+              className={`p-2.5 space-y-2 transition-colors border-l-4 ${
+                task.phase === 'pre_processing'
+                  ? 'border-l-[#4F46E5]'
+                  : 'border-l-[#2563EB]'
+              } ${
+                isExpanded ? 'bg-[#F8FAFC]' : 'hover:bg-[#F8FAFC]/50'
               }`}
               data-testid={`task-row-${task.localId}`}
             >
@@ -265,7 +269,7 @@ export function TaskLineItems({
                 <button
                   type="button"
                   onClick={() => toggleExpand(task.localId)}
-                  className="text-[#475569] hover:text-[#0F172A] p-0.5 rounded-[6px] focus:outline-none"
+                  className="text-[#475569] hover:text-[#1E293B] p-0.5 rounded-[6px] focus:outline-none"
                   aria-label="Toggle task details"
                   data-testid={`task-expand-toggle-${task.localId}`}
                 >
@@ -284,7 +288,7 @@ export function TaskLineItems({
                     placeholder="Task title"
                     aria-label={`Task ${index + 1} title`}
                     disabled={disabled}
-                    className="h-8 text-xs font-mono bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] text-[#0F172A]"
+                    className="h-8 text-xs bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px] text-[#1E293B]"
                     data-testid={`task-title-input-${task.localId}`}
                   />
                 </div>
@@ -298,18 +302,22 @@ export function TaskLineItems({
                     }
                     disabled={disabled || Boolean(task.id)}
                   >
-                    <SelectTrigger className="h-8 text-xs font-mono bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] px-2 text-[#0F172A]" aria-label="Task phase">
+                    <SelectTrigger className={`h-8 text-xs font-medium rounded-[6px] px-2 ${
+                      task.phase === 'pre_processing'
+                        ? 'bg-[#EEF2FF] text-[#3730A3] border-[#C7D2FE]'
+                        : 'bg-[#EFF6FF] text-[#1E40AF] border-[#93C5FD]'
+                    }`} aria-label="Task phase">
                       <SelectValue>{task.phase === 'pre_processing' ? 'Pre-process' : 'Processing'}</SelectValue>
                     </SelectTrigger>
-                    <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]">
+                    <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
                       <SelectItem
                         value="pre_processing"
-                        className="text-xs font-mono"
+                        className="text-xs"
                         disabled={isEditMode && defaultPhase === 'processing'}
                       >
                         Pre-processing{isEditMode && defaultPhase === 'processing' ? ' (Phase Ended)' : ''}
                       </SelectItem>
-                      <SelectItem value="processing" className="text-xs font-mono">
+                      <SelectItem value="processing" className="text-xs">
                         Processing
                       </SelectItem>
                     </SelectContent>
@@ -326,10 +334,10 @@ export function TaskLineItems({
                     }}
                     disabled={disabled}
                   >
-                    <SelectTrigger className="h-8 text-xs font-mono bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] px-2 [&>span]:truncate text-[#0F172A]" aria-label="Primary assignee">
+                    <SelectTrigger className="h-8 text-xs bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px] px-2 [&>span]:truncate text-[#1E293B]" aria-label="Primary assignee">
                       <SelectValue placeholder="Assignee" />
                     </SelectTrigger>
-                    <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]">
+                    <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
                       <SelectItem value="unassigned" className="font-mono text-xs">Unassigned</SelectItem>
                       {projectTeam.map((m) => (
                         <SelectItem key={m.id} value={m.id} className="text-xs font-mono">
@@ -347,7 +355,7 @@ export function TaskLineItems({
                     value={task.dueDate || ''}
                     onChange={(e) => handleUpdateTask(index, 'dueDate', e.target.value || null)}
                     disabled={disabled}
-                    className="h-8 text-xs font-mono tabular-nums bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] px-1.5 text-[#0F172A]"
+                    className="h-8 text-xs tabular-nums bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px] px-1.5 text-[#1E293B]"
                     aria-label="Task due date"
                     title="Task Due Date"
                     data-testid={`task-due-date-input-${task.localId}`}
@@ -364,7 +372,7 @@ export function TaskLineItems({
                       )
                     }
                     disabled={disabled}
-                    className="h-8 px-2 shrink-0 text-xs font-mono border-[#CBD5E1] rounded-[6px] bg-[#FFFFFF] text-[#0F172A] hover:bg-[#F1F5F9] flex items-center gap-1 focus:outline-none"
+                    className="h-8 px-2 shrink-0 text-xs border-[#E2E8F0] rounded-[6px] bg-[#FFFFFF] text-[#1E293B] hover:bg-[#F8FAFC] flex items-center gap-1 focus:outline-none"
                     data-testid={`task-dep-btn-${task.localId}`}
                     title={`Dependencies: ${depDisplayText}`}
                     aria-label={`Dependencies: ${depDisplayText}`}
@@ -376,8 +384,8 @@ export function TaskLineItems({
 
                   {/* Dependency Dropdown Popover */}
                   {activeDepDropdown === task.localId && (
-                    <div className="absolute right-0 top-9 z-50 w-80 max-w-[calc(100vw-3rem)] p-2 bg-[#FFFFFF] rounded-[6px] shadow-float border-[#CBD5E1] text-xs font-mono space-y-1">
-                      <div className="font-bold text-[#0F172A] pb-1 border-b border-[#CBD5E1] text-xs uppercase tracking-wider">
+                    <div className="absolute right-0 top-9 z-50 w-80 max-w-[calc(100vw-3rem)] p-2 bg-[#FFFFFF] rounded-[6px] shadow-float border-[#E2E8F0] text-xs space-y-1">
+                      <div className="font-bold text-[#1E293B] pb-1 border-b border-[#E2E8F0] text-xs tracking-normal">
                         Select Predecessor Tasks
                       </div>
 
@@ -389,12 +397,12 @@ export function TaskLineItems({
                         <div className="max-h-40 overflow-y-auto space-y-1 py-1">
                           {/* Preceding all wildcard */}
                           {precedingNamed.length > 0 && (
-                            <label className="flex items-center gap-2 p-1 hover:bg-[#F1F5F9] rounded-[6px] cursor-pointer font-bold text-[#0F172A]">
+                            <label className="flex items-center gap-2 p-1 hover:bg-[#F8FAFC] rounded-[6px] cursor-pointer font-bold text-[#1E293B]">
                               <input
                                 type="checkbox"
                                 checked={currentDeps.includes('*')}
                                 onChange={() => handleToggleDependency(index, '*')}
-                                className="rounded-[6px] text-[#0F172A]"
+                                className="rounded-[6px] text-[#1E293B]"
                               />
                               <span>All Tasks (*)</span>
                             </label>
@@ -403,7 +411,7 @@ export function TaskLineItems({
                           {namedCandidates.map((cand) => (
                             <label
                               key={cand.localId}
-                              className="flex items-center gap-2 p-1 hover:bg-[#F1F5F9] rounded-[6px] cursor-pointer text-[#0F172A]"
+                              className="flex items-center gap-2 p-1 hover:bg-[#F8FAFC] rounded-[6px] cursor-pointer text-[#1E293B]"
                             >
                               <input
                                 type="checkbox"
@@ -415,7 +423,7 @@ export function TaskLineItems({
                                 onChange={() =>
                                   handleToggleDependency(index, cand.localId)
                                 }
-                                className="rounded-[6px] text-[#0F172A]"
+                                className="rounded-[6px] text-[#1E293B]"
                               />
                               <span className="truncate">{cand.title}</span>
                             </label>
@@ -423,13 +431,13 @@ export function TaskLineItems({
                         </div>
                       )}
 
-                      <div className="pt-1 border-t border-[#CBD5E1] text-right">
+                      <div className="pt-1 border-t border-[#E2E8F0] text-right">
                         <Button
                           type="button"
                           variant="ghost"
                           size="xs"
                           onClick={() => setActiveDepDropdown(null)}
-                          className="h-6 text-xs font-mono text-[#0F172A] hover:bg-[#F1F5F9] rounded-[6px] uppercase"
+                          className="h-6 text-xs text-[#1E293B] hover:bg-[#F8FAFC] rounded-[6px] uppercase"
                         >
                           Done
                         </Button>
@@ -445,7 +453,7 @@ export function TaskLineItems({
                   size="icon-xs"
                   onClick={() => handleRemoveTask(index)}
                   disabled={disabled || tasks.length <= 1}
-                  className="text-[#475569] hover:text-[#DC2626] hover:bg-[#F1F5F9] rounded-[6px]"
+                  className="text-[#475569] hover:text-[#DC2626] hover:bg-[#F8FAFC] rounded-[6px]"
                   aria-label="Remove task"
                   data-testid={`task-remove-btn-${task.localId}`}
                 >
@@ -456,15 +464,15 @@ export function TaskLineItems({
               {/* Delimiter Tokenizer Live Preview */}
               {tokenizer.shouldSplit && (
                 <div
-                  className="p-2 bg-[#F1F5F9] border-[#CBD5E1] rounded-[6px] text-xs font-mono space-y-1.5 ml-6"
+                  className="p-2 bg-[#F8FAFC] border-[#E2E8F0] rounded-[6px] text-xs space-y-1.5 ml-6"
                   data-testid={`task-tokenizer-preview-${task.localId}`}
                 >
-                  <div className="flex items-center justify-between text-[#0F172A] font-semibold">
+                  <div className="flex items-center justify-between text-[#1E293B] font-semibold">
                     <span>
                       Delimiter detected: will split into {tokenizer.count} sibling tasks
                     </span>
                     {tokenizer.exceedsLimit && (
-                      <Badge variant="destructive" size="compact" className="rounded-[6px] font-mono text-xs">
+                      <Badge variant="destructive" size="compact" className="rounded-[6px] text-xs">
                         Exceeds 50 task limit!
                       </Badge>
                     )}
@@ -475,13 +483,13 @@ export function TaskLineItems({
                         key={ti}
                         variant="secondary"
                         size="compact"
-                        className="bg-[#FFFFFF] border-[#CBD5E1] text-[#0F172A] text-xs font-mono rounded-[6px]"
+                        className="bg-[#FFFFFF] border-[#E2E8F0] text-[#1E293B] text-xs rounded-[6px]"
                       >
                         {tok}
                       </Badge>
                     ))}
                     {tokenizer.tokens.length > 10 && (
-                      <span className="text-xs font-mono text-[#0F172A] font-semibold self-center">
+                      <span className="text-xs text-[#1E293B] font-semibold self-center">
                         +{tokenizer.tokens.length - 10} more
                       </span>
                     )}
@@ -492,7 +500,7 @@ export function TaskLineItems({
               {/* Co-Assignees & Subtasks Action Row */}
               <div className="flex flex-wrap items-center justify-between gap-2 pl-6 text-xs">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[#475569] text-xs font-mono uppercase tracking-wider shrink-0">Co-Assignees:</span>
+                  <span className="text-[#475569] text-xs tracking-normal shrink-0">Co-Assignees:</span>
                   <div className="flex flex-wrap gap-1 items-center">
                     {task.coAssignees.map((cid) => {
                       const member = staffById.get(cid);
@@ -501,7 +509,7 @@ export function TaskLineItems({
                           key={cid}
                           variant="secondary"
                           size="compact"
-                          className="bg-[#FFFFFF] border-[#CBD5E1] text-[#0F172A] text-xs font-mono rounded-[6px] flex items-center gap-1"
+                          className="bg-[#FFFFFF] border-[#E2E8F0] text-[#1E293B] text-xs rounded-[6px] flex items-center gap-1"
                         >
                           <span>{member?.name || cid}</span>
                           {!disabled && (
@@ -531,10 +539,10 @@ export function TaskLineItems({
                           }
                         }}
                       >
-                        <SelectTrigger className="h-6 text-xs font-mono px-1.5 py-0 border-dashed border-[#CBD5E1] rounded-[6px] w-auto min-w-20 bg-[#FFFFFF] text-[#475569]">
+                        <SelectTrigger className="h-6 text-xs px-1.5 py-0 border-dashed border-[#E2E8F0] rounded-[6px] w-auto min-w-20 bg-[#FFFFFF] text-[#475569]">
                           <SelectValue placeholder="+ Co-worker" />
                         </SelectTrigger>
-                        <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]">
+                        <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
                           {projectTeam
                             .filter(
                               (m) =>
@@ -560,11 +568,11 @@ export function TaskLineItems({
                       variant="outline"
                       size="xs"
                       onClick={() => toggleExpand(task.localId)}
-                      className="h-6 text-xs font-mono px-1.5 py-0 bg-[#FFFFFF] border-[#CBD5E1] text-[#0F172A] hover:bg-[#F1F5F9] rounded-[6px] flex items-center gap-1 font-medium"
+                      className="h-6 text-xs px-1.5 py-0 bg-[#FFFFFF] border-[#E2E8F0] text-[#1E293B] hover:bg-[#F8FAFC] rounded-[6px] flex items-center gap-1 font-medium"
                       title={isExpanded ? 'Collapse subtasks checklist' : 'Expand subtasks checklist'}
                       data-testid={`task-checklist-badge-${task.localId}`}
                     >
-                      <CheckSquare className="h-3 w-3 text-[#0F172A]" />
+                      <CheckSquare className="h-3 w-3 text-[#1E293B]" />
                       <span>
                         Subtasks ({task.checklist.filter((c) => c.completed).length}/{task.checklist.length})
                       </span>
@@ -594,10 +602,10 @@ export function TaskLineItems({
                         };
                         handleUpdateTask(index, 'checklist', [...current, newItem]);
                       }}
-                      className="h-6 text-xs font-mono px-1.5 py-0 border-dashed border-[#CBD5E1] rounded-[6px] text-[#0F172A] hover:bg-[#F1F5F9] flex items-center gap-1"
+                      className="h-6 text-xs px-1.5 py-0 border-dashed border-[#E2E8F0] rounded-[6px] text-[#1E293B] hover:bg-[#F8FAFC] flex items-center gap-1"
                       data-testid={`task-add-checklist-btn-${task.localId}`}
                     >
-                      <Plus className="h-3 w-3 text-[#0F172A]" />
+                      <Plus className="h-3 w-3 text-[#1E293B]" />
                       <span>+ Subtask</span>
                     </Button>
                   )}
@@ -606,10 +614,10 @@ export function TaskLineItems({
 
               {/* Expanded Sub-Panel: Description & Checklist Items */}
               {isExpanded && (
-                <div className="pl-6 pt-2 space-y-3 border-t border-[#CBD5E1] mt-2 font-mono">
+                <div className="pl-6 pt-2 space-y-3 border-t border-[#E2E8F0] mt-2">
                   {/* Task Description */}
                   <div>
-                    <label className="text-xs font-mono uppercase tracking-wider text-[#475569] mb-1 block">
+                    <label className="text-xs tracking-normal text-[#475569] mb-1 block">
                       Description & Deliverables
                     </label>
                     <textarea
@@ -620,15 +628,15 @@ export function TaskLineItems({
                       placeholder="Add details, instructions, or acceptance criteria (paste a list — we'll split it)..."
                       disabled={disabled}
                       rows={2}
-                      className="w-full text-xs font-mono p-2 border-[#CBD5E1] rounded-[6px] bg-[#FFFFFF] text-[#0F172A] placeholder:text-[#475569] focus:outline-none focus:ring-1 focus:ring-[#1D4ED8]"
+                      className="w-full text-xs p-2 border-[#E2E8F0] rounded-[6px] bg-[#FFFFFF] text-[#1E293B] placeholder:text-[#475569] focus:outline-none focus:ring-1 focus:ring-[#1D4ED8]"
                     />
                   </div>
 
                   {/* Checklist Items */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#0F172A] flex items-center gap-1.5">
-                        <CheckSquare className="h-3.5 w-3.5 text-[#0F172A]" />
+                      <span className="text-xs font-bold tracking-normal text-[#1E293B] flex items-center gap-1.5">
+                        <CheckSquare className="h-3.5 w-3.5 text-[#1E293B]" />
                         Checklist & Subtasks ({task.checklist?.length || 0})
                       </span>
                       {!disabled && (
@@ -654,7 +662,7 @@ export function TaskLineItems({
                               newItem,
                             ]);
                           }}
-                          className="h-6 text-xs font-mono uppercase tracking-wider text-[#0F172A] hover:bg-[#F1F5F9] border-[#CBD5E1] rounded-[6px] gap-1"
+                          className="h-6 text-xs tracking-normal text-[#1E293B] hover:bg-[#F8FAFC] border-[#E2E8F0] rounded-[6px] gap-1"
                           data-testid={`add-subtask-btn-${task.localId}`}
                         >
                           <Plus className="h-3 w-3 mr-0.5" />
@@ -664,7 +672,7 @@ export function TaskLineItems({
                     </div>
 
                     {task.checklist && task.checklist.length > 0 ? (
-                      <div className="space-y-1.5 bg-[#F1F5F9] p-2 rounded-[8px] border-[#CBD5E1]">
+                      <div className="space-y-1.5 bg-[#F8FAFC] p-2 rounded-[8px] border-[#E2E8F0]">
                         {task.checklist.map((item, ci) => {
                           const isBlocked =
                             item.dependsOn &&
@@ -694,7 +702,7 @@ export function TaskLineItems({
                                     handleUpdateTask(index, 'checklist', updatedChecklist);
                                   }
                                 }}
-                                className="rounded-[6px] text-[#0F172A]"
+                                className="rounded-[6px] text-[#1E293B]"
                               />
 
                               {/* Title input */}
@@ -714,7 +722,7 @@ export function TaskLineItems({
                                   }
                                 }}
                                 placeholder="Checklist item text..."
-                                className="flex-1 text-xs font-mono border-0 bg-transparent focus:ring-0 p-0 text-[#0F172A] placeholder:text-[#475569]"
+                                className="flex-1 text-xs border-0 bg-transparent focus:ring-0 p-0 text-[#1E293B] placeholder:text-[#475569]"
                               />
 
                               {/* Category toggle: Doc vs Subtask */}
@@ -736,10 +744,10 @@ export function TaskLineItems({
                                     handleUpdateTask(index, 'checklist', updatedChecklist);
                                   }
                                 }}
-                                className="px-1.5 py-0.5 text-xs font-mono rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A] hover:bg-[#F1F5F9]"
+                                className="px-1.5 py-0.5 text-xs rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B] hover:bg-[#F8FAFC]"
                               >
                                 {item.category === 'document' ? (
-                                  <span className="flex items-center gap-1 text-[#0F172A]">
+                                  <span className="flex items-center gap-1 text-[#1E293B]">
                                     <FileText className="h-2.5 w-2.5" /> Doc
                                   </span>
                                 ) : (
@@ -768,7 +776,7 @@ export function TaskLineItems({
                                       );
                                     }
                                   }}
-                                  className="w-14 text-xs font-mono p-0.5 border-[#CBD5E1] rounded-[6px] bg-[#FFFFFF] text-center"
+                                  className="w-14 text-xs p-0.5 border-[#E2E8F0] rounded-[6px] bg-[#FFFFFF] text-center"
                                 />
                               )}
 
@@ -802,7 +810,7 @@ export function TaskLineItems({
                         })}
                       </div>
                     ) : (
-                      <div className="text-xs font-mono text-[#475569] italic">
+                      <div className="text-xs text-[#475569] italic">
                         No checklist items.
                       </div>
                     )}
@@ -822,9 +830,9 @@ export function TaskLineItems({
           size="sm"
           onClick={handleAddTask}
           data-testid="add-task-btn"
-          className="w-full border-dashed border-[#CBD5E1] text-xs font-mono uppercase tracking-wider text-[#0F172A] hover:bg-[#F1F5F9] rounded-[6px] h-8"
+          className="w-full border-dashed border-[#E2E8F0] text-xs tracking-normal text-[#1E293B] hover:bg-[#F8FAFC] rounded-[6px] h-8"
         >
-          <Plus className="h-3.5 w-3.5 mr-1 text-[#0F172A]" />
+          <Plus className="h-3.5 w-3.5 mr-1 text-[#1E293B]" />
           Add task
         </Button>
       )}
