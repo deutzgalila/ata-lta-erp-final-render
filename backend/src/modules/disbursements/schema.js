@@ -46,9 +46,11 @@ const createDisbursementBaseSchema = z.object({
   notes: z.string().max(2000).optional().nullable(),
   receiptS3Key: z.string().max(500).optional().nullable(),
   receiptFilename: z.string().max(255).optional().nullable(),
-  status: z.never({
-    message: 'Explicit status cannot be set on creation; status forgery is prohibited',
-  }).optional(),
+  status: z
+    .never({
+      message: 'Explicit status cannot be set on creation; status forgery is prohibited',
+    })
+    .optional(),
 });
 
 const createDisbursementSchema = createDisbursementBaseSchema.superRefine((data, ctx) => {
@@ -80,24 +82,58 @@ const createDisbursementSchema = createDisbursementBaseSchema.superRefine((data,
   }
 });
 
+const printDetailsSchema = z
+  .object({
+    requesterName: z.string().max(500).optional(),
+    referenceNumber: z.string().max(500).optional(),
+    submittedDate: z.string().max(500).optional(),
+    workRequestName: z.string().max(500).optional(),
+    paymentDate: z.string().max(500).optional(),
+    paymentMethod: z.string().max(500).optional(),
+    paymentReference: z.string().max(500).optional(),
+    paymentBank: z.string().max(500).optional(),
+    preparedBy: z.string().max(500).optional(),
+    approvedBy: z.string().max(500).optional(),
+    releasedBy: z.string().max(500).optional(),
+  })
+  .strict();
+
 /**
  * Schema for updating a disbursement.
  */
-const updateDisbursementSchema = createDisbursementBaseSchema.partial().extend({
-  status: z.string().optional(),
-  archived: z.boolean().optional(),
-  // OCC guard (Spec 2.2 / R-10): update applies only if the stored version matches.
-  expectedVersion: z.number().int().positive().optional(),
-}).superRefine((data, ctx) => {
-  // Reject contradictory payload: clearing key while supplying filename
-  if (data.receiptS3Key === null && data.receiptFilename) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Cannot set receiptFilename when receiptS3Key is null',
-      path: ['receiptFilename'],
-    });
-  }
-});
+const updateDisbursementSchema = createDisbursementBaseSchema
+  .partial()
+  .extend({
+    printDetails: printDetailsSchema.optional(),
+    status: z.string().optional(),
+    archived: z.boolean().optional(),
+    // OCC guard (Spec 2.2 / R-10): update applies only if the stored version matches.
+    expectedVersion: z.number().int().positive().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.printDetails !== undefined && data.expectedVersion === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'expectedVersion is required for printed voucher edits',
+        path: ['expectedVersion'],
+      });
+    }
+    if (data.printDetails !== undefined && data.status !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Use workflow actions separately from voucher edits',
+        path: ['status'],
+      });
+    }
+    // Reject contradictory payload: clearing key while supplying filename
+    if (data.receiptS3Key === null && data.receiptFilename) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Cannot set receiptFilename when receiptS3Key is null',
+        path: ['receiptFilename'],
+      });
+    }
+  });
 
 /**
  * Schema for rejecting a disbursement.
@@ -114,7 +150,11 @@ const createReceiptUploadSchema = z.object({
   contentType: z.enum(['application/pdf', 'image/png', 'image/jpeg'], {
     errorMap: () => ({ message: 'contentType must be application/pdf, image/png, or image/jpeg' }),
   }),
-  size: z.number().int().positive('Size must be positive').max(10485760, 'Size must not exceed 10 MiB'),
+  size: z
+    .number()
+    .int()
+    .positive('Size must be positive')
+    .max(10485760, 'Size must not exceed 10 MiB'),
 });
 
 const calendarDateSchema = z

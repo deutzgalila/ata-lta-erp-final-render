@@ -119,6 +119,13 @@ router.get(
   disbursementsController.getDisbursement
 );
 
+router.get(
+  '/:id/pdf',
+  resolveEntity({ allowAll: true }),
+  requirePermission('disbursement:view'),
+  disbursementsController.getDisbursementPdf
+);
+
 // Resolve entity code → UUID for all remaining mutation routes in this module
 router.use(resolveEntity());
 

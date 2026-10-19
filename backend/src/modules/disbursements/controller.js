@@ -382,8 +382,33 @@ const getReceiptUrl = async (req, res, next) => {
   }
 };
 
+const getDisbursementPdf = async (req, res, next) => {
+  try {
+    for (const key of ['noLogo', 'includeCompanyDetails']) {
+      if (req.query[key] !== undefined && !['true', 'false'].includes(req.query[key])) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Validation Error',
+          detail: `${key} must be true or false.`,
+        });
+      }
+    }
+    const data = await service.generateDisbursementPdf({
+      entityId: req.activeEntity,
+      id: req.params.id,
+      user: req.user,
+      noLogo: req.query.noLogo === 'true',
+      includeCompanyDetails: req.query.includeCompanyDetails !== 'false',
+    });
+    res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   disbursementsController: {
+    getDisbursementPdf,
     listDisbursements,
     createDisbursement,
     getDisbursement,
