@@ -147,20 +147,20 @@ export function UserCreateModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg border-[#0A0A0A] rounded-none shadow-[4px_4px_0px_#0A0A0A] p-6 bg-[#FAF9F5] max-h-[90vh] overflow-y-auto border-2"
+      <DialogContent className="max-w-lg border-[#CBD5E1] rounded-[12px] shadow-float p-6 bg-[#FFFFFF] max-h-[90vh] overflow-y-auto border"
         data-testid="user-create-modal"
       >
         <DialogHeader>
-          <DialogTitle className="text-base font-bold text-[#0A0A0A]">
+          <DialogTitle className="text-base font-bold text-[#0F172A]">
             Create User Account
           </DialogTitle>
-          <DialogDescription className="text-xs text-[#4A4945]">
+          <DialogDescription className="text-xs text-[#475569]">
             Provision a new enterprise team member with role-based permissions and entity scopes.
           </DialogDescription>
         </DialogHeader>
 
         {activeUsersCount >= 15 && (
-          <div className="rounded-none bg-amber-50 border border-amber-200 p-2.5 text-xs text-amber-800">
+          <div className="rounded-[6px] bg-amber-50 border-amber-200 p-2.5 text-xs text-amber-800">
             <strong>Active Account Cap Warning:</strong> The system has reached {activeUsersCount} active users. Creating a new active user may fail unless an existing account is disabled.
           </div>
         )}
@@ -168,7 +168,7 @@ export function UserCreateModal({
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           {/* Full Name */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#0A0A0A]">
+            <label className="text-xs font-semibold text-[#0F172A]">
               Full Name <span className="text-rose-500">*</span>
             </label>
             <Input
@@ -185,7 +185,7 @@ export function UserCreateModal({
 
           {/* Email Address */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#0A0A0A]">
+            <label className="text-xs font-semibold text-[#0F172A]">
               Email Address <span className="text-rose-500">*</span>
             </label>
             <Input
@@ -202,7 +202,7 @@ export function UserCreateModal({
 
           {/* Guarded Password Input */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#0A0A0A]">
+            <label className="text-xs font-semibold text-[#0F172A]">
               Password <span className="text-rose-500">*</span>
             </label>
             <GuardedPasswordInput
@@ -217,7 +217,7 @@ export function UserCreateModal({
 
           {/* Role Selection */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#0A0A0A]">
+            <label className="text-xs font-semibold text-[#0F172A]">
               Primary Role <span className="text-rose-500">*</span>
             </label>
             <Select value={role} onValueChange={(val) => handleRoleChange(val as UserRole)}>
@@ -237,22 +237,22 @@ export function UserCreateModal({
 
           {/* Department Multi-Select Checkboxes */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-[#0A0A0A]">
+            <label className="text-xs font-semibold text-[#0F172A]">
               Department Assignments {role !== 'Admin' && <span className="text-rose-500">*</span>}
             </label>
-            <div className="grid grid-cols-2 gap-2 rounded-none border border-[#0A0A0A] bg-[#EAE8E3]/50 p-2.5">
+            <div className="grid grid-cols-2 gap-2 rounded-[8px] border-[#CBD5E1] bg-[#F1F5F9]/50 p-2.5">
               {ALL_DEPARTMENTS.map((dept) => {
                 const checked = departments.includes(dept);
                 return (
                   <label
                     key={dept}
-                    className="flex items-center gap-2 text-xs text-[#0A0A0A] cursor-pointer select-none"
+                    className="flex items-center gap-2 text-xs text-[#0F172A] cursor-pointer select-none"
                   >
                     <input
                       type="checkbox"
                       checked={checked}
                       onChange={() => toggleDepartment(dept)}
-                      className="rounded-xs border-[#0A0A0A] text-[#0A0A0A] focus:ring-blue-500 h-3.5 w-3.5"
+                      className="rounded-xs border-[#CBD5E1] text-[#0F172A] focus:ring-blue-500 h-3.5 w-3.5"
                       data-testid={`create-user-dept-${dept}`}
                     />
                     <span>{dept}</span>
@@ -267,22 +267,22 @@ export function UserCreateModal({
 
           {/* Entity Access Checkboxes */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-[#0A0A0A]">
+            <label className="text-xs font-semibold text-[#0F172A]">
               Entity Access <span className="text-rose-500">*</span>
             </label>
-            <div className="flex gap-4 rounded-none border border-[#0A0A0A] bg-[#EAE8E3]/50 p-2.5">
+            <div className="flex gap-4 rounded-[8px] border-[#CBD5E1] bg-[#F1F5F9]/50 p-2.5">
               {(['ATA', 'LTA'] as EntityCode[]).map((ent) => {
                 const checked = entities.includes(ent);
                 return (
                   <label
                     key={ent}
-                    className="flex items-center gap-2 text-xs text-[#0A0A0A] cursor-pointer select-none"
+                    className="flex items-center gap-2 text-xs text-[#0F172A] cursor-pointer select-none"
                   >
                     <input
                       type="checkbox"
                       checked={checked}
                       onChange={() => toggleEntity(ent)}
-                      className="rounded-xs border-[#0A0A0A] text-[#0A0A0A] focus:ring-blue-500 h-3.5 w-3.5"
+                      className="rounded-xs border-[#CBD5E1] text-[#0F172A] focus:ring-blue-500 h-3.5 w-3.5"
                       data-testid={`create-user-entity-${ent}`}
                     />
                     <span className="font-semibold">{ent}</span>
@@ -295,12 +295,12 @@ export function UserCreateModal({
 
           {/* Active Status */}
           <div className="flex items-center gap-2 pt-1">
-            <label className="flex items-center gap-2 text-xs text-[#0A0A0A] cursor-pointer select-none">
+            <label className="flex items-center gap-2 text-xs text-[#0F172A] cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={isActive}
                 onChange={(e) => setIsActive(e.target.checked)}
-                className="rounded-xs border-[#0A0A0A] text-[#0A0A0A] focus:ring-blue-500 h-3.5 w-3.5"
+                className="rounded-xs border-[#CBD5E1] text-[#0F172A] focus:ring-blue-500 h-3.5 w-3.5"
                 data-testid="create-user-active-checkbox"
               />
               <span className="font-medium">Active Account</span>
@@ -321,7 +321,7 @@ export function UserCreateModal({
             <Button
               type="submit"
               size="sm"
-              className="text-xs h-9 bg-[#0A0A0A] text-[#FAF9F5] hover:bg-[#262626]"
+              className="text-xs h-9 bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs"
               data-testid="create-user-submit-btn"
             >
               Create User

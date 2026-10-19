@@ -89,7 +89,7 @@ export function PrintPreviewModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
-        className="max-w-5xl max-h-[92vh] overflow-y-auto p-0 bg-slate-100"
+        className="max-w-5xl max-h-[92vh] overflow-y-auto p-0 bg-[#F1F5F9] rounded-[12px] border border-[#CBD5E1] shadow-float"
         data-testid="print-preview-modal"
       >
         <style>
@@ -108,7 +108,7 @@ export function PrintPreviewModal({
           }
         `}
         </style>
-        <DialogHeader className="billing-print-controls p-5 bg-white border-b border-slate-200">
+        <DialogHeader className="billing-print-controls p-5 bg-white border-b border-[#CBD5E1]">
           <DialogTitle>Print Preview — {invoice.invoice_number}</DialogTitle>
           <div className="flex flex-wrap items-center gap-3 pt-3 pr-6">
             <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -176,7 +176,7 @@ export function PrintPreviewModal({
             </Button>
           ) : (
             <span
-              className="text-xs text-slate-500 flex items-center gap-1"
+              className="text-xs text-[#475569] flex items-center gap-1"
               data-testid="address-locked-indicator"
             >
               <Lock className="w-3 h-3" />
@@ -220,7 +220,7 @@ export function PrintPreviewModal({
             }}
           />
         </div>
-        <DialogFooter className="billing-print-controls p-4 bg-white border-t border-slate-200">
+        <DialogFooter className="billing-print-controls p-4 bg-white border-t border-[#CBD5E1]">
           <Button variant="outline" size="sm" onClick={onClose}>
             Close
           </Button>

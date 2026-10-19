@@ -33,10 +33,10 @@ export function ClientTable({
 
   if (isLoading) {
     return (
-      <div className="rounded-none border border-[#0A0A0A] bg-[#FAF9F5] p-8 text-center" data-testid="clients-table-loading">
+      <div className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] p-8 text-center" data-testid="clients-table-loading">
         <div className="flex flex-col items-center justify-center space-y-3">
-          <div className="h-6 w-6 animate-spin rounded-none border-2 border-[#0A0A0A] border-t-transparent" />
-          <p className="text-xs font-mono text-[#4A4945] uppercase tracking-wider">Loading client directory...</p>
+          <div className="h-6 w-6 animate-spin rounded-full border-[#CBD5E1] border-t-transparent" />
+          <p className="text-xs font-mono text-[#475569] uppercase tracking-wider">Loading client directory...</p>
         </div>
       </div>
     );
@@ -45,15 +45,15 @@ export function ClientTable({
   if (clients.length === 0) {
     return (
       <div
-        className="rounded-none border border-[#0A0A0A] bg-[#FAF9F5] p-12 text-center"
+        className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] p-12 text-center"
         data-testid="clients-empty-state"
       >
         <div className="flex flex-col items-center justify-center max-w-sm mx-auto space-y-3">
-          <div className="p-3 bg-[#EAE8E3] rounded-none border border-[#0A0A0A] text-[#0A0A0A]">
+          <div className="p-3 bg-[#F1F5F9] rounded-[8px] border-[#CBD5E1] text-[#0F172A]">
             <FolderOpen className="h-8 w-8" />
           </div>
-          <h3 className="font-bold text-sm text-[#0A0A0A] uppercase tracking-wider">No clients found</h3>
-          <p className="text-xs font-mono text-[#4A4945]">
+          <h3 className="font-bold text-sm text-[#0F172A] uppercase tracking-wider">No clients found</h3>
+          <p className="text-xs font-mono text-[#475569]">
             No client records match your current filter parameters or tab selection.
           </p>
         </div>
@@ -62,16 +62,16 @@ export function ClientTable({
   }
 
   return (
-    <div className="rounded-none border border-[#0A0A0A] bg-[#FAF9F5] overflow-hidden" data-testid="clients-table-container">
+    <div className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] overflow-hidden" data-testid="clients-table-container">
       <Table data-testid="clients-table">
         <TableHeader>
-          <TableRow className="bg-[#EAE8E3] border-b-2 border-[#0A0A0A] hover:bg-[#EAE8E3]">
-            <TableHead className="font-mono font-bold uppercase tracking-wider text-xs text-[#0A0A0A] w-1/4">Client Name</TableHead>
-            <TableHead className="font-mono font-bold uppercase tracking-wider text-xs text-[#0A0A0A]">TIN & RDO</TableHead>
-            <TableHead className="font-mono font-bold uppercase tracking-wider text-xs text-[#0A0A0A]">Entity</TableHead>
-            <TableHead className="font-mono font-bold uppercase tracking-wider text-xs text-[#0A0A0A]">Agreement</TableHead>
-            <TableHead className="font-mono font-bold uppercase tracking-wider text-xs text-[#0A0A0A]">Contact</TableHead>
-            <TableHead className="font-mono font-bold uppercase tracking-wider text-xs text-[#0A0A0A] text-right">Actions</TableHead>
+          <TableRow className="bg-[#F1F5F9] border-b border-[#CBD5E1] hover:bg-[#F1F5F9]">
+            <TableHead className="font-mono font-bold uppercase tracking-wider text-xs text-[#0F172A] w-1/4">Client Name</TableHead>
+            <TableHead className="font-mono font-bold uppercase tracking-wider text-xs text-[#0F172A]">TIN & RDO</TableHead>
+            <TableHead className="font-mono font-bold uppercase tracking-wider text-xs text-[#0F172A]">Entity</TableHead>
+            <TableHead className="font-mono font-bold uppercase tracking-wider text-xs text-[#0F172A]">Agreement</TableHead>
+            <TableHead className="font-mono font-bold uppercase tracking-wider text-xs text-[#0F172A]">Contact</TableHead>
+            <TableHead className="font-mono font-bold uppercase tracking-wider text-xs text-[#0F172A] text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -83,21 +83,21 @@ export function ClientTable({
             return (
               <TableRow
                 key={client.id}
-                className="hover:bg-[#E4E2DC] cursor-pointer transition-none border-b border-[#C8C5BC]"
+                className="hover:bg-[#E2E8F0] cursor-pointer transition-none border-b border-[#CBD5E1]"
                 onClick={() => onView(client)}
                 data-testid={`client-row-${client.id}`}
               >
                 {/* Name & Trade Name */}
                 <TableCell className="py-3">
                   <div className="space-y-0.5">
-                    <div className="font-bold text-xs text-[#0A0A0A] flex items-center gap-1.5">
-                      <Building className="h-3.5 w-3.5 text-[#4A4945] shrink-0" />
+                    <div className="font-bold text-xs text-[#0F172A] flex items-center gap-1.5">
+                      <Building className="h-3.5 w-3.5 text-[#475569] shrink-0" />
                       <span className="truncate" data-testid={`client-name-${client.id}`}>
                         {client.name}
                       </span>
                     </div>
                     {client.tradeName && (
-                      <p className="text-xs font-mono text-[#4A4945] pl-5 truncate">
+                      <p className="text-xs font-mono text-[#475569] pl-5 truncate">
                         DBA: {client.tradeName}
                       </p>
                     )}
@@ -106,11 +106,11 @@ export function ClientTable({
 
                 {/* TIN & RDO */}
                 <TableCell className="py-3">
-                  <div className="text-xs font-mono text-[#0A0A0A] tabular-nums font-semibold" data-testid={`client-tin-${client.id}`}>
+                  <div className="text-xs font-mono text-[#0F172A] tabular-nums font-semibold" data-testid={`client-tin-${client.id}`}>
                     {client.tin}
                   </div>
                   {client.rdoCode && (
-                    <div className="text-xs font-mono text-[#4A4945] mt-0.5">
+                    <div className="text-xs font-mono text-[#475569] mt-0.5">
                       RDO {client.rdoCode}
                     </div>
                   )}
@@ -120,10 +120,10 @@ export function ClientTable({
                 <TableCell className="py-3">
                   <Badge
                     variant="outline"
-                    className={`text-xs font-mono font-bold uppercase tracking-wider rounded-none px-2 py-0.5 ${
+                    className={`text-xs font-mono font-bold uppercase tracking-wider rounded-[6px] px-2 py-0.5 ${
                       client.entity === 'ATA'
-                        ? 'bg-[#0A0A0A] text-[#FAF9F5] border-[#0A0A0A]'
-                        : 'bg-[#EAE8E3] text-[#0A0A0A] border-[#0A0A0A]'
+                        ? 'bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs border-[#CBD5E1]'
+                        : 'bg-[#F1F5F9] text-[#0F172A] border-[#CBD5E1]'
                     }`}
                     data-testid={`client-entity-${client.id}`}
                   >
@@ -137,20 +137,20 @@ export function ClientTable({
                     <div className="space-y-0.5">
                       <Badge
                         variant="secondary"
-                        className="bg-[#0A0A0A] text-[#FAF9F5] border border-[#0A0A0A] rounded-none text-xs font-mono font-bold uppercase flex items-center gap-1 w-fit"
+                        className="bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs border-[#CBD5E1] rounded-[6px] text-xs font-mono font-bold uppercase flex items-center gap-1 w-fit"
                         data-testid={`client-retainer-badge-${client.id}`}
                       >
-                        <CheckCircle className="h-3 w-3 text-[#FAF9F5]" />
+                        <CheckCircle className="h-3 w-3 text-[#FFFFFF]" />
                         Retainer
                       </Badge>
                       {client.retainerFee !== null && client.retainerFee !== undefined && (
-                        <div className="text-xs text-[#0A0A0A] font-mono tabular-nums">
+                        <div className="text-xs text-[#0F172A] font-mono tabular-nums">
                           ₱{client.retainerFee.toLocaleString('en-US', { minimumFractionDigits: 2 })}/mo
                         </div>
                       )}
                     </div>
                   ) : (
-                    <Badge variant="outline" className="text-xs font-mono uppercase rounded-none text-[#4A4945] border-[#C8C5BC] bg-transparent">
+                    <Badge variant="outline" className="text-xs font-mono uppercase rounded-[6px] text-[#475569] border-[#CBD5E1] bg-transparent">
                       Standard
                     </Badge>
                   )}
@@ -158,19 +158,19 @@ export function ClientTable({
 
                 {/* Contact */}
                 <TableCell className="py-3">
-                  <div className="space-y-0.5 text-xs text-[#0A0A0A]">
+                  <div className="space-y-0.5 text-xs text-[#0F172A]">
                     {client.contactPerson && (
                       <div className="font-semibold truncate">{client.contactPerson}</div>
                     )}
                     {primaryEmail && (
-                      <div className="flex items-center gap-1 text-xs font-mono text-[#4A4945] truncate">
-                        <Mail className="h-3 w-3 text-[#4A4945] shrink-0" />
+                      <div className="flex items-center gap-1 text-xs font-mono text-[#475569] truncate">
+                        <Mail className="h-3 w-3 text-[#475569] shrink-0" />
                         <span className="truncate">{primaryEmail}</span>
                       </div>
                     )}
                     {!primaryEmail && primaryPhone && (
-                      <div className="flex items-center gap-1 text-xs font-mono text-[#4A4945] truncate">
-                        <Phone className="h-3 w-3 text-[#4A4945] shrink-0" />
+                      <div className="flex items-center gap-1 text-xs font-mono text-[#475569] truncate">
+                        <Phone className="h-3 w-3 text-[#475569] shrink-0" />
                         <span className="truncate">{primaryPhone}</span>
                       </div>
                     )}
@@ -186,7 +186,7 @@ export function ClientTable({
                       variant="ghost"
                       size="sm"
                       onClick={() => onView(client)}
-                      className="h-8 w-8 p-0 rounded-none text-[#0A0A0A] hover:bg-[#EAE8E3] hover:border hover:border-[#0A0A0A]"
+                      className="h-8 w-8 p-0 rounded-[6px] text-[#0F172A] hover:bg-[#F1F5F9] hover:border hover:border-[#CBD5E1]"
                       data-testid={`view-client-btn-${client.id}`}
                       title="View Details"
                     >
@@ -200,7 +200,7 @@ export function ClientTable({
                         variant="ghost"
                         size="sm"
                         onClick={() => onEdit(client)}
-                        className="h-8 w-8 p-0 rounded-none text-[#0A0A0A] hover:bg-[#EAE8E3] hover:border hover:border-[#0A0A0A]"
+                        className="h-8 w-8 p-0 rounded-[6px] text-[#0F172A] hover:bg-[#F1F5F9] hover:border hover:border-[#CBD5E1]"
                         data-testid={`edit-client-btn-${client.id}`}
                         title="Edit Client"
                       >
@@ -216,7 +216,7 @@ export function ClientTable({
                           variant="ghost"
                           size="sm"
                           onClick={() => onRestore(client)}
-                          className="h-8 w-8 p-0 rounded-none text-[#0A0A0A] hover:bg-[#EAE8E3] hover:border hover:border-[#0A0A0A]"
+                          className="h-8 w-8 p-0 rounded-[6px] text-[#0F172A] hover:bg-[#F1F5F9] hover:border hover:border-[#CBD5E1]"
                           data-testid={`restore-client-btn-${client.id}`}
                           title="Restore Client"
                         >
@@ -228,7 +228,7 @@ export function ClientTable({
                           variant="ghost"
                           size="sm"
                           onClick={() => onArchive(client)}
-                          className="h-8 w-8 p-0 rounded-none text-[#E61919] hover:bg-[#EAE8E3] hover:border hover:border-[#E61919]"
+                          className="h-8 w-8 p-0 rounded-[6px] text-[#DC2626] hover:bg-[#F1F5F9] hover:border hover:border-[#FCA5A5]"
                           data-testid={`archive-client-btn-${client.id}`}
                           title="Archive Client"
                         >

@@ -44,16 +44,16 @@ export function DocumentFilterBar({
   const isFiltered = Boolean(search || category || lifecycle);
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-[#FAF9F5] p-3 border border-[#0A0A0A] rounded-none font-mono">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-[#FFFFFF] p-3 border-[#CBD5E1] rounded-[6px] font-mono">
       <div className="flex flex-1 flex-wrap items-center gap-3">
         {/* Search Input */}
         <div className="relative min-w-[220px] max-w-sm flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#4A4945]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#475569]" />
           <Input
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search by name, description..."
-            className="pl-9 h-9 text-xs rounded-none border border-[#0A0A0A] bg-[#FAF9F5] font-mono"
+            className="pl-9 h-9 text-xs rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] font-mono"
             data-testid="document-search-input"
           />
         </div>
@@ -64,10 +64,10 @@ export function DocumentFilterBar({
             value={category || 'all'}
             onValueChange={(val) => onCategoryChange(val === 'all' ? '' : val)}
           >
-            <SelectTrigger className="h-9 text-xs rounded-none border border-[#0A0A0A] bg-[#FAF9F5] font-mono" data-testid="document-category-filter">
+            <SelectTrigger className="h-9 text-xs rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] font-mono" data-testid="document-category-filter">
               <SelectValue placeholder="All Categories" />
             </SelectTrigger>
-            <SelectContent className="rounded-none border border-[#0A0A0A] bg-[#FAF9F5] font-mono">
+            <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] font-mono">
               <SelectItem value="all">All Categories</SelectItem>
               {DOCUMENT_CATEGORIES.map((cat) => (
                 <SelectItem key={cat} value={cat}>
@@ -84,10 +84,10 @@ export function DocumentFilterBar({
             value={lifecycle || 'all'}
             onValueChange={(val) => onLifecycleChange(val === 'all' ? '' : val)}
           >
-            <SelectTrigger className="h-9 text-xs rounded-none border border-[#0A0A0A] bg-[#FAF9F5] font-mono" data-testid="document-lifecycle-filter">
+            <SelectTrigger className="h-9 text-xs rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] font-mono" data-testid="document-lifecycle-filter">
               <SelectValue placeholder="All Stages" />
             </SelectTrigger>
-            <SelectContent className="rounded-none border border-[#0A0A0A] bg-[#FAF9F5] font-mono">
+            <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] font-mono">
               <SelectItem value="all">All Stages</SelectItem>
               {DOCUMENT_LIFECYCLE_STAGES.map((stage) => (
                 <SelectItem key={stage} value={stage}>
@@ -104,7 +104,7 @@ export function DocumentFilterBar({
             variant="ghost"
             size="sm"
             onClick={onReset}
-            className="h-9 text-xs text-[#4A4945] hover:text-[#0A0A0A] rounded-none font-mono"
+            className="h-9 text-xs text-[#475569] hover:text-[#0F172A] rounded-[6px] font-mono"
             data-testid="document-reset-filters-btn"
           >
             <RotateCcw className="h-3.5 w-3.5 mr-1" />
@@ -118,7 +118,7 @@ export function DocumentFilterBar({
         <div className="flex items-center">
           <Button
             onClick={onUploadClick}
-            className="h-9 rounded-none bg-[#0A0A0A] text-[#FAF9F5] hover:bg-[#262626] text-xs font-bold font-mono"
+            className="h-9 rounded-[6px] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs text-xs font-bold font-mono"
             data-testid="upload-document-button"
           >
             <Plus className="h-4 w-4 mr-1.5" />

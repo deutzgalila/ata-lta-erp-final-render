@@ -50,19 +50,19 @@ export function ClientDetailModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
-        className="max-w-2xl max-h-[85vh] overflow-y-auto p-6 space-y-6 rounded-none border-2 border-[#0A0A0A] bg-[#FAF9F5] shadow-[4px_4px_0px_#0A0A0A]"
+        className="max-w-2xl max-h-[85vh] overflow-y-auto p-6 space-y-6 rounded-[12px] border-[#CBD5E1] bg-[#FFFFFF] shadow-float"
         data-testid="client-detail-modal"
       >
-        <DialogHeader className="border-b border-[#0A0A0A] pb-4">
+        <DialogHeader className="border-b border-[#CBD5E1] pb-4">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <Badge
                   variant="outline"
-                  className={`text-xs font-mono font-bold uppercase tracking-wider rounded-none ${
+                  className={`text-xs font-mono font-bold uppercase tracking-wider rounded-[6px] ${
                     client.entity === 'ATA'
-                      ? 'bg-[#0A0A0A] text-[#FAF9F5] border-[#0A0A0A]'
-                      : 'bg-[#EAE8E3] text-[#0A0A0A] border-[#0A0A0A]'
+                      ? 'bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs border-[#CBD5E1]'
+                      : 'bg-[#F1F5F9] text-[#0F172A] border-[#CBD5E1]'
                   }`}
                   data-testid="client-detail-entity"
                 >
@@ -70,10 +70,10 @@ export function ClientDetailModal({
                 </Badge>
                 <Badge
                   variant="secondary"
-                  className={`text-xs font-mono font-bold uppercase tracking-wider rounded-none border border-[#0A0A0A] ${
+                  className={`text-xs font-mono font-bold uppercase tracking-wider rounded-[8px] border-[#CBD5E1] ${
                     isArchived
-                      ? 'bg-[#E61919]/10 text-[#E61919]'
-                      : 'bg-[#EAE8E3] text-[#0A0A0A]'
+                      ? 'bg-[#FEF2F2] text-[#DC2626]'
+                      : 'bg-[#F1F5F9] text-[#0F172A]'
                   }`}
                   data-testid="client-detail-status"
                 >
@@ -82,20 +82,20 @@ export function ClientDetailModal({
                 {client.retainer && (
                   <Badge
                     variant="secondary"
-                    className="bg-[#0A0A0A] text-[#FAF9F5] border border-[#0A0A0A] rounded-none text-xs font-mono font-bold uppercase tracking-wider"
+                    className="bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs border-[#CBD5E1] rounded-[6px] text-xs font-mono font-bold uppercase tracking-wider"
                     data-testid="client-detail-retainer-badge"
                   >
                     Retainer
                   </Badge>
                 )}
               </div>
-              <DialogTitle className="text-lg font-extrabold uppercase tracking-tight text-[#0A0A0A] flex items-center gap-2 pt-1">
-                <Building2 className="h-5 w-5 text-[#E61919]" />
+              <DialogTitle className="text-lg font-extrabold uppercase tracking-tight text-[#0F172A] flex items-center gap-2 pt-1">
+                <Building2 className="h-5 w-5 text-[#DC2626]" />
                 <span data-testid="client-detail-name">{client.name}</span>
               </DialogTitle>
               {client.tradeName && (
-                <DialogDescription className="text-xs font-mono text-[#4A4945]">
-                  Trade Name / DBA: <span className="font-bold text-[#0A0A0A]">{client.tradeName}</span>
+                <DialogDescription className="text-xs font-mono text-[#475569]">
+                  Trade Name / DBA: <span className="font-bold text-[#0F172A]">{client.tradeName}</span>
                 </DialogDescription>
               )}
             </div>
@@ -105,47 +105,47 @@ export function ClientDetailModal({
         {/* Master Details Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
           {/* TIN */}
-          <div className="p-3 bg-[#EAE8E3] rounded-none border border-[#0A0A0A] space-y-1">
-            <div className="text-xs font-mono font-bold text-[#4A4945] uppercase tracking-wider">
+          <div className="p-3 bg-[#F1F5F9] rounded-[8px] border-[#CBD5E1] space-y-1">
+            <div className="text-xs font-mono font-bold text-[#475569] uppercase tracking-wider">
               Tax Identification Number (TIN)
             </div>
-            <div className="font-mono font-bold text-[#0A0A0A] text-sm tabular-nums" data-testid="client-detail-tin">
+            <div className="font-mono font-bold text-[#0F172A] text-sm tabular-nums" data-testid="client-detail-tin">
               {client.tin}
             </div>
           </div>
 
           {/* RDO Code */}
-          <div className="p-3 bg-[#EAE8E3] rounded-none border border-[#0A0A0A] space-y-1">
-            <div className="text-xs font-mono font-bold text-[#4A4945] uppercase tracking-wider">
+          <div className="p-3 bg-[#F1F5F9] rounded-[8px] border-[#CBD5E1] space-y-1">
+            <div className="text-xs font-mono font-bold text-[#475569] uppercase tracking-wider">
               Revenue District Office (RDO)
             </div>
-            <div className="font-mono font-bold text-[#0A0A0A]" data-testid="client-detail-rdo">
+            <div className="font-mono font-bold text-[#0F172A]" data-testid="client-detail-rdo">
               {client.rdoCode ? `RDO ${client.rdoCode}` : '—'}
             </div>
           </div>
 
           {/* Official Address */}
-          <div className="sm:col-span-2 p-3 bg-[#EAE8E3] rounded-none border border-[#0A0A0A] space-y-1">
-            <div className="text-xs font-mono font-bold text-[#4A4945] uppercase tracking-wider">
+          <div className="sm:col-span-2 p-3 bg-[#F1F5F9] rounded-[8px] border-[#CBD5E1] space-y-1">
+            <div className="text-xs font-mono font-bold text-[#475569] uppercase tracking-wider">
               Registered Address
             </div>
-            <div className="text-[#0A0A0A] font-mono" data-testid="client-detail-address">
+            <div className="text-[#0F172A] font-mono" data-testid="client-detail-address">
               {client.address || 'No address provided'}
             </div>
           </div>
 
           {/* Retainer Fee Info */}
           {client.retainer && (
-            <div className="sm:col-span-2 p-3 bg-[#EAE8E3] rounded-none border border-[#0A0A0A] space-y-1">
-              <div className="text-xs font-mono font-bold text-[#0A0A0A] uppercase tracking-wider flex items-center gap-1.5">
-                <CreditCard className="h-3.5 w-3.5 text-[#0A0A0A]" />
+            <div className="sm:col-span-2 p-3 bg-[#F1F5F9] rounded-[8px] border-[#CBD5E1] space-y-1">
+              <div className="text-xs font-mono font-bold text-[#0F172A] uppercase tracking-wider flex items-center gap-1.5">
+                <CreditCard className="h-3.5 w-3.5 text-[#0F172A]" />
                 Retainer Agreement
               </div>
-              <div className="text-[#0A0A0A] font-medium font-mono">
+              <div className="text-[#0F172A] font-medium font-mono">
                 {client.retainerFee !== null && client.retainerFee !== undefined ? (
                   <span>
                     Monthly Retainer Fee:{' '}
-                    <span className="font-mono font-bold text-[#0A0A0A] tabular-nums" data-testid="client-detail-fee">
+                    <span className="font-mono font-bold text-[#0F172A] tabular-nums" data-testid="client-detail-fee">
                       ₱{client.retainerFee.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </span>
                   </span>
@@ -159,36 +159,36 @@ export function ClientDetailModal({
 
         {/* Primary Contact Person */}
         <div className="space-y-2">
-          <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-[#0A0A0A]">
+          <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-[#0F172A]">
             Contact Information
           </h4>
-          <div className="p-3 bg-[#FAF9F5] border border-[#0A0A0A] rounded-none space-y-2">
+          <div className="p-3 bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] space-y-2">
             <div className="text-xs font-mono">
-              <span className="text-[#4A4945]">Point of Contact: </span>
-              <span className="font-bold text-[#0A0A0A]" data-testid="client-detail-contact-person">
+              <span className="text-[#475569]">Point of Contact: </span>
+              <span className="font-bold text-[#0F172A]" data-testid="client-detail-contact-person">
                 {pocUser ? `${pocUser.name}${pocUser.role ? ` (${pocUser.role})` : ''}` : client.contactPerson || '—'}
               </span>
             </div>
 
             {/* Contact Details List */}
             {client.contactDetails && client.contactDetails.length > 0 ? (
-              <div className="pt-2 border-t border-[#C8C5BC] space-y-1.5">
-                <div className="text-xs font-mono font-bold text-[#4A4945] uppercase tracking-wider">Channels:</div>
+              <div className="pt-2 border-t border-[#CBD5E1] space-y-1.5">
+                <div className="text-xs font-mono font-bold text-[#475569] uppercase tracking-wider">Channels:</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" data-testid="client-detail-contact-channels">
                   {client.contactDetails.map((cd, index) => (
                     <div
                       key={cd.id || index}
-                      className="flex items-center gap-2 p-2 bg-[#EAE8E3] rounded-none border border-[#0A0A0A] text-xs"
+                      className="flex items-center gap-2 p-2 bg-[#F1F5F9] rounded-[8px] border-[#CBD5E1] text-xs"
                     >
                       {cd.type === 'email' ? (
-                        <Mail className="h-3.5 w-3.5 text-[#0A0A0A] shrink-0" />
+                        <Mail className="h-3.5 w-3.5 text-[#0F172A] shrink-0" />
                       ) : (
-                        <Phone className="h-3.5 w-3.5 text-[#0A0A0A] shrink-0" />
+                        <Phone className="h-3.5 w-3.5 text-[#0F172A] shrink-0" />
                       )}
                       <div className="truncate font-mono">
-                        <span className="text-[#0A0A0A]">{cd.value}</span>
+                        <span className="text-[#0F172A]">{cd.value}</span>
                         {cd.label && (
-                          <span className="text-xs text-[#4A4945] block truncate">
+                          <span className="text-xs text-[#475569] block truncate">
                             {cd.label} ({cd.type})
                           </span>
                         )}
@@ -198,7 +198,7 @@ export function ClientDetailModal({
                 </div>
               </div>
             ) : (
-              <p className="text-xs font-mono text-[#4A4945] italic">No additional contact details registered.</p>
+              <p className="text-xs font-mono text-[#475569] italic">No additional contact details registered.</p>
             )}
           </div>
         </div>
@@ -206,23 +206,23 @@ export function ClientDetailModal({
         {/* Related Companies */}
         {client.relatedCompanies && client.relatedCompanies.length > 0 && (
           <div className="space-y-2">
-            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-[#0A0A0A]">
+            <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-[#0F172A]">
               Related Companies & Affiliates
             </h4>
-            <div className="p-3 bg-[#FAF9F5] border border-[#0A0A0A] rounded-none space-y-1.5" data-testid="client-detail-related-companies">
+            <div className="p-3 bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] space-y-1.5" data-testid="client-detail-related-companies">
               {client.relatedCompanies.map((rc, idx) => (
                 <div
                   key={rc.id || idx}
-                  className="flex items-center justify-between p-2 bg-[#EAE8E3] rounded-none border border-[#0A0A0A] text-xs font-mono"
+                  className="flex items-center justify-between p-2 bg-[#F1F5F9] rounded-[8px] border-[#CBD5E1] text-xs font-mono"
                 >
-                  <div className="flex items-center gap-1.5 text-[#0A0A0A]">
-                    <Layers className="h-3.5 w-3.5 text-[#4A4945] shrink-0" />
+                  <div className="flex items-center gap-1.5 text-[#0F172A]">
+                    <Layers className="h-3.5 w-3.5 text-[#475569] shrink-0" />
                     {(() => {
                       const relClient = allClients.find((c) => c.id === rc.relatedClientId);
                       return relClient ? (
-                        <span className="font-bold text-[#0A0A0A]">
+                        <span className="font-bold text-[#0F172A]">
                           {relClient.name}{' '}
-                          <span className="text-xs font-normal text-[#4A4945] font-mono">
+                          <span className="text-xs font-normal text-[#475569] font-mono">
                             ({relClient.entity})
                           </span>
                         </span>
@@ -232,7 +232,7 @@ export function ClientDetailModal({
                     })()}
                   </div>
                   {rc.relationship && (
-                    <Badge variant="outline" className="text-xs font-mono uppercase rounded-none bg-[#FAF9F5] border border-[#0A0A0A] text-[#0A0A0A]">
+                    <Badge variant="outline" className="text-xs font-mono uppercase rounded-[6px] bg-[#FFFFFF] border-[#CBD5E1] text-[#0F172A]">
                       {rc.relationship}
                     </Badge>
                   )}
@@ -243,21 +243,21 @@ export function ClientDetailModal({
         )}
 
         {/* Metadata Footer */}
-        <div className="pt-2 border-t border-[#0A0A0A] flex items-center justify-between text-xs font-mono text-[#4A4945]">
+        <div className="pt-2 border-t border-[#CBD5E1] flex items-center justify-between text-xs font-mono text-[#475569]">
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">
-              <Calendar className="h-3 w-3 text-[#4A4945]" />
+              <Calendar className="h-3 w-3 text-[#475569]" />
               Registered: {new Date(client.createdAt).toLocaleDateString()}
             </span>
             <span className="flex items-center gap-1">
-              <Hash className="h-3 w-3 text-[#4A4945]" />
+              <Hash className="h-3 w-3 text-[#475569]" />
               Version: {client.version}
             </span>
           </div>
           <div>ID: {client.id}</div>
         </div>
 
-        <DialogFooter className="flex items-center justify-between gap-2 pt-2 border-t border-[#0A0A0A]">
+        <DialogFooter className="flex items-center justify-between gap-2 pt-2 border-t border-[#CBD5E1]">
           {canEditClients && !isArchived && onEdit ? (
             <Button
               type="button"
@@ -267,7 +267,7 @@ export function ClientDetailModal({
                 onClose();
                 onEdit(client);
               }}
-              className="text-xs font-mono uppercase tracking-wider rounded-none text-[#0A0A0A] border border-[#0A0A0A] bg-[#FAF9F5] hover:bg-[#EAE8E3]"
+              className="text-xs font-mono uppercase tracking-wider rounded-[6px] text-[#0F172A] border-[#CBD5E1] bg-[#FFFFFF] hover:bg-[#F1F5F9]"
               data-testid="client-detail-edit-btn"
             >
               <Edit3 className="h-3.5 w-3.5 mr-1" />
@@ -282,7 +282,7 @@ export function ClientDetailModal({
             variant="default"
             size="sm"
             onClick={onClose}
-            className="text-xs font-mono uppercase tracking-wider font-bold rounded-none bg-[#0A0A0A] hover:bg-[#E61919] text-[#FAF9F5]"
+            className="text-xs font-mono uppercase tracking-wider font-bold rounded-[6px] bg-[#1D4ED8] hover:bg-[#DC2626] text-[#FFFFFF] hover:bg-[#B91C1C] shadow-2xs"
             data-testid="client-detail-close-btn"
           >
             Close

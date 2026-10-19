@@ -103,39 +103,39 @@ export function RecordPaymentModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="shadow-[4px_4px_0px_#0A0A0A] rounded-none max-w-md rounded-none bg-white bg-[#FAF9F5] p-6 border-[#0A0A0A] border-2"
+      <DialogContent className="shadow-float rounded-[6px] max-w-md rounded-[12px] bg-white bg-[#FFFFFF] p-6 border-[#CBD5E1] border"
         data-testid="record-payment-modal"
       >
         <DialogHeader>
-          <DialogTitle className="text-base font-bold text-[#0A0A0A] flex items-center gap-2">
+          <DialogTitle className="text-base font-bold text-[#0F172A] flex items-center gap-2">
             <CreditCard className="w-5 h-5 text-emerald-600" />
             <span>Record Payment</span>
           </DialogTitle>
-          <p className="text-xs text-[#4A4945]">
+          <p className="text-xs text-[#475569]">
             Apply a payment receipt to invoice #{invoice.invoice_number}
           </p>
         </DialogHeader>
 
         {/* Invoice Summary Card */}
-        <div className="bg-[#EAE8E3] p-3 rounded-none border border-[#0A0A0A] text-xs space-y-1.5">
+        <div className="bg-[#F1F5F9] p-3 rounded-[8px] border-[#CBD5E1] text-xs space-y-1.5">
           <div className="flex justify-between">
-            <span className="text-[#4A4945]">Client:</span>
-            <span className="font-semibold text-[#0A0A0A]">
+            <span className="text-[#475569]">Client:</span>
+            <span className="font-semibold text-[#0F172A]">
               {invoice.clients?.name || 'N/A'}
             </span>
           </div>
           <div className="flex justify-between">
-            <span className="text-[#4A4945]">Total Invoice Amount:</span>
-            <span className="font-mono text-[#0A0A0A]">{formatCurrency(invoice.total)}</span>
+            <span className="text-[#475569]">Total Invoice Amount:</span>
+            <span className="font-mono text-[#0F172A]">{formatCurrency(invoice.total)}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-[#4A4945]">Amount Paid So Far:</span>
+            <span className="text-[#475569]">Amount Paid So Far:</span>
             <span className="font-mono text-emerald-600">
               {formatCurrency(invoice.amount_paid || 0)}
             </span>
           </div>
-          <div className="flex justify-between pt-1 border-t border-[#0A0A0A] font-bold">
-            <span className="text-[#0A0A0A]">Remaining Balance:</span>
+          <div className="flex justify-between pt-1 border-t border-[#CBD5E1] font-bold">
+            <span className="text-[#0F172A]">Remaining Balance:</span>
             <span className="font-mono text-amber-600 text-sm" data-testid="remaining-balance-value">
               {formatCurrency(currentBalance)}
             </span>
@@ -144,7 +144,7 @@ export function RecordPaymentModal({
 
         {formError && (
           <div
-            className="p-3 bg-rose-50 border border-rose-200 rounded-none text-xs text-rose-700 flex items-start gap-2"
+            className="p-3 bg-rose-50 border-rose-200 rounded-[6px] text-xs text-rose-700 flex items-start gap-2"
             data-testid="payment-form-error"
           >
             <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
@@ -156,11 +156,11 @@ export function RecordPaymentModal({
           {/* Amount Field */}
           <div>
             <div className="flex justify-between items-center mb-1">
-              <label htmlFor="payment-amount" className="text-xs font-semibold text-[#0A0A0A]">Payment Amount (₱)*</label>
+              <label htmlFor="payment-amount" className="text-xs font-semibold text-[#0F172A]">Payment Amount (₱)*</label>
               <button
                 type="button"
                 onClick={handlePayFullBalance}
-                className="text-xs font-mono text-[#0A0A0A] hover:text-[#0A0A0A] font-medium cursor-pointer"
+                className="text-xs font-mono text-[#0F172A] hover:text-[#0F172A] font-medium cursor-pointer"
                 data-testid="pay-full-balance-button"
               >
                 Pay Full Balance
@@ -186,7 +186,7 @@ export function RecordPaymentModal({
 
           {/* Payment Method */}
           <div>
-            <label htmlFor="payment-method-select" className="text-xs font-semibold text-[#0A0A0A] block mb-1">Payment Method*</label>
+            <label htmlFor="payment-method-select" className="text-xs font-semibold text-[#0F172A] block mb-1">Payment Method*</label>
             <Select value={method} onValueChange={setMethod}>
               <SelectTrigger id="payment-method-select" className="h-9 text-xs" data-testid="payment-method-select">
                 <SelectValue />
@@ -203,7 +203,7 @@ export function RecordPaymentModal({
 
           {/* Payment Date */}
           <div>
-            <label htmlFor="payment-date" className="text-xs font-semibold text-[#0A0A0A] block mb-1">Payment Date*</label>
+            <label htmlFor="payment-date" className="text-xs font-semibold text-[#0F172A] block mb-1">Payment Date*</label>
             <DateInput
                   aria-label="Payment date"
               id="payment-date"
@@ -218,7 +218,7 @@ export function RecordPaymentModal({
 
           {/* Reference # */}
           <div>
-            <label htmlFor="payment-reference" className="text-xs font-semibold text-[#0A0A0A] block mb-1">
+            <label htmlFor="payment-reference" className="text-xs font-semibold text-[#0F172A] block mb-1">
               Reference # (e.g. Check #, Transaction ID)
             </label>
             <Input
@@ -234,7 +234,7 @@ export function RecordPaymentModal({
 
           {/* Notes */}
           <div>
-            <label htmlFor="payment-notes" className="text-xs font-semibold text-[#0A0A0A] block mb-1">Notes</label>
+            <label htmlFor="payment-notes" className="text-xs font-semibold text-[#0F172A] block mb-1">Notes</label>
             <Input
               id="payment-notes"
               type="text"

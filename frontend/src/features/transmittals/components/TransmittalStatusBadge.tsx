@@ -17,11 +17,11 @@ export function TransmittalStatusBadge({ status, className = '' }: TransmittalSt
       return (
         <Badge
           variant="outline"
-          className={`bg-[#FAF9F5] text-[#4A4945] border-[#0A0A0A] rounded-none font-mono text-xs font-bold flex items-center gap-1 ${className}`}
+          className={`bg-[#F1F5F9] text-[#475569] border-[#CBD5E1] rounded-[6px] font-mono text-xs font-medium flex items-center gap-1 ${className}`}
           data-testid="transmittal-status-badge"
           data-status="Draft"
         >
-          <Clock className="h-3 w-3 text-[#4A4945]" />
+          <Clock className="h-3 w-3 text-[#475569]" />
           Draft
         </Badge>
       );
@@ -29,11 +29,11 @@ export function TransmittalStatusBadge({ status, className = '' }: TransmittalSt
       return (
         <Badge
           variant="outline"
-          className={`bg-[#EAE8E3] text-[#0A0A0A] border-[#0A0A0A] rounded-none font-mono text-xs font-bold flex items-center gap-1 ${className}`}
+          className={`bg-[#F0F9FF] text-[#075985] border-[#7DD3FC] rounded-[6px] font-mono text-xs font-medium flex items-center gap-1 ${className}`}
           data-testid="transmittal-status-badge"
           data-status="Sent"
         >
-          <Send className="h-3 w-3 text-[#0A0A0A]" />
+          <Send className="h-3 w-3 text-[#075985]" />
           Sent
         </Badge>
       );
@@ -41,11 +41,11 @@ export function TransmittalStatusBadge({ status, className = '' }: TransmittalSt
       return (
         <Badge
           variant="outline"
-          className={`bg-[#0A0A0A] text-[#FAF9F5] border-[#0A0A0A] rounded-none font-mono text-xs font-bold flex items-center gap-1 ${className}`}
+          className={`bg-[#F0FDF4] text-[#166534] border-[#86EFAC] rounded-[6px] font-mono text-xs font-medium flex items-center gap-1 ${className}`}
           data-testid="transmittal-status-badge"
           data-status="Acknowledged"
         >
-          <CheckCircle2 className="h-3 w-3 text-[#FAF9F5]" />
+          <CheckCircle2 className="h-3 w-3 text-[#166534]" />
           Acknowledged
         </Badge>
       );
@@ -53,17 +53,17 @@ export function TransmittalStatusBadge({ status, className = '' }: TransmittalSt
       return (
         <Badge
           variant="outline"
-          className={`bg-[#FAF9F5] text-[#E61919] border-[#E61919] rounded-none font-mono text-xs font-bold flex items-center gap-1 ${className}`}
+          className={`bg-[#FEF2F2] text-[#991B1B] border-[#FCA5A5] rounded-[6px] font-mono text-xs font-medium flex items-center gap-1 ${className}`}
           data-testid="transmittal-status-badge"
           data-status="Cancelled"
         >
-          <XCircle className="h-3 w-3 text-[#E61919]" />
+          <XCircle className="h-3 w-3 text-[#991B1B]" />
           Cancelled
         </Badge>
       );
     default:
       return (
-        <Badge variant="outline" className={`rounded-none border-[#0A0A0A] font-mono text-xs ${className}`} data-testid="transmittal-status-badge">
+        <Badge variant="outline" className={`rounded-[6px] border-[#CBD5E1] bg-[#F1F5F9] text-[#475569] font-mono text-xs font-medium ${className}`} data-testid="transmittal-status-badge">
           {status}
         </Badge>
       );
@@ -90,11 +90,11 @@ export function TransmittalApprovalBadge({
     return (
       <Badge
         variant="outline"
-        className={`bg-[#0A0A0A] text-[#FAF9F5] border-[#0A0A0A] rounded-none flex items-center gap-1 font-mono font-bold text-xs ${className}`}
+        className={`bg-[#EFF6FF] text-[#1E40AF] border-[#93C5FD] rounded-[6px] flex items-center gap-1 font-mono font-medium text-xs ${className}`}
         data-testid="transmittal-approval-badge"
         data-approved="true"
       >
-        <ShieldCheck className="h-3 w-3 text-[#FAF9F5]" />
+        <ShieldCheck className="h-3 w-3 text-[#1E40AF]" />
         Approved
       </Badge>
     );
@@ -103,11 +103,11 @@ export function TransmittalApprovalBadge({
   return (
     <Badge
       variant="outline"
-      className={`bg-[#EAE8E3] text-[#0A0A0A] border-[#0A0A0A] rounded-none flex items-center gap-1 font-mono font-bold text-xs ${className}`}
+      className={`bg-[#FEFCE8] text-[#854D0E] border-[#FDE047] rounded-[6px] flex items-center gap-1 font-mono font-medium text-xs ${className}`}
       data-testid="transmittal-approval-badge"
       data-approved="false"
     >
-      <ShieldAlert className="h-3 w-3 text-[#0A0A0A]" />
+      <ShieldAlert className="h-3 w-3 text-[#854D0E]" />
       Pending Admin Approval
     </Badge>
   );

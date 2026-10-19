@@ -133,22 +133,22 @@ export default function ClientsPage() {
 
   return (
     <div className="w-full space-y-6" data-testid="clients-page">
-      {/* 1. Blueprint Module Header */}
-      <div className="border-b-2 border-[#0A0A0A] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
+      {/* 1. Unified Module Header */}
+      <div className="border-b border-[#CBD5E1] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <nav
             aria-label="Breadcrumb"
-            className="font-mono text-xs uppercase tracking-wider text-[#4A4945] flex items-center gap-1.5 pb-1"
+            className="text-xs font-medium text-[#475569] flex items-center gap-1.5 pb-1"
           >
             <span>Modules</span>
             <span aria-hidden="true">/</span>
-            <span className="text-[#0A0A0A] font-semibold">Clients</span>
+            <span className="text-[#0F172A] font-semibold">Clients</span>
           </nav>
-          <h1 className="text-2xl font-extrabold tracking-tight text-[#0A0A0A] flex items-center gap-2">
-            <Building2 className="h-6 w-6 text-[#0A0A0A]" />
+          <h1 className="text-2xl font-semibold tracking-tight text-[#0F172A] flex items-center gap-2">
+            <Building2 className="h-6 w-6 text-[#1D4ED8]" />
             Clients &amp; Master Records
           </h1>
-          <p className="text-xs sm:text-sm text-[#4A4945] pt-0.5">
+          <p className="text-xs sm:text-sm text-[#475569] pt-0.5">
             Maintain registered entities, tax identification numbers, and contact channels.
           </p>
         </div>
@@ -161,7 +161,7 @@ export default function ClientsPage() {
               variant="default"
               size="sm"
               onClick={handleCreate}
-              className="text-xs font-mono font-semibold uppercase tracking-wider bg-[#0A0A0A] hover:bg-[#222220] text-[#FAF9F5] rounded-none border border-[#0A0A0A] h-9 gap-1.5 shadow-none cursor-pointer"
+              className="text-xs font-medium bg-[#1D4ED8] hover:bg-[#1E40AF] text-[#FFFFFF] rounded-[6px] h-9 gap-1.5 shadow-2xs cursor-pointer"
               data-testid="new-client-btn"
             >
               <Plus className="h-4 w-4" />

@@ -118,21 +118,21 @@ export function TimeEntryEditModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[480px] rounded-none border-2 border-[#0A0A0A] bg-[#FAF9F5] shadow-[4px_4px_0px_#0A0A0A] p-6" data-testid="time-entry-edit-modal">
+      <DialogContent className="sm:max-w-[480px] rounded-[12px] border-[#CBD5E1] bg-[#FFFFFF] shadow-float p-6" data-testid="time-entry-edit-modal">
         <form onSubmit={handleSubmit} className="space-y-4">
-          <DialogHeader className="border-b border-[#0A0A0A] pb-3">
-            <DialogTitle className="flex items-center gap-2 text-base font-extrabold uppercase tracking-tight text-[#0A0A0A]">
-              <Clock className="h-4 w-4 text-[#E61919]" />
+          <DialogHeader className="border-b border-[#CBD5E1] pb-3">
+            <DialogTitle className="flex items-center gap-2 text-base font-extrabold uppercase tracking-tight text-[#0F172A]">
+              <Clock className="h-4 w-4 text-[#DC2626]" />
               Edit Time Entry
             </DialogTitle>
-            <DialogDescription className="text-xs font-mono text-[#4A4945]">
+            <DialogDescription className="text-xs font-mono text-[#475569]">
               Modify the recorded duration, work date, or note for this entry.
             </DialogDescription>
           </DialogHeader>
 
           {validationError && (
             <div
-              className="p-2.5 rounded-none bg-[#E61919]/10 border border-[#E61919] text-xs font-mono text-[#E61919] font-medium"
+              className="p-2.5 rounded-[6px] bg-[#FEF2F2] border-[#FCA5A5] text-xs font-mono text-[#DC2626] font-medium"
               data-testid="edit-validation-error"
             >
               {validationError}
@@ -141,14 +141,14 @@ export function TimeEntryEditModal({
 
           {/* Task Selection (Read-only or switchable) */}
           <div className="space-y-1.5">
-            <label className="text-xs font-mono uppercase tracking-wider font-bold text-[#0A0A0A] flex items-center gap-1.5">
-              <CheckCircle2 className="h-3.5 w-3.5 text-[#4A4945]" />
+            <label className="text-xs font-mono uppercase tracking-wider font-bold text-[#0F172A] flex items-center gap-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5 text-[#475569]" />
               Task
             </label>
             <select
               value={taskId}
               onChange={(e) => setTaskId(e.target.value)}
-              className="w-full text-xs font-mono rounded-none border border-[#0A0A0A] bg-[#FAF9F5] px-3 py-2 text-[#0A0A0A] shadow-none focus:border-[#0A0A0A] focus:outline-none"
+              className="w-full text-xs font-mono rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] px-3 py-2 text-[#0F172A] shadow-none focus:border-[#CBD5E1] focus:outline-none"
               data-testid="edit-task-select"
             >
               {tasks.map((t) => (
@@ -164,8 +164,8 @@ export function TimeEntryEditModal({
 
           {/* Date Input */}
           <div className="space-y-1.5">
-            <label className="text-xs font-mono uppercase tracking-wider font-bold text-[#0A0A0A] flex items-center gap-1.5">
-              <Calendar className="h-3.5 w-3.5 text-[#4A4945]" />
+            <label className="text-xs font-mono uppercase tracking-wider font-bold text-[#0F172A] flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5 text-[#475569]" />
               Work Date
             </label>
             <DateInput
@@ -174,7 +174,7 @@ export function TimeEntryEditModal({
               max={todayStr}
               value={entryDate}
               onValueChange={(value) => setEntryDate(value)}
-              className="text-xs font-mono h-9 rounded-none border-[#0A0A0A] bg-[#FAF9F5]"
+              className="text-xs font-mono h-9 rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]"
               required
               data-testid="edit-entry-date-input"
             />
@@ -182,12 +182,12 @@ export function TimeEntryEditModal({
 
           {/* Duration Minutes with Quick-Chips */}
           <div className="space-y-2">
-            <label className="text-xs font-mono uppercase tracking-wider font-bold text-[#0A0A0A] flex items-center justify-between">
+            <label className="text-xs font-mono uppercase tracking-wider font-bold text-[#0F172A] flex items-center justify-between">
               <span className="flex items-center gap-1.5">
-                <Clock className="h-3.5 w-3.5 text-[#4A4945]" />
+                <Clock className="h-3.5 w-3.5 text-[#475569]" />
                 Duration (minutes)
               </span>
-              <span className="text-xs font-mono text-[#4A4945] tabular-nums">
+              <span className="text-xs font-mono text-[#475569] tabular-nums">
                 {Math.floor(durationMinutes / 60)}h {durationMinutes % 60}m
               </span>
             </label>
@@ -198,7 +198,7 @@ export function TimeEntryEditModal({
                 max={1440}
                 value={durationMinutes}
                 onChange={(e) => setDurationMinutes(parseInt(e.target.value, 10) || 0)}
-                className="text-xs h-9 w-28 font-mono rounded-none border-[#0A0A0A] bg-[#FAF9F5] tabular-nums"
+                className="text-xs h-9 w-28 font-mono rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] tabular-nums"
                 required
                 data-testid="edit-duration-input"
               />
@@ -208,7 +208,7 @@ export function TimeEntryEditModal({
                   variant="outline"
                   size="xs"
                   onClick={() => handleQuickChip(15)}
-                  className="text-xs font-mono h-8 rounded-none border-[#0A0A0A] bg-[#EAE8E3] hover:bg-[#E4E2DC] text-[#0A0A0A]"
+                  className="text-xs font-mono h-8 rounded-[8px] border-[#CBD5E1] bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#0F172A]"
                   data-testid="edit-chip-15"
                 >
                   +15m
@@ -218,7 +218,7 @@ export function TimeEntryEditModal({
                   variant="outline"
                   size="xs"
                   onClick={() => handleQuickChip(30)}
-                  className="text-xs font-mono h-8 rounded-none border-[#0A0A0A] bg-[#EAE8E3] hover:bg-[#E4E2DC] text-[#0A0A0A]"
+                  className="text-xs font-mono h-8 rounded-[8px] border-[#CBD5E1] bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#0F172A]"
                   data-testid="edit-chip-30"
                 >
                   +30m
@@ -228,7 +228,7 @@ export function TimeEntryEditModal({
                   variant="outline"
                   size="xs"
                   onClick={() => handleQuickChip(60)}
-                  className="text-xs font-mono h-8 rounded-none border-[#0A0A0A] bg-[#EAE8E3] hover:bg-[#E4E2DC] text-[#0A0A0A]"
+                  className="text-xs font-mono h-8 rounded-[8px] border-[#CBD5E1] bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#0F172A]"
                   data-testid="edit-chip-60"
                 >
                   +1h
@@ -239,12 +239,12 @@ export function TimeEntryEditModal({
 
           {/* Note Input */}
           <div className="space-y-1.5">
-            <label className="text-xs font-mono uppercase tracking-wider font-bold text-[#0A0A0A] flex items-center justify-between">
+            <label className="text-xs font-mono uppercase tracking-wider font-bold text-[#0F172A] flex items-center justify-between">
               <span className="flex items-center gap-1.5">
-                <FileText className="h-3.5 w-3.5 text-[#4A4945]" />
+                <FileText className="h-3.5 w-3.5 text-[#475569]" />
                 Note (optional)
               </span>
-              <span className="text-xs font-mono text-[#4A4945] tabular-nums">
+              <span className="text-xs font-mono text-[#475569] tabular-nums">
                 {note.length} / 5000
               </span>
             </label>
@@ -254,18 +254,18 @@ export function TimeEntryEditModal({
               onChange={(e) => setNote(e.target.value)}
               placeholder="Describe tasks completed, meetings attended, etc."
               maxLength={5000}
-              className="w-full text-xs font-mono rounded-none border border-[#0A0A0A] bg-[#FAF9F5] p-2.5 text-[#0A0A0A] shadow-none focus:border-[#0A0A0A] focus:outline-none"
+              className="w-full text-xs font-mono rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] p-2.5 text-[#0F172A] shadow-none focus:border-[#CBD5E1] focus:outline-none"
               data-testid="edit-note-textarea"
             />
           </div>
 
-          <DialogFooter className="pt-2 border-t border-[#0A0A0A] flex items-center justify-end gap-2">
+          <DialogFooter className="pt-2 border-t border-[#CBD5E1] flex items-center justify-end gap-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={onClose}
-              className="text-xs font-mono uppercase tracking-wider rounded-none border border-[#0A0A0A] bg-[#FAF9F5] hover:bg-[#EAE8E3] text-[#0A0A0A]"
+              className="text-xs font-mono uppercase tracking-wider rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] hover:bg-[#F1F5F9] text-[#0F172A]"
               data-testid="edit-cancel-btn"
             >
               Cancel
@@ -273,7 +273,7 @@ export function TimeEntryEditModal({
             <Button
               type="submit"
               size="sm"
-              className="text-xs font-mono uppercase tracking-wider font-bold rounded-none bg-[#0A0A0A] text-[#FAF9F5] hover:bg-[#E61919]"
+              className="text-xs font-mono uppercase tracking-wider font-bold rounded-[6px] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs hover:bg-[#DC2626]"
               disabled={updateMutation.isPending}
               data-testid="edit-submit-btn"
             >

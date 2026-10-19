@@ -291,9 +291,9 @@ export function WorkRequestSidePeek({
 
         {/* Slide-out Drawer Panel */}
         <div className="fixed inset-y-0 right-0 max-w-full flex pl-6 sm:pl-10 z-50">
-          <div className="w-screen max-w-2xl md:max-w-3xl bg-[#FAF9F5] shadow-2xl border-l-2 border-[#0A0A0A] flex flex-col h-full animate-in slide-in-from-right duration-200 text-[#0A0A0A] font-mono">
+          <div className="w-screen max-w-2xl md:max-w-3xl bg-[#FFFFFF] shadow-2xl border-l border-[#CBD5E1] flex flex-col h-full animate-in slide-in-from-right duration-200 text-[#0F172A] font-mono">
             {/* Header: Notion-style Breadcrumb & Actions */}
-            <div className="px-6 py-4 border-b-2 border-[#0A0A0A] bg-[#EAE8E3] flex items-start justify-between gap-4">
+            <div className="px-6 py-4 border-b border-[#CBD5E1] bg-[#F1F5F9] flex items-start justify-between gap-4">
               <div className="space-y-2 flex-1 min-w-0">
                 {/* Meta badges & Notion-like status dropdown */}
                 <div className="flex flex-wrap items-center gap-2">
@@ -302,7 +302,7 @@ export function WorkRequestSidePeek({
                       <Badge
                         variant={workRequest.entity === 'LTA' ? 'lta' : 'ata'}
                         size="compact"
-                        className="font-bold tracking-wider rounded-none font-mono text-xs"
+                        className="font-bold tracking-wider rounded-[6px] font-mono text-xs"
                       >
                         {workRequest.entity}
                       </Badge>
@@ -315,7 +315,7 @@ export function WorkRequestSidePeek({
                               : 'secondary'
                         }
                         size="compact"
-                        className="font-medium rounded-none font-mono text-xs"
+                        className="font-medium rounded-[6px] font-mono text-xs"
                       >
                         {workRequest.priority} Priority
                       </Badge>
@@ -326,7 +326,7 @@ export function WorkRequestSidePeek({
                         const PhaseIcon = phaseInfo.Icon;
                         return (
                           <span
-                            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-none text-xs font-mono font-semibold border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A]"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-[6px] text-xs font-mono font-semibold border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A]"
                             data-testid="side-peek-phase"
                           >
                             <PhaseIcon className="w-3.5 h-3.5 shrink-0" />
@@ -346,7 +346,7 @@ export function WorkRequestSidePeek({
                               <DropdownMenuTrigger asChild>
                                 <button
                                   type="button"
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-none text-xs font-mono font-semibold border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A] cursor-pointer hover:bg-[#EAE8E3] focus:outline-none"
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] text-xs font-mono font-semibold border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A] cursor-pointer hover:bg-[#F1F5F9] focus:outline-none"
                                   data-testid="side-peek-status"
                                   data-admin-status-dropdown="true"
                                   title="Change Work Request Status (Admin: Unconstrained)"
@@ -359,15 +359,15 @@ export function WorkRequestSidePeek({
                               </DropdownMenuTrigger>
                               <DropdownMenuContent
                                 align="start"
-                                className="w-64 p-1.5 bg-[#FAF9F5] shadow-[4px_4px_0px_#0A0A0A] border-2 border-[#0A0A0A] rounded-none max-h-96 overflow-y-auto z-50 font-mono"
+                                className="w-64 p-1.5 bg-[#FFFFFF] shadow-float border-[#CBD5E1] rounded-[6px] max-h-96 overflow-y-auto z-50 font-mono"
                               >
-                                <DropdownMenuLabel className="text-xs font-bold uppercase tracking-wider text-[#4A4945] px-2 py-1 flex items-center justify-between">
+                                <DropdownMenuLabel className="text-xs font-bold uppercase tracking-wider text-[#475569] px-2 py-1 flex items-center justify-between">
                                   <span>Set Work Request Status</span>
-                                  <span className="text-xs text-[#FAF9F5] bg-[#0A0A0A] px-1.5 py-0.5 rounded-none font-normal">
+                                  <span className="text-xs text-[#FFFFFF] bg-[#1D4ED8] px-1.5 py-0.5 rounded-[6px] font-normal">
                                     Admin Free Change
                                   </span>
                                 </DropdownMenuLabel>
-                                <DropdownMenuSeparator className="my-1 bg-[#0A0A0A]" />
+                                <DropdownMenuSeparator className="my-1 bg-[#1D4ED8]" />
                                 {WORK_REQUEST_STATUS_OPTIONS.map((statusOption) => {
                                   const optInfo = getStatusBadgeInfo(statusOption);
                                   const OptIcon = optInfo.Icon;
@@ -377,10 +377,10 @@ export function WorkRequestSidePeek({
                                     <DropdownMenuItem
                                       key={statusOption}
                                       onClick={() => handleStatusChange(statusOption)}
-                                      className={`flex items-center justify-between px-2.5 py-2 text-xs rounded-none cursor-pointer font-mono ${
+                                      className={`flex items-center justify-between px-2.5 py-2 text-xs rounded-[6px] cursor-pointer font-mono ${
                                         isCurrent
-                                          ? 'bg-[#0A0A0A] font-bold text-[#FAF9F5]'
-                                          : 'text-[#0A0A0A] hover:bg-[#EAE8E3]'
+                                          ? 'bg-[#1D4ED8] font-bold text-[#FFFFFF]'
+                                          : 'text-[#0F172A] hover:bg-[#F1F5F9]'
                                       }`}
                                       data-testid={`status-option-${statusOption}`}
                                     >
@@ -388,7 +388,7 @@ export function WorkRequestSidePeek({
                                         <OptIcon className="w-3.5 h-3.5 shrink-0" />
                                         <span className="truncate">{statusOption}</span>
                                       </div>
-                                      {isCurrent && <Check className="w-3.5 h-3.5 text-[#FAF9F5] shrink-0" />}
+                                      {isCurrent && <Check className="w-3.5 h-3.5 text-[#FFFFFF] shrink-0" />}
                                     </DropdownMenuItem>
                                   );
                                 })}
@@ -400,13 +400,13 @@ export function WorkRequestSidePeek({
                         // Readonly status badge for non-admin
                         return (
                           <span
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-none text-xs font-mono font-semibold border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A]"
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] text-xs font-mono font-semibold border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A]"
                             data-testid="side-peek-status"
                             title="Work request status (Admin only can modify)"
                           >
                             <StatusIcon className="w-3.5 h-3.5 shrink-0" />
                             <span>{statusInfo.label}</span>
-                            <Lock className="w-3 h-3 ml-0.5 text-[#4A4945]" />
+                            <Lock className="w-3 h-3 ml-0.5 text-[#475569]" />
                           </span>
                         );
                       })()}
@@ -416,7 +416,7 @@ export function WorkRequestSidePeek({
 
                 {/* Big, clean Notion-style Title */}
                 <h2
-                  className="text-xl font-extrabold tracking-tight text-[#0A0A0A] leading-snug break-words"
+                  className="text-xl font-extrabold tracking-tight text-[#0F172A] leading-snug break-words"
                   data-testid="side-peek-title"
                 >
                   {isLoadingWr ? 'Loading Work Request...' : workRequest?.title || 'Work Request'}
@@ -435,11 +435,11 @@ export function WorkRequestSidePeek({
                       onViewInBoard(workRequestId);
                       onClose();
                     }}
-                    className="text-xs font-mono uppercase tracking-wider rounded-none border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A] hover:bg-[#EAE8E3] gap-1.5"
+                    className="text-xs font-mono uppercase tracking-wider rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A] hover:bg-[#F1F5F9] gap-1.5"
                     data-testid="side-peek-board-btn"
                     title="Open in Kanban Board"
                   >
-                    <Columns className="h-3.5 w-3.5 text-[#0A0A0A]" />
+                    <Columns className="h-3.5 w-3.5 text-[#0F172A]" />
                     Board
                   </Button>
                 )}
@@ -452,11 +452,11 @@ export function WorkRequestSidePeek({
                       onEdit(workRequest);
                       onClose();
                     }}
-                    className="text-xs font-mono uppercase tracking-wider rounded-none border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A] hover:bg-[#EAE8E3] gap-1.5"
+                    className="text-xs font-mono uppercase tracking-wider rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A] hover:bg-[#F1F5F9] gap-1.5"
                     data-testid="side-peek-edit-btn"
                     title="Edit Work Request"
                   >
-                    <Edit className="h-3.5 w-3.5 text-[#0A0A0A]" />
+                    <Edit className="h-3.5 w-3.5 text-[#0F172A]" />
                     Edit
                   </Button>
                 )}
@@ -465,7 +465,7 @@ export function WorkRequestSidePeek({
                   variant="ghost"
                   size="icon-sm"
                   onClick={onClose}
-                  className="text-[#4A4945] hover:text-[#0A0A0A] hover:bg-[#EAE8E3] ml-1 rounded-none"
+                  className="text-[#475569] hover:text-[#0F172A] hover:bg-[#F1F5F9] ml-1 rounded-[6px]"
                   data-testid="side-peek-close-btn"
                   aria-label="Close Side Peek"
                 >
@@ -477,8 +477,8 @@ export function WorkRequestSidePeek({
             {/* Drawer Content */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               {isLoadingWr ? (
-                <div className="p-12 text-center text-sm font-mono text-[#4A4945]">
-                  <div className="w-8 h-8 border-2 border-[#0A0A0A] border-t-transparent rounded-none animate-spin mx-auto mb-3" />
+                <div className="p-12 text-center text-sm font-mono text-[#475569]">
+                  <div className="w-8 h-8 border-[#CBD5E1] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
                   Loading work request details...
                 </div>
               ) : workRequest ? (
@@ -486,10 +486,10 @@ export function WorkRequestSidePeek({
                   {/* Completed Work Request Read-Only Lock Banner */}
                   {workRequest.status === 'Completed' && (
                     <div
-                      className="bg-[#EAE8E3] border border-[#0A0A0A] text-[#0A0A0A] text-xs font-mono px-3.5 py-2.5 rounded-none flex items-center gap-2.5"
+                      className="bg-[#F1F5F9] border-[#CBD5E1] text-[#0F172A] text-xs font-mono px-3.5 py-2.5 rounded-[6px] flex items-center gap-2.5"
                       data-testid="completed-wr-lock-banner"
                     >
-                      <Lock className="h-4 w-4 text-[#0A0A0A] shrink-0" />
+                      <Lock className="h-4 w-4 text-[#0F172A] shrink-0" />
                       <span>Completed Work Request: This record is finalized and locked against edits or mutations.</span>
                     </div>
                   )}
@@ -497,14 +497,14 @@ export function WorkRequestSidePeek({
                   {/* 1. Gate Blocker Warning */}
                   {blockerInfo.hasBlockers && (
                     <div
-                      className="p-4 bg-[#FAF9F5] border-2 border-[#E61919] rounded-none text-xs font-mono text-[#E61919] space-y-1.5"
+                      className="p-4 bg-[#FFFFFF] border-2 border-[#FCA5A5] rounded-[6px] text-xs font-mono text-[#DC2626] space-y-1.5"
                       data-testid="side-peek-blocker-alert"
                     >
-                      <div className="flex items-center gap-2 font-bold text-sm text-[#E61919]">
-                        <AlertTriangle className="h-4 w-4 text-[#E61919] shrink-0" />
+                      <div className="flex items-center gap-2 font-bold text-sm text-[#DC2626]">
+                        <AlertTriangle className="h-4 w-4 text-[#DC2626] shrink-0" />
                         <span>Phase Advancement Blocked</span>
                       </div>
-                      <p className="text-xs text-[#E61919] pl-6 leading-relaxed">
+                      <p className="text-xs text-[#DC2626] pl-6 leading-relaxed">
                         {blockerInfo.incomplete.length} task(s) in phase &quot;
                         {workRequest.phase.replace('_', ' ')}&quot; must be completed before advancing.
                       </p>
@@ -512,21 +512,21 @@ export function WorkRequestSidePeek({
                   )}
 
                   {/* 2. Notion-Style Properties Grid */}
-                  <div className="bg-[#EAE8E3] border border-[#0A0A0A] rounded-none p-4 space-y-3">
-                    <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-[#0A0A0A] mb-1 flex items-center gap-1.5">
-                      <Layers className="h-3.5 w-3.5 text-[#0A0A0A]" />
+                  <div className="bg-[#F1F5F9] border-[#CBD5E1] rounded-[6px] p-4 space-y-3">
+                    <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-[#0F172A] mb-1 flex items-center gap-1.5">
+                      <Layers className="h-3.5 w-3.5 text-[#0F172A]" />
                       Properties
                     </h3>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs font-mono">
                       {/* Client */}
-                      <div className="flex items-center justify-between p-2 bg-[#FAF9F5] border border-[#0A0A0A] rounded-none">
-                        <span className="text-[#4A4945] font-medium flex items-center gap-1.5">
-                          <Building className="h-3.5 w-3.5 text-[#4A4945] shrink-0" />
+                      <div className="flex items-center justify-between p-2 bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px]">
+                        <span className="text-[#475569] font-medium flex items-center gap-1.5">
+                          <Building className="h-3.5 w-3.5 text-[#475569] shrink-0" />
                           Client
                         </span>
                         <span
-                          className="font-bold text-[#0A0A0A] truncate max-w-[160px]"
+                          className="font-bold text-[#0F172A] truncate max-w-[160px]"
                           data-testid="side-peek-client"
                         >
                           {workRequest.clientName || '—'}
@@ -534,12 +534,12 @@ export function WorkRequestSidePeek({
                       </div>
 
                       {/* Due Date */}
-                      <div className="flex items-center justify-between p-2 bg-[#FAF9F5] border border-[#0A0A0A] rounded-none">
-                        <span className="text-[#4A4945] font-medium flex items-center gap-1.5">
-                          <Calendar className="h-3.5 w-3.5 text-[#4A4945] shrink-0" />
+                      <div className="flex items-center justify-between p-2 bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px]">
+                        <span className="text-[#475569] font-medium flex items-center gap-1.5">
+                          <Calendar className="h-3.5 w-3.5 text-[#475569] shrink-0" />
                           Due Date
                         </span>
-                        <span className="font-semibold text-[#0A0A0A]">
+                        <span className="font-semibold text-[#0F172A]">
                           {workRequest.dueDate
                             ? new Date(workRequest.dueDate).toLocaleDateString()
                             : 'No due date'}
@@ -547,13 +547,13 @@ export function WorkRequestSidePeek({
                       </div>
 
                       {/* Assigned Lead */}
-                      <div className="flex items-center justify-between p-2 bg-[#FAF9F5] border border-[#0A0A0A] rounded-none">
-                        <span className="text-[#4A4945] font-medium flex items-center gap-1.5">
-                          <User className="h-3.5 w-3.5 text-[#4A4945] shrink-0" />
+                      <div className="flex items-center justify-between p-2 bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px]">
+                        <span className="text-[#475569] font-medium flex items-center gap-1.5">
+                          <User className="h-3.5 w-3.5 text-[#475569] shrink-0" />
                           Assigned Lead
                         </span>
                         <span
-                          className="font-bold text-[#0A0A0A] truncate max-w-[160px]"
+                          className="font-bold text-[#0F172A] truncate max-w-[160px]"
                           data-testid="side-peek-assignee"
                         >
                           {assignedLeadName}
@@ -561,12 +561,12 @@ export function WorkRequestSidePeek({
                       </div>
 
                       {/* Created Date */}
-                      <div className="flex items-center justify-between p-2 bg-[#FAF9F5] border border-[#0A0A0A] rounded-none">
-                        <span className="text-[#4A4945] font-medium flex items-center gap-1.5">
-                          <Clock className="h-3.5 w-3.5 text-[#4A4945] shrink-0" />
+                      <div className="flex items-center justify-between p-2 bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px]">
+                        <span className="text-[#475569] font-medium flex items-center gap-1.5">
+                          <Clock className="h-3.5 w-3.5 text-[#475569] shrink-0" />
                           Created Date
                         </span>
-                        <span className="font-medium text-[#0A0A0A]">
+                        <span className="font-medium text-[#0F172A]">
                           {workRequest.createdAt
                             ? new Date(workRequest.createdAt).toLocaleDateString()
                             : 'N/A'}
@@ -575,9 +575,9 @@ export function WorkRequestSidePeek({
 
                       {/* Co-Assignees */}
                       {coAssigneeNames.length > 0 && (
-                        <div className="sm:col-span-2 p-2.5 bg-[#FAF9F5] border border-[#0A0A0A] rounded-none">
-                          <span className="text-xs uppercase font-bold text-[#4A4945] block mb-1.5 flex items-center gap-1.5 font-mono">
-                            <Users className="h-3.5 w-3.5 text-[#4A4945]" />
+                        <div className="sm:col-span-2 p-2.5 bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px]">
+                          <span className="text-xs uppercase font-bold text-[#475569] block mb-1.5 flex items-center gap-1.5 font-mono">
+                            <Users className="h-3.5 w-3.5 text-[#475569]" />
                             Team Members / Co-Assignees
                           </span>
                           <div className="flex flex-wrap gap-1.5">
@@ -586,10 +586,10 @@ export function WorkRequestSidePeek({
                                 key={`${name}-${idx}`}
                                 variant="secondary"
                                 size="compact"
-                                className="text-xs font-mono rounded-none bg-[#EAE8E3] font-medium text-[#0A0A0A] border border-[#0A0A0A]"
+                                className="text-xs font-mono rounded-[6px] bg-[#F1F5F9] font-medium text-[#0F172A] border-[#CBD5E1]"
                                 data-testid="side-peek-co-assignee"
                               >
-                                <Users className="h-2.5 w-2.5 mr-1 text-[#4A4945]" />
+                                <Users className="h-2.5 w-2.5 mr-1 text-[#475569]" />
                                 {name}
                               </Badge>
                             ))}
@@ -601,13 +601,13 @@ export function WorkRequestSidePeek({
 
                   {/* 3. Description & Objectives */}
                   <div className="space-y-2 font-mono">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-[#0A0A0A] flex items-center gap-1.5">
-                      <FileText className="h-3.5 w-3.5 text-[#4A4945]" />
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-[#0F172A] flex items-center gap-1.5">
+                      <FileText className="h-3.5 w-3.5 text-[#475569]" />
                       Description & Objectives
                     </h4>
-                    <div className="p-4 bg-[#FAF9F5] border border-[#0A0A0A] rounded-none text-xs text-[#0A0A0A] whitespace-pre-wrap leading-relaxed min-h-[60px]">
+                    <div className="p-4 bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] text-xs text-[#0F172A] whitespace-pre-wrap leading-relaxed min-h-[60px]">
                       {workRequest.description || (
-                        <span className="text-[#4A4945] italic">No description provided for this work request.</span>
+                        <span className="text-[#475569] italic">No description provided for this work request.</span>
                       )}
                     </div>
                   </div>
@@ -615,12 +615,12 @@ export function WorkRequestSidePeek({
                   {/* 4. Tasks Breakdown with Inspection Affordance */}
                   <div className="space-y-3 font-mono" data-testid="side-peek-tasks">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#0A0A0A] flex items-center gap-2">
-                        <CheckSquare className="h-4 w-4 text-[#0A0A0A]" />
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#0F172A] flex items-center gap-2">
+                        <CheckSquare className="h-4 w-4 text-[#0F172A]" />
                         <span>Tasks Breakdown ({completedTasksCount}/{tasks.length})</span>
                       </h4>
                       {tasks.length > 0 && (
-                        <span className="text-xs font-semibold text-[#0A0A0A]">
+                        <span className="text-xs font-semibold text-[#0F172A]">
                           {progressPercentage}% Complete
                         </span>
                       )}
@@ -628,24 +628,24 @@ export function WorkRequestSidePeek({
 
                     {/* Progress Bar */}
                     {tasks.length > 0 && (
-                      <div className="w-full bg-[#EAE8E3] rounded-none h-2 overflow-hidden border border-[#0A0A0A]">
+                      <div className="w-full bg-[#F1F5F9] rounded-[6px] h-2 overflow-hidden border-[#CBD5E1]">
                         <div
-                          className="bg-[#0A0A0A] h-full rounded-none transition-all duration-300"
+                          className="bg-[#1D4ED8] h-full rounded-[6px] transition-all duration-300"
                           style={{ width: `${progressPercentage}%` }}
                         />
                       </div>
                     )}
 
                     {isLoadingTasks ? (
-                      <div className="p-6 text-center text-xs text-[#4A4945] bg-[#FAF9F5] rounded-none border border-[#0A0A0A]">
+                      <div className="p-6 text-center text-xs text-[#475569] bg-[#FFFFFF] rounded-[8px] border-[#CBD5E1]">
                         Loading tasks...
                       </div>
                     ) : tasks.length === 0 ? (
-                      <div className="p-6 text-center text-xs text-[#4A4945] bg-[#FAF9F5] rounded-none border border-[#0A0A0A] italic">
+                      <div className="p-6 text-center text-xs text-[#475569] bg-[#FFFFFF] rounded-[8px] border-[#CBD5E1] italic">
                         No tasks created for this work request yet.
                       </div>
                     ) : (
-                      <div className="border border-[#0A0A0A] rounded-none overflow-hidden divide-y divide-[#C8C5BC] bg-[#FAF9F5]">
+                      <div className="border-[#CBD5E1] rounded-[6px] overflow-hidden divide-y divide-[#CBD5E1] bg-[#FFFFFF]">
                         {tasks.map((task) => {
                           const isCompleted = task.status === 'Completed';
                           const isExpanded = expandedTaskIds.has(task.id);
@@ -657,7 +657,7 @@ export function WorkRequestSidePeek({
                           return (
                             <div
                               key={task.id}
-                              className="group transition-colors hover:bg-[#EAE8E3]/60"
+                              className="group transition-colors hover:bg-[#F1F5F9]/60"
                               data-testid={`side-peek-task-${task.id}`}
                             >
                               <div
@@ -668,24 +668,24 @@ export function WorkRequestSidePeek({
                                 <div className="flex items-start gap-2.5 min-w-0 flex-1">
                                   <CheckCircle2
                                     className={`h-4.5 w-4.5 shrink-0 mt-0.5 ${
-                                      isCompleted ? 'text-[#0A0A0A]' : 'text-[#C8C5BC]'
+                                      isCompleted ? 'text-[#0F172A]' : 'text-[#94A3B8]'
                                     }`}
                                   />
                                   <div className="min-w-0 flex-1">
                                     <span
                                       className={`font-semibold text-sm block truncate ${
-                                        isCompleted ? 'line-through text-[#4A4945]' : 'text-[#0A0A0A]'
+                                        isCompleted ? 'line-through text-[#475569]' : 'text-[#0F172A]'
                                       }`}
                                     >
                                       {task.title}
                                     </span>
 
-                                    <div className="flex flex-wrap items-center gap-2 text-xs text-[#4A4945] pt-1">
+                                    <div className="flex flex-wrap items-center gap-2 text-xs text-[#475569] pt-1">
                                       <span className="capitalize">{task.phase.replace('_', ' ')}</span>
                                       {(task.assigneeName || task.assigneeId) && (
                                         <>
                                           <span>•</span>
-                                          <span className="font-medium text-[#0A0A0A]">
+                                          <span className="font-medium text-[#0F172A]">
                                             {task.assigneeName
                                               ? resolveUserName(task.assigneeName)
                                               : resolveUserName(task.assigneeId)}
@@ -695,7 +695,7 @@ export function WorkRequestSidePeek({
                                       {hasChecklist && (
                                         <>
                                           <span>•</span>
-                                          <span className="text-[#0A0A0A] font-medium bg-[#EAE8E3] px-1.5 py-0.5 rounded-none border border-[#0A0A0A]">
+                                          <span className="text-[#0F172A] font-medium bg-[#F1F5F9] px-1.5 py-0.5 rounded-[8px] border-[#CBD5E1]">
                                             ✓ {checklistDone}/{task.checklist!.length} subtasks
                                           </span>
                                         </>
@@ -709,7 +709,7 @@ export function WorkRequestSidePeek({
                                     <Badge
                                       variant={task.qaStatus === 'passed' ? 'success' : 'destructive'}
                                       size="compact"
-                                      className="text-xs font-mono rounded-none"
+                                      className="text-xs font-mono rounded-[6px]"
                                     >
                                       QA: {task.qaStatus}
                                     </Badge>
@@ -717,7 +717,7 @@ export function WorkRequestSidePeek({
                                   <Badge
                                     variant={isCompleted ? 'success' : 'secondary'}
                                     size="compact"
-                                    className="text-xs font-mono rounded-none font-medium"
+                                    className="text-xs font-mono rounded-[6px] font-medium"
                                   >
                                     {task.status}
                                   </Badge>
@@ -727,7 +727,7 @@ export function WorkRequestSidePeek({
                                     type="button"
                                     variant="outline"
                                     size="xs"
-                                    className="gap-1 text-[#0A0A0A] hover:bg-[#EAE8E3] rounded-none border border-[#0A0A0A] font-mono text-xs uppercase"
+                                    className="gap-1 text-[#0F172A] hover:bg-[#F1F5F9] rounded-[8px] border-[#CBD5E1] font-mono text-xs uppercase"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setSelectedTask(task);
@@ -743,7 +743,7 @@ export function WorkRequestSidePeek({
                                       type="button"
                                       variant="ghost"
                                       size="icon-xs"
-                                      className="text-[#4A4945] hover:text-[#0A0A0A] rounded-none"
+                                      className="text-[#475569] hover:text-[#0F172A] rounded-[6px]"
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         toggleTaskExpanded(task.id);
@@ -762,22 +762,22 @@ export function WorkRequestSidePeek({
 
                               {/* Inline subtasks list if expanded */}
                               {isExpanded && hasChecklist && (
-                                <div className="px-10 pb-3 space-y-1.5 bg-[#EAE8E3]/60 border-t border-[#C8C5BC]">
-                                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#4A4945] block pt-2">
+                                <div className="px-10 pb-3 space-y-1.5 bg-[#F1F5F9]/60 border-t border-[#CBD5E1]">
+                                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#475569] block pt-2">
                                     Subtasks / Checklist:
                                   </span>
                                   {task.checklist!.map((item) => (
                                     <div
                                       key={item.id}
-                                      className="flex items-center gap-2 text-xs text-[#0A0A0A] py-0.5"
+                                      className="flex items-center gap-2 text-xs text-[#0F172A] py-0.5"
                                     >
                                       <input
                                         type="checkbox"
                                         checked={item.completed}
                                         disabled
-                                        className="rounded-none border-[#0A0A0A] text-[#0A0A0A]"
+                                        className="rounded-[8px] border-[#CBD5E1] text-[#0F172A]"
                                       />
-                                      <span className={item.completed ? 'line-through text-[#4A4945]' : 'text-[#0A0A0A]'}>
+                                      <span className={item.completed ? 'line-through text-[#475569]' : 'text-[#0F172A]'}>
                                         {item.text}
                                       </span>
                                     </div>
@@ -794,8 +794,8 @@ export function WorkRequestSidePeek({
                   {/* 5. Documents Section with Sidepeek Preview & Inspection */}
                   <div className="space-y-3 font-mono">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#0A0A0A] flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-[#0A0A0A]" />
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#0F172A] flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-[#0F172A]" />
                         <span>Attached Documents ({documents.length})</span>
                       </h4>
                       {previewDoc && (
@@ -803,7 +803,7 @@ export function WorkRequestSidePeek({
                           type="button"
                           variant="ghost"
                           size="xs"
-                          className="text-[#4A4945] hover:text-[#0A0A0A] text-xs font-mono rounded-none uppercase"
+                          className="text-[#475569] hover:text-[#0F172A] text-xs font-mono rounded-[6px] uppercase"
                           onClick={() => setPreviewDoc(null)}
                         >
                           Hide Preview
@@ -812,11 +812,11 @@ export function WorkRequestSidePeek({
                     </div>
 
                     {isLoadingDocs ? (
-                      <div className="p-6 text-center text-xs text-[#4A4945] bg-[#FAF9F5] rounded-none border border-[#0A0A0A]">
+                      <div className="p-6 text-center text-xs text-[#475569] bg-[#FFFFFF] rounded-[8px] border-[#CBD5E1]">
                         Loading documents...
                       </div>
                     ) : documents.length === 0 ? (
-                      <div className="p-6 text-center text-xs text-[#4A4945] bg-[#FAF9F5] rounded-none border border-[#0A0A0A] italic">
+                      <div className="p-6 text-center text-xs text-[#475569] bg-[#FFFFFF] rounded-[8px] border-[#CBD5E1] italic">
                         No documents attached to this work request yet.
                       </div>
                     ) : (
@@ -842,33 +842,33 @@ export function WorkRequestSidePeek({
                             return (
                               <div
                                 key={doc.id}
-                                className={`p-3 bg-[#FAF9F5] border rounded-none text-xs flex flex-col justify-between gap-2.5 transition-all ${
+                                className={`p-3 bg-[#FFFFFF] border rounded-[6px] text-xs flex flex-col justify-between gap-2.5 transition-all ${
                                   isSelectedForPreview
-                                    ? 'border-2 border-[#0A0A0A] bg-[#EAE8E3]'
-                                    : 'border border-[#0A0A0A] hover:bg-[#EAE8E3]/40'
+                                    ? 'border-[#CBD5E1] bg-[#F1F5F9]'
+                                    : 'border-[#CBD5E1] hover:bg-[#F1F5F9]/40'
                                 }`}
                               >
                                 <div className="flex items-start gap-2.5 min-w-0">
-                                  <div className="p-2 rounded-none bg-[#EAE8E3] border border-[#0A0A0A] shrink-0">
+                                  <div className="p-2 rounded-[6px] bg-[#F1F5F9] border-[#CBD5E1] shrink-0">
                                     {isPdf ? (
-                                      <FileText className="h-4 w-4 text-[#0A0A0A]" />
+                                      <FileText className="h-4 w-4 text-[#0F172A]" />
                                     ) : isImg ? (
-                                      <FileImage className="h-4 w-4 text-[#0A0A0A]" />
+                                      <FileImage className="h-4 w-4 text-[#0F172A]" />
                                     ) : isSpreadsheet ? (
-                                      <FileSpreadsheet className="h-4 w-4 text-[#0A0A0A]" />
+                                      <FileSpreadsheet className="h-4 w-4 text-[#0F172A]" />
                                     ) : (
-                                      <FileCode className="h-4 w-4 text-[#0A0A0A]" />
+                                      <FileCode className="h-4 w-4 text-[#0F172A]" />
                                     )}
                                   </div>
 
                                   <div className="min-w-0 flex-1">
                                     <span
-                                      className="font-semibold text-[#0A0A0A] block truncate"
+                                      className="font-semibold text-[#0F172A] block truncate"
                                       title={name}
                                     >
                                       {name}
                                     </span>
-                                    <div className="text-xs text-[#4A4945] pt-0.5 flex items-center gap-1.5">
+                                    <div className="text-xs text-[#475569] pt-0.5 flex items-center gap-1.5">
                                       {doc.category && <span className="uppercase">{doc.category}</span>}
                                       {doc.fileSize && (
                                         <>
@@ -881,15 +881,15 @@ export function WorkRequestSidePeek({
                                 </div>
 
                                 {/* Preview and View Actions */}
-                                <div className="flex items-center justify-between pt-1 border-t border-[#C8C5BC]">
+                                <div className="flex items-center justify-between pt-1 border-t border-[#CBD5E1]">
                                   <Button
                                     type="button"
                                     variant={isSelectedForPreview ? 'default' : 'outline'}
                                     size="xs"
-                                    className={`gap-1 text-xs font-mono uppercase tracking-wider rounded-none ${
+                                    className={`gap-1 text-xs font-mono uppercase tracking-wider rounded-[6px] ${
                                       isSelectedForPreview
-                                        ? 'bg-[#0A0A0A] text-[#FAF9F5]'
-                                        : 'border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A] hover:bg-[#EAE8E3]'
+                                        ? 'bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs'
+                                        : 'border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A] hover:bg-[#F1F5F9]'
                                     }`}
                                     onClick={() => setPreviewDoc(isSelectedForPreview ? null : doc)}
                                     title="Preview directly inside sidepeek"
@@ -902,7 +902,7 @@ export function WorkRequestSidePeek({
                                     type="button"
                                     variant="ghost"
                                     size="xs"
-                                    className="gap-1 text-xs font-mono uppercase tracking-wider text-[#0A0A0A] hover:bg-[#EAE8E3] rounded-none"
+                                    className="gap-1 text-xs font-mono uppercase tracking-wider text-[#0F172A] hover:bg-[#F1F5F9] rounded-[6px]"
                                     onClick={() => setViewerDoc(doc)}
                                     title="Open full document modal with comments"
                                   >
@@ -919,15 +919,15 @@ export function WorkRequestSidePeek({
                   </div>
                 </>
               ) : (
-                <div className="p-12 text-center text-sm font-mono text-[#4A4945]">
+                <div className="p-12 text-center text-sm font-mono text-[#475569]">
                   Work request not found.
                 </div>
               )}
             </div>
 
             {/* Footer Actions */}
-            <div className="px-6 py-3.5 border-t-2 border-[#0A0A0A] bg-[#EAE8E3] flex items-center justify-between font-mono">
-              <span className="text-xs text-[#4A4945]">
+            <div className="px-6 py-3.5 border-t border-[#CBD5E1] bg-[#F1F5F9] flex items-center justify-between font-mono">
+              <span className="text-xs text-[#475569]">
                 ID: {workRequestId}
               </span>
               <div className="flex items-center gap-2">
@@ -940,9 +940,9 @@ export function WorkRequestSidePeek({
                       onViewInBoard(workRequestId);
                       onClose();
                     }}
-                    className="text-xs font-mono uppercase tracking-wider rounded-none border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A] hover:bg-[#EAE8E3] gap-1.5"
+                    className="text-xs font-mono uppercase tracking-wider rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A] hover:bg-[#F1F5F9] gap-1.5"
                   >
-                    <Columns className="h-3.5 w-3.5 text-[#0A0A0A]" />
+                    <Columns className="h-3.5 w-3.5 text-[#0F172A]" />
                     View in Board
                   </Button>
                 )}
@@ -950,7 +950,7 @@ export function WorkRequestSidePeek({
                   type="button"
                   size="sm"
                   onClick={onClose}
-                  className="rounded-none bg-[#0A0A0A] text-[#FAF9F5] hover:bg-[#E61919] font-mono text-xs uppercase tracking-wider px-4"
+                  className="rounded-[6px] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs hover:bg-[#DC2626] font-mono text-xs uppercase tracking-wider px-4"
                 >
                   Done
                 </Button>
@@ -1040,12 +1040,12 @@ function InlineDocPreviewPanel({
   const isText = /\.(txt|json|csv|md|log)$/i.test(name) || contentType.includes('text');
 
   return (
-    <div className="border border-[#0A0A0A] bg-[#EAE8E3] rounded-none p-3.5 space-y-2.5 shadow-none font-mono">
+    <div className="border-[#CBD5E1] bg-[#F1F5F9] rounded-[6px] p-3.5 space-y-2.5 shadow-none font-mono">
       {/* Panel Header */}
-      <div className="flex items-center justify-between border-b border-[#0A0A0A] pb-2">
+      <div className="flex items-center justify-between border-b border-[#CBD5E1] pb-2">
         <div className="flex items-center gap-2 min-w-0">
-          <Eye className="h-4 w-4 text-[#0A0A0A] shrink-0" />
-          <span className="font-bold text-xs text-[#0A0A0A] truncate" title={name}>
+          <Eye className="h-4 w-4 text-[#0F172A] shrink-0" />
+          <span className="font-bold text-xs text-[#0F172A] truncate" title={name}>
             Previewing: {name}
           </span>
         </div>
@@ -1057,14 +1057,14 @@ function InlineDocPreviewPanel({
               target="_blank"
               rel="noopener noreferrer"
             >
-              <Button size="xs" variant="outline" className="gap-1 text-xs font-mono uppercase tracking-wider h-7 text-[#0A0A0A] border border-[#0A0A0A] bg-[#FAF9F5] hover:bg-[#EAE8E3] rounded-none">
+              <Button size="xs" variant="outline" className="gap-1 text-xs font-mono uppercase tracking-wider h-7 text-[#0F172A] border-[#CBD5E1] bg-[#FFFFFF] hover:bg-[#F1F5F9] rounded-[6px]">
                 <ExternalLink className="h-3 w-3" />
                 {parsedExternal.isGoogleDrive ? 'Open in Drive' : 'Open Link'}
               </Button>
             </a>
           ) : downloadUrl ? (
             <a href={downloadUrl} download={name} target="_blank" rel="noreferrer">
-              <Button size="xs" variant="outline" className="gap-1 text-xs font-mono uppercase tracking-wider h-7 rounded-none border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A] hover:bg-[#EAE8E3]">
+              <Button size="xs" variant="outline" className="gap-1 text-xs font-mono uppercase tracking-wider h-7 rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A] hover:bg-[#F1F5F9]">
                 <Download className="h-3 w-3" /> Download
               </Button>
             </a>
@@ -1072,7 +1072,7 @@ function InlineDocPreviewPanel({
           <Button
             size="xs"
             variant="outline"
-            className="gap-1 text-xs font-mono uppercase tracking-wider h-7 text-[#0A0A0A] border border-[#0A0A0A] bg-[#FAF9F5] hover:bg-[#EAE8E3] rounded-none"
+            className="gap-1 text-xs font-mono uppercase tracking-wider h-7 text-[#0F172A] border-[#CBD5E1] bg-[#FFFFFF] hover:bg-[#F1F5F9] rounded-[6px]"
             onClick={onOpenFullViewer}
           >
             <ExternalLink className="h-3 w-3" /> Full View
@@ -1081,7 +1081,7 @@ function InlineDocPreviewPanel({
             size="icon-xs"
             variant="ghost"
             onClick={onClose}
-            className="text-[#4A4945] hover:text-[#0A0A0A] hover:bg-[#EAE8E3] h-7 w-7 rounded-none"
+            className="text-[#475569] hover:text-[#0F172A] hover:bg-[#F1F5F9] h-7 w-7 rounded-[6px]"
             title="Close Preview"
           >
             <X className="h-3.5 w-3.5" />
@@ -1090,25 +1090,25 @@ function InlineDocPreviewPanel({
       </div>
 
       {/* Panel Body */}
-      <div className="bg-[#FAF9F5] rounded-none border border-[#0A0A0A] overflow-hidden min-h-[220px]">
+      <div className="bg-[#FFFFFF] rounded-[8px] border-[#CBD5E1] overflow-hidden min-h-[220px]">
         {isLoading && !document.external_url && !document.externalUrl ? (
-          <div className="p-10 text-center text-xs text-[#4A4945] space-y-2">
-            <div className="w-6 h-6 border-2 border-[#0A0A0A] border-t-transparent rounded-none animate-spin mx-auto" />
+          <div className="p-10 text-center text-xs text-[#475569] space-y-2">
+            <div className="w-6 h-6 border-[#CBD5E1] border-t-transparent rounded-full animate-spin mx-auto" />
             <p>Loading document preview...</p>
           </div>
         ) : !previewUrl ? (
-          <div className="p-8 text-center text-xs text-[#4A4945]">
+          <div className="p-8 text-center text-xs text-[#475569]">
             Preview is unavailable for this document.
           </div>
         ) : parsedExternal.isGoogleDrive && previewUrl ? (
           <div className="w-full flex flex-col">
-            <div className="bg-[#EAE8E3] border-b border-[#0A0A0A] px-3 py-1.5 flex items-center justify-between text-xs text-[#0A0A0A]">
+            <div className="bg-[#F1F5F9] border-b border-[#CBD5E1] px-3 py-1.5 flex items-center justify-between text-xs text-[#0F172A]">
               <span>Google Drive Preview</span>
               <a
                 href={parsedExternal.originalUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-medium underline hover:text-[#E61919] flex items-center gap-1"
+                className="font-medium underline hover:text-[#DC2626] flex items-center gap-1"
               >
                 Open Original <ExternalLink className="h-3 w-3" />
               </a>
@@ -1123,10 +1123,10 @@ function InlineDocPreviewPanel({
           </div>
         ) : isExternal ? (
           <div className="p-8 text-center space-y-3">
-            <ExternalLink className="h-10 w-10 text-[#0A0A0A] mx-auto" />
+            <ExternalLink className="h-10 w-10 text-[#0F172A] mx-auto" />
             <div className="space-y-1">
-              <h5 className="font-semibold text-[#0A0A0A] text-xs">{name}</h5>
-              <p className="text-xs text-[#4A4945] max-w-xs mx-auto">
+              <h5 className="font-semibold text-[#0F172A] text-xs">{name}</h5>
+              <p className="text-xs text-[#475569] max-w-xs mx-auto">
                 This external link cannot be embedded inline. You can open the link directly in a new tab.
               </p>
             </div>
@@ -1135,7 +1135,7 @@ function InlineDocPreviewPanel({
               target="_blank"
               rel="noopener noreferrer"
             >
-              <Button size="sm" className="gap-1.5 text-xs text-[#FAF9F5] bg-[#0A0A0A] hover:bg-[#E61919] rounded-none font-mono uppercase tracking-wider">
+              <Button size="sm" className="gap-1.5 text-xs text-[#FFFFFF] bg-[#1D4ED8] hover:bg-[#DC2626] rounded-[6px] font-mono uppercase tracking-wider">
                 <ExternalLink className="h-3.5 w-3.5" /> Open External Link
               </Button>
             </a>
@@ -1148,33 +1148,33 @@ function InlineDocPreviewPanel({
             data-testid="inline-doc-preview-frame"
           />
         ) : isImg ? (
-          <div className="w-full h-72 sm:h-80 flex items-center justify-center p-3 bg-[#EAE8E3]/40">
+          <div className="w-full h-72 sm:h-80 flex items-center justify-center p-3 bg-[#F1F5F9]/40">
             <img
               src={previewUrl}
               alt={name}
-              className="max-h-full max-w-full object-contain rounded-none shadow-none"
+              className="max-h-full max-w-full object-contain rounded-[8px] shadow-card"
               data-testid="inline-doc-preview-image"
             />
           </div>
         ) : isText ? (
           <iframe
             src={previewUrl}
-            className="w-full h-72 border-0 font-mono text-xs p-3 bg-[#FAF9F5]"
+            className="w-full h-72 border-0 font-mono text-xs p-3 bg-[#FFFFFF]"
             title={`Preview - ${name}`}
             data-testid="inline-doc-preview-frame"
           />
         ) : (
           <div className="p-8 text-center space-y-3">
-            <FileText className="h-10 w-10 text-[#0A0A0A] mx-auto" />
+            <FileText className="h-10 w-10 text-[#0F172A] mx-auto" />
             <div className="space-y-1">
-              <h5 className="font-semibold text-[#0A0A0A] text-xs">{name}</h5>
-              <p className="text-xs text-[#4A4945]">
+              <h5 className="font-semibold text-[#0F172A] text-xs">{name}</h5>
+              <p className="text-xs text-[#475569]">
                 This document type cannot be embedded inline. You can download or open it in the full viewer.
               </p>
             </div>
             {downloadUrl ? (
               <a href={downloadUrl} download={name} target="_blank" rel="noreferrer">
-                <Button size="sm" className="gap-1.5 text-xs font-mono uppercase tracking-wider rounded-none border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A] hover:bg-[#EAE8E3]">
+                <Button size="sm" className="gap-1.5 text-xs font-mono uppercase tracking-wider rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A] hover:bg-[#F1F5F9]">
                   <Download className="h-3.5 w-3.5" /> Download File
                 </Button>
               </a>

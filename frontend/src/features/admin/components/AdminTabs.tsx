@@ -58,29 +58,29 @@ export function AdminTabs() {
 
   return (
     <div className="space-y-6" data-testid="admin-tabs-container">
-      {/* 1. Blueprint Module Header */}
-      <div className="border-b-2 border-[#0A0A0A] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
+      {/* 1. Unified Module Header */}
+      <div className="border-b border-[#CBD5E1] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <nav
             aria-label="Breadcrumb"
-            className="font-mono text-xs uppercase tracking-wider text-[#4A4945] flex items-center gap-1.5 pb-1"
+            className="text-xs font-medium text-[#475569] flex items-center gap-1.5 pb-1"
           >
             <span>Modules</span>
             <span aria-hidden="true">/</span>
-            <span className="text-[#0A0A0A] font-semibold">Admin</span>
+            <span className="text-[#0F172A] font-semibold">Admin</span>
           </nav>
-          <h1 className="text-2xl font-extrabold tracking-tight text-[#0A0A0A] flex items-center gap-2">
-            <ShieldCheck className="h-6 w-6 text-[#0A0A0A]" />
+          <h1 className="text-2xl font-semibold tracking-tight text-[#0F172A] flex items-center gap-2">
+            <ShieldCheck className="h-6 w-6 text-[#1D4ED8]" />
             Enterprise Administration
           </h1>
-          <p className="text-xs sm:text-sm text-[#4A4945] pt-0.5">
+          <p className="text-xs sm:text-sm text-[#475569] pt-0.5">
             User provisioning, RBAC matrix governance, and recurring retainer template blueprints.
           </p>
         </div>
 
         <div className="flex items-center gap-2 self-start md:self-auto">
-          <Badge variant="outline" className="text-xs font-mono rounded-none bg-[#EAE8E3] text-[#0A0A0A] border border-[#0A0A0A]">
-            <Lock className="h-3 w-3 mr-1 text-[#4A4945]" />
+          <Badge variant="outline" className="text-xs font-medium rounded-[6px] bg-[#F1F5F9] text-[#475569] border border-[#CBD5E1] px-2.5 py-1">
+            <Lock className="h-3 w-3 mr-1 text-[#475569]" />
             Admin Gated (<code className="font-mono text-xs">users:manage</code>)
           </Badge>
         </div>
@@ -88,16 +88,16 @@ export function AdminTabs() {
 
       {/* 2. Tabs Layout */}
       <Tabs value={currentTab} onValueChange={handleTabChange} className="space-y-4">
-        <TabsList className="w-full justify-start rounded-none bg-[#EAE8E3] p-0 border border-[#0A0A0A] border-b-2 gap-0 h-auto overflow-x-auto scrollbar-none flex flex-nowrap">
+        <TabsList className="w-full justify-start rounded-[8px] bg-[#F1F5F9] p-1 border border-[#CBD5E1] gap-1 h-auto overflow-x-auto scrollbar-none flex flex-nowrap">
           {/* Tab: Users */}
           <TabsTrigger
             value="users"
-            className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-trigger-users"
           >
             <Users className="h-3.5 w-3.5" />
             <span>Team Members</span>
-            <Badge variant="outline" className="text-xs font-mono py-0 px-1.5 ml-1.5 rounded-none border border-[#C8C5BC] bg-[#EAE8E3] text-[#0A0A0A]">
+            <Badge variant="outline" className="text-xs font-mono py-0 px-1.5 ml-1.5 rounded-[4px] border border-[#CBD5E1] bg-[#E2E8F0]/70 text-[#0F172A]">
               {activeUsersCount}
             </Badge>
           </TabsTrigger>
@@ -105,12 +105,12 @@ export function AdminTabs() {
           {/* Tab: Permissions Matrix */}
           <TabsTrigger
             value="permissions"
-            className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-trigger-permissions"
           >
             <ShieldCheck className="h-3.5 w-3.5" />
             <span>Permissions Matrix</span>
-            <Badge variant="outline" className="text-xs font-mono py-0 px-1.5 ml-1.5 rounded-none border border-[#C8C5BC] bg-[#EAE8E3] text-[#0A0A0A]">
+            <Badge variant="outline" className="text-xs font-mono py-0 px-1.5 ml-1.5 rounded-[4px] border border-[#CBD5E1] bg-[#E2E8F0]/70 text-[#0F172A]">
               {PERMISSION_KEYS.length}
             </Badge>
           </TabsTrigger>
@@ -118,12 +118,12 @@ export function AdminTabs() {
           {/* Tab: Retainer Templates */}
           <TabsTrigger
             value="retainers"
-            className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-trigger-retainers"
           >
             <FileSpreadsheet className="h-3.5 w-3.5" />
             <span>Retainer Templates</span>
-            <Badge variant="outline" className="text-xs font-mono py-0 px-1.5 ml-1.5 rounded-none border border-[#C8C5BC] bg-[#EAE8E3] text-[#0A0A0A]">
+            <Badge variant="outline" className="text-xs font-mono py-0 px-1.5 ml-1.5 rounded-[4px] border border-[#CBD5E1] bg-[#E2E8F0]/70 text-[#0F172A]">
               {templates.length}
             </Badge>
           </TabsTrigger>
@@ -131,13 +131,13 @@ export function AdminTabs() {
           {/* Tab: Generation Logs */}
           <TabsTrigger
             value="generations"
-            className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-trigger-generations"
           >
             <History className="h-3.5 w-3.5" />
             <span>Generation Logs</span>
             {auditCountData?.total !== undefined && (
-              <Badge variant="outline" className="text-xs font-mono py-0 px-1.5 ml-1.5 rounded-none border border-[#C8C5BC] bg-[#EAE8E3] text-[#0A0A0A]">
+              <Badge variant="outline" className="text-xs font-mono py-0 px-1.5 ml-1.5 rounded-[4px] border border-[#CBD5E1] bg-[#E2E8F0]/70 text-[#0F172A]">
                 {auditCountData.total}
               </Badge>
             )}
