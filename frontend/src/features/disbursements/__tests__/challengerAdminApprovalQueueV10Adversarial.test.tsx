@@ -684,7 +684,7 @@ describe('Challenger M4 Adversarial Verification — AdminApprovalQueue (F13 & F
             description: `Standard supplies fill ${i + 1}`,
             amount: 100,
             status: 'Submitted',
-            created_at: new Date(Date.now() - (i + 1000) * 1000).toISOString(),
+            created_at: new Date(Date.parse('2026-10-19T10:00:00Z') - (i + 1) * 1000).toISOString(),
           })
         ),
       ];

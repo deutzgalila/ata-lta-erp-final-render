@@ -1,3 +1,4 @@
+import type { DisbursementPrintDetails } from '@/lib/disbursementDocument';
 /**
  * TypeScript Domain Models & Interface Contracts for Disbursements (Module #4)
  *
@@ -68,6 +69,7 @@ export interface DisbursementAuditLog {
 }
 
 export interface Disbursement {
+  print_details?: DisbursementPrintDetails | null;
   id: string;
   disbursement_number?: string | null;
   disbursementNumber?: string | null;
@@ -245,6 +247,7 @@ export interface CreateDisbursementInput {
  * Payload for PUT /v1/disbursements/:id
  */
 export interface UpdateDisbursementInput {
+  printDetails?: DisbursementPrintDetails;
   category?: DisbursementCategory | string;
   description?: string;
   amount?: number;

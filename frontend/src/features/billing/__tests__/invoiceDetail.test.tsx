@@ -170,7 +170,7 @@ describe('InvoiceDetailModal Component', () => {
 
     // Payment history
     expect(screen.getByText('Check')).toBeInTheDocument();
-    expect(screen.getByText('CHK-998877')).toBeInTheDocument();
+    expect(screen.getAllByText('CHK-998877').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Initial deposit check')).toBeInTheDocument();
   });
 

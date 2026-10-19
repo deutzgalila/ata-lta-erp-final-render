@@ -980,12 +980,14 @@ describe('Disbursements UI Components & Integration', () => {
         linked_work_request_name: 'BIR Tax Compromise Docket #889',
       };
 
+      const { wrapper } = createHarness();
       render(
         <DisbursementPrintModal
           isOpen={true}
           onClose={vi.fn()}
           disbursement={printDisb}
-        />
+        />,
+        { wrapper }
       );
 
       expect(screen.getByTestId('sig-prepared-by')).toHaveTextContent(/Maria Santos/i);

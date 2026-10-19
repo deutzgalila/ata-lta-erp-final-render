@@ -1,3 +1,5 @@
+import { getInvoicePrintDetails } from '@/lib/printDocuments';
+import { PRINT_DETAIL_FIELDS } from '../utils/printDetailFields';
 import { useState, useEffect } from 'react';
 import {
   Printer,
@@ -50,7 +52,6 @@ import { useBlockingModalStore } from '@/features/operations/components/Blocking
 import { billingKeys } from '../api/queryKeys';
 import { queryClient, type ApiError } from '@/lib/api';
 import { useSessionStore } from '@/lib/session';
-import { isUserAdmin } from '@/features/operations/lib/taskScope';
 import type { Invoice } from '../api/types';
 
 export interface InvoiceDetailModalProps {
@@ -79,7 +80,7 @@ export function InvoiceDetailModal({
 
   // Session & Admin Check
   const user = useSessionStore((state) => state.user);
-  const isAdmin = isUserAdmin(user);
+  const isAdmin = user?.role === 'Admin';
 
   // Permissions
   const canEdit = usePermission('billing:edit');
@@ -90,6 +91,7 @@ export function InvoiceDetailModal({
 
   // Edit Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isInlineEditing, setIsInlineEditing] = useState(false);
 
   // Address editing state
   const [isEditingAddress, setIsEditingAddress] = useState(false);
@@ -109,7 +111,7 @@ export function InvoiceDetailModal({
 
   useEffect(() => {
     if (invoice) {
-      setAddressInput(invoice.address || invoice.clients?.address || '');
+      setAddressInput(invoice.address ?? invoice.clients?.address ?? '');
       setNotesInput(invoice.notes || '');
     }
     setIsEditingAddress(false);
@@ -119,7 +121,8 @@ export function InvoiceDetailModal({
 
   if (!invoice) return null;
 
-  const currentAddress = invoice.address || invoice.clients?.address || 'No address provided';
+  const currentAddress = invoice.address ?? invoice.clients?.address ?? 'No address provided';
+  const printDetails = getInvoicePrintDetails(invoice);
   const isReleased = ['Sent', 'Approved', 'Partially Paid', 'Overdue'].includes(invoice.status);
   const hasBalance = Number(invoice.balance || 0) > 0;
 
@@ -305,7 +308,7 @@ export function InvoiceDetailModal({
                 </Button>
               )}
 
-              {invoice.status === 'Draft' && (isAdmin || canEdit) && (
+              {(isAdmin || (invoice.status === 'Draft' && canEdit)) && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -321,6 +324,21 @@ export function InvoiceDetailModal({
           </div>
         </DialogHeader>
 
+        {isAdmin && <div className="px-6 py-3">
+          <Button variant="outline" size="sm" onClick={() => setIsInlineEditing(!isInlineEditing)}>
+            {isInlineEditing ? 'Close inline editor' : 'Edit inline'}
+          </Button>
+          {isInlineEditing && <InvoiceEditModal inline isOpen invoice={invoice} onClose={() => setIsInlineEditing(false)} onUpdated={() => void refetch()} />}
+        </div>}
+        <div className="px-6 py-3 border-t border-slate-100">
+          <h3 className="text-sm font-semibold mb-2">Statement details</h3>
+          <dl className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+            {PRINT_DETAIL_FIELDS.slice(2).map(([key, label]) => <div key={key}>
+              <dt className="text-slate-500">{label}</dt>
+              <dd className="font-medium whitespace-pre-wrap">{printDetails[key] || '—'}</dd>
+            </div>)}
+          </dl>
+        </div>
         {addressFeedback && (
           <div
             className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 flex items-center justify-between"
@@ -377,11 +395,11 @@ export function InvoiceDetailModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <p className="font-bold text-slate-900 text-sm">
-                {invoice.clients?.name || 'Client Name Unavailable'}
+                {printDetails.clientName || '—'}
               </p>
-              {invoice.clients?.tin && (
+              {printDetails.clientTin && (
                 <p className="text-slate-600 font-mono text-xs mt-0.5">
-                  TIN: {invoice.clients.tin}
+                  TIN: {printDetails.clientTin}
                 </p>
               )}
             </div>
@@ -612,7 +630,7 @@ export function InvoiceDetailModal({
         <DialogFooter className="border-t border-slate-200 pt-3 flex flex-col sm:flex-row justify-between items-center gap-2">
           {/* Left: Status Progression Flow */}
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            {invoice.status === 'Draft' && (isAdmin || canEdit) && (
+            {(isAdmin || (invoice.status === 'Draft' && canEdit)) && (
               <Button
                 variant="outline"
                 size="sm"

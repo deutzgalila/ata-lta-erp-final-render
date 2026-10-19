@@ -344,7 +344,7 @@ describe('Empirical Challenger: Track 2B Adversarial Verification Harness', () =
       });
     });
 
-    it('Admin with special email lorein@ata-lta.ph on Draft invoice gets btn-approve-and-issue and NEVER btn-submit-for-approval', async () => {
+    it('does not grant invoice administrator rights from an email address alone', async () => {
       let patchedStatus: string | null = null;
       global.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
         const u = String(url);
@@ -366,7 +366,7 @@ describe('Empirical Challenger: Track 2B Adversarial Verification Harness', () =
         });
       });
 
-      // Special admin user with role="Staff" but email="lorein@ata-lta.ph"
+      // The server requires the Admin role; an email address alone does not grant approval.
       useSessionStore.getState().setSession({
         user: {
           id: 'admin-lorein',
@@ -391,14 +391,14 @@ describe('Empirical Challenger: Track 2B Adversarial Verification Harness', () =
         { wrapper }
       );
 
-      expect(screen.queryByTestId('btn-submit-for-approval')).toBeNull();
-      const approveBtn = screen.getByTestId('btn-approve-and-issue');
+      expect(screen.queryByTestId('btn-approve-and-issue')).toBeNull();
+      const approveBtn = screen.getByTestId('btn-submit-for-approval');
       expect(approveBtn).toBeInTheDocument();
 
       fireEvent.click(approveBtn);
 
       await waitFor(() => {
-        expect(patchedStatus).toBe('Sent');
+        expect(patchedStatus).toBe('Pending');
       });
     });
 
