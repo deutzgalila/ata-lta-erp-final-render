@@ -53,7 +53,26 @@ function openPrintWindow(title: string, css: string, bodyHtml: string): void {
 /* Billing Statement (prototype generateInvoice, LTA/ATA variants)     */
 /* ------------------------------------------------------------------ */
 
+export interface InvoicePrintDetails {
+  clientName?: string;
+  clientTin?: string;
+  paymentDate?: string;
+  cash?: string;
+  checkNumber?: string;
+  bankBranch?: string;
+  notedBy?: string;
+  preparedBy?: string;
+  receivedBy?: string;
+}
+
+export interface StatementPrintOptions {
+  includeCompanyDetails?: boolean;
+}
+
 export interface StatementPrintInvoice {
+  print_details?: InvoicePrintDetails | null;
+  notes?: string | null;
+  terms?: string | null;
   invoice_number: string;
   entity_code?: 'ATA' | 'LTA' | string;
   issue_date?: string | null;
@@ -75,9 +94,33 @@ export interface StatementPrintInvoice {
   }>;
 }
 
-const STATEMENT_CSS = `
-@page { size: A4; margin: 15mm 20mm; }
-body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #000; max-width: 210mm; margin: 0 auto; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+/** Defaults shared by both admin editors; explicit empty strings remain empty. */
+export function getInvoicePrintDetails(inv: StatementPrintInvoice): InvoicePrintDetails {
+  const payment = inv.payments?.[0];
+  return {
+    clientName: inv.clients?.name ?? '',
+    clientTin: inv.clients?.tin ?? '',
+    paymentDate: payment?.payment_date ? formatDate(payment.payment_date) : '',
+    cash: payment && payment.payment_method !== 'Check' ? formatPHP(payment.amount) : '',
+    checkNumber: payment?.reference_number ?? '',
+    bankBranch:
+      payment && !['Cash', 'Check'].includes(payment.payment_method ?? '')
+        ? (payment.payment_method ?? '')
+        : '',
+    notedBy: 'HENRY WONG',
+    preparedBy: '',
+    receivedBy: '',
+    ...inv.print_details,
+  };
+}
+
+export const STATEMENT_CSS = `
+* { box-sizing: border-box; }
+@page { size: A4; margin: 15mm 20mm;
+  @top-left { content: ""; } @top-center { content: ""; } @top-right { content: ""; }
+  @bottom-left { content: ""; } @bottom-center { content: ""; } @bottom-right { content: ""; }
+}
+body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #000; box-sizing: border-box; max-width: 210mm; margin: 0 auto; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
 /* Generic Header Styles */
 .generic-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
@@ -151,7 +194,12 @@ body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; line-height:
 .vat-breakdown p { margin: 2px 0; }
 `;
 
-export function printStatementDocument(inv: StatementPrintInvoice): void {
+export function buildStatementDocument(
+  inv: StatementPrintInvoice,
+  options: StatementPrintOptions = {}
+): string {
+  const includeCompanyDetails = options.includeCompanyDetails !== false;
+  const details = inv.print_details || {};
   const entity = inv.entity_code === 'LTA' ? 'LTA' : 'ATA';
   const companyName =
     entity === 'ATA' ? 'A.T.A. BUSINESS CONSULTANCY' : 'LTA BUSINESS MANAGEMENT CORP';
@@ -176,9 +224,17 @@ export function printStatementDocument(inv: StatementPrintInvoice): void {
     }
   }
 
-  /* Header (includeCompanyDetails default; noLogo false) */
+  dateVal = details.paymentDate ?? dateVal;
+  cashVal = details.cash ?? cashVal;
+  checkVal = details.checkNumber ?? checkVal;
+  bankVal = details.bankBranch ?? bankVal;
+
+  /* Keep the header's space for preprinted stationery. */
   let headerHtml: string;
-  if (entity === 'ATA') {
+  if (!includeCompanyDetails) {
+    headerHtml =
+      '<div class="generic-header" style="min-height:65px"><div></div><div class="generic-title">STATEMENT</div></div><div class="generic-header-divider"></div>';
+  } else if (entity === 'ATA') {
     headerHtml =
       `<div class="header-container-ata">` +
       `<div style="display: flex; align-items: center;">` +
@@ -200,14 +256,19 @@ export function printStatementDocument(inv: StatementPrintInvoice): void {
   }
 
   /* Bill To */
-  const billToLines: string[] = [`<p><strong>${esc(inv.clients?.name || '—')}</strong></p>`];
+  const billToLines: string[] = [
+    `<p><strong>${esc(details.clientName ?? inv.clients?.name ?? '—')}</strong></p>`,
+  ];
   if (inv.clients?.trade_name) billToLines.push(`<p>(${esc(inv.clients.trade_name)})</p>`);
-  billToLines.push(`<p>${esc(inv.address || inv.clients?.address || '—')}</p>`);
-  if (inv.clients?.tin) billToLines.push(`<p>TIN: ${esc(inv.clients.tin)}</p>`);
+  billToLines.push(
+    `<p data-testid="client-address-display">${esc(inv.address ?? inv.clients?.address ?? 'No address provided')}</p>`
+  );
+  if (details.clientTin ?? inv.clients?.tin)
+    billToLines.push(`<p>TIN: ${esc(details.clientTin ?? inv.clients?.tin)}</p>`);
 
   const twoColHtml =
     `<div class="two-col">` +
-    `<div class="col-bill-to">` +
+    `<div class="col-bill-to" data-testid="bill-to-box">` +
     `<div class="bill-to-title">${entity === 'ATA' ? 'BILL TO' : 'BILL TO:'}</div>` +
     `<div class="bill-to-content">${billToLines.join('')}</div>` +
     `</div>` +
@@ -222,7 +283,7 @@ export function printStatementDocument(inv: StatementPrintInvoice): void {
     `</div>`;
 
   /* Items table — generic/ATA layout 3 cols, LTA layout 4 cols (blank 10% spacer) */
-  const isGenericLayout = entity === 'ATA';
+  const isGenericLayout = !includeCompanyDetails || entity === 'ATA';
   const theadHtml = isGenericLayout
     ? `<tr><th style="width: 15%;">DATE</th><th style="width: 65%;">DESCRIPTION</th><th style="width: 20%; text-align: right;">AMOUNT DUE</th></tr>`
     : `<tr><th style="width: 15%;">DATE</th><th style="width: 55%;">DESCRIPTION</th><th style="width: 10%;"></th><th style="width: 20%; text-align: right;">AMOUNT DUE</th></tr>`;
@@ -240,7 +301,7 @@ export function printStatementDocument(inv: StatementPrintInvoice): void {
       : `<tr><td>${esc(dateStr)}</td><td>${esc(descStr)}</td><td></td>${amountCell}</tr>`;
   });
 
-  const itemsTableHtml = `<table class="items-table"><thead>${theadHtml}</thead><tbody>${tbodyHtml}</tbody></table>`;
+  const itemsTableHtml = `<table class="items-table" data-testid="line-items-table"><thead>${theadHtml}</thead><tbody>${tbodyHtml}</tbody></table>`;
 
   /* Bottom: payment details + totals */
   const fillRow = (label: string, value: string) =>
@@ -261,7 +322,7 @@ export function printStatementDocument(inv: StatementPrintInvoice): void {
     `<table class="total-table"><tbody><tr>` +
     `<td class="total-label">TOTAL AMOUNT DUE</td>` +
     `<td class="total-currency">PHP</td>` +
-    `<td class="total-value">${esc(formatPHP(inv.total).replace('₱', '').trim())}</td>` +
+    `<td class="total-value" data-testid="invoice-total">${esc(formatPHP(inv.total).replace('₱', '').trim())}</td>` +
     `</tr></tbody></table>` +
     `</div>` +
     `</div>`;
@@ -281,26 +342,49 @@ export function printStatementDocument(inv: StatementPrintInvoice): void {
 
   const sigBox = (label: string, name: string) =>
     `<div class="signature-box"><div class="signature-label">${label}</div>` +
-    `<div class="signature-line-container"><div class="signature-name-printed">${name}</div></div></div>`;
+    `<div class="signature-line-container"><div class="signature-name-printed">${name ? esc(name) : '&nbsp;'}</div></div></div>`;
 
   const signaturesHtml =
     `<div class="signature-row">` +
-    sigBox('Noted by:', 'HENRY WONG') +
-    sigBox('Prepared by:', '&nbsp;') +
-    sigBox('Received by:', '&nbsp;') +
+    sigBox('Noted by:', details.notedBy ?? 'HENRY WONG') +
+    sigBox('Prepared by:', details.preparedBy ?? '') +
+    sigBox('Received by:', details.receivedBy ?? '') +
     `</div>`;
 
   const footerHtml =
     `<div class="footer-container"><div class="thank-you">THANK YOU !!!</div>` +
-    (entity === 'ATA'
+    (!includeCompanyDetails || entity === 'ATA'
       ? `<div class="footer-text">customer's copy</div>`
       : `<div class="footer-text underline">Should you have any enquiries concerning this statement, please contact us on 742-8582/404-4928</div>`) +
     `</div>`;
 
+  const notesHtml = inv.notes
+    ? `<p style="white-space:pre-wrap"><strong>Notes:</strong> ${esc(inv.notes)}</p>`
+    : '';
+  const termsHtml = inv.terms
+    ? `<p style="white-space:pre-wrap"><strong>Terms:</strong> ${esc(inv.terms)}</p>`
+    : '';
+  return (
+    headerHtml +
+    twoColHtml +
+    itemsTableHtml +
+    bottomHtml +
+    vatHtml +
+    notesHtml +
+    termsHtml +
+    signaturesHtml +
+    footerHtml
+  );
+}
+
+export function printStatementDocument(
+  inv: StatementPrintInvoice,
+  options: StatementPrintOptions = {}
+): void {
   openPrintWindow(
     `Statement ${inv.invoice_number || ''}`,
     STATEMENT_CSS,
-    headerHtml + twoColHtml + itemsTableHtml + bottomHtml + vatHtml + signaturesHtml + footerHtml
+    buildStatementDocument(inv, options)
   );
 }
 
