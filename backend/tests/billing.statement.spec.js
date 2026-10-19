@@ -4,12 +4,19 @@ jest.mock('../src/services/supabaseClient', () => ({
 jest.mock('../src/services/pdfService', () => ({
   generatePdf: jest.fn(async () => Buffer.from('pdf')),
 }));
-jest.mock('../src/services/storageService', () => ({
-  uploadBuffer: jest.fn(async () => 'https://example.test/statement.pdf'),
-}));
+jest.mock('../src/services/storageService', () => {
+  const actual = jest.requireActual('../src/services/storageService');
+  return { ...actual, uploadBuffer: jest.fn(actual.uploadBuffer) };
+});
 const request = require('supertest');
 const { app } = require('./helpers/testServer');
-const { registerUser, seedDefaults, resetMock, mockTables } = require('./fixtures/supabaseMock');
+const {
+  registerUser,
+  seedDefaults,
+  resetMock,
+  mockTables,
+  mockStorageObjects,
+} = require('./fixtures/supabaseMock');
 const { generatePdf } = require('../src/services/pdfService');
 const { uploadBuffer } = require('../src/services/storageService');
 const { buildStatementDocument } = require('../src/modules/billing/statementDocument');
@@ -126,7 +133,7 @@ it('rejects lowering a total below recorded payments', async () => {
   expect(mockTables.invoices.get(invoice.id).total).toBe(1500);
 });
 it.each(['true', 'false'])(
-  'generates the canonical PDF with includeCompanyDetails=%s and a distinct storage path',
+  'generates the canonical PDF with includeCompanyDetails=%s and a stable invoice-number storage path',
   async (toggle) => {
     const stored = mockTables.invoices.get(invoice.id);
     stored.print_details = {
@@ -149,7 +156,37 @@ it.each(['true', 'false'])(
     expect(html).toContain('margin: 15mm 20mm');
     if (toggle === 'true') expect(html).toContain('data:image/jpeg;base64,');
     await getPdf().expect(200);
-    expect(uploadBuffer.mock.calls[0][0].path).not.toBe(uploadBuffer.mock.calls[1][0].path);
+    const suffix = toggle === 'true' ? '' : '-no-company-details';
+    const expectedPath = `entities/ATA/invoices/${invoice.id}/pdf/ATA-100${suffix}.pdf`;
+    expect(uploadBuffer.mock.calls[0][0].path).toBe(expectedPath);
+    expect(uploadBuffer.mock.calls[1][0].path).toBe(expectedPath);
+    expect(mockStorageObjects.size).toBe(1);
+  }
+);
+it.each([true, false])(
+  'replaces regenerated files while preserving the other branding variant (first branded=%s)',
+  async (firstBranded) => {
+    const brandedPath = `entities/ATA/invoices/${invoice.id}/pdf/ATA-100.pdf`;
+    const plainPath = `entities/ATA/invoices/${invoice.id}/pdf/ATA-100-no-company-details.pdf`;
+    const firstPath = firstBranded ? brandedPath : plainPath;
+    const otherPath = firstBranded ? plainPath : brandedPath;
+    const getPdf = (includeCompanyDetails) =>
+      request(app)
+        .get(
+          `/v1/invoices/${invoice.id}/pdf${includeCompanyDetails ? '' : '?includeCompanyDetails=false'}`
+        )
+        .set('Authorization', `Bearer ${admin}`)
+        .set('X-Active-Entity', 'ATA');
+    generatePdf
+      .mockResolvedValueOnce(Buffer.from('first version'))
+      .mockResolvedValueOnce(Buffer.from('other variant'))
+      .mockResolvedValueOnce(Buffer.from('replacement'));
+    await getPdf(firstBranded).expect(200);
+    await getPdf(!firstBranded).expect(200);
+    await getPdf(firstBranded).expect(200);
+    expect(mockStorageObjects.size).toBe(2);
+    expect(mockStorageObjects.get(firstPath).buffer).toEqual(Buffer.from('replacement'));
+    expect(mockStorageObjects.get(otherPath).buffer).toEqual(Buffer.from('other variant'));
   }
 );
 it('validates the PDF toggle', async () => {

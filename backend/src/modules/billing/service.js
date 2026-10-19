@@ -10,7 +10,6 @@ const { supabaseAdmin } = require('../../services/supabaseClient');
 const { uploadBuffer } = require('../../services/storageService');
 const { generatePdf } = require('../../services/pdfService');
 const { buildStatementDocument, STATEMENT_CSS } = require('./statementDocument');
-const { randomUUID } = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const auditService = require('../../services/auditService');
@@ -995,7 +994,9 @@ const generateInvoicePdf = async ({ entityId, entityCode, id, includeCompanyDeta
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>${STATEMENT_CSS}</style></head><body>${body}</body></html>`;
   const pdfBuffer = await generatePdf({ html, options: { format: 'A4', preferCSSPageSize: true } });
 
-  const storagePath = `entities/${code}/invoices/${id}/pdf/${randomUUID()}.pdf`;
+  // Preserve the documented branded filename and replace each variant on regeneration.
+  const suffix = includeCompanyDetails ? '' : '-no-company-details';
+  const storagePath = `entities/${code}/invoices/${id}/pdf/${invoice.invoice_number}${suffix}.pdf`;
   const downloadUrl = await uploadBuffer({
     path: storagePath,
     buffer: pdfBuffer,

@@ -52,7 +52,12 @@ When a payment is recorded:
 
 ## PDF Storage
 
-Generated PDFs stored at: `entities/{entity_id}/invoices/{id}/pdf/{invoice_number}.pdf`
+Generated PDFs use stable keys, with `entity_code` equal to `ATA` or `LTA`:
+
+- Branded (the default): `entities/{entity_code}/invoices/{id}/pdf/{invoice_number}.pdf`
+- Without company details/logo: `entities/{entity_code}/invoices/{id}/pdf/{invoice_number}-no-company-details.pdf`
+
+Regenerating the same invoice and branding variant replaces the existing object through `uploadBuffer`'s `upsert: true`. The variants have separate keys so generating one cannot replace the other. The default branded key preserves the existing invoice-number filename contract.
 
 ### Statement print details and administrator corrections
 
@@ -60,6 +65,6 @@ Migration `000067_invoice_statement_details_admin_edit.js` adds invoice `print_d
 
 `PATCH /invoices/:id` accepts admin-only `printDetails` fields `clientName`, `clientTin`, `paymentDate`, `cash`, `checkNumber`, `bankBranch`, `notedBy`, `preparedBy`, `receivedBy`, together with `expectedVersion`. These are statement snapshots, not payment ledger updates or changes to master clients. Empty strings deliberately clear printed fields.
 
-`GET /invoices/:id/pdf?includeCompanyDetails=false` omits company name/logo and uses the generic statement layout. Omitting the parameter preserves branding. The PDF uses `statementDocument.js`, equivalent to the frontend statement builder; keep both renderers synchronized. Logos are embedded from backend assets. PDFs keep A4 padding and omit browser headers/footers, and requests use distinct storage paths to avoid overwriting a differently branded PDF.
+`GET /invoices/:id/pdf?includeCompanyDetails=false` omits company name/logo and uses the generic statement layout. Omitting the parameter preserves branding. The PDF uses `statementDocument.js`, equivalent to the frontend statement builder; keep both renderers synchronized. Logos are embedded from backend assets. PDFs keep A4 padding and omit browser headers/footers, and each branding variant uses its documented stable storage key.
 
 The regression suite is `tests/billing.statement.spec.js` alongside existing billing/address/OCC tests. Migration up/down and rejected-write rollback were additionally verified in a temporary PostgreSQL runtime; no remote database was changed during development.
