@@ -145,10 +145,19 @@ const recordPayment = async (req, res, next) => {
 /** @type {import('express').RequestHandler} */
 const getInvoicePdf = async (req, res, next) => {
   try {
+    const raw = req.query.includeCompanyDetails;
+    if (raw !== undefined && raw !== 'true' && raw !== 'false') {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Validation Error',
+        detail: 'includeCompanyDetails must be true or false.',
+      });
+    }
     const result = await service.generateInvoicePdf({
       entityId: req.activeEntity,
       entityCode: req.entityCode,
       id: req.params.id,
+      includeCompanyDetails: raw !== 'false',
     });
     res.json({ data: result });
   } catch (err) {

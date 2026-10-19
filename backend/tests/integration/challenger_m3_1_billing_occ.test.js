@@ -653,7 +653,7 @@ describe('Empirical Adversarial Verification: Milestone 3 (Backend Billing OCC)'
         expect(inv.version).toBe(2);
       });
 
-      it('rejects financial edit on non-Draft invoice even with valid expectedVersion', async () => {
+      it('allows an administrator financial edit on a released invoice with valid expectedVersion', async () => {
         // Set invoice to Sent
         const inv = mockTables.invoices.get(INVOICE_ID);
         inv.status = 'Sent';
@@ -667,9 +667,9 @@ describe('Empirical Adversarial Verification: Milestone 3 (Backend Billing OCC)'
             expectedVersion: 1,
           });
 
-        expect(res.status).toBe(409);
-        expect(res.body.title).toBe('Conflict');
-        expect(res.body.code).toBe('INVOICE_NOT_DRAFT');
+        expect(res.status).toBe(200);
+        expect(res.body.data.terms).toBe('Attempt to change terms on Sent invoice');
+        expect(res.body.data.version).toBe(2);
       });
 
       it('allows non-financial edit (notes) on non-Draft invoice without expectedVersion', async () => {

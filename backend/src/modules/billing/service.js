@@ -9,6 +9,9 @@
 const { supabaseAdmin } = require('../../services/supabaseClient');
 const { uploadBuffer } = require('../../services/storageService');
 const { generatePdf } = require('../../services/pdfService');
+const { buildStatementDocument, STATEMENT_CSS } = require('./statementDocument');
+const fs = require('fs');
+const path = require('path');
 const auditService = require('../../services/auditService');
 const AppError = require('../../lib/AppError');
 const { resolveEntityCode } = require('../../lib/entityResolver');
@@ -99,7 +102,9 @@ const listInvoices = async ({ entityId, filters = {}, user }) => {
   if (clientId) query = query.eq('client_id', clientId);
   const effectiveFilterTaskId = taskId || task_id || linkedTaskId;
   if (effectiveFilterTaskId) {
-    query = query.or(`task_id.eq.${effectiveFilterTaskId},linked_task_id.eq.${effectiveFilterTaskId}`);
+    query = query.or(
+      `task_id.eq.${effectiveFilterTaskId},linked_task_id.eq.${effectiveFilterTaskId}`
+    );
   }
   if (linkedTransmittalId) query = query.eq('linked_transmittal_id', linkedTransmittalId);
   if (search) {
@@ -310,7 +315,13 @@ const createInvoice = async ({ entityId, userId, data }) => {
  * @param {string} params.id
  * @returns {Promise<object>}
  */
-const getInvoiceById = async ({ entityId, id, user, allowFallback = false, checkViewPermissions = true }) => {
+const getInvoiceById = async ({
+  entityId,
+  id,
+  user,
+  allowFallback = false,
+  checkViewPermissions = true,
+}) => {
   let query = supabaseAdmin
     .from('invoices')
     .select('*, clients(name, tin, address)')
@@ -478,9 +489,12 @@ const updateInvoice = async ({ entityId, id, userId, data, user }) => {
   });
 
   const permissions = effectiveUser
-    ? (effectiveUser.permissions instanceof Set
-        ? effectiveUser.permissions
-        : buildPermissionSet({ role: effectiveUser.role || '', departments: effectiveUser.departments || [] }))
+    ? effectiveUser.permissions instanceof Set
+      ? effectiveUser.permissions
+      : buildPermissionSet({
+          role: effectiveUser.role || '',
+          departments: effectiveUser.departments || [],
+        })
     : new Set();
   const isAdminOrBillingEditor =
     effectiveUser?.role === 'Admin' ||
@@ -575,17 +589,17 @@ const updateInvoice = async ({ entityId, id, userId, data, user }) => {
     data.taskId !== undefined
       ? data.taskId
       : data.task_id !== undefined
-      ? data.task_id
-      : data.linkedTaskId !== undefined
-      ? data.linkedTaskId
-      : undefined;
+        ? data.task_id
+        : data.linkedTaskId !== undefined
+          ? data.linkedTaskId
+          : undefined;
 
   const effectiveWrId =
     data.workRequestId !== undefined
       ? data.workRequestId
       : data.work_request_id !== undefined
-      ? data.work_request_id
-      : existing.work_request_id;
+        ? data.work_request_id
+        : existing.work_request_id;
 
   // Validation: Task existence & WR association (UAT2-6/12)
   if (effectiveTaskId) {
@@ -653,7 +667,15 @@ const updateInvoice = async ({ entityId, id, userId, data, user }) => {
   ];
   const hasFinancialEdit = FINANCIAL_FIELDS.some((field) => data[field] !== undefined);
 
-  if (hasFinancialEdit && existing.status !== 'Draft') {
+  const isAdmin = effectiveUser?.role === 'Admin';
+  if (data.printDetails !== undefined && !isAdmin) {
+    throw new AppError({
+      statusCode: 403,
+      title: 'Forbidden',
+      detail: 'Only administrators can edit statement details.',
+    });
+  }
+  if (hasFinancialEdit && existing.status !== 'Draft' && !isAdmin) {
     throw new AppError({
       statusCode: 409,
       title: 'Conflict',
@@ -673,7 +695,19 @@ const updateInvoice = async ({ entityId, id, userId, data, user }) => {
       ? Number(data.expectedVersion)
       : null;
 
+  if (
+    data.lineItems &&
+    data.lineItems.reduce((sum, item) => sum + Math.round(item.amount * 100), 0) <
+      Math.round(Number(existing.amount_paid || 0) * 100)
+  ) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Invalid total',
+      detail: 'Total amount cannot be less than payments already recorded.',
+    });
+  }
   const rpcUpdates = {};
+  if (data.printDetails !== undefined) rpcUpdates.print_details = data.printDetails;
   if (data.clientId !== undefined) rpcUpdates.client_id = data.clientId;
   if (data.workRequestId !== undefined || data.work_request_id !== undefined) {
     rpcUpdates.work_request_id = effectiveWrId;
@@ -717,6 +751,13 @@ const updateInvoice = async ({ entityId, id, userId, data, user }) => {
   });
 
   if (error) {
+    if (error.message?.includes('INVOICE_TOTAL_BELOW_PAID')) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Invalid total',
+        detail: 'Total amount cannot be less than payments already recorded.',
+      });
+    }
     if (error.message?.includes('ERR_CONCURRENCY_CONFLICT') || error.code === 'P0001') {
       throw new AppError({
         statusCode: 409,
@@ -939,14 +980,23 @@ const recordPayment = async ({ entityId, invoiceId, userId, data }) => {
  * @param {string} params.id - Invoice UUID
  * @returns {Promise<{ url: string }>}
  */
-const generateInvoicePdf = async ({ entityId, entityCode, id }) => {
+const generateInvoicePdf = async ({ entityId, entityCode, id, includeCompanyDetails = true }) => {
   const invoice = await getInvoiceById({ entityId, id });
 
   const code = entityCode || entityId;
-  const html = buildInvoiceHtml(invoice, code);
-  const pdfBuffer = await generatePdf({ html, options: { format: 'A4' } });
+  let body = buildStatementDocument({ ...invoice, entity_code: code }, { includeCompanyDetails });
+  // Embed deployed backend assets: PDF rendering has no frontend base URL.
+  if (includeCompanyDetails) {
+    const logo = code === 'LTA' ? 'LTA-LOGO.jpg' : 'ATA-LOGO.jpg';
+    const data = fs.readFileSync(path.join(__dirname, 'assets', logo)).toString('base64');
+    body = body.replace(`/ERP_Assets/${logo}`, `data:image/jpeg;base64,${data}`);
+  }
+  const html = `<!doctype html><html><head><meta charset="utf-8"><style>${STATEMENT_CSS}</style></head><body>${body}</body></html>`;
+  const pdfBuffer = await generatePdf({ html, options: { format: 'A4', preferCSSPageSize: true } });
 
-  const storagePath = `entities/${code}/invoices/${id}/pdf/${invoice.invoice_number}.pdf`;
+  // Preserve the documented branded filename and replace each variant on regeneration.
+  const suffix = includeCompanyDetails ? '' : '-no-company-details';
+  const storagePath = `entities/${code}/invoices/${id}/pdf/${invoice.invoice_number}${suffix}.pdf`;
   const downloadUrl = await uploadBuffer({
     path: storagePath,
     buffer: pdfBuffer,
@@ -978,98 +1028,6 @@ const generateVoucherPdf = async ({ entityId, entityCode, id }) => {
   });
 
   return { url: downloadUrl };
-};
-
-/**
- * Build HTML for invoice PDF.
- * @param {object} invoice - Invoice with line_items and client
- * @param {string} entityId - Entity code
- * @returns {string} HTML string
- */
-const buildInvoiceHtml = (invoice, entityId) => {
-  const entityName =
-    entityId === 'ATA' ? 'Amaya Tan & Associates' : 'LTA — Lanting Tan & Associates';
-
-  const lineItemRows = (invoice.line_items || [])
-    .map(
-      (item, idx) => `
-    <tr>
-      <td>${idx + 1}</td>
-      <td>${item.description}</td>
-      <td>${item.type}</td>
-      <td style="text-align: right;">₱${Number(item.amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
-    </tr>
-  `
-    )
-    .join('');
-
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
-    h1 { color: #1a365d; margin-bottom: 5px; }
-    .header { border-bottom: 2px solid #1a365d; padding-bottom: 20px; margin-bottom: 20px; }
-    .entity-name { font-size: 24px; font-weight: bold; color: #1a365d; }
-    .invoice-title { font-size: 18px; color: #666; }
-    .details { display: flex; justify-content: space-between; margin-bottom: 30px; }
-    .details div { flex: 1; }
-    table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-    th, td { padding: 10px; border: 1px solid #ddd; text-align: left; }
-    th { background: #f0f4f8; font-weight: bold; }
-    .total-row { font-weight: bold; background: #f0f4f8; }
-    .footer { margin-top: 40px; font-size: 12px; color: #666; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <div class="entity-name">${entityName}</div>
-    <div class="invoice-title">INVOICE</div>
-  </div>
-  <div class="details">
-    <div>
-      <strong>Bill To:</strong><br>
-      ${invoice.clients?.name || 'N/A'}<br>
-      ${invoice.clients?.address || ''}<br>
-      TIN: ${invoice.clients?.tin || 'N/A'}
-    </div>
-    <div style="text-align: right;">
-      <strong>Invoice #:</strong> ${invoice.invoice_number}<br>
-      <strong>Date:</strong> ${invoice.issue_date}<br>
-      <strong>Due Date:</strong> ${invoice.due_date}<br>
-      <strong>Status:</strong> ${invoice.status}
-    </div>
-  </div>
-  <table>
-    <thead>
-      <tr><th>#</th><th>Description</th><th>Type</th><th style="text-align: right;">Amount</th></tr>
-    </thead>
-    <tbody>
-      ${lineItemRows}
-    </tbody>
-    <tfoot>
-      <tr class="total-row">
-        <td colspan="3" style="text-align: right;">Total</td>
-        <td style="text-align: right;">₱${Number(invoice.total).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
-      </tr>
-      <tr>
-        <td colspan="3" style="text-align: right;">Amount Paid</td>
-        <td style="text-align: right;">₱${Number(invoice.amount_paid).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
-      </tr>
-      <tr class="total-row">
-        <td colspan="3" style="text-align: right;">Balance Due</td>
-        <td style="text-align: right;">₱${Number(invoice.balance).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
-      </tr>
-    </tfoot>
-  </table>
-  ${invoice.notes ? `<p><strong>Notes:</strong> ${invoice.notes}</p>` : ''}
-  ${invoice.terms ? `<p><strong>Terms:</strong> ${invoice.terms}</p>` : ''}
-  <div class="footer">
-    <p>This is a computer-generated invoice.</p>
-  </div>
-</body>
-</html>`;
 };
 
 /**

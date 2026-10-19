@@ -860,7 +860,11 @@ const rpcImpl = {
       u.due_date !== undefined ||
       u.terms !== undefined;
 
-    if (isFinancial && invoice.status !== 'Draft') {
+    const isAdmin = mockTables.users.get(params.p_user_id)?.role === 'Admin';
+    if (u.print_details !== undefined && !isAdmin) {
+      return { data: null, error: { message: 'Only administrators can edit statement details', code: '42501' } };
+    }
+    if (isFinancial && invoice.status !== 'Draft' && !isAdmin) {
       return {
         data: null,
         error: {
@@ -872,6 +876,10 @@ const rpcImpl = {
 
     let subtotal = null;
     if (params.p_line_items !== null && params.p_line_items !== undefined) {
+      const proposed = params.p_line_items.reduce((sum, item) => sum + Math.round(Number(item.amount) * 100), 0) / 100;
+      if (proposed < Number(invoice.amount_paid || 0)) {
+        return { data: null, error: { message: 'INVOICE_TOTAL_BELOW_PAID', code: '22023' } };
+      }
       Array.from(mockTables.invoice_line_items.values())
         .filter((li) => li.invoice_id === params.p_invoice_id)
         .forEach((li) => mockTables.invoice_line_items.delete(li.id));
@@ -899,6 +907,9 @@ const rpcImpl = {
       invoice.subtotal = subtotal;
       invoice.total = subtotal;
       invoice.balance = subtotal - Number(invoice.amount_paid || 0);
+      if (u.status === undefined && Number(invoice.amount_paid) > 0 && ['Paid', 'Partially Paid', 'Sent', 'Approved', 'Overdue'].includes(invoice.status)) {
+        invoice.status = invoice.balance === 0 ? 'Paid' : 'Partially Paid';
+      }
     }
     invoice.updated_by = params.p_user_id;
     invoice.updated_at = nowIso();

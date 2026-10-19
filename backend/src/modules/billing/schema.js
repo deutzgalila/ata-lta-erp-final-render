@@ -37,6 +37,20 @@ const createInvoiceSchema = z.object({
   terms: z.string().max(2000).optional().nullable(),
 });
 
+const printDetailsSchema = z
+  .object({
+    clientName: z.string().max(500).optional(),
+    clientTin: z.string().max(500).optional(),
+    paymentDate: z.string().max(500).optional(),
+    cash: z.string().max(500).optional(),
+    checkNumber: z.string().max(500).optional(),
+    bankBranch: z.string().max(500).optional(),
+    notedBy: z.string().max(500).optional(),
+    preparedBy: z.string().max(500).optional(),
+    receivedBy: z.string().max(500).optional(),
+  })
+  .strict();
+
 /**
  * Schema for updating an invoice.
  */
@@ -51,6 +65,7 @@ const FINANCIAL_FIELDS = [
 
 const updateInvoiceSchema = z
   .object({
+    printDetails: printDetailsSchema.optional(),
     clientId: z.string().uuid().optional(),
     workRequestId: z.string().uuid().optional().nullable(),
     work_request_id: z.string().uuid().optional().nullable(),
@@ -72,10 +87,11 @@ const updateInvoiceSchema = z
     expectedVersion: z.number().int().positive().optional(),
   })
   .superRefine((data, ctx) => {
-    const hasFinancialEdit = FINANCIAL_FIELDS.some(
-      (field) => data[field] !== undefined
-    );
-    if (hasFinancialEdit && (data.expectedVersion === undefined || data.expectedVersion === null)) {
+    const hasFinancialEdit = FINANCIAL_FIELDS.some((field) => data[field] !== undefined);
+    if (
+      (hasFinancialEdit || data.printDetails !== undefined) &&
+      (data.expectedVersion === undefined || data.expectedVersion === null)
+    ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['expectedVersion'],
