@@ -139,7 +139,7 @@ export function DocumentTable({
                   {/* Document Name & Meta */}
                   <TableCell>
                     <div className="flex items-start gap-3">
-                      <div className="p-2 rounded bg-[#eef1ff] text-[#0A0A0A] shrink-0 mt-0.5">
+                      <div className="p-2 rounded-none border border-[#0A0A0A] bg-[#EAE8E3] text-[#0A0A0A] shrink-0 mt-0.5">
                         {isExternal ? (
                           <ExternalLink className="h-4 w-4" />
                         ) : (

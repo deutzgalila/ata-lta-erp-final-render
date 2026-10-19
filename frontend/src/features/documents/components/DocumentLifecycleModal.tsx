@@ -99,11 +99,11 @@ export function DocumentLifecycleModal({
                 return (
                   <div
                     key={stage}
-                    className={`p-2 rounded border transition-colors cursor-pointer ${
+                    className={`p-2 rounded-none border transition-colors cursor-pointer ${
                       isSelected
-                        ? 'border-[#0A0A0A] bg-[#eef1ff]'
+                        ? 'border-[#0A0A0A] bg-[#FAF9F5] font-bold shadow-[2px_2px_0px_#0A0A0A]'
                         : isCurrent
-                        ? 'border-[#0A0A0A] bg-[#FAF9F5]'
+                        ? 'border-[#0A0A0A] bg-[#EAE8E3]'
                         : 'border-[#0A0A0A] text-[#4A4945] hover:bg-[#EAE8E3]'
                     }`}
                     onClick={() => setSelectedStage(stage)}
@@ -130,8 +130,8 @@ export function DocumentLifecycleModal({
                     onClick={() => setSelectedStage(stage)}
                     className={`flex items-start justify-between p-3 rounded-none border cursor-pointer transition-all ${
                       isSelected
-                        ? 'border-[#0A0A0A] bg-[#eef1ff]'
-                        : 'border-[#0A0A0A] hover:border-[#0A0A0A]'
+                        ? 'border-[#0A0A0A] bg-[#FAF9F5] shadow-[2px_2px_0px_#0A0A0A]'
+                        : 'border-[#0A0A0A] hover:bg-[#EAE8E3]'
                     }`}
                     data-testid={`lifecycle-option-${stage}`}
                   >

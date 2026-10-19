@@ -51,12 +51,12 @@ export default function KitchenSinkPage() {
       {/* Page Header */}
       <div>
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#2563eb] text-white">
+          <div className="flex h-10 w-10 items-center justify-center rounded-none border border-[#0A0A0A] bg-[#0A0A0A] text-[#FAF9F5]">
             <Palette className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-[#1e293b]">Design System Kitchen Sink</h1>
-            <p className="text-xs text-[#9494a0]">
+            <h1 className="text-2xl font-bold tracking-tight text-[#0A0A0A]">Design System Kitchen Sink</h1>
+            <p className="text-xs text-[#4A4945]">
               Dev review artifact rendering all 11 themed Shadcn primitives in both densities (Spec §3.4, AC-4).
             </p>
           </div>
@@ -73,11 +73,11 @@ export default function KitchenSinkPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <span className="text-xs font-semibold text-[#9494a0] uppercase tracking-wider block mb-2">
+            <span className="text-xs font-semibold text-[#4A4945] uppercase tracking-wider block mb-2">
               Standard Density (h-9, 14px text)
             </span>
             <div className="flex flex-wrap gap-2.5">
-              <Button variant="default">Primary (#2563eb)</Button>
+              <Button variant="default">Primary (#0A0A0A)</Button>
               <Button variant="secondary">Secondary</Button>
               <Button variant="outline">Outline</Button>
               <Button variant="destructive">Destructive (#ef4444)</Button>
@@ -90,7 +90,7 @@ export default function KitchenSinkPage() {
           </div>
 
           <div>
-            <span className="text-xs font-semibold text-[#9494a0] uppercase tracking-wider block mb-2">
+            <span className="text-xs font-semibold text-[#4A4945] uppercase tracking-wider block mb-2">
               Compact Density (h-8/h-7, 13px/12px text)
             </span>
             <div className="flex flex-wrap gap-2 items-center">
@@ -117,22 +117,22 @@ export default function KitchenSinkPage() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-medium text-[#1e293b] block mb-1">Standard Density (h-9)</label>
+              <label className="text-xs font-medium text-[#0A0A0A] block mb-1">Standard Density (h-9)</label>
               <Input placeholder="Enter work request title..." />
             </div>
             <div>
-              <label className="text-xs font-medium text-[#1e293b] block mb-1">Standard (Disabled)</label>
+              <label className="text-xs font-medium text-[#0A0A0A] block mb-1">Standard (Disabled)</label>
               <Input value="Locked invoice number #INV-2026-001" disabled />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-medium text-[#1e293b] block mb-1">Compact Density (h-7, 12px)</label>
+              <label className="text-xs font-medium text-[#0A0A0A] block mb-1">Compact Density (h-7, 12px)</label>
               <Input density="compact" placeholder="Filter line items..." />
             </div>
             <div>
-              <label className="text-xs font-medium text-[#1e293b] block mb-1">Compact (Disabled)</label>
+              <label className="text-xs font-medium text-[#0A0A0A] block mb-1">Compact (Disabled)</label>
               <Input density="compact" value="Tax code: VAT-EXEMPT" disabled />
             </div>
           </div>
@@ -147,7 +147,7 @@ export default function KitchenSinkPage() {
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="text-xs font-medium text-[#1e293b] block mb-1">Standard Select</label>
+            <label className="text-xs font-medium text-[#0A0A0A] block mb-1">Standard Select</label>
             <Select value={selectVal} onValueChange={setSelectVal}>
               <SelectTrigger>
                 <SelectValue placeholder="Choose entity" />
@@ -161,7 +161,7 @@ export default function KitchenSinkPage() {
           </div>
 
           <div>
-            <label className="text-xs font-medium text-[#1e293b] block mb-1">Compact Select (h-7)</label>
+            <label className="text-xs font-medium text-[#0A0A0A] block mb-1">Compact Select (h-7)</label>
             <Select value={selectVal} onValueChange={setSelectVal}>
               <SelectTrigger density="compact">
                 <SelectValue placeholder="Choose entity" />
@@ -184,7 +184,7 @@ export default function KitchenSinkPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <div>
-            <span className="text-xs font-semibold text-[#9494a0] uppercase tracking-wider block mb-2">
+            <span className="text-xs font-semibold text-[#4A4945] uppercase tracking-wider block mb-2">
               Standard Density
             </span>
             <div className="flex flex-wrap gap-2">
@@ -201,7 +201,7 @@ export default function KitchenSinkPage() {
           </div>
 
           <div>
-            <span className="text-xs font-semibold text-[#9494a0] uppercase tracking-wider block mb-2">
+            <span className="text-xs font-semibold text-[#4A4945] uppercase tracking-wider block mb-2">
               Compact Density (High Density Tables)
             </span>
             <div className="flex flex-wrap gap-2">
@@ -227,7 +227,7 @@ export default function KitchenSinkPage() {
             <CardDescription>Default 24px padding with soft corporate drop shadow.</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-[#1e293b]">
+            <p className="text-sm text-[#0A0A0A]">
               Standard card content used for primary dashboard panels and configuration forms.
             </p>
           </CardContent>
@@ -242,7 +242,7 @@ export default function KitchenSinkPage() {
             <CardDescription density="compact">12px padding for high-density layouts.</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-[#1e293b]">
+            <p className="text-xs text-[#0A0A0A]">
               Compact card content used in sidebar widgets and rapid review drawers.
             </p>
           </CardContent>
@@ -260,7 +260,7 @@ export default function KitchenSinkPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           <div>
-            <span className="text-xs font-semibold text-[#9494a0] uppercase tracking-wider block mb-2">
+            <span className="text-xs font-semibold text-[#4A4945] uppercase tracking-wider block mb-2">
               Standard Density Table
             </span>
             <Table>
@@ -293,7 +293,7 @@ export default function KitchenSinkPage() {
           </div>
 
           <div>
-            <span className="text-xs font-semibold text-[#9494a0] uppercase tracking-wider block mb-2">
+            <span className="text-xs font-semibold text-[#4A4945] uppercase tracking-wider block mb-2">
               High-Density Table (Compact Padding, 12px row height)
             </span>
             <Table density="compact">
@@ -346,7 +346,7 @@ export default function KitchenSinkPage() {
                   This action will authorize disbursement payment and notify Accounting.
                 </DialogDescription>
               </DialogHeader>
-              <div className="py-2 text-xs text-[#1e293b]">
+              <div className="py-2 text-xs text-[#0A0A0A]">
                 <p>Payment Reference: <strong>DV-2026-0042</strong></p>
                 <p>Payee: <strong>Bureau of Internal Revenue</strong></p>
                 <p>Total Amount: <strong>PHP 150,000.00</strong></p>
@@ -390,7 +390,7 @@ export default function KitchenSinkPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           <div>
-            <span className="text-xs font-semibold text-[#9494a0] uppercase tracking-wider block mb-2">
+            <span className="text-xs font-semibold text-[#4A4945] uppercase tracking-wider block mb-2">
               Standard Tabs
             </span>
             <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -400,17 +400,17 @@ export default function KitchenSinkPage() {
                 <TabsTrigger value="completed">Completed (124)</TabsTrigger>
               </TabsList>
               <TabsContent value="overview">
-                <p className="text-xs text-[#1e293b] p-2 bg-[#f8fafc] rounded-md border border-[#f0f0f5]">
+                <p className="text-xs text-[#0A0A0A] p-2 bg-[#FAF9F5] rounded-none border border-[#0A0A0A]">
                   Showing all active records across assigned departments.
                 </p>
               </TabsContent>
               <TabsContent value="pending">
-                <p className="text-xs text-[#1e293b] p-2 bg-[#f8fafc] rounded-md border border-[#f0f0f5]">
+                <p className="text-xs text-[#0A0A0A] p-2 bg-[#FAF9F5] rounded-none border border-[#0A0A0A]">
                   Showing items pending Manager review or QA verification.
                 </p>
               </TabsContent>
               <TabsContent value="completed">
-                <p className="text-xs text-[#1e293b] p-2 bg-[#f8fafc] rounded-md border border-[#f0f0f5]">
+                <p className="text-xs text-[#0A0A0A] p-2 bg-[#FAF9F5] rounded-none border border-[#0A0A0A]">
                   Archived and released transmittals.
                 </p>
               </TabsContent>
@@ -418,7 +418,7 @@ export default function KitchenSinkPage() {
           </div>
 
           <div>
-            <span className="text-xs font-semibold text-[#9494a0] uppercase tracking-wider block mb-2">
+            <span className="text-xs font-semibold text-[#4A4945] uppercase tracking-wider block mb-2">
               Compact Tabs
             </span>
             <Tabs defaultValue="day">
@@ -490,7 +490,7 @@ export default function KitchenSinkPage() {
 
           <Button
             variant="outline"
-            className="gap-2 text-[#2563eb]"
+            className="gap-2 text-[#0A0A0A]"
             onClick={() => toast.info('New notification received from dev-admin.')}
           >
             <Info className="h-4 w-4" />
@@ -500,7 +500,7 @@ export default function KitchenSinkPage() {
       </Card>
 
       {/* 11. DESIGN TOKEN EXTRACTION TABLE (CHECKPOINT §8 / AC-4) */}
-      <Card className="border-t-4 border-t-[#2563eb]">
+      <Card className="border-t-4 border-t-[#0A0A0A]">
         <CardHeader>
           <CardTitle className="text-base font-bold">
             11. Verbatim Design Token Extraction Table (Checkpoint §8 / AC-4)
@@ -524,7 +524,7 @@ export default function KitchenSinkPage() {
                 const isColor = val.startsWith('#') || val.startsWith('rgba');
                 return (
                   <TableRow key={key}>
-                    <TableCell density="compact" className="font-mono text-xs font-semibold text-[#1e293b]">
+                    <TableCell density="compact" className="font-mono text-xs font-semibold text-[#0A0A0A]">
                       {key}
                     </TableCell>
                     <TableCell density="compact" className="font-mono text-xs text-[#475569]">
@@ -539,10 +539,10 @@ export default function KitchenSinkPage() {
                           />
                         </div>
                       ) : (
-                        <span className="text-xs text-[#9494a0] italic">Non-color</span>
+                        <span className="text-xs text-[#4A4945] italic">Non-color</span>
                       )}
                     </TableCell>
-                    <TableCell density="compact" className="text-xs text-[#9494a0]">
+                    <TableCell density="compact" className="text-xs text-[#4A4945]">
                       {key.includes('color-primary')
                         ? 'Primary Theme'
                         : key.includes('color-ata') || key.includes('color-lta')

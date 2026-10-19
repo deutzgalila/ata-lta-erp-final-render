@@ -17,10 +17,10 @@ export function RouteGuard({ children, requiredPermission, adminOnly }: RouteGua
 
   if (isLoading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center p-8 bg-[#f4f6fb]">
+      <div className="flex h-screen w-full items-center justify-center p-8 bg-[#F4F4F0]">
         <div className="w-full max-w-md space-y-4 text-center">
-          <div className="mx-auto h-12 w-12 rounded-xl bg-[#2563eb]/10 flex items-center justify-center text-[#2563eb]">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#2563eb] border-t-transparent" />
+          <div className="mx-auto h-12 w-12 border-2 border-[#0A0A0A] bg-[#FAF9F5] flex items-center justify-center text-[#0A0A0A]">
+            <div className="h-6 w-6 animate-spin rounded-none border-2 border-[#0A0A0A] border-t-transparent" />
           </div>
           <Skeleton className="h-4 w-3/4 mx-auto" />
           <Skeleton className="h-3 w-1/2 mx-auto" />

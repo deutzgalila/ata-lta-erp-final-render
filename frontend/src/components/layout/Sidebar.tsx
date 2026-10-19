@@ -133,7 +133,7 @@ export function Sidebar() {
         </div>
         <div className="flex flex-col">
           <span className="text-xs font-black uppercase tracking-tight text-[#0A0A0A] leading-tight">ATA &amp; LTA</span>
-          <span className="font-mono text-[11px] font-semibold text-[#4A4945] tracking-widest">LEDGER // v2.0</span>
+          <span className="font-mono text-xs font-semibold text-[#4A4945] tracking-widest">LEDGER // v2.0</span>
         </div>
       </div>
 
@@ -141,7 +141,7 @@ export function Sidebar() {
       <SidebarNavLinks />
 
       {/* Footer Telemetry */}
-      <div className="border-t-2 border-[#0A0A0A] p-3 font-mono text-[11px] text-[#4A4945] bg-[#EAE8E3]">
+      <div className="border-t-2 border-[#0A0A0A] p-3 font-mono text-xs text-[#4A4945] bg-[#EAE8E3]">
         <div className="flex items-center justify-between px-1">
           <span className="font-semibold uppercase tracking-wider">SYSTEM ACTIVE</span>
           <span className="rounded-none border border-[#0A0A0A] bg-[#FAF9F5] px-1.5 py-0.5 text-xs font-bold text-[#0A0A0A]">

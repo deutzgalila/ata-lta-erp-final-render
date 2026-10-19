@@ -34,6 +34,7 @@ import { hasPermission } from '@/lib/permissions';
 import { useEntityRealtimeSync, resolveEntityCodeFromUUID } from '@/lib/realtime';
 import type { WorkRequest, EntityCode, RetainerTemplate } from '@/features/operations/api/types';
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const allowedTabs = ['work-requests', 'templates', 'other-templates', 'pending-approvals', 'archive'];
 export const ALLOWED_TABS = allowedTabs;
 
@@ -533,7 +534,7 @@ export default function OperationsPage() {
                               setEditingTemplate(tpl);
                               setIsTemplateModalOpen(true);
                             }}
-                            className="text-[11px] font-medium text-blue-600 hover:text-blue-800 hover:underline px-1"
+                            className="text-xs font-mono font-semibold uppercase hover:underline px-1 text-[#0A0A0A]"
                             data-testid={`edit-template-btn-${tpl.id}`}
                           >
                             Edit
@@ -671,7 +672,7 @@ export default function OperationsPage() {
                                   setEditingOtherTemplate(tpl);
                                   setIsOtherTemplateModalOpen(true);
                                 }}
-                                className="text-[11px] font-medium text-blue-600 hover:text-blue-800 hover:underline px-1"
+                                className="text-xs font-mono font-semibold uppercase hover:underline px-1 text-[#0A0A0A]"
                                 data-testid={`edit-other-template-btn-${tpl.id}`}
                               >
                                 Edit
@@ -683,7 +684,7 @@ export default function OperationsPage() {
                                     await deleteTemplate(tpl.id);
                                   }
                                 }}
-                                className="text-[11px] font-medium text-rose-600 hover:text-rose-800 hover:underline px-1"
+                                className="text-xs font-mono font-semibold uppercase hover:underline px-1 text-[#E61919]"
                                 data-testid={`delete-other-template-btn-${tpl.id}`}
                               >
                                 Delete
@@ -697,7 +698,7 @@ export default function OperationsPage() {
                                 setGenerateOtherTemplateId(tpl.id);
                                 setIsOtherGenerateModalOpen(true);
                               }}
-                              className="text-[11px] font-semibold text-amber-600 hover:text-amber-800 hover:underline flex items-center gap-0.5 px-1"
+                              className="text-xs font-mono font-bold uppercase hover:underline flex items-center gap-0.5 px-1 text-[#0A0A0A]"
                               data-testid={`generate-card-other-template-btn-${tpl.id}`}
                             >
                               <Zap className="h-3 w-3" /> Generate

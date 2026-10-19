@@ -145,7 +145,7 @@ export function Topbar() {
                 <span className="text-xs font-bold text-[#0A0A0A] leading-tight">
                   {user?.name || 'User'}
                 </span>
-                <span className="font-mono text-[11px] font-semibold uppercase text-[#4A4945] leading-tight">
+                <span className="font-mono text-xs font-semibold uppercase text-[#4A4945] leading-tight">
                   {user?.role === 'Admin' || user?.email === 'lorein@ata-lta.ph' ? 'Admin' : (user?.role || 'Staff')}
                 </span>
               </div>
@@ -155,7 +155,7 @@ export function Topbar() {
             <DropdownMenuLabel>
               <div className="flex flex-col space-y-1">
                 <p className="text-xs font-bold leading-none text-[#0A0A0A]">{user?.name}</p>
-                <p className="font-mono text-[11px] leading-none text-[#4A4945]">{user?.email}</p>
+                <p className="font-mono text-xs leading-none text-[#4A4945]">{user?.email}</p>
               </div>
             </DropdownMenuLabel>
             <div className="px-2 py-1">

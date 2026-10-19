@@ -27,11 +27,6 @@ export default function ReportsPage() {
   const canViewReports = hasPermission(permissions, 'reports:view');
   const canViewBilling = hasPermission(permissions, 'billing:view');
 
-  // Enforce admin-only access when user profile is loaded
-  if (user && !isAdmin) {
-    return <Forbidden requiredPermission="users:manage" />;
-  }
-
   // Determine available tabs based on permissions
   const availableTabs = useMemo(() => {
     const tabs: string[] = [];
@@ -74,6 +69,11 @@ export default function ReportsPage() {
       );
     }
   }, [canViewReports, canViewBilling, requestedTab, defaultTab, availableTabs, setSearchParams]);
+
+  // Enforce admin-only access when user profile is loaded
+  if (user && !isAdmin) {
+    return <Forbidden requiredPermission="users:manage" />;
+  }
 
   // If user has neither permission, show Forbidden screen
   if (!canViewReports && !canViewBilling) {
