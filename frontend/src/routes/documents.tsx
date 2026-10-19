@@ -170,22 +170,22 @@ export default function DocumentsPage() {
 
   return (
     <div className="w-full space-y-6" data-testid="documents-page">
-      {/* 1. Blueprint Module Header */}
-      <div className="border-b-2 border-[#0A0A0A] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
+      {/* 1. Unified Module Header */}
+      <div className="border-b border-[#CBD5E1] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <nav
             aria-label="Breadcrumb"
-            className="font-mono text-xs uppercase tracking-wider text-[#4A4945] flex items-center gap-1.5 pb-1"
+            className="text-xs font-medium text-[#475569] flex items-center gap-1.5 pb-1"
           >
             <span>Modules</span>
             <span aria-hidden="true">/</span>
-            <span className="text-[#0A0A0A] font-semibold">Documents</span>
+            <span className="text-[#0F172A] font-semibold">Documents</span>
           </nav>
-          <h1 className="text-2xl font-extrabold tracking-tight text-[#0A0A0A] flex items-center gap-2">
-            <FolderOpen className="h-6 w-6 text-[#0A0A0A]" />
+          <h1 className="text-2xl font-semibold tracking-tight text-[#0F172A] flex items-center gap-2">
+            <FolderOpen className="h-6 w-6 text-[#1D4ED8]" />
             <span>Document Management System</span>
           </h1>
-          <p className="text-xs sm:text-sm text-[#4A4945] pt-0.5">
+          <p className="text-xs sm:text-sm text-[#475569] pt-0.5">
             Secure digital records, compliance classifications, and physical lifecycle tracking.
           </p>
         </div>
@@ -194,7 +194,7 @@ export default function DocumentsPage() {
           {canEdit && (
             <Button
               onClick={() => setIsUploadModalOpen(true)}
-              className="bg-[#0A0A0A] hover:bg-[#222220] text-[#FAF9F5] text-xs font-mono font-semibold uppercase tracking-wider rounded-none border border-[#0A0A0A] h-9 gap-1.5 shadow-none cursor-pointer"
+              className="bg-[#1D4ED8] hover:bg-[#1E40AF] text-[#FFFFFF] text-xs font-medium rounded-[6px] h-9 gap-1.5 shadow-2xs cursor-pointer"
               data-testid="header-upload-button"
             >
               <Upload className="h-4 w-4 mr-1.5" />
@@ -206,17 +206,17 @@ export default function DocumentsPage() {
 
       {/* 2. Tabs: Active vs. Archived */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full space-y-4">
-        <TabsList className="w-full justify-start rounded-none bg-[#EAE8E3] p-0 border border-[#0A0A0A] border-b-2 gap-0 h-auto overflow-x-auto scrollbar-none flex flex-nowrap">
+        <TabsList className="w-full justify-start rounded-[8px] bg-[#F1F5F9] p-1 border border-[#CBD5E1] gap-1 h-auto overflow-x-auto scrollbar-none flex flex-nowrap">
           <TabsTrigger
             value="active"
-            className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-active-documents"
           >
             <FolderOpen className="h-4 w-4" />
             <span>Active Documents</span>
             <Badge
               variant="secondary"
-              className="ml-1.5 text-xs font-mono px-1.5 py-0 rounded-none border border-[#C8C5BC] bg-[#EAE8E3] text-[#0A0A0A]"
+              className="ml-1.5 text-xs font-mono px-1.5 py-0 rounded-[4px] border border-[#CBD5E1] bg-[#E2E8F0]/70 text-[#0F172A]"
               data-testid="badge-active-count"
             >
               {countsData?.active ?? 0}
@@ -225,14 +225,14 @@ export default function DocumentsPage() {
 
           <TabsTrigger
             value="archived"
-            className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-archived-documents"
           >
             <Archive className="h-4 w-4" />
             <span>Archived</span>
             <Badge
               variant="secondary"
-              className="ml-1.5 text-xs font-mono px-1.5 py-0 rounded-none border border-[#C8C5BC] bg-[#EAE8E3] text-[#0A0A0A]"
+              className="ml-1.5 text-xs font-mono px-1.5 py-0 rounded-[4px] border border-[#CBD5E1] bg-[#E2E8F0]/70 text-[#0F172A]"
               data-testid="badge-archived-count"
             >
               {countsData?.archived ?? 0}

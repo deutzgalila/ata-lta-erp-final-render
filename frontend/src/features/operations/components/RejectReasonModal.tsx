@@ -108,14 +108,14 @@ export function RejectReasonModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
-        className="max-w-md p-6 space-y-4 rounded-none border-2 border-[#0A0A0A] bg-[#FAF9F5] shadow-[4px_4px_0px_#0A0A0A]"
+        className="max-w-md p-6 space-y-4 rounded-[12px] border-[#CBD5E1] bg-[#FFFFFF] shadow-float"
         data-testid="reject-reason-modal"
       >
         <DialogHeader>
-          <DialogTitle className="text-base font-extrabold tracking-tight text-[#0A0A0A]">
+          <DialogTitle className="text-base font-extrabold tracking-tight text-[#0F172A]">
             {title || 'Reject Phase Transition'}
           </DialogTitle>
-          <DialogDescription className="text-xs font-mono text-[#4A4945] pt-1">
+          <DialogDescription className="text-xs font-mono text-[#475569] pt-1">
             {description ||
               (workRequestTitle
                 ? `Provide a specific, actionable reason for rejecting the transition for "${workRequestTitle}".`
@@ -125,8 +125,8 @@ export function RejectReasonModal({
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="space-y-1">
-            <label className="text-xs font-mono uppercase tracking-wider text-[#4A4945] block">
-              Rejection Reason <span className="text-[#E61919]">*</span>
+            <label className="text-xs font-mono uppercase tracking-wider text-[#475569] block">
+              Rejection Reason <span className="text-[#DC2626]">*</span>
             </label>
             <textarea
               value={reason}
@@ -136,20 +136,20 @@ export function RejectReasonModal({
               }}
               rows={4}
               placeholder={placeholder || 'e.g. Pre-processing checklist item #3 missing BIR stamp...'}
-              className={`w-full text-xs font-mono p-2.5 border rounded-none bg-[#FAF9F5] text-[#0A0A0A] placeholder:text-[#4A4945] focus:outline-none focus:ring-1 focus:ring-[#0A0A0A] ${
-                error ? 'border-[#E61919]' : 'border-[#0A0A0A]'
+              className={`w-full text-xs font-mono p-2.5 border rounded-[6px] bg-[#FFFFFF] text-[#0F172A] placeholder:text-[#475569] focus:outline-none focus:ring-1 focus:ring-[#1D4ED8] ${
+                error ? 'border-[#FCA5A5]' : 'border-[#CBD5E1]'
               }`}
               data-testid="reject-reason-textarea"
             />
             {error && (
               <span
-                className="text-xs font-mono text-[#E61919] block"
+                className="text-xs font-mono text-[#DC2626] block"
                 data-testid="reject-reason-error"
               >
                 {error}
               </span>
             )}
-            <div className="text-xs font-mono text-[#4A4945] text-right">
+            <div className="text-xs font-mono text-[#475569] text-right">
               {reason.trim().length} / {maxLength} characters
             </div>
           </div>
@@ -160,7 +160,7 @@ export function RejectReasonModal({
               variant="outline"
               size="sm"
               onClick={onClose}
-              className="rounded-none border border-[#0A0A0A] text-[#0A0A0A] hover:bg-[#EAE8E3] font-mono text-xs uppercase tracking-wider"
+              className="rounded-[8px] border-[#CBD5E1] text-[#0F172A] hover:bg-[#F1F5F9] font-mono text-xs uppercase tracking-wider"
             >
               Cancel
             </Button>
@@ -168,7 +168,7 @@ export function RejectReasonModal({
               type="submit"
               size="sm"
               data-testid="reject-reason-submit-btn"
-              className="rounded-none bg-[#E61919] text-[#FAF9F5] hover:bg-[#0A0A0A] font-mono text-xs uppercase tracking-wider"
+              className="rounded-[6px] bg-[#DC2626] text-[#FFFFFF] hover:bg-[#B91C1C] shadow-2xs hover:bg-[#1D4ED8] font-mono text-xs uppercase tracking-wider"
             >
               {submitLabel || 'Reject Transition'}
             </Button>

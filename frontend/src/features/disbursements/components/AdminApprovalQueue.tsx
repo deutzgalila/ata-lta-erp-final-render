@@ -114,18 +114,18 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
       {/* Header bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-bold text-[#0A0A0A] flex items-center gap-2">
+          <h2 className="text-base font-bold text-[#0F172A] flex items-center gap-2">
             <Clock className="h-5 w-5 text-amber-600" />
             {canApprove ? 'Admin Approval Queue' : 'My Submitted Approvals'}
           </h2>
-          <p className="text-xs text-[#4A4945] mt-0.5">
+          <p className="text-xs text-[#475569] mt-0.5">
             {canApprove
               ? 'Review and adjudicate pending disbursement requests. Approved vouchers proceed to funds release.'
               : 'View status of your submitted disbursement vouchers awaiting administrative approval.'}
           </p>
         </div>
         <div className="relative w-full sm:w-64">
-          <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-[#4A4945]" />
+          <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-[#475569]" />
           <Input
             type="text"
             placeholder={canApprove ? 'Search pending vouchers...' : 'Search my submissions...'}
@@ -139,20 +139,20 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
 
       {/* Loading state */}
       {isLoading ? (
-        <div className="p-8 text-center text-xs text-[#4A4945]" data-testid="pending-queue-loading">
+        <div className="p-8 text-center text-xs text-[#475569]" data-testid="pending-queue-loading">
           Loading pending approval items...
         </div>
       ) : filteredItems.length === 0 ? (
         /* Empty state */
         <div
-          className="p-10 text-center bg-[#EAE8E3] border border-[#0A0A0A] rounded-none"
+          className="p-10 text-center bg-[#F1F5F9] border-[#CBD5E1] rounded-[6px]"
           data-testid="pending-queue-empty"
         >
           <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto mb-3" />
-          <h3 className="text-sm font-bold text-[#0A0A0A]">
+          <h3 className="text-sm font-bold text-[#0F172A]">
             {canApprove ? 'Queue is Clear' : 'No Pending Submissions'}
           </h3>
-          <p className="text-xs text-[#4A4945] mt-1">
+          <p className="text-xs text-[#475569] mt-1">
             {canApprove
               ? 'There are no pending disbursements requiring administrative review.'
               : 'You do not have any pending disbursement vouchers awaiting approval.'}
@@ -171,47 +171,47 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
             return (
               <div
                 key={item.id}
-                className="p-4 bg-white border border-[#0A0A0A] rounded-none hover:border-[#0A0A0A] transition-colors shadow-none space-y-3"
+                className="p-4 bg-white border-[#CBD5E1] rounded-[6px] hover:border-[#CBD5E1] transition-colors shadow-none space-y-3"
                 data-testid={`pending-item-${item.id}`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-[#0A0A0A]">
+                      <span className="font-mono text-xs font-bold text-[#0F172A]">
                         {disbNumber}
                       </span>
                       <DisbursementStatusBadge status={item.status} />
-                      <span className="text-xs font-mono font-medium px-2 py-0.5 rounded-none bg-[#EAE8E3] text-[#4A4945]">
+                      <span className="text-xs font-mono font-medium px-2 py-0.5 rounded-[6px] bg-[#F1F5F9] text-[#475569]">
                         {item.category}
                       </span>
-                      <span className="text-xs font-mono font-medium px-2 py-0.5 rounded-none bg-[#EAE8E3] text-[#0A0A0A]">
+                      <span className="text-xs font-mono font-medium px-2 py-0.5 rounded-[6px] bg-[#F1F5F9] text-[#0F172A]">
                         {item.fund_source || item.fundSource}
                       </span>
                     </div>
-                    <p className="text-xs text-[#0A0A0A] font-medium line-clamp-2">
+                    <p className="text-xs text-[#0F172A] font-medium line-clamp-2">
                       {item.description}
                     </p>
                   </div>
 
                   <div className="text-right shrink-0">
-                    <span className="text-sm font-bold text-[#0A0A0A] block" data-testid={`item-amount-${item.id}`}>
+                    <span className="text-sm font-bold text-[#0F172A] block" data-testid={`item-amount-${item.id}`}>
                       ₱{item.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                     </span>
-                    <span className="text-xs font-mono text-[#4A4945]">
+                    <span className="text-xs font-mono text-[#475569]">
                       {new Date(item.created_at || item.createdAt || '').toLocaleDateString()}
                     </span>
                   </div>
                 </div>
 
                 {/* Metadata strip */}
-                <div className="flex flex-wrap items-center gap-4 text-xs font-mono text-[#4A4945] pt-1 border-t border-[#C8C5BC]">
+                <div className="flex flex-wrap items-center gap-4 text-xs font-mono text-[#475569] pt-1 border-t border-[#CBD5E1]">
                   <span className="flex items-center gap-1">
-                    <Building className="h-3 w-3 text-[#4A4945]" />
+                    <Building className="h-3 w-3 text-[#475569]" />
                     {clientName}
                   </span>
                   {(item.linked_work_request_name || item.linked_work_request_order_number || workRequestId) && (
                     <span className="flex items-center gap-1">
-                      <FileText className="h-3 w-3 text-[#4A4945]" />
+                      <FileText className="h-3 w-3 text-[#475569]" />
                       WR:{' '}
                       <span className="font-mono" data-testid={`pending-item-wr-${item.id}`}>
                         {item.linked_work_request_order_number && item.linked_work_request_name
@@ -233,7 +233,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
                     item.created_by ||
                     item.createdBy) && (
                     <span className="flex items-center gap-1">
-                      <User className="h-3 w-3 text-[#4A4945]" />
+                      <User className="h-3 w-3 text-[#475569]" />
                       {item.employee_name ||
                         item.employeeName ||
                         item.requested_by_name ||
@@ -247,7 +247,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
                     </span>
                   )}
                   {(item.receipt_filename || item.receiptFilename) && (
-                    <span className="flex items-center gap-1 text-[#0A0A0A]">
+                    <span className="flex items-center gap-1 text-[#0F172A]">
                       <Receipt className="h-3 w-3" />
                       {item.receipt_filename || item.receiptFilename}
                     </span>
@@ -257,7 +257,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
                 {/* Rejection notice on rejected vouchers */}
                 {item.status === 'Rejected' && (
                   <div
-                    className="p-2.5 bg-rose-50 border border-rose-200 rounded-none text-xs text-rose-900 space-y-1 mt-2"
+                    className="p-2.5 bg-rose-50 border-rose-200 rounded-[6px] text-xs text-rose-900 space-y-1 mt-2"
                     data-testid={`rejection-display-${item.id}`}
                   >
                     <div className="font-semibold text-rose-800 flex items-center gap-1">
@@ -276,7 +276,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
                 )}
 
                 {/* Actions */}
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#C8C5BC]">
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#CBD5E1]">
                   {onSelectDisbursement && (
                     <Button
                       type="button"
@@ -324,7 +324,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
 
       {/* Pagination Controls */}
       {filteredItems.length > pageSize && (
-        <div className="flex items-center justify-between px-2 pt-2 text-xs text-[#4A4945] border-t border-[#0A0A0A]" data-testid="queue-pagination-bar">
+        <div className="flex items-center justify-between px-2 pt-2 text-xs text-[#475569] border-t border-[#CBD5E1]" data-testid="queue-pagination-bar">
           <span data-testid="queue-page-info">
             Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filteredItems.length)} of {filteredItems.length}
           </span>

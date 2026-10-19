@@ -724,27 +724,27 @@ export function TaskDetailModal({
     <>
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
         <DialogContent
-          className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden rounded-none border-2 border-[#0A0A0A] bg-[#FAF9F5] shadow-[4px_4px_0px_#0A0A0A]"
+          className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden rounded-[12px] border-[#CBD5E1] bg-[#FFFFFF] shadow-float"
           data-testid="task-detail-modal"
         >
           {/* Header */}
-          <DialogHeader className="px-6 py-4 pr-14 border-b-2 border-[#0A0A0A] bg-[#EAE8E3] flex flex-row flex-wrap gap-3 items-start justify-between">
+          <DialogHeader className="px-6 py-4 pr-14 border-b border-[#CBD5E1] bg-[#F1F5F9] flex flex-row flex-wrap gap-3 items-start justify-between">
             <div className="space-y-1.5 pr-6">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge
                   variant={workRequest?.entity === 'LTA' ? 'lta' : 'ata'}
                   size="compact"
-                  className="rounded-none font-mono text-xs"
+                  className="rounded-[6px] font-mono text-xs"
                 >
                   {workRequest?.entity || 'ATA'}
                 </Badge>
-                <Badge variant="outline" size="compact" className="font-semibold text-[#0A0A0A] bg-[#FAF9F5] border-[#0A0A0A] rounded-none font-mono text-xs">
+                <Badge variant="outline" size="compact" className="font-semibold text-[#0F172A] bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] font-mono text-xs">
                   {task.phase ? task.phase.replace('_', ' ') : ''}
                 </Badge>
                 <Badge
                   variant={task.status === 'Completed' ? 'success' : 'secondary'}
                   size="compact"
-                  className="rounded-none font-mono text-xs"
+                  className="rounded-[6px] font-mono text-xs"
                   data-testid="task-status-badge"
                 >
                   {task.status}
@@ -753,21 +753,21 @@ export function TaskDetailModal({
                   <Badge
                     variant={task.qaStatus === 'passed' ? 'success' : 'destructive'}
                     size="compact"
-                    className="rounded-none font-mono text-xs"
+                    className="rounded-[6px] font-mono text-xs"
                   >
                     QA: {task.qaStatus}
                   </Badge>
                 )}
               </div>
               <DialogTitle
-                className="text-lg font-bold text-[#0A0A0A] leading-tight"
+                className="text-lg font-bold text-[#0F172A] leading-tight"
                 data-testid="task-title"
               >
                 {task.title}
               </DialogTitle>
               {workRequest && (
-                <p className="text-xs text-[#4A4945] font-mono">
-                  Work Request: <span className="font-semibold text-[#0A0A0A]">{workRequest.title}</span>
+                <p className="text-xs text-[#475569] font-mono">
+                  Work Request: <span className="font-semibold text-[#0F172A]">{workRequest.title}</span>
                 </p>
               )}
             </div>
@@ -782,7 +782,7 @@ export function TaskDetailModal({
                     disabled={isPhaseBlocked}
                     title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
                     onClick={() => handleSetTaskStatus('In Progress')}
-                    className="text-xs gap-1.5 rounded-none border-[#0A0A0A] hover:bg-[#FAF9F5] font-mono"
+                    className="text-xs gap-1.5 rounded-[8px] border-[#CBD5E1] hover:bg-[#FFFFFF] font-mono"
                     data-testid="task-status-inprogress-btn"
                   >
                     <Clock className="h-3.5 w-3.5" />
@@ -797,7 +797,7 @@ export function TaskDetailModal({
                     disabled={isPhaseBlocked}
                     title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
                     onClick={() => handleSetTaskStatus('In Progress')}
-                    className="text-xs shrink-0 gap-1.5 rounded-none border-[#0A0A0A] hover:bg-[#FAF9F5] font-mono"
+                    className="text-xs shrink-0 gap-1.5 rounded-[8px] border-[#CBD5E1] hover:bg-[#FFFFFF] font-mono"
                     data-testid="task-toggle-status-btn"
                   >
                     <CheckCircle2 className="h-3.5 w-3.5" />
@@ -817,7 +817,7 @@ export function TaskDetailModal({
                         : undefined
                     }
                     onClick={() => handleSetTaskStatus('Completed')}
-                    className="text-xs shrink-0 gap-1.5 rounded-none bg-[#0A0A0A] text-[#FAF9F5] hover:bg-[#262626] font-mono"
+                    className="text-xs shrink-0 gap-1.5 rounded-[6px] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs font-mono"
                     data-testid="task-toggle-status-btn"
                   >
                     <CheckCircle2 className="h-3.5 w-3.5" />
@@ -829,42 +829,42 @@ export function TaskDetailModal({
           </DialogHeader>
 
           {/* Modal Body: Scrollable */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#FAF9F5]">
+          <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#FFFFFF]">
             {isCompletedWr && (
               <div
-                className="bg-[#EAE8E3] border border-[#0A0A0A] text-[#0A0A0A] text-xs px-3 py-2 rounded-none flex items-center gap-2 font-mono"
+                className="bg-[#F1F5F9] border-[#CBD5E1] text-[#0F172A] text-xs px-3 py-2 rounded-[6px] flex items-center gap-2 font-mono"
                 data-testid="completed-wr-lock-banner"
               >
-                <Lock className="h-3.5 w-3.5 text-[#0A0A0A] shrink-0" />
+                <Lock className="h-3.5 w-3.5 text-[#0F172A] shrink-0" />
                 <span>Completed Work Request: Task records and attachments are finalized and locked.</span>
               </div>
             )}
 
             {/* 1. Meta Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(11rem,1.2fr)] lg:grid-cols-[minmax(0,1fr)_minmax(11rem,1.2fr)_minmax(0,1.2fr)_minmax(0,1fr)] gap-3.5 p-3.5 bg-[#EAE8E3] border border-[#0A0A0A] rounded-none text-xs font-mono">
+            <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(11rem,1.2fr)] lg:grid-cols-[minmax(0,1fr)_minmax(11rem,1.2fr)_minmax(0,1.2fr)_minmax(0,1fr)] gap-3.5 p-3.5 bg-[#F1F5F9] border-[#CBD5E1] rounded-[6px] text-xs font-mono">
               <div className="min-w-0">
-                <span className="text-xs uppercase font-bold text-[#4A4945] block mb-0.5">
+                <span className="text-xs uppercase font-bold text-[#475569] block mb-0.5">
                   Primary Assignee
                 </span>
                 <div
-                  className="flex items-center gap-1.5 font-medium text-[#0A0A0A] truncate min-w-0"
+                  className="flex items-center gap-1.5 font-medium text-[#0F172A] truncate min-w-0"
                   data-testid="task-assignee"
                 >
-                  <User className="h-3.5 w-3.5 text-[#4A4945] shrink-0" />
+                  <User className="h-3.5 w-3.5 text-[#475569] shrink-0" />
                   <span className="truncate">{task.assigneeName || 'Unassigned'}</span>
                 </div>
                 {assignedTeamMembers.length > 1 && (
-                  <span className="text-xs text-[#4A4945] font-medium mt-0.5 block truncate">
+                  <span className="text-xs text-[#475569] font-medium mt-0.5 block truncate">
                     +{assignedTeamMembers.length - 1} co-assignee{assignedTeamMembers.length > 2 ? 's' : ''}
                   </span>
                 )}
               </div>
 
               <div className="min-w-0">
-                <span className="text-xs uppercase font-bold text-[#4A4945] block mb-0.5">
+                <span className="text-xs uppercase font-bold text-[#475569] block mb-0.5">
                   Due Date
                 </span>
-                <div className="flex items-center gap-1.5 font-medium text-[#0A0A0A] min-w-0 truncate">
+                <div className="flex items-center gap-1.5 font-medium text-[#0F172A] min-w-0 truncate">
                   {canEdit ? (
                     <div className="w-full min-w-0">
                       <DateInput
@@ -896,7 +896,7 @@ export function TaskDetailModal({
                               });
                           }
                         }}
-                        className="h-8 w-full text-xs font-mono tabular-nums bg-[#FAF9F5] border border-[#0A0A0A] rounded-none"
+                        className="h-8 w-full text-xs font-mono tabular-nums bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px]"
                         data-testid="task-due-date-input"
                       />
                       {!localDueDate && <span className="sr-only">Not set</span>}
@@ -912,11 +912,11 @@ export function TaskDetailModal({
               </div>
 
               <div className="min-w-0">
-                <span className="text-xs uppercase font-bold text-[#4A4945] block mb-0.5">
+                <span className="text-xs uppercase font-bold text-[#475569] block mb-0.5">
                   Phase Entered
                 </span>
-                <div className="flex items-center gap-1.5 font-medium text-[#0A0A0A] min-w-0 truncate">
-                  <Clock className="h-3.5 w-3.5 text-[#4A4945] shrink-0" />
+                <div className="flex items-center gap-1.5 font-medium text-[#0F172A] min-w-0 truncate">
+                  <Clock className="h-3.5 w-3.5 text-[#475569] shrink-0" />
                   <span className="capitalize truncate">
                     {task.phase?.replace('_', ' ')}
                     {task.phaseEnteredAt ? (
@@ -929,31 +929,31 @@ export function TaskDetailModal({
               </div>
 
               <div className="min-w-0">
-                <span className="text-xs uppercase font-bold text-[#4A4945] block mb-0.5">
+                <span className="text-xs uppercase font-bold text-[#475569] block mb-0.5">
                   Total Logged Time
                 </span>
-                <div className="flex items-center gap-1.5 font-bold text-[#0A0A0A] min-w-0 truncate">
-                  <Clock className="h-3.5 w-3.5 text-[#0A0A0A] shrink-0" />
+                <div className="flex items-center gap-1.5 font-bold text-[#0F172A] min-w-0 truncate">
+                  <Clock className="h-3.5 w-3.5 text-[#0F172A] shrink-0" />
                   <span className="truncate">{formatHours(totalMinutes)}</span>
                 </div>
               </div>
             </div>
 
             {/* 2. Assigned Team & Co-Assignees */}
-            <div className="p-4 bg-[#FAF9F5] border border-[#0A0A0A] rounded-none space-y-3 font-mono" data-testid="assigned-team-section">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#C8C5BC] pb-2.5">
+            <div className="p-4 bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] space-y-3 font-mono" data-testid="assigned-team-section">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#CBD5E1] pb-2.5">
                 <div className="flex items-center gap-2">
-                  <div className="p-1.5 bg-[#EAE8E3] border border-[#0A0A0A] text-[#0A0A0A] rounded-none">
+                  <div className="p-1.5 bg-[#F1F5F9] border-[#CBD5E1] text-[#0F172A] rounded-[6px]">
                     <Users className="h-4 w-4" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-[#0A0A0A] flex items-center gap-1.5">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-[#0F172A] flex items-center gap-1.5">
                       Assigned Team
-                      <span className="text-xs font-bold text-[#FAF9F5] bg-[#0A0A0A] px-1.5 py-0.5 rounded-none font-mono" data-testid="assigned-team-count">
+                      <span className="text-xs font-bold text-[#FFFFFF] bg-[#1D4ED8] px-1.5 py-0.5 rounded-[6px] font-mono" data-testid="assigned-team-count">
                         {assignedTeamMembers.length}
                       </span>
                     </h4>
-                    <p className="text-xs text-[#4A4945]">
+                    <p className="text-xs text-[#475569]">
                       Primary assignee and co-assignees working on this task
                     </p>
                   </div>
@@ -969,12 +969,12 @@ export function TaskDetailModal({
                           onValueChange={(val) => handleSetLeadAssignee(val)}
                         >
                           <SelectTrigger
-                            className="h-7 text-xs bg-[#FAF9F5] hover:bg-[#EAE8E3] border-[#0A0A0A] rounded-none text-[#0A0A0A] font-mono"
+                            className="h-7 text-xs bg-[#FFFFFF] hover:bg-[#F1F5F9] border-[#CBD5E1] rounded-[6px] text-[#0F172A] font-mono"
                             data-testid="reassign-lead-select"
                           >
                             <SelectValue placeholder="Select Primary Assignee..." />
                           </SelectTrigger>
-                          <SelectContent className="rounded-none border border-[#0A0A0A] bg-[#FAF9F5]">
+                          <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]">
                             {scopedTeamList.map((m) => (
                               <SelectItem key={m.id} value={m.id} className="text-xs font-mono">
                                 {m.name} {m.id === task.assigneeId ? '(Primary)' : `(${m.role})`}
@@ -993,12 +993,12 @@ export function TaskDetailModal({
                           onValueChange={(val) => handleAddCoAssignee(val)}
                         >
                           <SelectTrigger
-                            className="h-7 text-xs bg-[#EAE8E3] hover:bg-[#E4E2DC] border-[#0A0A0A] rounded-none text-[#0A0A0A] font-semibold font-mono"
+                            className="h-7 text-xs bg-[#F1F5F9] hover:bg-[#E2E8F0] border-[#CBD5E1] rounded-[6px] text-[#0F172A] font-semibold font-mono"
                             data-testid="assign-employee-select"
                           >
                             <SelectValue placeholder="+ Add Co-Assignee..." />
                           </SelectTrigger>
-                          <SelectContent className="rounded-none border border-[#0A0A0A] bg-[#FAF9F5]">
+                          <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]">
                             {availableTeamMembers.map((m) => (
                               <SelectItem key={m.id} value={m.id} className="text-xs font-mono">
                                 {m.name} ({m.role})
@@ -1011,12 +1011,12 @@ export function TaskDetailModal({
                       <div className="w-40 sm:w-44" data-testid="assign-employee-container">
                         <Select disabled>
                           <SelectTrigger
-                            className="h-7 text-xs bg-[#EAE8E3] border-[#C8C5BC] rounded-none text-[#4A4945] font-mono"
+                            className="h-7 text-xs bg-[#F1F5F9] border-[#CBD5E1] rounded-[6px] text-[#475569] font-mono"
                             data-testid="assign-employee-select"
                           >
                             <SelectValue placeholder="All team assigned" />
                           </SelectTrigger>
-                          <SelectContent className="rounded-none border border-[#0A0A0A] bg-[#FAF9F5]" />
+                          <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]" />
                         </Select>
                       </div>
                     )}
@@ -1026,7 +1026,7 @@ export function TaskDetailModal({
 
               {/* Members Chips / Cards */}
               {assignedTeamMembers.length === 0 ? (
-                <div className="py-3 text-center text-xs text-[#4A4945] italic">
+                <div className="py-3 text-center text-xs text-[#475569] italic">
                   No team members assigned yet. Use the dropdown above to assign a primary or co-assignee.
                 </div>
               ) : (
@@ -1034,34 +1034,34 @@ export function TaskDetailModal({
                   {assignedTeamMembers.map((member) => (
                     <div
                       key={member.id}
-                      className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-none border text-xs font-mono ${
+                      className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-[8px] border text-xs font-mono ${
                         member.isLead
-                          ? 'bg-[#EAE8E3] border-[#0A0A0A] text-[#0A0A0A]'
-                          : 'bg-[#FAF9F5] border-[#0A0A0A] text-[#0A0A0A]'
+                          ? 'bg-[#F1F5F9] border-[#CBD5E1] text-[#0F172A]'
+                          : 'bg-[#FFFFFF] border-[#CBD5E1] text-[#0F172A]'
                       }`}
                       data-testid={`assignee-chip-${member.id}`}
                     >
-                      <User className="h-3.5 w-3.5 text-[#0A0A0A]" />
+                      <User className="h-3.5 w-3.5 text-[#0F172A]" />
                       <div className="flex items-center gap-1.5">
                         <span className="font-semibold text-xs">{member.name}</span>
                         {member.isLead ? (
-                          <Badge size="compact" className="bg-[#0A0A0A] text-[#FAF9F5] font-semibold text-xs rounded-none font-mono">
+                          <Badge size="compact" className="bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs font-semibold text-xs rounded-[6px] font-mono">
                             Primary
                           </Badge>
                         ) : (
-                          <Badge variant="outline" size="compact" className="text-xs rounded-none border-[#0A0A0A] font-mono text-[#4A4945]">
+                          <Badge variant="outline" size="compact" className="text-xs rounded-[8px] border-[#CBD5E1] font-mono text-[#475569]">
                             {member.role === 'Admin' || member.name === 'Lorein Wong' ? 'Admin' : (member.role || 'Co-Assignee')}
                           </Badge>
                         )}
                       </div>
 
                       {canEdit && (
-                        <div className="flex items-center gap-1.5 ml-1 pl-1.5 border-l border-[#C8C5BC]">
+                        <div className="flex items-center gap-1.5 ml-1 pl-1.5 border-l border-[#CBD5E1]">
                           {!member.isLead && (
                             <button
                               type="button"
                               onClick={() => handleSetLeadAssignee(member.id)}
-                              className="text-xs text-[#0A0A0A] hover:underline font-bold px-1 font-mono"
+                              className="text-xs text-[#0F172A] hover:underline font-bold px-1 font-mono"
                               title="Make this member the primary assignee"
                               data-testid={`make-lead-btn-${member.id}`}
                             >
@@ -1071,7 +1071,7 @@ export function TaskDetailModal({
                           <button
                             type="button"
                             onClick={() => handleRemoveAssignee(member.id)}
-                            className="text-[#4A4945] hover:text-[#E61919] p-0.5 rounded-none transition-colors"
+                            className="text-[#475569] hover:text-[#DC2626] p-0.5 rounded-[6px] transition-colors"
                             title={`Remove ${member.name}`}
                             data-testid={`remove-assignee-btn-${member.id}`}
                           >
@@ -1088,7 +1088,7 @@ export function TaskDetailModal({
             {/* 3. Description / Requirements */}
             <div className="space-y-1.5 font-mono">
               <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-[#4A4945]">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[#475569]">
                   Description & Instructions
                 </h4>
                 {!isCompletedWr && canEdit && (
@@ -1097,7 +1097,7 @@ export function TaskDetailModal({
                     variant="ghost"
                     size="xs"
                     onClick={() => setIsEditingDesc(!isEditingDesc)}
-                    className="h-6 px-1.5 text-[#4A4945] hover:text-[#0A0A0A] gap-1 rounded-none font-mono"
+                    className="h-6 px-1.5 text-[#475569] hover:text-[#0F172A] gap-1 rounded-[6px] font-mono"
                     title="Edit Task Description"
                     data-testid="edit-task-description-btn"
                   >
@@ -1112,7 +1112,7 @@ export function TaskDetailModal({
                   <textarea
                     value={descText}
                     onChange={(e) => setDescText(e.target.value)}
-                    className="w-full p-2.5 border border-[#0A0A0A] bg-[#FAF9F5] rounded-none text-xs text-[#0A0A0A] placeholder:text-[#4A4945] focus:outline-none focus:ring-1 focus:ring-[#0A0A0A] min-h-[80px] font-mono"
+                    className="w-full p-2.5 border-[#CBD5E1] bg-[#FFFFFF] rounded-[6px] text-xs text-[#0F172A] placeholder:text-[#475569] focus:outline-none focus:ring-1 focus:ring-[#1D4ED8] min-h-[80px] font-mono"
                     placeholder="Enter task description or instructions..."
                     data-testid="task-description-textarea"
                   />
@@ -1125,7 +1125,7 @@ export function TaskDetailModal({
                         setDescText(task.description || '');
                         setIsEditingDesc(false);
                       }}
-                      className="h-7 text-xs rounded-none border border-[#0A0A0A] font-mono"
+                      className="h-7 text-xs rounded-[8px] border-[#CBD5E1] font-mono"
                       data-testid="cancel-edit-description-btn"
                     >
                       Cancel
@@ -1136,7 +1136,7 @@ export function TaskDetailModal({
                       size="xs"
                       onClick={handleSaveDescription}
                       disabled={isSavingDesc}
-                      className="h-7 text-xs rounded-none bg-[#0A0A0A] text-[#FAF9F5] hover:bg-[#262626] font-mono"
+                      className="h-7 text-xs rounded-[6px] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs font-mono"
                       data-testid="save-description-btn"
                     >
                       {isSavingDesc ? 'Saving...' : 'Save Changes'}
@@ -1145,11 +1145,11 @@ export function TaskDetailModal({
                 </div>
               ) : (
                 <div
-                  className="p-3.5 bg-[#FAF9F5] border border-[#0A0A0A] rounded-none text-xs text-[#0A0A0A] whitespace-pre-wrap leading-relaxed min-h-[60px] font-mono"
+                  className="p-3.5 bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] text-xs text-[#0F172A] whitespace-pre-wrap leading-relaxed min-h-[60px] font-mono"
                   data-testid="task-description"
                 >
                   {task.description || (
-                    <span className="text-[#4A4945] italic">No description provided for this task.</span>
+                    <span className="text-[#475569] italic">No description provided for this task.</span>
                   )}
                 </div>
               )}
@@ -1157,7 +1157,7 @@ export function TaskDetailModal({
 
             {/* 3. Checklist Items */}
             <div className="space-y-2 font-mono">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-[#4A4945] flex items-center justify-between">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-[#475569] flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
                   <CheckSquare className="h-3.5 w-3.5" />
                   Checklist ({task.checklist?.filter((c) => c.completed).length || 0}/{task.checklist?.length || 0})
@@ -1165,7 +1165,7 @@ export function TaskDetailModal({
               </h4>
 
               {task.checklist && task.checklist.length > 0 ? (
-                <div className="p-2 border border-[#0A0A0A] rounded-none divide-y divide-[#C8C5BC] bg-[#FAF9F5]">
+                <div className="p-2 border-[#CBD5E1] rounded-[6px] divide-y divide-[#CBD5E1] bg-[#FFFFFF]">
                   {task.checklist.map((item) => (
                     <div key={item.id} className="py-2 px-2 flex items-center justify-between text-xs font-mono">
                       <label className="flex items-center gap-2 cursor-pointer flex-1">
@@ -1174,20 +1174,20 @@ export function TaskDetailModal({
                           checked={item.completed}
                           onChange={() => handleToggleChecklist(item.id, !item.completed)}
                           disabled={!canEdit}
-                          className="rounded-none accent-[#0A0A0A] text-[#0A0A0A] cursor-pointer"
+                          className="rounded-[6px] accent-[#1D4ED8] text-[#0F172A] cursor-pointer"
                         />
-                        <span className={item.completed ? 'line-through text-[#4A4945]' : 'text-[#0A0A0A] font-medium'}>
+                        <span className={item.completed ? 'line-through text-[#475569]' : 'text-[#0F172A] font-medium'}>
                           {item.text}
                         </span>
                       </label>
                       {item.assigneeName && (
-                        <span className="text-xs text-[#4A4945] font-mono">{item.assigneeName}</span>
+                        <span className="text-xs text-[#475569] font-mono">{item.assigneeName}</span>
                       )}
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="p-3 text-center text-xs text-[#4A4945] bg-[#EAE8E3] rounded-none border border-[#0A0A0A] italic font-mono">
+                <div className="p-3 text-center text-xs text-[#475569] bg-[#F1F5F9] rounded-[8px] border-[#CBD5E1] italic font-mono">
                   No checklist items yet.
                 </div>
               )}
@@ -1204,14 +1204,14 @@ export function TaskDetailModal({
                         handleAddChecklistItem();
                       }
                     }}
-                    className="h-8 text-xs bg-[#FAF9F5] border border-[#0A0A0A] rounded-none font-mono"
+                    className="h-8 text-xs bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] font-mono"
                   />
                   <Button
                     type="button"
                     size="xs"
                     onClick={handleAddChecklistItem}
                     disabled={!newChecklistText.trim()}
-                    className="h-8 text-xs gap-1 rounded-none bg-[#0A0A0A] text-[#FAF9F5] hover:bg-[#262626] font-mono"
+                    className="h-8 text-xs gap-1 rounded-[6px] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs font-mono"
                   >
                     <Plus className="h-3.5 w-3.5" /> Add
                   </Button>
@@ -1222,7 +1222,7 @@ export function TaskDetailModal({
             {/* 4. Predecessors */}
             {task.predecessors && task.predecessors.length > 0 && (
               <div className="space-y-1.5 font-mono">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-[#4A4945] flex items-center gap-1.5">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[#475569] flex items-center gap-1.5">
                   <Layers className="h-3.5 w-3.5" />
                   Predecessors
                 </h4>
@@ -1235,10 +1235,10 @@ export function TaskDetailModal({
                     const status = detail?.status || predTask?.status;
 
                     return (
-                      <Badge key={pId} variant="outline" size="compact" className="text-xs rounded-none border-[#0A0A0A] font-mono gap-1">
+                      <Badge key={pId} variant="outline" size="compact" className="text-xs rounded-[8px] border-[#CBD5E1] font-mono gap-1">
                         <span className="font-semibold">{title}</span>
                         {status && (
-                          <span className="text-xs text-[#4A4945]">({status})</span>
+                          <span className="text-xs text-[#475569]">({status})</span>
                         )}
                       </Badge>
                     );
@@ -1250,7 +1250,7 @@ export function TaskDetailModal({
             {/* 5. Linked Documents Section */}
             <div className="space-y-2.5 font-mono" data-testid="task-documents-section">
               <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-[#4A4945] flex items-center gap-1.5">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[#475569] flex items-center gap-1.5">
                   <FileText className="h-3.5 w-3.5" />
                   Linked Documents ({linkedDocs.length})
                 </h4>
@@ -1260,7 +1260,7 @@ export function TaskDetailModal({
                     variant="outline"
                     size="xs"
                     onClick={() => setIsUploadDocModalOpen(true)}
-                    className="text-xs gap-1 rounded-none border-[#0A0A0A] hover:bg-[#EAE8E3]"
+                    className="text-xs gap-1 rounded-[8px] border-[#CBD5E1] hover:bg-[#F1F5F9]"
                     data-testid="task-upload-doc-btn"
                   >
                     <Upload className="h-3 w-3" /> Upload Document
@@ -1269,11 +1269,11 @@ export function TaskDetailModal({
               </div>
 
               {isLoadingDocs ? (
-                <div className="p-4 text-center text-xs text-[#4A4945] bg-[#EAE8E3] rounded-none border border-[#0A0A0A]">
+                <div className="p-4 text-center text-xs text-[#475569] bg-[#F1F5F9] rounded-[8px] border-[#CBD5E1]">
                   Loading linked documents...
                 </div>
               ) : linkedDocs.length === 0 ? (
-                <div className="p-4 text-center text-xs text-[#4A4945] bg-[#EAE8E3] rounded-none border border-[#0A0A0A] italic">
+                <div className="p-4 text-center text-xs text-[#475569] bg-[#F1F5F9] rounded-[8px] border-[#CBD5E1] italic">
                   No documents linked to this task.
                 </div>
               ) : (
@@ -1284,16 +1284,16 @@ export function TaskDetailModal({
                       <div
                         key={doc.id}
                         onClick={() => setSelectedDoc(doc)}
-                        className="p-2.5 bg-[#FAF9F5] border border-[#0A0A0A] hover:bg-[#EAE8E3] rounded-none flex items-center justify-between gap-2 cursor-pointer transition-colors"
+                        className="p-2.5 bg-[#FFFFFF] border-[#CBD5E1] hover:bg-[#F1F5F9] rounded-[6px] flex items-center justify-between gap-2 cursor-pointer transition-colors"
                         data-testid={`linked-doc-item-${doc.id}`}
                       >
                         <div className="flex items-center gap-2 truncate">
-                          <FileQuestion className="h-4 w-4 text-[#0A0A0A] shrink-0" />
+                          <FileQuestion className="h-4 w-4 text-[#0F172A] shrink-0" />
                           <div className="truncate">
-                            <span className="text-xs font-bold text-[#0A0A0A] block truncate">
+                            <span className="text-xs font-bold text-[#0F172A] block truncate">
                               {docName}
                             </span>
-                            <span className="text-xs text-[#4A4945] block">
+                            <span className="text-xs text-[#475569] block">
                               {doc.category || 'General'}
                             </span>
                           </div>
@@ -1302,7 +1302,7 @@ export function TaskDetailModal({
                           type="button"
                           variant="ghost"
                           size="icon-xs"
-                          className="shrink-0 text-[#4A4945] hover:text-[#0A0A0A] rounded-none"
+                          className="shrink-0 text-[#475569] hover:text-[#0F172A] rounded-[6px]"
                         >
                           <Eye className="h-3.5 w-3.5" />
                         </Button>
@@ -1315,10 +1315,10 @@ export function TaskDetailModal({
 
             {/* Linked Records Section (UAT2-7) */}
             <div className="space-y-2.5 font-mono" data-testid="task-linked-records-section">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#0A0A0A] pb-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#CBD5E1] pb-2">
                 <div className="flex items-center gap-2">
-                  <LinkIcon className="h-4 w-4 text-[#0A0A0A]" />
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#0A0A0A]">
+                  <LinkIcon className="h-4 w-4 text-[#0F172A]" />
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#0F172A]">
                     Linked Records ({invoices.length + disbursements.length + transmittals.length})
                   </h4>
                 </div>
@@ -1330,7 +1330,7 @@ export function TaskDetailModal({
                       variant="outline"
                       size="xs"
                       onClick={() => setIsInvoiceModalOpen(true)}
-                      className="text-xs gap-1 rounded-none border border-[#0A0A0A] hover:bg-[#EAE8E3]"
+                      className="text-xs gap-1 rounded-[8px] border-[#CBD5E1] hover:bg-[#F1F5F9]"
                       data-testid="link-invoice-btn"
                     >
                       <Receipt className="h-3 w-3" /> + Invoice
@@ -1343,7 +1343,7 @@ export function TaskDetailModal({
                       size="xs"
                       onClick={handleRequestInvoice}
                       disabled={hasPendingInvoiceReq}
-                      className="text-xs gap-1 rounded-none border border-[#0A0A0A] bg-[#EAE8E3] hover:bg-[#E4E2DC] text-[#0A0A0A]"
+                      className="text-xs gap-1 rounded-[8px] border-[#CBD5E1] bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#0F172A]"
                       data-testid="request-invoice-btn"
                     >
                       <Receipt className="h-3 w-3" />
@@ -1356,7 +1356,7 @@ export function TaskDetailModal({
                       variant="outline"
                       size="xs"
                       onClick={() => setIsDisbursementModalOpen(true)}
-                      className="text-xs gap-1 rounded-none border border-[#0A0A0A] hover:bg-[#EAE8E3]"
+                      className="text-xs gap-1 rounded-[8px] border-[#CBD5E1] hover:bg-[#F1F5F9]"
                       data-testid="link-disbursement-btn"
                     >
                       <CreditCard className="h-3 w-3" /> + Disbursement
@@ -1368,7 +1368,7 @@ export function TaskDetailModal({
                       variant="outline"
                       size="xs"
                       onClick={() => setIsTransmittalModalOpen(true)}
-                      className="text-xs gap-1 rounded-none border border-[#0A0A0A] hover:bg-[#EAE8E3]"
+                      className="text-xs gap-1 rounded-[8px] border-[#CBD5E1] hover:bg-[#F1F5F9]"
                       data-testid="link-transmittal-btn"
                     >
                       <Send className="h-3 w-3" /> + Transmittal
@@ -1381,7 +1381,7 @@ export function TaskDetailModal({
                       size="xs"
                       onClick={handleRequestTransmittal}
                       disabled={hasPendingTransmittalReq}
-                      className="text-xs gap-1 rounded-none border border-[#0A0A0A] bg-[#EAE8E3] hover:bg-[#E4E2DC] text-[#0A0A0A]"
+                      className="text-xs gap-1 rounded-[8px] border-[#CBD5E1] bg-[#F1F5F9] hover:bg-[#E2E8F0] text-[#0F172A]"
                       data-testid="request-transmittal-btn"
                     >
                       <Send className="h-3 w-3" />
@@ -1392,7 +1392,7 @@ export function TaskDetailModal({
               </div>
 
               {invoices.length === 0 && disbursements.length === 0 && transmittals.length === 0 ? (
-                <div className="p-3 text-center text-xs text-[#4A4945] bg-[#EAE8E3] rounded-none border border-[#0A0A0A] italic">
+                <div className="p-3 text-center text-xs text-[#475569] bg-[#F1F5F9] rounded-[8px] border-[#CBD5E1] italic">
                   No billing invoices, disbursements, or transmittals linked to this task.
                 </div>
               ) : (
@@ -1400,7 +1400,7 @@ export function TaskDetailModal({
                   {/* Invoices */}
                   {invoices.length > 0 && (
                     <div className="space-y-1.5">
-                      <span className="text-xs font-bold uppercase tracking-wider text-[#4A4945] block">
+                      <span className="text-xs font-bold uppercase tracking-wider text-[#475569] block">
                         Invoices ({invoices.length})
                       </span>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1408,27 +1408,27 @@ export function TaskDetailModal({
                           <a
                             key={inv.id}
                             href={`/billing?invoiceId=${inv.id}`}
-                            className="p-2.5 bg-[#FAF9F5] border border-[#0A0A0A] hover:bg-[#EAE8E3] rounded-none flex items-center justify-between gap-2 text-xs transition-colors"
+                            className="p-2.5 bg-[#FFFFFF] border-[#CBD5E1] hover:bg-[#F1F5F9] rounded-[6px] flex items-center justify-between gap-2 text-xs transition-colors"
                             data-testid={`linked-invoice-${inv.id}`}
                           >
                             <div className="flex items-center gap-2 truncate">
-                              <Receipt className="h-3.5 w-3.5 text-[#0A0A0A] shrink-0" />
+                              <Receipt className="h-3.5 w-3.5 text-[#0F172A] shrink-0" />
                               <div className="truncate">
-                                <span className="font-bold text-[#0A0A0A] block truncate">
+                                <span className="font-bold text-[#0F172A] block truncate">
                                   {inv.invoice_number || inv.invoiceNumber || 'Invoice'}
                                 </span>
-                                <span className="text-xs text-[#4A4945] block">
+                                <span className="text-xs text-[#475569] block">
                                   {inv.clients?.name || 'Client'}
                                 </span>
                               </div>
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
                               {inv.amount != null && (
-                                <span className="font-mono text-xs font-bold text-[#0A0A0A]">
+                                <span className="font-mono text-xs font-bold text-[#0F172A]">
                                   ₱{Number(inv.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                                 </span>
                               )}
-                              <ExternalLink className="h-3 w-3 text-[#4A4945]" />
+                              <ExternalLink className="h-3 w-3 text-[#475569]" />
                             </div>
                           </a>
                         ))}
@@ -1439,7 +1439,7 @@ export function TaskDetailModal({
                   {/* Disbursements */}
                   {disbursements.length > 0 && (
                     <div className="space-y-1.5">
-                      <span className="text-xs font-bold uppercase tracking-wider text-[#4A4945] block">
+                      <span className="text-xs font-bold uppercase tracking-wider text-[#475569] block">
                         Disbursements ({disbursements.length})
                       </span>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1447,27 +1447,27 @@ export function TaskDetailModal({
                           <a
                             key={d.id}
                             href={`/disbursements?id=${d.id}`}
-                            className="p-2.5 bg-[#FAF9F5] border border-[#0A0A0A] hover:bg-[#EAE8E3] rounded-none flex items-center justify-between gap-2 text-xs transition-colors"
+                            className="p-2.5 bg-[#FFFFFF] border-[#CBD5E1] hover:bg-[#F1F5F9] rounded-[6px] flex items-center justify-between gap-2 text-xs transition-colors"
                             data-testid={`linked-disbursement-${d.id}`}
                           >
                             <div className="flex items-center gap-2 truncate">
-                              <CreditCard className="h-3.5 w-3.5 text-[#0A0A0A] shrink-0" />
+                              <CreditCard className="h-3.5 w-3.5 text-[#0F172A] shrink-0" />
                               <div className="truncate">
-                                <span className="font-bold text-[#0A0A0A] block truncate">
+                                <span className="font-bold text-[#0F172A] block truncate">
                                   {d.category || 'Disbursement'}
                                 </span>
-                                <span className="text-xs text-[#4A4945] block truncate">
+                                <span className="text-xs text-[#475569] block truncate">
                                   {d.description || 'No description'}
                                 </span>
                               </div>
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
                               {d.amount != null && (
-                                <span className="font-mono text-xs font-bold text-[#0A0A0A]">
+                                <span className="font-mono text-xs font-bold text-[#0F172A]">
                                   ₱{Number(d.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                                 </span>
                               )}
-                              <ExternalLink className="h-3 w-3 text-[#4A4945]" />
+                              <ExternalLink className="h-3 w-3 text-[#475569]" />
                             </div>
                           </a>
                         ))}
@@ -1478,7 +1478,7 @@ export function TaskDetailModal({
                   {/* Transmittals */}
                   {transmittals.length > 0 && (
                     <div className="space-y-1.5">
-                      <span className="text-xs font-bold uppercase tracking-wider text-[#4A4945] block">
+                      <span className="text-xs font-bold uppercase tracking-wider text-[#475569] block">
                         Transmittals ({transmittals.length})
                       </span>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1486,27 +1486,27 @@ export function TaskDetailModal({
                           <a
                             key={t.id}
                             href={`/transmittals?id=${t.id}`}
-                            className="p-2.5 bg-[#FAF9F5] border border-[#0A0A0A] hover:bg-[#EAE8E3] rounded-none flex items-center justify-between gap-2 text-xs transition-colors"
+                            className="p-2.5 bg-[#FFFFFF] border-[#CBD5E1] hover:bg-[#F1F5F9] rounded-[6px] flex items-center justify-between gap-2 text-xs transition-colors"
                             data-testid={`linked-transmittal-${t.id}`}
                           >
                             <div className="flex items-center gap-2 truncate">
-                              <Send className="h-3.5 w-3.5 text-[#0A0A0A] shrink-0" />
+                              <Send className="h-3.5 w-3.5 text-[#0F172A] shrink-0" />
                               <div className="truncate">
-                                <span className="font-bold text-[#0A0A0A] block truncate">
+                                <span className="font-bold text-[#0F172A] block truncate">
                                   {t.tracking_number || t.trackingNumber || 'Transmittal'}
                                 </span>
-                                <span className="text-xs text-[#4A4945] block truncate">
+                                <span className="text-xs text-[#475569] block truncate">
                                   {t.recipient_name || t.recipientName || 'Recipient'}
                                 </span>
                               </div>
                             </div>
                             <div className="flex items-center gap-1.5 shrink-0">
                               {t.status && (
-                                <Badge variant="outline" size="compact" className="text-xs rounded-none border-[#0A0A0A] font-mono">
+                                <Badge variant="outline" size="compact" className="text-xs rounded-[8px] border-[#CBD5E1] font-mono">
                                   {t.status}
                                 </Badge>
                               )}
-                              <ExternalLink className="h-3 w-3 text-[#4A4945]" />
+                              <ExternalLink className="h-3 w-3 text-[#475569]" />
                             </div>
                           </a>
                         ))}
@@ -1519,10 +1519,10 @@ export function TaskDetailModal({
 
             {/* 6. Time Logged Summary & Quick Log Entry */}
             <div className="space-y-3 font-mono" data-testid="task-time-logged-section">
-              <div className="flex items-center justify-between border-b border-[#0A0A0A] pb-2">
+              <div className="flex items-center justify-between border-b border-[#CBD5E1] pb-2">
                 <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-[#0A0A0A]" />
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#0A0A0A]">
+                  <Clock className="h-4 w-4 text-[#0F172A]" />
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#0F172A]">
                     Time Logged ({formatHours(totalMinutes)})
                   </h4>
                 </div>
@@ -1533,7 +1533,7 @@ export function TaskDetailModal({
                     variant="outline"
                     size="xs"
                     onClick={() => setShowLogForm(true)}
-                    className="text-xs gap-1 rounded-none border border-[#0A0A0A] hover:bg-[#EAE8E3]"
+                    className="text-xs gap-1 rounded-[8px] border-[#CBD5E1] hover:bg-[#F1F5F9]"
                     data-testid="open-log-time-btn"
                   >
                     <Plus className="h-3 w-3" /> Log Time
@@ -1545,22 +1545,22 @@ export function TaskDetailModal({
               {canLogTime && showLogForm && (
                 <form
                   onSubmit={handleLogTimeSubmit}
-                  className="p-4 bg-[#EAE8E3] border border-[#0A0A0A] rounded-none space-y-3 text-xs"
+                  className="p-4 bg-[#F1F5F9] border-[#CBD5E1] rounded-[6px] space-y-3 text-xs"
                   data-testid="log-time-form"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-[#0A0A0A] uppercase tracking-wider">Record Time Spent</span>
+                    <span className="font-bold text-[#0F172A] uppercase tracking-wider">Record Time Spent</span>
                     <button
                       type="button"
                       onClick={() => setShowLogForm(false)}
-                      className="text-[#4A4945] hover:text-[#0A0A0A] text-xs underline"
+                      className="text-[#475569] hover:text-[#0F172A] text-xs underline"
                     >
                       Cancel
                     </button>
                   </div>
 
                   {logError && (
-                    <div className="p-2 bg-[#FAF9F5] border-2 border-[#E61919] text-[#E61919] text-xs flex items-center gap-1.5 font-bold">
+                    <div className="p-2 bg-[#FFFFFF] border-2 border-[#FCA5A5] text-[#DC2626] text-xs flex items-center gap-1.5 font-bold">
                       <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                       <span>{logError}</span>
                     </div>
@@ -1568,7 +1568,7 @@ export function TaskDetailModal({
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs font-bold uppercase text-[#4A4945] block mb-1">
+                      <label className="text-xs font-bold uppercase text-[#475569] block mb-1">
                         Date
                       </label>
                       <DateInput
@@ -1577,14 +1577,14 @@ export function TaskDetailModal({
                         max={workDate()}
                         value={logDate}
                         onValueChange={(value) => setLogDate(value)}
-                        className="h-8 text-xs bg-[#FAF9F5] border border-[#0A0A0A] rounded-none font-mono"
+                        className="h-8 text-xs bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] font-mono"
                         required
                         data-testid="log-time-date-input"
                       />
                     </div>
 
                     <div>
-                      <label className="text-xs font-bold uppercase text-[#4A4945] block mb-1">
+                      <label className="text-xs font-bold uppercase text-[#475569] block mb-1">
                         Duration (Minutes)
                       </label>
                       <div className="flex items-center gap-1.5">
@@ -1594,7 +1594,7 @@ export function TaskDetailModal({
                           step={5}
                           value={logMinutes}
                           onChange={(e) => setLogMinutes(Number(e.target.value))}
-                          className="h-8 text-xs bg-[#FAF9F5] border border-[#0A0A0A] rounded-none w-24 font-mono"
+                          className="h-8 text-xs bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] w-24 font-mono"
                           required
                           data-testid="log-time-minutes-input"
                         />
@@ -1604,10 +1604,10 @@ export function TaskDetailModal({
                               key={preset}
                               type="button"
                               onClick={() => setLogMinutes(preset)}
-                              className={`px-2 py-0.5 rounded-none text-xs font-mono border transition-colors ${
+                              className={`px-2 py-0.5 rounded-[6px] text-xs font-mono border transition-colors ${
                                 logMinutes === preset
-                                  ? 'bg-[#0A0A0A] text-[#FAF9F5] border-[#0A0A0A] font-bold'
-                                  : 'bg-[#FAF9F5] text-[#0A0A0A] border-[#0A0A0A] hover:bg-[#E4E2DC]'
+                                  ? 'bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs border-[#CBD5E1] font-bold'
+                                  : 'bg-[#FFFFFF] text-[#0F172A] border-[#CBD5E1] hover:bg-[#E2E8F0]'
                               }`}
                             >
                               {preset}m
@@ -1619,7 +1619,7 @@ export function TaskDetailModal({
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold uppercase text-[#4A4945] block mb-1">
+                    <label className="text-xs font-bold uppercase text-[#475569] block mb-1">
                       Work Note / Activity Description
                     </label>
                     <Input
@@ -1627,7 +1627,7 @@ export function TaskDetailModal({
                       placeholder="e.g., Reviewed and indexed source document"
                       value={logNote}
                       onChange={(e) => setLogNote(e.target.value)}
-                      className="h-8 text-xs bg-[#FAF9F5] border border-[#0A0A0A] rounded-none font-mono"
+                      className="h-8 text-xs bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] font-mono"
                       data-testid="log-time-note-input"
                     />
                   </div>
@@ -1638,7 +1638,7 @@ export function TaskDetailModal({
                       variant="ghost"
                       size="xs"
                       onClick={() => setShowLogForm(false)}
-                      className="text-xs rounded-none border border-[#0A0A0A] font-mono"
+                      className="text-xs rounded-[8px] border-[#CBD5E1] font-mono"
                     >
                       Cancel
                     </Button>
@@ -1646,7 +1646,7 @@ export function TaskDetailModal({
                       type="submit"
                       size="xs"
                       disabled={createTimeEntryMutation.isPending}
-                      className="text-xs font-semibold rounded-none bg-[#0A0A0A] text-[#FAF9F5] hover:bg-[#262626] font-mono"
+                      className="text-xs font-semibold rounded-[6px] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs font-mono"
                       data-testid="log-time-submit-btn"
                     >
                       {createTimeEntryMutation.isPending ? 'Saving...' : 'Save Time Entry'}
@@ -1657,36 +1657,36 @@ export function TaskDetailModal({
 
               {/* Time Entries List */}
               {isLoadingTime ? (
-                <div className="p-3 text-center text-xs text-[#4A4945] bg-[#EAE8E3] rounded-none border border-[#0A0A0A]">
+                <div className="p-3 text-center text-xs text-[#475569] bg-[#F1F5F9] rounded-[8px] border-[#CBD5E1]">
                   Loading time entries...
                 </div>
               ) : timeEntries.length === 0 ? (
-                <div className="p-3 text-center text-xs text-[#4A4945] bg-[#EAE8E3] rounded-none border border-[#0A0A0A] italic">
+                <div className="p-3 text-center text-xs text-[#475569] bg-[#F1F5F9] rounded-[8px] border-[#CBD5E1] italic">
                   No time recorded on this task yet. Click &quot;Log Time&quot; to add duration.
                 </div>
               ) : (
-                <div className="border border-[#0A0A0A] rounded-none overflow-hidden bg-[#FAF9F5]">
-                  <div className="divide-y divide-[#C8C5BC] max-h-48 overflow-y-auto">
+                <div className="border-[#CBD5E1] rounded-[6px] overflow-hidden bg-[#FFFFFF]">
+                  <div className="divide-y divide-[#CBD5E1] max-h-48 overflow-y-auto">
                     {timeEntries.map((entry) => (
                       <div
                         key={entry.id}
-                        className="p-2.5 flex items-center justify-between text-xs hover:bg-[#EAE8E3] transition-colors"
+                        className="p-2.5 flex items-center justify-between text-xs hover:bg-[#F1F5F9] transition-colors"
                         data-testid={`time-entry-item-${entry.id}`}
                       >
                         <div className="space-y-0.5">
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-[#0A0A0A]">
+                            <span className="font-bold text-[#0F172A]">
                               {formatHours(entry.durationMinutes)}
                             </span>
-                            <span className="text-xs text-[#4A4945]">
+                            <span className="text-xs text-[#475569]">
                               {entry.entryDate}
                             </span>
                           </div>
                           {entry.note && (
-                            <p className="text-xs text-[#4A4945] line-clamp-1">{entry.note}</p>
+                            <p className="text-xs text-[#475569] line-clamp-1">{entry.note}</p>
                           )}
                         </div>
-                        <Badge variant="outline" size="compact" className="text-xs rounded-none border-[#0A0A0A] font-mono">
+                        <Badge variant="outline" size="compact" className="text-xs rounded-[8px] border-[#CBD5E1] font-mono">
                           {entry.durationMinutes} min
                         </Badge>
                       </div>
@@ -1698,8 +1698,8 @@ export function TaskDetailModal({
           </div>
 
           {/* Footer */}
-          <DialogFooter className="px-6 py-3 border-t-2 border-[#0A0A0A] bg-[#EAE8E3] flex items-center justify-between font-mono">
-            <span className="text-xs text-[#4A4945]">
+          <DialogFooter className="px-6 py-3 border-t border-[#CBD5E1] bg-[#F1F5F9] flex items-center justify-between font-mono">
+            <span className="text-xs text-[#475569]">
               Task ID: {task.id}
             </span>
             <Button
@@ -1707,7 +1707,7 @@ export function TaskDetailModal({
               variant="outline"
               size="sm"
               onClick={onClose}
-              className="text-xs rounded-none border border-[#0A0A0A] bg-[#FAF9F5] hover:bg-[#E4E2DC] text-[#0A0A0A]"
+              className="text-xs rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] hover:bg-[#E2E8F0] text-[#0F172A]"
               data-testid="task-close-btn"
             >
               Close

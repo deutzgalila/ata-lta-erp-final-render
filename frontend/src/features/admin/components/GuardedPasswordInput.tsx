@@ -37,7 +37,7 @@ export function GuardedPasswordInput({
   // Strength tier: 0 = none, 1 = weak (1-2), 2 = fair (3), 3 = good (4), 4 = strong (5)
   let strengthTier = 0;
   let strengthLabel = 'None';
-  let strengthColorClass = 'bg-[#C8C5BC]';
+  let strengthColorClass = 'bg-[#CBD5E1]';
 
   if (value.length > 0) {
     if (passedCriteriaCount <= 2) {
@@ -51,7 +51,7 @@ export function GuardedPasswordInput({
     } else if (passedCriteriaCount === 4) {
       strengthTier = 3;
       strengthLabel = 'Good';
-      strengthColorClass = 'bg-[#EAE8E3]0';
+      strengthColorClass = 'bg-[#F1F5F9]0';
     } else if (passedCriteriaCount === 5) {
       strengthTier = 4;
       strengthLabel = 'Strong';
@@ -99,7 +99,7 @@ export function GuardedPasswordInput({
             type="button"
             onClick={() => setShowPassword(!showPassword)}
             disabled={disabled}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#4A4945] hover:text-[#4A4945] focus:outline-hidden disabled:opacity-50"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#475569] hover:text-[#475569] focus:outline-hidden disabled:opacity-50"
             aria-label={showPassword ? 'Hide password' : 'Show password'}
             data-testid="guarded-password-toggle"
           >
@@ -114,10 +114,10 @@ export function GuardedPasswordInput({
             size="sm"
             onClick={handleGenerate}
             disabled={disabled}
-            className="h-9 shrink-0 gap-1 text-xs font-medium text-[#0A0A0A] hover:text-[#0A0A0A] hover:border-[#0A0A0A]"
+            className="h-9 shrink-0 gap-1 text-xs font-medium text-[#0F172A] hover:text-[#0F172A] hover:border-[#CBD5E1]"
             data-testid="guarded-password-generate"
           >
-            <Sparkles className="h-3.5 w-3.5 text-[#0A0A0A]" />
+            <Sparkles className="h-3.5 w-3.5 text-[#0F172A]" />
             Generate
           </Button>
         )}
@@ -125,19 +125,19 @@ export function GuardedPasswordInput({
 
       {/* Strength Meter (4-Tier Segmented Bar) */}
       <div className="space-y-1" data-testid="guarded-password-meter">
-        <div className="flex items-center justify-between text-xs text-[#4A4945]">
+        <div className="flex items-center justify-between text-xs text-[#475569]">
           <span>Password Strength:</span>
           <span
             className={`font-semibold ${
               strengthTier === 4
                 ? 'text-emerald-600'
                 : strengthTier === 3
-                  ? 'text-[#0A0A0A]'
+                  ? 'text-[#0F172A]'
                   : strengthTier === 2
                     ? 'text-amber-600'
                     : strengthTier === 1
                       ? 'text-rose-600'
-                      : 'text-[#4A4945]'
+                      : 'text-[#475569]'
             }`}
             data-testid="guarded-password-strength-label"
           >
@@ -148,8 +148,8 @@ export function GuardedPasswordInput({
           {[1, 2, 3, 4].map((seg) => (
             <div
               key={seg}
-              className={`h-full rounded-none transition-colors ${
-                seg <= strengthTier ? strengthColorClass : 'bg-[#C8C5BC]'
+              className={`h-full rounded-[6px] transition-colors ${
+                seg <= strengthTier ? strengthColorClass : 'bg-[#CBD5E1]'
               }`}
               data-testid={`guarded-password-seg-${seg}`}
             />
@@ -158,8 +158,8 @@ export function GuardedPasswordInput({
       </div>
 
       {/* 5-Criteria Live Checklist */}
-      <div className="rounded-none border border-[#0A0A0A] bg-[#EAE8E3]/70 p-2.5 space-y-1 text-xs">
-        <p className="font-medium text-[#0A0A0A] pb-0.5">Password Requirements:</p>
+      <div className="rounded-[6px] border-[#CBD5E1] bg-[#F1F5F9]/70 p-2.5 space-y-1 text-xs">
+        <p className="font-medium text-[#0F172A] pb-0.5">Password Requirements:</p>
         <ul className="space-y-1" data-testid="guarded-password-checklist">
           {PASSWORD_CRITERIA.map((criterion) => {
             const isMet = criterion.test(value);
@@ -167,7 +167,7 @@ export function GuardedPasswordInput({
               <li
                 key={criterion.id}
                 className={`flex items-center gap-1.5 transition-colors ${
-                  isMet ? 'text-emerald-700 font-medium' : 'text-[#4A4945]'
+                  isMet ? 'text-emerald-700 font-medium' : 'text-[#475569]'
                 }`}
                 data-testid={`guarded-password-criterion-${criterion.id}`}
                 data-status={isMet ? 'met' : 'unmet'}
@@ -175,7 +175,7 @@ export function GuardedPasswordInput({
                 {isMet ? (
                   <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
                 ) : (
-                  <X className="h-3.5 w-3.5 text-[#4A4945] shrink-0" />
+                  <X className="h-3.5 w-3.5 text-[#475569] shrink-0" />
                 )}
                 <span>{criterion.label}</span>
               </li>

@@ -97,7 +97,7 @@ export function ProfilePasswordCard({ isLoading = false }: ProfilePasswordCardPr
   const passwordsMatch = confirmPassword.length > 0 && confirmPassword === newPassword;
 
   return (
-    <Card className="border border-[#0A0A0A] dark:border-zinc-800 shadow-none" data-testid="profile-password-card">
+    <Card className="border-[#CBD5E1] dark:border-zinc-800 shadow-none" data-testid="profile-password-card">
       <CardHeader>
         <CardTitle className="text-lg font-bold text-foreground">Change Password</CardTitle>
         <CardDescription>Use a strong password meeting modern security complexity requirements.</CardDescription>
@@ -130,7 +130,7 @@ export function ProfilePasswordCard({ isLoading = false }: ProfilePasswordCardPr
               <button
                 type="button"
                 onClick={() => setShowCurrent(!showCurrent)}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 rounded-none transition-colors"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 rounded-[6px] transition-colors"
                 title={showCurrent ? 'Hide password' : 'Show password'}
                 aria-label={showCurrent ? 'Hide password' : 'Show password'}
                 data-testid="toggle-current-password-visibility"
@@ -188,7 +188,7 @@ export function ProfilePasswordCard({ isLoading = false }: ProfilePasswordCardPr
                 <button
                   type="button"
                   onClick={() => setShowNew(!showNew)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 rounded-none transition-colors"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 rounded-[6px] transition-colors"
                   title={showNew ? 'Hide password' : 'Show password'}
                   aria-label={showNew ? 'Hide password' : 'Show password'}
                   data-testid="toggle-new-password-visibility"
@@ -209,10 +209,10 @@ export function ProfilePasswordCard({ isLoading = false }: ProfilePasswordCardPr
                 </label>
                 {confirmPassword && (
                   <span
-                    className={`text-xs font-mono uppercase font-bold tracking-wider px-2 py-0.5 rounded-none ${
+                    className={`text-xs font-mono uppercase font-bold tracking-wider px-2 py-0.5 rounded-[6px] ${
                       passwordsMatch
-                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
-                        : 'bg-destructive/10 text-destructive border border-destructive/20'
+                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                        : 'bg-destructive/10 text-destructive border-destructive/20'
                     }`}
                     data-testid="password-match-badge"
                   >
@@ -244,7 +244,7 @@ export function ProfilePasswordCard({ isLoading = false }: ProfilePasswordCardPr
                 <button
                   type="button"
                   onClick={() => setShowConfirm(!showConfirm)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 rounded-none transition-colors"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 rounded-[6px] transition-colors"
                   title={showConfirm ? 'Hide password' : 'Show password'}
                   aria-label={showConfirm ? 'Hide password' : 'Show password'}
                   data-testid="toggle-confirm-password-visibility"
@@ -257,23 +257,23 @@ export function ProfilePasswordCard({ isLoading = false }: ProfilePasswordCardPr
 
           {/* Real-time Guardrails & Strength Meter */}
           <div
-            className="rounded-none border border-[#0A0A0A] dark:border-zinc-800 bg-muted/20 p-4 space-y-3"
+            className="rounded-[8px] border-[#CBD5E1] dark:border-zinc-800 bg-muted/20 p-4 space-y-3"
             data-testid="password-guardrails-container"
           >
             {/* Strength Meter Header */}
             <div className="flex items-center justify-between text-xs">
               <span className="font-medium text-muted-foreground">Password Strength</span>
               <span
-                className={`text-xs font-mono font-semibold px-2 py-0.5 rounded-none uppercase tracking-wider ${
+                className={`text-xs font-mono font-semibold px-2 py-0.5 rounded-[6px] uppercase tracking-wider ${
                   evalRes.strength === 'strong'
                     ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
                     : evalRes.strength === 'good'
-                    ? 'bg-[#EAE8E3]0/15 text-[#0A0A0A] dark:text-blue-400'
+                    ? 'bg-[#F1F5F9]0/15 text-[#0F172A] dark:text-blue-400'
                     : evalRes.strength === 'fair'
                     ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
                     : evalRes.strength === 'weak'
                     ? 'bg-destructive/15 text-destructive'
-                    : 'bg-muted text-muted-foreground border border-[#0A0A0A] dark:border-zinc-800'
+                    : 'bg-muted text-muted-foreground border-[#CBD5E1] dark:border-zinc-800'
                 }`}
                 data-testid="password-strength-badge"
               >
@@ -288,14 +288,14 @@ export function ProfilePasswordCard({ isLoading = false }: ProfilePasswordCardPr
                 let bgColor = 'bg-border';
                 if (isActive) {
                   if (evalRes.strength === 'strong') bgColor = 'bg-emerald-500';
-                  else if (evalRes.strength === 'good') bgColor = 'bg-[#EAE8E3]0';
+                  else if (evalRes.strength === 'good') bgColor = 'bg-[#F1F5F9]0';
                   else if (evalRes.strength === 'fair') bgColor = 'bg-amber-500';
                   else if (evalRes.strength === 'weak') bgColor = 'bg-destructive';
                 }
                 return (
                   <div
                     key={idx}
-                    className={`flex-1 rounded-none transition-colors duration-200 ${bgColor}`}
+                    className={`flex-1 rounded-[6px] transition-colors duration-200 ${bgColor}`}
                     data-testid={`password-strength-segment-${idx}`}
                   />
                 );
@@ -307,7 +307,7 @@ export function ProfilePasswordCard({ isLoading = false }: ProfilePasswordCardPr
               {rules.map((rule) => (
                 <div
                   key={rule.key}
-                  className={`flex items-center gap-2 text-xs py-1 px-2 rounded-none transition-colors ${
+                  className={`flex items-center gap-2 text-xs py-1 px-2 rounded-[6px] transition-colors ${
                     rule.met
                       ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 font-medium'
                       : 'text-muted-foreground bg-background/50'
@@ -328,7 +328,7 @@ export function ProfilePasswordCard({ isLoading = false }: ProfilePasswordCardPr
           {/* Error & Success States */}
           {errorMessage && (
             <div
-              className="flex items-center gap-2 text-xs text-destructive bg-destructive/10 border border-destructive/20 p-2.5 rounded-none"
+              className="flex items-center gap-2 text-xs text-destructive bg-destructive/10 border-destructive/20 p-2.5 rounded-[6px]"
               data-testid="password-error-message"
             >
               <AlertCircle className="h-4 w-4 shrink-0" />
@@ -338,7 +338,7 @@ export function ProfilePasswordCard({ isLoading = false }: ProfilePasswordCardPr
 
           {successMessage && (
             <div
-              className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-none"
+              className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20 p-2.5 rounded-[6px]"
               data-testid="password-success-message"
             >
               <Check className="h-4 w-4 shrink-0" />

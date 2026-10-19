@@ -92,10 +92,10 @@ export function QuickAddCard({ phase, workRequest, onCreate, onCancel }: QuickAd
   };
 
   const controlClass =
-    'relative flex h-7 items-center justify-center rounded-none text-[#4A4945] hover:bg-[#EAE8E3] hover:text-[#0A0A0A] focus-within:ring-1 focus-within:ring-[#0A0A0A]';
+    'relative flex h-7 items-center justify-center rounded-[6px] text-[#475569] hover:bg-[#F1F5F9] hover:text-[#0F172A] focus-within:ring-1 focus-within:ring-[#1D4ED8]';
   return (
     <form
-      className="border-2 border-[#0A0A0A] rounded-none p-2.5 bg-[#FAF9F5] shadow-none space-y-2 text-xs font-mono animate-in fade-in duration-150"
+      className="border-[#CBD5E1] rounded-[6px] p-2.5 bg-[#FFFFFF] shadow-none space-y-2 text-xs font-mono animate-in fade-in duration-150"
       data-testid={`quick-add-form-${phase}`}
       aria-label="Quick-add task"
       aria-busy={pending}
@@ -123,7 +123,7 @@ export function QuickAddCard({ phase, workRequest, onCreate, onCancel }: QuickAd
           }}
           placeholder="What needs to be done?"
           aria-label="Task title"
-          className="min-h-15 w-full resize-none border-0 bg-transparent p-1 text-sm text-[#0A0A0A] placeholder:text-[#4A4945] focus:outline-none"
+          className="min-h-15 w-full resize-none border-0 bg-transparent p-1 text-sm text-[#0F172A] placeholder:text-[#475569] focus:outline-none"
           rows={2}
           maxLength={255}
           required
@@ -136,7 +136,7 @@ export function QuickAddCard({ phase, workRequest, onCreate, onCancel }: QuickAd
           aria-label="Cancel quick-add task"
           disabled={pending}
           onClick={onCancel}
-          className="rounded-none p-1 text-[#4A4945] hover:text-[#0A0A0A] disabled:opacity-40"
+          className="rounded-[6px] p-1 text-[#475569] hover:text-[#0F172A] disabled:opacity-40"
           data-testid={`quick-add-cancel-${phase}`}
         >
           <X className="h-3.5 w-3.5" />
@@ -147,7 +147,7 @@ export function QuickAddCard({ phase, workRequest, onCreate, onCancel }: QuickAd
         className="flex min-w-0 flex-wrap items-center gap-1 disabled:opacity-60"
       >
         <span className="flex h-7 items-center justify-center px-1" title="Standard Task">
-          <CheckSquare className="h-4 w-4 text-[#0A0A0A]" role="img" aria-label="Standard Task" />
+          <CheckSquare className="h-4 w-4 text-[#0F172A]" role="img" aria-label="Standard Task" />
         </span>
         <button
           type="button"
@@ -178,7 +178,7 @@ export function QuickAddCard({ phase, workRequest, onCreate, onCancel }: QuickAd
           </button>
         )}
         <label
-          className={`${controlClass} w-7 rounded-none ${assignee ? 'bg-[#0A0A0A] text-[#FAF9F5] font-bold' : 'border border-dashed border-[#C8C5BC]'}`}
+          className={`${controlClass} w-7 rounded-[6px] ${assignee ? 'bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs font-bold' : 'border-dashed border-[#CBD5E1]'}`}
           title={assignee?.name ?? 'Unassigned'}
         >
           {assignee ? avatar.toUpperCase() : <User className="h-4 w-4" />}
@@ -202,7 +202,7 @@ export function QuickAddCard({ phase, workRequest, onCreate, onCancel }: QuickAd
           type="submit"
           aria-label="Create task"
           disabled={pending || !title.trim()}
-          className="ml-auto flex h-7 w-7 items-center justify-center rounded-none bg-[#0A0A0A] text-[#FAF9F5] hover:bg-[#E61919] disabled:bg-[#EAE8E3] disabled:text-[#4A4945]/50"
+          className="ml-auto flex h-7 w-7 items-center justify-center rounded-[6px] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs hover:bg-[#DC2626] disabled:bg-[#F1F5F9] disabled:text-[#475569]/50"
           data-testid={`quick-add-submit-btn-${phase}`}
         >
           {pending ? (
@@ -218,14 +218,14 @@ export function QuickAddCard({ phase, workRequest, onCreate, onCancel }: QuickAd
             disabled={pending}
             value={dueDate}
             onValueChange={(value) => setDueDate(value)}
-            className="h-8 w-full text-xs rounded-none border border-[#0A0A0A] bg-[#FAF9F5] font-mono"
+            className="h-8 w-full text-xs rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] font-mono"
             autoFocus
           />
         )}
       </fieldset>
-      {teamError && <p className="text-[#E61919] font-mono text-xs">Team members could not be loaded.</p>}
+      {teamError && <p className="text-[#DC2626] font-mono text-xs">Team members could not be loaded.</p>}
       {error && (
-        <p role="alert" className="text-[#E61919] font-mono text-xs">
+        <p role="alert" className="text-[#DC2626] font-mono text-xs">
           {error}
         </p>
       )}

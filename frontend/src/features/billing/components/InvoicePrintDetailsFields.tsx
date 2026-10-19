@@ -10,15 +10,15 @@ export function InvoicePrintDetailsFields({
   onChange: (value: InvoicePrintDetails) => void;
 }) {
   return (
-    <fieldset className="border-t border-[#0A0A0A] pt-3 space-y-3">
+    <fieldset className="border-t border-[#CBD5E1] pt-3 space-y-3">
       <legend className="text-sm font-semibold">Statement details</legend>
-      <p className="text-xs text-[#4A4945]">
+      <p className="text-xs text-[#475569]">
         Payment details are printed on the statement. Record payments separately to update the
         payment ledger.
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {PRINT_DETAIL_FIELDS.map(([key, label]) => (
-          <label key={key} className="text-xs font-medium text-[#0A0A0A] space-y-1">
+          <label key={key} className="text-xs font-medium text-[#0F172A] space-y-1">
             <span>{label}</span>
             <Input
               aria-label={label}

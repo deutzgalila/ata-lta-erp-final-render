@@ -242,14 +242,14 @@ export function InvoiceDetailModal({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto shadow-[4px_4px_0px_#0A0A0A] rounded-none rounded-none bg-white bg-[#FAF9F5] p-6 border-[#0A0A0A] max-w-3xl border-2"
+      <DialogContent className="max-h-[92vh] overflow-y-auto shadow-float rounded-[6px] rounded-[12px] bg-white bg-[#FFFFFF] p-6 border-[#CBD5E1] max-w-3xl border"
         data-testid="invoice-detail-modal"
       >
-        <DialogHeader className="border-b border-[#0A0A0A] pb-3">
+        <DialogHeader className="border-b border-[#CBD5E1] pb-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <div className="flex items-center gap-2">
-                <DialogTitle className="text-lg font-bold text-[#0A0A0A]">
+                <DialogTitle className="text-lg font-bold text-[#0F172A]">
                   {invoice.invoice_number}
                 </DialogTitle>
                 {invoice.entity_code && (
@@ -258,7 +258,7 @@ export function InvoiceDetailModal({
                   </Badge>
                 )}
                 <span
-                  className={`inline-flex items-center px-2 py-0.5 rounded-none text-xs font-semibold border ${getStatusBadgeVariant(
+                  className={`inline-flex items-center px-2 py-0.5 rounded-[6px] text-xs font-semibold border ${getStatusBadgeVariant(
                     invoice.status
                   )}`}
                   data-testid="detail-status-badge"
@@ -269,13 +269,13 @@ export function InvoiceDetailModal({
                   <PresenceAvatars domain="invoice" roomId={effectiveId} maxAvatars={4} />
                 )}
               </div>
-              <p className="text-xs text-[#4A4945] mt-0.5">
+              <p className="text-xs text-[#475569] mt-0.5">
                 Created {invoice.created_at?.slice(0, 10)} • Due {invoice.due_date?.slice(0, 10)}
               </p>
               {(invoice.work_request?.creatorName || invoice.work_request_creator_name) && (
-                <p className="text-xs text-[#4A4945] mt-0.5" data-testid="invoice-wr-requester">
+                <p className="text-xs text-[#475569] mt-0.5" data-testid="invoice-wr-requester">
                   Work Request Requester:{' '}
-                  <span className="font-semibold text-[#0A0A0A]">
+                  <span className="font-semibold text-[#0F172A]">
                     {invoice.work_request?.creatorName || invoice.work_request_creator_name}
                   </span>
                 </p>
@@ -312,7 +312,7 @@ export function InvoiceDetailModal({
                   variant="outline"
                   size="sm"
                   onClick={() => setIsEditModalOpen(true)}
-                  className="h-8 text-xs gap-1 cursor-pointer border-[#0A0A0A] text-[#0A0A0A] hover:text-[#0A0A0A]"
+                  className="h-8 text-xs gap-1 cursor-pointer border-[#CBD5E1] text-[#0F172A] hover:text-[#0F172A]"
                   data-testid="btn-edit-invoice"
                 >
                   <Pencil className="w-3.5 h-3.5" />
@@ -340,7 +340,7 @@ export function InvoiceDetailModal({
         </div>
         {addressFeedback && (
           <div
-            className="p-3 bg-emerald-50 border border-emerald-200 rounded-none text-xs text-emerald-800 flex items-center justify-between"
+            className="p-3 bg-emerald-50 border-emerald-200 rounded-[6px] text-xs text-emerald-800 flex items-center justify-between"
             data-testid="detail-address-success-banner"
           >
             <span>{addressFeedback}</span>
@@ -356,11 +356,11 @@ export function InvoiceDetailModal({
 
         {/* 1. Client Snapshot Box */}
         <div
-          className="bg-[#EAE8E3] p-4 rounded-none border border-[#0A0A0A] space-y-2 text-xs"
+          className="bg-[#F1F5F9] p-4 rounded-[8px] border-[#CBD5E1] space-y-2 text-xs"
           data-testid="detail-client-snapshot"
         >
           <div className="flex items-center justify-between">
-            <span className="font-bold text-xs font-mono text-[#4A4945] uppercase tracking-wider">
+            <span className="font-bold text-xs font-mono text-[#475569] uppercase tracking-wider">
               CLIENT SNAPSHOT
             </span>
 
@@ -372,7 +372,7 @@ export function InvoiceDetailModal({
                     setIsEditingAddress(true);
                     setAddressInput(currentAddress);
                   }}
-                  className="text-xs font-semibold text-[#0A0A0A] hover:text-[#0A0A0A] flex items-center gap-1 cursor-pointer"
+                  className="text-xs font-semibold text-[#0F172A] hover:text-[#0F172A] flex items-center gap-1 cursor-pointer"
                   data-testid="detail-edit-address-btn"
                 >
                   <Pencil className="w-3 h-3" />
@@ -381,7 +381,7 @@ export function InvoiceDetailModal({
               )
             ) : (
               <span
-                className="text-xs font-mono text-[#4A4945] flex items-center gap-1"
+                className="text-xs font-mono text-[#475569] flex items-center gap-1"
                 title="billing:edit_client_address permission required"
                 data-testid="detail-address-locked"
               >
@@ -393,18 +393,18 @@ export function InvoiceDetailModal({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <p className="font-bold text-[#0A0A0A] text-sm">
+              <p className="font-bold text-[#0F172A] text-sm">
                 {printDetails.clientName || '—'}
               </p>
               {printDetails.clientTin && (
-                <p className="text-[#4A4945] font-mono text-xs mt-0.5">
+                <p className="text-[#475569] font-mono text-xs mt-0.5">
                   TIN: {printDetails.clientTin}
                 </p>
               )}
             </div>
 
             <div>
-              <span className="text-xs font-mono text-[#4A4945] block">Billing Address Snapshot:</span>
+              <span className="text-xs font-mono text-[#475569] block">Billing Address Snapshot:</span>
               {isEditingAddress ? (
                 <div className="space-y-2 mt-1" data-testid="detail-inline-address-editor">
                   <Input
@@ -418,7 +418,7 @@ export function InvoiceDetailModal({
                     <Button
                       size="sm"
                       onClick={handleSaveAddress}
-                      className="h-6 text-xs font-mono bg-[#0A0A0A] hover:bg-[#262626] text-white px-2 cursor-pointer"
+                      className="h-6 text-xs font-mono bg-[#1D4ED8] hover:bg-[#1E40AF] text-white shadow-2xs px-2 cursor-pointer"
                       data-testid="detail-save-address-btn"
                     >
                       <Check className="w-3 h-3 mr-1" />
@@ -428,19 +428,19 @@ export function InvoiceDetailModal({
                       size="sm"
                       variant="ghost"
                       onClick={() => setIsEditingAddress(false)}
-                      className="h-6 text-xs font-mono text-[#4A4945] px-2 cursor-pointer"
+                      className="h-6 text-xs font-mono text-[#475569] px-2 cursor-pointer"
                     >
                       <X className="w-3 h-3 mr-1" />
                       Cancel
                     </Button>
                   </div>
-                  <p className="text-xs font-mono text-[#4A4945] italic">
+                  <p className="text-xs font-mono text-[#475569] italic">
                     Updated invoice snapshot address only. Master client record remains unchanged.
                   </p>
                 </div>
               ) : (
                 <p
-                  className="text-[#0A0A0A] text-xs leading-relaxed mt-0.5"
+                  className="text-[#0F172A] text-xs leading-relaxed mt-0.5"
                   data-testid="detail-client-address"
                 >
                   {currentAddress}
@@ -452,12 +452,12 @@ export function InvoiceDetailModal({
 
         {/* 2. Line Items Breakdown Table */}
         <div className="space-y-2">
-          <h4 className="text-xs font-bold text-[#0A0A0A] uppercase tracking-wider">
+          <h4 className="text-xs font-bold text-[#0F172A] uppercase tracking-wider">
             Line Items Breakdown
           </h4>
-          <div className="border border-[#0A0A0A] rounded-none overflow-hidden">
+          <div className="border-[#CBD5E1] rounded-[6px] overflow-hidden">
             <Table>
-              <TableHeader className="bg-[#EAE8E3]">
+              <TableHeader className="bg-[#F1F5F9]">
                 <TableRow>
                   <TableHead className="w-12 text-xs font-semibold">#</TableHead>
                   <TableHead className="text-xs font-semibold">Description</TableHead>
@@ -468,16 +468,16 @@ export function InvoiceDetailModal({
               <TableBody>
                 {(invoice.line_items || []).map((item, idx) => (
                   <TableRow key={item.id || idx}>
-                    <TableCell className="font-mono text-xs text-[#4A4945] py-2.5">
+                    <TableCell className="font-mono text-xs text-[#475569] py-2.5">
                       {idx + 1}
                     </TableCell>
-                    <TableCell className="text-xs font-medium text-[#0A0A0A] py-2.5">
+                    <TableCell className="text-xs font-medium text-[#0F172A] py-2.5">
                       {item.description}
                     </TableCell>
-                    <TableCell className="text-xs text-[#4A4945] py-2.5">
+                    <TableCell className="text-xs text-[#475569] py-2.5">
                       {item.type}
                     </TableCell>
-                    <TableCell className="text-xs font-mono font-medium text-[#0A0A0A] text-right py-2.5">
+                    <TableCell className="text-xs font-mono font-medium text-[#0F172A] text-right py-2.5">
                       {formatCurrency(item.amount)}
                     </TableCell>
                   </TableRow>
@@ -489,28 +489,28 @@ export function InvoiceDetailModal({
 
         {/* 3. Financial Totals & Balance Summary */}
         <div className="flex justify-end">
-          <div className="w-64 bg-[#EAE8E3] p-3 rounded-none border border-[#0A0A0A] text-xs space-y-1.5">
-            <div className="flex justify-between text-[#4A4945]">
+          <div className="w-64 bg-[#F1F5F9] p-3 rounded-[8px] border-[#CBD5E1] text-xs space-y-1.5">
+            <div className="flex justify-between text-[#475569]">
               <span>Subtotal:</span>
               <span className="font-mono">{formatCurrency(invoice.subtotal)}</span>
             </div>
-            <div className="flex justify-between font-bold text-[#0A0A0A] border-t border-[#0A0A0A] pt-1">
+            <div className="flex justify-between font-bold text-[#0F172A] border-t border-[#CBD5E1] pt-1">
               <span>Total Amount:</span>
               <span className="font-mono text-sm" data-testid="detail-total-amount">
                 {formatCurrency(invoice.total)}
               </span>
             </div>
-            <div className="flex justify-between text-[#4A4945]">
+            <div className="flex justify-between text-[#475569]">
               <span>Amount Paid:</span>
               <span className="font-mono text-emerald-600" data-testid="detail-amount-paid">
                 {formatCurrency(invoice.amount_paid || 0)}
               </span>
             </div>
-            <div className="flex justify-between font-bold text-[#0A0A0A] border-t border-[#0A0A0A] pt-1">
+            <div className="flex justify-between font-bold text-[#0F172A] border-t border-[#CBD5E1] pt-1">
               <span>Remaining Balance:</span>
               <span
                 className={`font-mono text-sm ${
-                  Number(invoice.balance || 0) > 0 ? 'text-amber-600' : 'text-[#4A4945]'
+                  Number(invoice.balance || 0) > 0 ? 'text-amber-600' : 'text-[#475569]'
                 }`}
                 data-testid="detail-balance-amount"
               >
@@ -522,17 +522,17 @@ export function InvoiceDetailModal({
 
         {/* 4. Payment History Table */}
         <div className="space-y-2">
-          <h4 className="text-xs font-bold text-[#0A0A0A] uppercase tracking-wider">
+          <h4 className="text-xs font-bold text-[#0F172A] uppercase tracking-wider">
             Payment History
           </h4>
           {(!invoice.payments || invoice.payments.length === 0) ? (
-            <div className="p-4 bg-[#EAE8E3] border border-[#0A0A0A] rounded-none text-center text-xs text-[#4A4945]">
+            <div className="p-4 bg-[#F1F5F9] border-[#CBD5E1] rounded-[6px] text-center text-xs text-[#475569]">
               No payments recorded for this invoice yet.
             </div>
           ) : (
-            <div className="border border-[#0A0A0A] rounded-none overflow-hidden">
+            <div className="border-[#CBD5E1] rounded-[6px] overflow-hidden">
               <Table>
-                <TableHeader className="bg-[#EAE8E3]">
+                <TableHeader className="bg-[#F1F5F9]">
                   <TableRow>
                     <TableHead className="text-xs font-semibold">Date</TableHead>
                     <TableHead className="text-xs font-semibold">Method</TableHead>
@@ -544,16 +544,16 @@ export function InvoiceDetailModal({
                 <TableBody>
                   {invoice.payments.map((p) => (
                     <TableRow key={p.id}>
-                      <TableCell className="text-xs text-[#0A0A0A] py-2">
+                      <TableCell className="text-xs text-[#0F172A] py-2">
                         {p.payment_date?.slice(0, 10)}
                       </TableCell>
-                      <TableCell className="text-xs text-[#0A0A0A] font-medium py-2">
+                      <TableCell className="text-xs text-[#0F172A] font-medium py-2">
                         {p.payment_method}
                       </TableCell>
-                      <TableCell className="text-xs font-mono text-[#4A4945] py-2">
+                      <TableCell className="text-xs font-mono text-[#475569] py-2">
                         {p.reference_number || '—'}
                       </TableCell>
-                      <TableCell className="text-xs text-[#4A4945] py-2">
+                      <TableCell className="text-xs text-[#475569] py-2">
                         {p.notes || '—'}
                       </TableCell>
                       <TableCell className="text-xs font-mono font-bold text-emerald-600 text-right py-2">
@@ -568,15 +568,15 @@ export function InvoiceDetailModal({
         </div>
 
         {/* 5. Notes & Terms */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-2 border-t border-[#0A0A0A]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-2 border-t border-[#CBD5E1]">
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-[#0A0A0A]">Invoice Notes:</span>
+              <span className="font-semibold text-[#0F172A]">Invoice Notes:</span>
               {(canEdit || canRequest) && !isEditingNotes && (
                 <button
                   type="button"
                   onClick={() => setIsEditingNotes(true)}
-                  className="text-xs font-mono text-[#0A0A0A] hover:text-[#0A0A0A] flex items-center gap-1 cursor-pointer"
+                  className="text-xs font-mono text-[#0F172A] hover:text-[#0F172A] flex items-center gap-1 cursor-pointer"
                   data-testid="edit-notes-btn"
                 >
                   <Pencil className="w-2.5 h-2.5" />
@@ -596,7 +596,7 @@ export function InvoiceDetailModal({
                   <Button
                     size="sm"
                     onClick={handleSaveNotes}
-                    className="h-6 text-xs font-mono bg-[#0A0A0A] text-white px-2 cursor-pointer"
+                    className="h-6 text-xs font-mono bg-[#1D4ED8] text-white hover:bg-[#1E40AF] shadow-2xs px-2 cursor-pointer"
                   >
                     Save
                   </Button>
@@ -611,22 +611,22 @@ export function InvoiceDetailModal({
                 </div>
               </div>
             ) : (
-              <p className="text-[#4A4945] bg-[#EAE8E3] p-2 rounded-none border border-[#0A0A0A] min-h-[36px]">
+              <p className="text-[#475569] bg-[#F1F5F9] p-2 rounded-[8px] border-[#CBD5E1] min-h-[36px]">
                 {invoice.notes || 'No notes entered.'}
               </p>
             )}
           </div>
 
           <div className="space-y-1">
-            <span className="font-semibold text-[#0A0A0A]">Payment Terms:</span>
-            <p className="text-[#4A4945] bg-[#EAE8E3] p-2 rounded-none border border-[#0A0A0A] min-h-[36px]">
+            <span className="font-semibold text-[#0F172A]">Payment Terms:</span>
+            <p className="text-[#475569] bg-[#F1F5F9] p-2 rounded-[8px] border-[#CBD5E1] min-h-[36px]">
               {invoice.terms || 'Standard 30-day payment terms apply.'}
             </p>
           </div>
         </div>
 
         {/* Footer Actions: Status Transition & Danger Zone */}
-        <DialogFooter className="border-t border-[#0A0A0A] pt-3 flex flex-col sm:flex-row justify-between items-center gap-2">
+        <DialogFooter className="border-t border-[#CBD5E1] pt-3 flex flex-col sm:flex-row justify-between items-center gap-2">
           {/* Left: Status Progression Flow */}
           <div className="flex items-center gap-2 w-full sm:w-auto">
             {(isAdmin || (invoice.status === 'Draft' && canEdit)) && (
@@ -634,7 +634,7 @@ export function InvoiceDetailModal({
                 variant="outline"
                 size="sm"
                 onClick={() => setIsEditModalOpen(true)}
-                className="text-xs text-[#0A0A0A] hover:text-[#0A0A0A] border-[#0A0A0A] gap-1 cursor-pointer"
+                className="text-xs text-[#0F172A] hover:text-[#0F172A] border-[#CBD5E1] gap-1 cursor-pointer"
                 data-testid="btn-edit-draft-invoice"
               >
                 <Pencil className="w-3.5 h-3.5" />
@@ -646,7 +646,7 @@ export function InvoiceDetailModal({
               <Button
                 size="sm"
                 onClick={() => handleTransitionStatus('Sent')}
-                className="text-xs bg-[#0A0A0A] hover:bg-[#262626] text-white gap-1 cursor-pointer"
+                className="text-xs bg-[#1D4ED8] hover:bg-[#1E40AF] text-white shadow-2xs gap-1 cursor-pointer"
                 data-testid="btn-approve-and-issue"
               >
                 <CheckCircle className="w-3.5 h-3.5" />
@@ -672,7 +672,7 @@ export function InvoiceDetailModal({
                   <Button
                     size="sm"
                     onClick={() => handleTransitionStatus('Sent')}
-                    className="text-xs bg-[#0A0A0A] hover:bg-[#262626] text-white gap-1 cursor-pointer"
+                    className="text-xs bg-[#1D4ED8] hover:bg-[#1E40AF] text-white shadow-2xs gap-1 cursor-pointer"
                     data-testid="btn-approve-and-issue"
                   >
                     <CheckCircle className="w-3.5 h-3.5" />
@@ -691,7 +691,7 @@ export function InvoiceDetailModal({
                 </>
               ) : (
                 <div
-                  className="flex items-center gap-1.5 text-xs text-amber-800 bg-amber-50 px-3 py-1.5 rounded-none border border-amber-200"
+                  className="flex items-center gap-1.5 text-xs text-amber-800 bg-amber-50 px-3 py-1.5 rounded-[8px] border-amber-200"
                   data-testid="invoice-pending-admin-notice"
                 >
                   <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
@@ -705,7 +705,7 @@ export function InvoiceDetailModal({
                 variant="outline"
                 size="sm"
                 onClick={handleArchive}
-                className="text-xs text-[#4A4945] gap-1 cursor-pointer"
+                className="text-xs text-[#475569] gap-1 cursor-pointer"
                 data-testid="btn-archive-invoice"
               >
                 <Archive className="w-3.5 h-3.5" />

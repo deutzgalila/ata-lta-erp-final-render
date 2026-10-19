@@ -8,7 +8,7 @@ import { useTimeSummary } from '@/features/dashboard/api/useTimeEntries';
 import { BlockingActionModal } from '@/features/operations/components/BlockingActionModal';
 
 export default function DashboardPage() {
-  const { user, permissions, activeEntity, unreadCount } = useSessionStore();
+  const { user, permissions, activeEntity, setActiveEntity, unreadCount } = useSessionStore();
   const todayStr = new Date().toISOString().slice(0, 10);
   const { data: summary } = useTimeSummary(todayStr);
 
@@ -26,83 +26,101 @@ export default function DashboardPage() {
 
   return (
     <div className="w-full space-y-6" data-testid="dashboard-page">
-      {/* 1. Blueprint Module Header */}
-      <div className="border-b-2 border-[#0A0A0A] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
+      {/* 1. Unified Module Header */}
+      <div className="border-b border-[#CBD5E1] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <nav
             aria-label="Breadcrumb"
-            className="font-mono text-xs uppercase tracking-wider text-[#4A4945] flex items-center gap-1.5 pb-1"
+            className="text-xs font-medium text-[#475569] flex items-center gap-1.5 pb-1"
           >
             <span>Modules</span>
             <span aria-hidden="true">/</span>
-            <span className="text-[#0A0A0A] font-semibold">Dashboard</span>
+            <span className="text-[#0F172A] font-semibold">Dashboard</span>
           </nav>
-          <h1 className="text-2xl font-extrabold tracking-tight text-[#0A0A0A]">
+          <h1 className="text-2xl font-semibold tracking-tight text-[#0F172A]">
             Welcome back, {user?.name || 'User'}
           </h1>
-          <p className="text-xs sm:text-sm text-[#4A4945] pt-0.5">
+          <p className="text-xs sm:text-sm text-[#475569] pt-0.5">
             ATA &amp; LTA Accounting Firm ERP — Enterprise Architecture v2.0
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
-          <Badge variant="ata" className="text-xs font-mono font-semibold rounded-none border border-[#0A0A0A]">
-            {activeEntity || 'ATA'} ACTIVE
-          </Badge>
-          <Badge variant="secondary" className="text-xs font-mono rounded-none border border-[#C8C5BC] bg-[#EAE8E3] text-[#0A0A0A]">
+          {/* Soft Segmented Entity Switcher */}
+          <div
+            className="flex items-center bg-[#F1F5F9] p-1 rounded-[8px] border border-[#CBD5E1]"
+            data-testid="entity-switcher"
+          >
+            {(['ATA', 'LTA', 'ALL'] as const).map((ent) => (
+              <button
+                key={ent}
+                type="button"
+                onClick={() => setActiveEntity(ent)}
+                className={`px-3 py-1 rounded-[6px] text-xs font-semibold transition-colors cursor-pointer ${
+                  activeEntity === ent
+                    ? 'bg-[#1D4ED8] text-[#FFFFFF] shadow-2xs font-semibold'
+                    : 'text-[#475569] hover:text-[#0F172A] hover:bg-[#E2E8F0]/60'
+                }`}
+                data-testid={`entity-btn-${ent.toLowerCase()}`}
+              >
+                {ent}
+              </button>
+            ))}
+          </div>
+          <Badge variant="secondary" className="text-xs font-medium rounded-[6px] border border-[#CBD5E1] bg-[#F1F5F9] text-[#0F172A] px-2.5 py-1">
             Role: {user?.role || 'Staff'}
           </Badge>
         </div>
       </div>
 
-      {/* 2. Overview Stat Cards (Blueprint Telemetry Matrix) */}
-      <div className="grid gap-px bg-[#0A0A0A] border border-[#0A0A0A] sm:grid-cols-2 lg:grid-cols-4">
-        <div className="p-4 bg-[#FAF9F5] space-y-2">
+      {/* 2. Overview Stat Cards (Unified Structured KPI Band) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="p-4 bg-[#FFFFFF] border border-[#CBD5E1] rounded-[8px] shadow-card space-y-2">
           <div className="flex flex-row items-center justify-between pb-1">
-            <span className="text-xs font-mono uppercase tracking-wider text-[#4A4945]">Current Role</span>
-            <ShieldCheck className="h-4 w-4 text-[#0A0A0A]" />
+            <span className="text-xs font-medium text-[#475569]">Current Role</span>
+            <ShieldCheck className="h-4 w-4 text-[#1D4ED8]" />
           </div>
           <div>
-            <div className="text-xl font-bold font-mono tabular-nums text-[#0A0A0A]" data-testid="stat-role">{user?.role}</div>
-            <p className="text-xs text-[#4A4945] mt-1 font-mono">
+            <div className="text-2xl font-semibold font-mono tabular-nums text-[#0F172A]" data-testid="stat-role">{user?.role}</div>
+            <p className="text-xs text-[#475569] mt-1">
               {permissions.size} active permissions granted
             </p>
           </div>
         </div>
 
-        <div className="p-4 bg-[#FAF9F5] space-y-2">
+        <div className="p-4 bg-[#FFFFFF] border border-[#CBD5E1] rounded-[8px] shadow-card space-y-2">
           <div className="flex flex-row items-center justify-between pb-1">
-            <span className="text-xs font-mono uppercase tracking-wider text-[#4A4945]">Active Entity</span>
-            <Building2 className="h-4 w-4 text-[#0A0A0A]" />
+            <span className="text-xs font-medium text-[#475569]">Active Entity</span>
+            <Building2 className="h-4 w-4 text-[#1D4ED8]" />
           </div>
           <div>
-            <div className="text-xl font-bold font-mono tabular-nums text-[#0A0A0A]" data-testid="stat-entity">{activeEntity}</div>
-            <p className="text-xs text-[#4A4945] mt-1 font-mono">
+            <div className="text-2xl font-semibold font-mono tabular-nums text-[#0F172A]" data-testid="stat-entity">{activeEntity}</div>
+            <p className="text-xs text-[#475569] mt-1">
               Entities: {(user?.entities || []).join(', ') || 'None'}
             </p>
           </div>
         </div>
 
-        <div className="p-4 bg-[#FAF9F5] space-y-2">
+        <div className="p-4 bg-[#FFFFFF] border border-[#CBD5E1] rounded-[8px] shadow-card space-y-2">
           <div className="flex flex-row items-center justify-between pb-1">
-            <span className="text-xs font-mono uppercase tracking-wider text-[#4A4945]">Notifications</span>
-            <Bell className="h-4 w-4 text-[#0A0A0A]" />
+            <span className="text-xs font-medium text-[#475569]">Notifications</span>
+            <Bell className="h-4 w-4 text-[#1D4ED8]" />
           </div>
           <div>
-            <div className="text-xl font-bold font-mono tabular-nums text-[#0A0A0A]" data-testid="stat-unread-count">{unreadCount}</div>
-            <p className="text-xs text-[#4A4945] mt-1 font-mono">Unread alerts requiring attention</p>
+            <div className="text-2xl font-semibold font-mono tabular-nums text-[#0F172A]" data-testid="stat-unread-count">{unreadCount}</div>
+            <p className="text-xs text-[#475569] mt-1">Unread alerts requiring attention</p>
           </div>
         </div>
 
-        <div className="p-4 bg-[#FAF9F5] space-y-2">
+        <div className="p-4 bg-[#FFFFFF] border border-[#CBD5E1] rounded-[8px] shadow-card space-y-2">
           <div className="flex flex-row items-center justify-between pb-1">
-            <span className="text-xs font-mono uppercase tracking-wider text-[#4A4945]">Today's Time Logged</span>
-            <Clock className="h-4 w-4 text-[#0A0A0A]" />
+            <span className="text-xs font-medium text-[#475569]">Today's Time Logged</span>
+            <Clock className="h-4 w-4 text-[#1D4ED8]" />
           </div>
           <div>
-            <div className="text-xl font-bold font-mono tabular-nums text-[#0A0A0A]" data-testid="stat-today-hours">
+            <div className="text-2xl font-semibold font-mono tabular-nums text-[#0F172A]" data-testid="stat-today-hours">
               {formattedTodayTime}
             </div>
-            <p className="text-xs text-[#4A4945] mt-1 font-mono">
+            <p className="text-xs text-[#475569] mt-1">
               {summary?.byTask.length ?? 0} tasks logged today
             </p>
           </div>

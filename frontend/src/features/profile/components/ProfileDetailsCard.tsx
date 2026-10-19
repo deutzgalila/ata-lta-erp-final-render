@@ -98,16 +98,16 @@ export function ProfileDetailsCard({ profile, isLoading = false }: ProfileDetail
   }, [displayAvatar]);
 
   return (
-    <Card className="border border-[#0A0A0A] dark:border-zinc-800 shadow-none" data-testid="profile-details-card">
+    <Card className="border-[#CBD5E1] dark:border-zinc-800 shadow-none" data-testid="profile-details-card">
       <CardHeader>
         <CardTitle className="text-lg font-bold text-foreground">Your Details</CardTitle>
         <CardDescription>Update your name and profile photo.</CardDescription>
       </CardHeader>
       <CardContent>
         {/* Avatar Upload Row */}
-        <div className="flex items-center gap-5 pb-6 border-b border-[#0A0A0A] dark:border-zinc-800">
+        <div className="flex items-center gap-5 pb-6 border-b border-[#CBD5E1] dark:border-zinc-800">
           <div
-            className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-none bg-primary/10 text-xl font-bold text-primary overflow-hidden border border-[#0A0A0A] dark:border-zinc-800"
+            className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-[6px] bg-primary/10 text-xl font-bold text-primary overflow-hidden border-[#CBD5E1] dark:border-zinc-800"
             style={
               displayAvatar && !avatarLoadFailed
                 ? {

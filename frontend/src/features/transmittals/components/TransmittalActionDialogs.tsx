@@ -76,14 +76,14 @@ export function ApproveDialog({ transmittal, isOpen, onClose }: ApproveDialogPro
             <ShieldCheck className="h-5 w-5 text-emerald-600" />
             Approve Transmittal
           </DialogTitle>
-          <DialogDescription className="text-xs text-[#4A4945]">
+          <DialogDescription className="text-xs text-[#475569]">
             As an Administrator, approving transmittal{' '}
-            <span className="font-mono font-bold text-[#0A0A0A]">{transmittal.tracking_number}</span>{' '}
-            will mark it as approved and transition its status directly to <span className="font-semibold text-[#0A0A0A]">Sent</span>.
+            <span className="font-mono font-bold text-[#0F172A]">{transmittal.tracking_number}</span>{' '}
+            will mark it as approved and transition its status directly to <span className="font-semibold text-[#0F172A]">Sent</span>.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded text-xs text-emerald-800">
+        <div className="p-3 bg-emerald-50 border-emerald-200 rounded text-xs text-emerald-800">
           Recipient: <span className="font-medium">{transmittal.recipient_name || transmittal.clients?.name}</span>
           <br />
           Line items: <span className="font-medium">{transmittal.items?.length ?? 0} documents</span>
@@ -141,20 +141,20 @@ export function SendDialog({ transmittal, isOpen, onClose }: SendDialogProps) {
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent data-testid="send-transmittal-dialog">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base font-bold text-[#0A0A0A]">
-            <Send className="h-5 w-5 text-[#0A0A0A]" />
+          <DialogTitle className="flex items-center gap-2 text-base font-bold text-[#0F172A]">
+            <Send className="h-5 w-5 text-[#0F172A]" />
             Mark Transmittal as Sent
           </DialogTitle>
-          <DialogDescription className="text-xs text-[#4A4945]">
+          <DialogDescription className="text-xs text-[#475569]">
             Confirm dispatch of transmittal{' '}
-            <span className="font-mono font-bold text-[#0A0A0A]">{transmittal.tracking_number}</span> to{' '}
-            <span className="font-semibold text-[#0A0A0A]">{transmittal.recipient_name || transmittal.clients?.name}</span>.
+            <span className="font-mono font-bold text-[#0F172A]">{transmittal.tracking_number}</span> to{' '}
+            <span className="font-semibold text-[#0F172A]">{transmittal.recipient_name || transmittal.clients?.name}</span>.
           </DialogDescription>
         </DialogHeader>
 
         {isSendBlocked ? (
           <div
-            className="p-3 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800 flex items-start gap-2"
+            className="p-3 bg-amber-50 border-amber-200 rounded text-xs text-amber-800 flex items-start gap-2"
             data-testid="send-blocked-warning"
           >
             <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
@@ -166,7 +166,7 @@ export function SendDialog({ transmittal, isOpen, onClose }: SendDialogProps) {
             </div>
           </div>
         ) : (
-          <div className="p-3 bg-[#EAE8E3] border border-[#0A0A0A] rounded text-xs text-[#0A0A0A]">
+          <div className="p-3 bg-[#F1F5F9] border-[#CBD5E1] rounded text-xs text-[#0F172A]">
             {isAdmin && !isApproved ? (
               <p>As Admin, confirming dispatch will automatically grant approval and record transmission.</p>
             ) : (
@@ -188,7 +188,7 @@ export function SendDialog({ transmittal, isOpen, onClose }: SendDialogProps) {
                     size="sm"
                     disabled={isSendBlocked}
                     onClick={handleConfirm}
-                    className="bg-[#0A0A0A] hover:bg-[#262626] text-white disabled:opacity-50"
+                    className="bg-[#1D4ED8] hover:bg-[#1E40AF] text-white shadow-2xs disabled:opacity-50"
                     data-testid="confirm-send-btn"
                   >
                     Confirm Dispatch
@@ -240,13 +240,13 @@ export function AcknowledgeDialog({ transmittal, isOpen, onClose }: AcknowledgeD
             <CheckCircle2 className="h-5 w-5 text-emerald-600" />
             Acknowledge Receipt
           </DialogTitle>
-          <DialogDescription className="text-xs text-[#4A4945]">
+          <DialogDescription className="text-xs text-[#475569]">
             Confirm that documents for transmittal{' '}
-            <span className="font-mono font-bold text-[#0A0A0A]">{transmittal.tracking_number}</span> were physically received and signed by the recipient.
+            <span className="font-mono font-bold text-[#0F172A]">{transmittal.tracking_number}</span> were physically received and signed by the recipient.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded text-xs text-emerald-800">
+        <div className="p-3 bg-emerald-50 border-emerald-200 rounded text-xs text-emerald-800">
           This will stamp the manifest as <span className="font-semibold">Acknowledged</span> and capture the receipt timestamp.
         </div>
 
@@ -301,13 +301,13 @@ export function DeleteDialog({ transmittalId, trackingNumber, isOpen, onClose }:
             <Trash2 className="h-5 w-5 text-rose-600" />
             Delete Transmittal
           </DialogTitle>
-          <DialogDescription className="text-xs text-[#4A4945]">
+          <DialogDescription className="text-xs text-[#475569]">
             Are you sure you want to soft-delete transmittal{' '}
-            <span className="font-mono font-bold text-[#0A0A0A]">{trackingNumber || transmittalId}</span>?
+            <span className="font-mono font-bold text-[#0F172A]">{trackingNumber || transmittalId}</span>?
           </DialogDescription>
         </DialogHeader>
 
-        <div className="p-3 bg-rose-50 border border-rose-200 rounded text-xs text-rose-800">
+        <div className="p-3 bg-rose-50 border-rose-200 rounded text-xs text-rose-800">
           This transmittal will be removed from active lists and kanban swimlanes.
         </div>
 
@@ -363,20 +363,20 @@ export function ArchiveDialog({ transmittalId, isArchived, isOpen, onClose }: Ar
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent data-testid="archive-transmittal-dialog">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base font-bold text-[#0A0A0A]">
+          <DialogTitle className="flex items-center gap-2 text-base font-bold text-[#0F172A]">
             {isArchived ? (
               <>
-                <ArchiveRestore className="h-5 w-5 text-[#0A0A0A]" />
+                <ArchiveRestore className="h-5 w-5 text-[#0F172A]" />
                 Restore Transmittal
               </>
             ) : (
               <>
-                <Archive className="h-5 w-5 text-[#4A4945]" />
+                <Archive className="h-5 w-5 text-[#475569]" />
                 Archive Transmittal
               </>
             )}
           </DialogTitle>
-          <DialogDescription className="text-xs text-[#4A4945]">
+          <DialogDescription className="text-xs text-[#475569]">
             {isArchived
               ? 'Restore this transmittal back to the active list.'
               : 'Archive this transmittal. It will be moved to the Archived tab.'}
@@ -390,7 +390,7 @@ export function ArchiveDialog({ transmittalId, isArchived, isOpen, onClose }: Ar
           <Button
             size="sm"
             onClick={handleConfirm}
-            className="bg-slate-800 hover:bg-[#0A0A0A] text-white"
+            className="bg-slate-800 hover:bg-[#1D4ED8] text-white hover:bg-[#1E40AF] shadow-2xs"
             data-testid="confirm-archive-btn"
           >
             {isArchived ? 'Restore' : 'Archive'}

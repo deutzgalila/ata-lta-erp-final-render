@@ -386,12 +386,12 @@ export function WorkRequestList({
   return (
     <div className="space-y-4" data-testid="work-request-list">
       {/* 1. Header Toolbar */}
-      <div className="p-4 bg-[#FAF9F5] border border-[#0A0A0A] rounded-none space-y-3">
+      <div className="p-4 bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] space-y-3">
         {/* Search, View Switcher & Action Button */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           {/* Search Input with Debounce */}
           <div className="flex-1 relative max-w-md">
-            <Search className="h-4 w-4 absolute left-3 top-2.5 text-[#4A4945]" />
+            <Search className="h-4 w-4 absolute left-3 top-2.5 text-[#475569]" />
             <Input
               value={searchInput}
               onChange={(e) => {
@@ -399,14 +399,14 @@ export function WorkRequestList({
                 setPage(1);
               }}
               placeholder="Search work requests, clients, tasks..."
-              className="h-9 pl-9 text-xs font-mono rounded-none border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A]"
+              className="h-9 pl-9 text-xs font-mono rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A]"
               data-testid="wr-search-input"
             />
             {searchInput && (
               <button
                 type="button"
                 onClick={() => setSearchInput('')}
-                className="absolute right-2.5 top-2.5 text-[#4A4945] hover:text-[#0A0A0A]"
+                className="absolute right-2.5 top-2.5 text-[#475569] hover:text-[#0F172A]"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -416,14 +416,14 @@ export function WorkRequestList({
           {/* Right Toolbar: View Switcher & New Request */}
           <div className="flex items-center gap-2">
             {/* View Switcher: Table vs Cards */}
-            <div className="flex items-center border border-[#0A0A0A] rounded-none p-0 bg-[#EAE8E3] divide-x divide-[#0A0A0A]">
+            <div className="flex items-center border-[#CBD5E1] rounded-[6px] p-0 bg-[#F1F5F9] divide-x divide-[#CBD5E1]">
               <Button
                 type="button"
                 variant={viewMode === 'table' ? 'default' : 'ghost'}
                 size="icon-xs"
                 onClick={() => setViewMode('table')}
                 title="Table View"
-                className={`rounded-none ${viewMode === 'table' ? 'bg-[#0A0A0A] text-[#FAF9F5]' : 'bg-transparent text-[#0A0A0A] hover:bg-[#E4E2DC]'}`}
+                className={`rounded-[6px] ${viewMode === 'table' ? 'bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs' : 'bg-transparent text-[#0F172A] hover:bg-[#E2E8F0]'}`}
                 data-testid="view-mode-table"
               >
                 <TableIcon className="h-3.5 w-3.5" />
@@ -434,7 +434,7 @@ export function WorkRequestList({
                 size="icon-xs"
                 onClick={() => setViewMode('cards')}
                 title="Card List View"
-                className={`rounded-none ${viewMode === 'cards' ? 'bg-[#0A0A0A] text-[#FAF9F5]' : 'bg-transparent text-[#0A0A0A] hover:bg-[#E4E2DC]'}`}
+                className={`rounded-[6px] ${viewMode === 'cards' ? 'bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs' : 'bg-transparent text-[#0F172A] hover:bg-[#E2E8F0]'}`}
                 data-testid="view-mode-cards"
               >
                 <LayoutGrid className="h-3.5 w-3.5" />
@@ -447,7 +447,7 @@ export function WorkRequestList({
                 type="button"
                 size="sm"
                 onClick={onCreateNew}
-                className="text-xs font-mono uppercase tracking-wider font-bold rounded-none bg-[#0A0A0A] text-[#FAF9F5] hover:bg-[#E61919] gap-1.5"
+                className="text-xs font-mono uppercase tracking-wider font-bold rounded-[6px] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs hover:bg-[#DC2626] gap-1.5"
                 data-testid="new-wr-btn"
               >
                 <Plus className="h-4 w-4" /> New Work Request
@@ -457,8 +457,8 @@ export function WorkRequestList({
         </div>
 
         {/* Filter Group */}
-        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-[#0A0A0A] text-xs font-mono">
-          <span className="text-[#4A4945] font-bold uppercase tracking-wider flex items-center gap-1 text-xs">
+        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-[#CBD5E1] text-xs font-mono">
+          <span className="text-[#475569] font-bold uppercase tracking-wider flex items-center gap-1 text-xs">
             <Filter className="h-3 w-3" /> Filters:
           </span>
 
@@ -470,10 +470,10 @@ export function WorkRequestList({
               setPage(1);
             }}
           >
-            <SelectTrigger className="h-7 text-xs font-mono w-auto min-w-28 rounded-none border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A]">
+            <SelectTrigger className="h-7 text-xs font-mono w-auto min-w-28 rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A]">
               <SelectValue placeholder="Phase" />
             </SelectTrigger>
-            <SelectContent className="rounded-none border-2 border-[#0A0A0A] bg-[#FAF9F5]">
+            <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]">
               <SelectItem value="all" className="text-xs font-mono">All Phases</SelectItem>
               <SelectItem value="pre_processing" className="text-xs font-mono">Pre-processing</SelectItem>
               <SelectItem value="processing" className="text-xs font-mono">Processing</SelectItem>
@@ -490,10 +490,10 @@ export function WorkRequestList({
               setPage(1);
             }}
           >
-            <SelectTrigger className="h-7 text-xs font-mono w-auto min-w-28 rounded-none border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A]">
+            <SelectTrigger className="h-7 text-xs font-mono w-auto min-w-28 rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A]">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
-            <SelectContent className="rounded-none border-2 border-[#0A0A0A] bg-[#FAF9F5]">
+            <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]">
               <SelectItem value="all" className="text-xs font-mono">All Statuses</SelectItem>
               {WORK_REQUEST_STATUS_OPTIONS.map((st) => (
                 <SelectItem key={st} value={st} className="text-xs font-mono">
@@ -518,10 +518,10 @@ export function WorkRequestList({
               setPage(1);
             }}
           >
-            <SelectTrigger className="h-7 text-xs font-mono w-auto min-w-24 rounded-none border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A]">
+            <SelectTrigger className="h-7 text-xs font-mono w-auto min-w-24 rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A]">
               <SelectValue placeholder="Priority" />
             </SelectTrigger>
-            <SelectContent className="rounded-none border-2 border-[#0A0A0A] bg-[#FAF9F5]">
+            <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]">
               <SelectItem value="all" className="text-xs font-mono">All Priorities</SelectItem>
               <SelectItem value="Urgent" className="text-xs font-mono">Urgent</SelectItem>
               <SelectItem value="High" className="text-xs font-mono">High</SelectItem>
@@ -538,10 +538,10 @@ export function WorkRequestList({
               setPage(1);
             }}
           >
-            <SelectTrigger className="h-7 text-xs font-mono w-auto min-w-32 rounded-none border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A]">
+            <SelectTrigger className="h-7 text-xs font-mono w-auto min-w-32 rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A]">
               <SelectValue placeholder="Client" />
             </SelectTrigger>
-            <SelectContent className="rounded-none border-2 border-[#0A0A0A] bg-[#FAF9F5]">
+            <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]">
               <SelectItem value="all" className="text-xs font-mono">All Clients</SelectItem>
               {clients.map((c) => (
                 <SelectItem key={c.id} value={c.id} className="text-xs font-mono">
@@ -559,10 +559,10 @@ export function WorkRequestList({
               setPage(1);
             }}
           >
-            <SelectTrigger className="h-7 text-xs font-mono w-auto min-w-28 rounded-none border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A]">
+            <SelectTrigger className="h-7 text-xs font-mono w-auto min-w-28 rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A]">
               <SelectValue placeholder="Assignee" />
             </SelectTrigger>
-            <SelectContent className="rounded-none border-2 border-[#0A0A0A] bg-[#FAF9F5]">
+            <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]">
               <SelectItem value="all" className="text-xs font-mono">All Assignees</SelectItem>
               <SelectItem value="unassigned" className="text-xs font-mono">— Unassigned —</SelectItem>
               {team.map((m) => (
@@ -583,7 +583,7 @@ export function WorkRequestList({
                 setAssigneeFilter(assigneeFilter === user.id ? 'all' : user.id);
                 setPage(1);
               }}
-              className={`h-7 text-xs font-mono uppercase tracking-wider font-bold gap-1 shrink-0 rounded-none border border-[#0A0A0A] ${assigneeFilter === user.id ? 'bg-[#0A0A0A] text-[#FAF9F5]' : 'bg-[#FAF9F5] text-[#0A0A0A] hover:bg-[#EAE8E3]'}`}
+              className={`h-7 text-xs font-mono uppercase tracking-wider font-bold gap-1 shrink-0 rounded-[8px] border-[#CBD5E1] ${assigneeFilter === user.id ? 'bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs' : 'bg-[#FFFFFF] text-[#0F172A] hover:bg-[#F1F5F9]'}`}
               data-testid="assigned-to-me-btn"
             >
               <User className="h-3 w-3" />
@@ -599,10 +599,10 @@ export function WorkRequestList({
               setPage(1);
             }}
           >
-            <SelectTrigger className="h-7 text-xs font-mono w-auto min-w-28 rounded-none border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A]">
+            <SelectTrigger className="h-7 text-xs font-mono w-auto min-w-28 rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A]">
               <SelectValue placeholder="Due Date" />
             </SelectTrigger>
-            <SelectContent className="rounded-none border-2 border-[#0A0A0A] bg-[#FAF9F5]">
+            <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]">
               <SelectItem value="all" className="text-xs font-mono">Any Date</SelectItem>
               <SelectItem value="overdue" className="text-xs font-mono">Overdue</SelectItem>
               <SelectItem value="today" className="text-xs font-mono">Due Today</SelectItem>
@@ -619,7 +619,7 @@ export function WorkRequestList({
               variant="ghost"
               size="xs"
               onClick={handleClearFilters}
-              className="text-xs font-mono uppercase tracking-wider text-[#E61919] hover:text-[#0A0A0A] h-7 px-2"
+              className="text-xs font-mono uppercase tracking-wider text-[#DC2626] hover:text-[#0F172A] h-7 px-2"
               data-testid="clear-filters-btn"
             >
               Clear filters
@@ -631,7 +631,7 @@ export function WorkRequestList({
       {/* 2. Bulk Actions Bar (conditional) */}
       {selectedIds.size > 0 && (
         <div
-          className="p-3 bg-[#EAE8E3] border border-[#0A0A0A] rounded-none flex items-center justify-between text-xs font-mono text-[#0A0A0A]"
+          className="p-3 bg-[#F1F5F9] border-[#CBD5E1] rounded-[6px] flex items-center justify-between text-xs font-mono text-[#0F172A]"
           data-testid="bulk-actions-bar"
         >
           <div className="flex items-center gap-2 font-bold uppercase tracking-wider">
@@ -641,7 +641,7 @@ export function WorkRequestList({
               variant="ghost"
               size="xs"
               onClick={() => setSelectedIds(new Set())}
-              className="text-[#0A0A0A] hover:text-[#E61919] text-xs font-mono uppercase h-6 px-1.5"
+              className="text-[#0F172A] hover:text-[#DC2626] text-xs font-mono uppercase h-6 px-1.5"
             >
               Deselect all
             </Button>
@@ -652,7 +652,7 @@ export function WorkRequestList({
               variant="outline"
               size="xs"
               onClick={handleBulkArchive}
-              className="rounded-none border border-[#0A0A0A] bg-[#FAF9F5] hover:bg-[#EAE8E3] text-[#0A0A0A] text-xs font-mono uppercase tracking-wider font-bold gap-1"
+              className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] hover:bg-[#F1F5F9] text-[#0F172A] text-xs font-mono uppercase tracking-wider font-bold gap-1"
               data-testid="bulk-archive-btn"
             >
               <Archive className="h-3 w-3" /> Archive Completed
@@ -663,7 +663,7 @@ export function WorkRequestList({
                 variant="destructive"
                 size="xs"
                 onClick={handleBulkCancel}
-                className="rounded-none bg-[#E61919] hover:bg-[#0A0A0A] text-[#FAF9F5] text-xs font-mono uppercase tracking-wider font-bold gap-1"
+                className="rounded-[6px] bg-[#DC2626] hover:bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs text-xs font-mono uppercase tracking-wider font-bold gap-1"
                 data-testid="bulk-cancel-btn"
               >
                 <Ban className="h-3 w-3" /> Cancel Selected
@@ -675,18 +675,18 @@ export function WorkRequestList({
 
       {/* 3. Main View Area (Table vs Cards) */}
       {isLoading ? (
-        <div className="p-12 text-center text-xs font-mono uppercase tracking-wider text-[#4A4945] bg-[#FAF9F5] border border-[#0A0A0A] rounded-none">
+        <div className="p-12 text-center text-xs font-mono uppercase tracking-wider text-[#475569] bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px]">
           Loading operations work requests...
         </div>
       ) : paginatedRequests.length === 0 ? (
         /* Empty States: Filtered vs Zero Total */
-        <div className="p-12 text-center bg-[#FAF9F5] border border-[#0A0A0A] rounded-none space-y-3">
+        <div className="p-12 text-center bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] space-y-3">
           {hasActiveFilters ? (
             <div className="space-y-2">
-              <h4 className="text-sm font-bold uppercase tracking-wider text-[#0A0A0A]">
+              <h4 className="text-sm font-bold uppercase tracking-wider text-[#0F172A]">
                 No work requests match your filters
               </h4>
-              <p className="text-xs font-mono text-[#4A4945]">
+              <p className="text-xs font-mono text-[#475569]">
                 Try adjusting your search criteria or clearing all active filters.
               </p>
               <Button
@@ -694,15 +694,15 @@ export function WorkRequestList({
                 variant="outline"
                 size="sm"
                 onClick={handleClearFilters}
-                className="mt-2 text-xs font-mono uppercase tracking-wider rounded-none border border-[#0A0A0A] bg-[#FAF9F5] hover:bg-[#EAE8E3] text-[#0A0A0A]"
+                className="mt-2 text-xs font-mono uppercase tracking-wider rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] hover:bg-[#F1F5F9] text-[#0F172A]"
               >
                 Clear all filters
               </Button>
             </div>
           ) : (
             <div className="space-y-2">
-              <h4 className="text-sm font-bold uppercase tracking-wider text-[#0A0A0A]">No work requests yet</h4>
-              <p className="text-xs font-mono text-[#4A4945] max-w-sm mx-auto">
+              <h4 className="text-sm font-bold uppercase tracking-wider text-[#0F172A]">No work requests yet</h4>
+              <p className="text-xs font-mono text-[#475569] max-w-sm mx-auto">
                 Create your first work request to start tracking client deliverables and phase progress.
               </p>
               {canEdit && onCreateNew && (
@@ -710,7 +710,7 @@ export function WorkRequestList({
                   type="button"
                   size="sm"
                   onClick={onCreateNew}
-                  className="mt-2 text-xs font-mono uppercase tracking-wider font-bold rounded-none bg-[#0A0A0A] text-[#FAF9F5] hover:bg-[#E61919] gap-1"
+                  className="mt-2 text-xs font-mono uppercase tracking-wider font-bold rounded-[6px] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs hover:bg-[#DC2626] gap-1"
                 >
                   <Plus className="h-4 w-4" /> Add Work Request
                 </Button>
@@ -720,10 +720,10 @@ export function WorkRequestList({
         </div>
       ) : viewMode === 'table' ? (
         /* TABLE VIEW */
-        <div className="border border-[#0A0A0A] rounded-none bg-[#FAF9F5] overflow-hidden shadow-none">
+        <div className="border-[#CBD5E1] rounded-[6px] bg-[#FFFFFF] overflow-hidden shadow-none">
           <Table>
             <TableHeader>
-              <TableRow className="bg-[#EAE8E3] border-b-2 border-[#0A0A0A] hover:bg-[#EAE8E3]">
+              <TableRow className="bg-[#F1F5F9] border-b border-[#CBD5E1] hover:bg-[#F1F5F9]">
                 <TableHead className="w-10 text-center">
                   <input
                     type="checkbox"
@@ -732,18 +732,18 @@ export function WorkRequestList({
                       paginatedRequests.every((r) => selectedIds.has(r.id))
                     }
                     onChange={handleSelectAllOnPage}
-                    className="rounded-none border border-[#0A0A0A] text-[#0A0A0A] focus:ring-0"
+                    className="rounded-[8px] border-[#CBD5E1] text-[#0F172A] focus:ring-0"
                     aria-label="Select all on page"
                   />
                 </TableHead>
-                <TableHead className="text-xs font-mono font-bold uppercase tracking-wider text-[#0A0A0A] w-1/3">
+                <TableHead className="text-xs font-mono font-bold uppercase tracking-wider text-[#0F172A] w-1/3">
                   Work Request
                 </TableHead>
-                <TableHead className="text-xs font-mono font-bold uppercase tracking-wider text-[#0A0A0A]">Client</TableHead>
-                <TableHead className="text-xs font-mono font-bold uppercase tracking-wider text-[#0A0A0A]">Priority</TableHead>
-                <TableHead className="text-xs font-mono font-bold uppercase tracking-wider text-[#0A0A0A]">Phase & Status</TableHead>
-                <TableHead className="text-xs font-mono font-bold uppercase tracking-wider text-[#0A0A0A]">Due Date</TableHead>
-                <TableHead className="text-xs font-mono font-bold uppercase tracking-wider text-[#0A0A0A] text-right">
+                <TableHead className="text-xs font-mono font-bold uppercase tracking-wider text-[#0F172A]">Client</TableHead>
+                <TableHead className="text-xs font-mono font-bold uppercase tracking-wider text-[#0F172A]">Priority</TableHead>
+                <TableHead className="text-xs font-mono font-bold uppercase tracking-wider text-[#0F172A]">Phase & Status</TableHead>
+                <TableHead className="text-xs font-mono font-bold uppercase tracking-wider text-[#0F172A]">Due Date</TableHead>
+                <TableHead className="text-xs font-mono font-bold uppercase tracking-wider text-[#0F172A] text-right">
                   Actions
                 </TableHead>
               </TableRow>
@@ -757,8 +757,8 @@ export function WorkRequestList({
                   <TableRow
                     key={wr.id}
                     onMouseEnter={() => prefetchWorkRequestDetail(wr.id)}
-                    className={`hover:bg-[#E4E2DC] transition-none border-b border-[#C8C5BC] ${
-                      isSelected ? 'bg-[#EAE8E3]' : ''
+                    className={`hover:bg-[#E2E8F0] transition-none border-b border-[#CBD5E1] ${
+                      isSelected ? 'bg-[#F1F5F9]' : ''
                     }`}
                     data-testid={`wr-row-${wr.id}`}
                   >
@@ -768,35 +768,35 @@ export function WorkRequestList({
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => handleToggleSelectRow(wr.id)}
-                        className="rounded-none border border-[#0A0A0A] text-[#0A0A0A] focus:ring-0"
+                        className="rounded-[8px] border-[#CBD5E1] text-[#0F172A] focus:ring-0"
                         aria-label={`Select ${wr.title}`}
                       />
                     </TableCell>
 
                     {/* Title & Badges */}
-                    <TableCell className="font-medium text-xs text-[#0A0A0A]">
+                    <TableCell className="font-medium text-xs text-[#0F172A]">
                       <div className="flex flex-col space-y-1">
                         <div className="flex items-center gap-2">
                           <span
                             onClick={() => setPeekWrId(wr.id)}
-                            className="font-bold text-[#0A0A0A] hover:text-[#E61919] cursor-pointer"
+                            className="font-bold text-[#0F172A] hover:text-[#DC2626] cursor-pointer"
                           >
                             {wr.title}
                           </span>
                           {/* Blocker Badge with Tooltip */}
                           {blocker.hasBlockers && (
                             <span
-                              className="inline-flex items-center gap-1 text-xs font-mono font-bold uppercase text-[#E61919] bg-[#E61919]/10 border border-[#E61919] rounded-none px-1.5 py-0.2 cursor-help"
+                              className="inline-flex items-center gap-1 text-xs font-mono font-bold uppercase text-[#DC2626] bg-[#FEF2F2] border-[#FCA5A5] rounded-[6px] px-1.5 py-0.2 cursor-help"
                               title={`Incomplete Gate Tasks:\n${blocker.taskTitles.join('\n')}`}
                               data-testid={`blocker-badge-${wr.id}`}
                             >
-                              <AlertTriangle className="h-3 w-3 text-[#E61919]" />
+                              <AlertTriangle className="h-3 w-3 text-[#DC2626]" />
                               {blocker.count} blocker{blocker.count > 1 ? 's' : ''}
                             </span>
                           )}
                         </div>
                         {wr.description && (
-                          <span className="text-xs font-mono text-[#4A4945] truncate max-w-sm">
+                          <span className="text-xs font-mono text-[#475569] truncate max-w-sm">
                             {wr.description}
                           </span>
                         )}
@@ -804,7 +804,7 @@ export function WorkRequestList({
                     </TableCell>
 
                     {/* Client & Entity */}
-                    <TableCell className="text-xs text-[#0A0A0A]">
+                    <TableCell className="text-xs text-[#0F172A]">
                       <div className="flex items-center gap-1.5">
                         <span className="font-bold">
                           {wr.clientName || clients.find((c) => c.id === wr.clientId)?.name || '—'}
@@ -841,7 +841,7 @@ export function WorkRequestList({
                         return (
                           <div className="flex flex-col gap-1 items-start">
                             <span
-                              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-none font-mono uppercase tracking-wider text-xs font-bold border border-[#0A0A0A] bg-[#EAE8E3] text-[#0A0A0A]`}
+                              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[6px] font-mono uppercase tracking-wider text-xs font-bold border-[#CBD5E1] bg-[#F1F5F9] text-[#0F172A]`}
                               title={`Phase: ${phaseInfo.label}`}
                             >
                               <PhaseIcon className="w-3 h-3 shrink-0" />
@@ -852,7 +852,7 @@ export function WorkRequestList({
                                 <DropdownMenuTrigger asChild>
                                   <button
                                     type="button"
-                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-none font-mono uppercase tracking-wider text-xs font-bold border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A] transition-none cursor-pointer hover:bg-[#EAE8E3]`}
+                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[6px] font-mono uppercase tracking-wider text-xs font-bold border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A] transition-none cursor-pointer hover:bg-[#F1F5F9]`}
                                     title="Change Work Request Status (Admin)"
                                   >
                                     <StatusIcon className="w-2.5 h-2.5 shrink-0" />
@@ -862,12 +862,12 @@ export function WorkRequestList({
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent
                                   align="start"
-                                  className="w-56 p-1 bg-[#FAF9F5] shadow-[4px_4px_0px_#0A0A0A] border-2 border-[#0A0A0A] rounded-none max-h-80 overflow-y-auto z-50"
+                                  className="w-56 p-1 bg-[#FFFFFF] shadow-float border-[#CBD5E1] rounded-[6px] max-h-80 overflow-y-auto z-50"
                                 >
-                                  <DropdownMenuLabel className="text-xs font-mono uppercase font-bold text-[#0A0A0A] px-2 py-1">
+                                  <DropdownMenuLabel className="text-xs font-mono uppercase font-bold text-[#0F172A] px-2 py-1">
                                     Set Status (Admin)
                                   </DropdownMenuLabel>
-                                  <DropdownMenuSeparator className="my-1 bg-[#0A0A0A]" />
+                                  <DropdownMenuSeparator className="my-1 bg-[#1D4ED8]" />
                                   {WORK_REQUEST_STATUS_OPTIONS.map((opt) => (
                                     <DropdownMenuItem
                                       key={opt}
@@ -893,19 +893,19 @@ export function WorkRequestList({
                                           toast.error(e instanceof Error ? e.message : 'Update failed');
                                         }
                                       }}
-                                      className={`text-xs font-mono uppercase px-2 py-1.5 cursor-pointer flex items-center justify-between rounded-none hover:bg-[#EAE8E3] ${
-                                        wr.status === opt ? 'font-bold bg-[#EAE8E3]' : ''
+                                      className={`text-xs font-mono uppercase px-2 py-1.5 cursor-pointer flex items-center justify-between rounded-[6px] hover:bg-[#F1F5F9] ${
+                                        wr.status === opt ? 'font-bold bg-[#F1F5F9]' : ''
                                       }`}
                                     >
                                       <span>{opt}</span>
-                                      {wr.status === opt && <Check className="w-3 h-3 text-[#0A0A0A]" />}
+                                      {wr.status === opt && <Check className="w-3 h-3 text-[#0F172A]" />}
                                     </DropdownMenuItem>
                                   ))}
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             ) : (
                               <span
-                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-none font-mono uppercase tracking-wider text-xs font-bold border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A]`}
+                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[6px] font-mono uppercase tracking-wider text-xs font-bold border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A]`}
                                 title={`Status: ${statusInfo.label}`}
                               >
                                 <StatusIcon className="w-2.5 h-2.5 shrink-0" />
@@ -918,21 +918,21 @@ export function WorkRequestList({
                     </TableCell>
 
                     {/* Due Date */}
-                    <TableCell className="text-xs font-mono text-[#0A0A0A]">
+                    <TableCell className="text-xs font-mono text-[#0F172A]">
                       {wr.dueDate ? (
                         <span
                           className={
                             new Date(wr.dueDate) < new Date() &&
                             wr.status !== 'Completed' &&
                             wr.status !== 'Cancelled'
-                              ? 'text-[#E61919] font-bold'
+                              ? 'text-[#DC2626] font-bold'
                               : ''
                           }
                         >
                           {new Date(wr.dueDate).toLocaleDateString()}
                         </span>
                       ) : (
-                        <span className="text-[#4A4945] italic">No date</span>
+                        <span className="text-[#475569] italic">No date</span>
                       )}
                     </TableCell>
 
@@ -946,7 +946,7 @@ export function WorkRequestList({
                           size="icon-xs"
                           onClick={() => setPeekWrId(wr.id)}
                           title="View Details"
-                          className="h-7 w-7 p-0 rounded-none text-[#0A0A0A] hover:bg-[#EAE8E3] hover:border hover:border-[#0A0A0A]"
+                          className="h-7 w-7 p-0 rounded-[6px] text-[#0F172A] hover:bg-[#F1F5F9] hover:border hover:border-[#CBD5E1]"
                           data-testid={`action-view-${wr.id}`}
                         >
                           <Eye className="h-3.5 w-3.5" />
@@ -960,7 +960,7 @@ export function WorkRequestList({
                             size="icon-xs"
                             onClick={() => onEdit(wr)}
                             title="Edit Work Request"
-                            className="h-7 w-7 p-0 rounded-none text-[#0A0A0A] hover:bg-[#EAE8E3] hover:border hover:border-[#0A0A0A]"
+                            className="h-7 w-7 p-0 rounded-[6px] text-[#0F172A] hover:bg-[#F1F5F9] hover:border hover:border-[#CBD5E1]"
                             data-testid={`action-edit-${wr.id}`}
                           >
                             <Edit className="h-3.5 w-3.5" />
@@ -975,7 +975,7 @@ export function WorkRequestList({
                             size="icon-xs"
                             onClick={() => handleDirectAdvance(wr)}
                             title="Advance Phase"
-                            className="h-7 w-7 p-0 rounded-none text-[#0A0A0A] hover:bg-[#EAE8E3] hover:border hover:border-[#0A0A0A]"
+                            className="h-7 w-7 p-0 rounded-[6px] text-[#0F172A] hover:bg-[#F1F5F9] hover:border hover:border-[#CBD5E1]"
                             data-testid={`action-advance-${wr.id}`}
                           >
                             <ArrowRight className="h-3.5 w-3.5" />
@@ -996,7 +996,7 @@ export function WorkRequestList({
                               })
                             }
                             title="Archive"
-                            className="h-7 w-7 p-0 rounded-none text-[#0A0A0A] hover:bg-[#EAE8E3] hover:border hover:border-[#0A0A0A]"
+                            className="h-7 w-7 p-0 rounded-[6px] text-[#0F172A] hover:bg-[#F1F5F9] hover:border hover:border-[#CBD5E1]"
                             data-testid={`action-archive-${wr.id}`}
                           >
                             <Archive className="h-3.5 w-3.5" />
@@ -1019,7 +1019,7 @@ export function WorkRequestList({
                                 })
                               }
                               title="Cancel Work Request"
-                              className="h-7 w-7 p-0 rounded-none text-[#E61919] hover:bg-[#EAE8E3] hover:border hover:border-[#E61919]"
+                              className="h-7 w-7 p-0 rounded-[6px] text-[#DC2626] hover:bg-[#F1F5F9] hover:border hover:border-[#FCA5A5]"
                               data-testid={`action-cancel-${wr.id}`}
                             >
                               <Ban className="h-3.5 w-3.5" />
@@ -1042,18 +1042,18 @@ export function WorkRequestList({
             return (
               <div
                 key={wr.id}
-                className="p-4 bg-[#FAF9F5] border border-[#0A0A0A] rounded-none space-y-3 hover:bg-[#EAE8E3] transition-none shadow-none"
+                className="p-4 bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] space-y-3 hover:bg-[#F1F5F9] transition-none shadow-none"
                 data-testid={`wr-card-${wr.id}`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="space-y-1">
                     <h4
                       onClick={() => setPeekWrId(wr.id)}
-                      className="font-bold text-xs text-[#0A0A0A] hover:text-[#E61919] cursor-pointer line-clamp-1"
+                      className="font-bold text-xs text-[#0F172A] hover:text-[#DC2626] cursor-pointer line-clamp-1"
                     >
                       {wr.title}
                     </h4>
-                    <div className="flex items-center gap-1.5 text-xs font-mono text-[#4A4945]">
+                    <div className="flex items-center gap-1.5 text-xs font-mono text-[#475569]">
                       <Building className="h-3 w-3" />
                       <span className="truncate max-w-40">
                         {wr.clientName || clients.find((c) => c.id === wr.clientId)?.name || '—'}
@@ -1088,14 +1088,14 @@ export function WorkRequestList({
                     return (
                       <>
                         <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-none font-mono uppercase tracking-wider text-xs font-bold border border-[#0A0A0A] bg-[#EAE8E3] text-[#0A0A0A]`}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-[6px] font-mono uppercase tracking-wider text-xs font-bold border-[#CBD5E1] bg-[#F1F5F9] text-[#0F172A]`}
                           title={`Phase: ${phaseInfo.label}`}
                         >
                           <PhaseIcon className="w-3 h-3 shrink-0" />
                           <span>{phaseInfo.label}</span>
                         </span>
                         <span
-                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-none font-mono uppercase tracking-wider text-xs font-bold border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A]`}
+                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[6px] font-mono uppercase tracking-wider text-xs font-bold border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A]`}
                           title={`Status: ${statusInfo.label}`}
                         >
                           <StatusIcon className="w-2.5 h-2.5 shrink-0" />
@@ -1109,17 +1109,17 @@ export function WorkRequestList({
                 {/* Blocker Alert */}
                 {blocker.hasBlockers && (
                   <div
-                    className="p-1.5 bg-[#E61919]/10 border border-[#E61919] rounded-none text-xs font-mono text-[#E61919] flex items-center gap-1.5"
+                    className="p-1.5 bg-[#FEF2F2] border-[#FCA5A5] rounded-[6px] text-xs font-mono text-[#DC2626] flex items-center gap-1.5"
                     title={`Incomplete:\n${blocker.taskTitles.join('\n')}`}
                   >
-                    <AlertTriangle className="h-3.5 w-3.5 text-[#E61919] shrink-0" />
+                    <AlertTriangle className="h-3.5 w-3.5 text-[#DC2626] shrink-0" />
                     <span>{blocker.count} incomplete gate blocker(s)</span>
                   </div>
                 )}
 
                 {/* Footer Metadata & Actions */}
-                <div className="flex items-center justify-between pt-2 border-t border-[#C8C5BC] text-xs font-mono">
-                  <div className="flex items-center gap-2 text-[#4A4945]">
+                <div className="flex items-center justify-between pt-2 border-t border-[#CBD5E1] text-xs font-mono">
+                  <div className="flex items-center gap-2 text-[#475569]">
                     {wr.dueDate && (
                       <span className="flex items-center gap-1 tabular-nums">
                         <Calendar className="h-3 w-3" />
@@ -1135,7 +1135,7 @@ export function WorkRequestList({
                         variant="ghost"
                         size="icon-xs"
                         onClick={() => onEdit(wr)}
-                        className="h-7 w-7 p-0 rounded-none text-[#0A0A0A] hover:bg-[#EAE8E3] hover:border hover:border-[#0A0A0A]"
+                        className="h-7 w-7 p-0 rounded-[6px] text-[#0F172A] hover:bg-[#F1F5F9] hover:border hover:border-[#CBD5E1]"
                       >
                         <Edit className="h-3.5 w-3.5" />
                       </Button>
@@ -1146,7 +1146,7 @@ export function WorkRequestList({
                         variant="ghost"
                         size="icon-xs"
                         onClick={() => handleDirectAdvance(wr)}
-                        className="h-7 w-7 p-0 rounded-none text-[#0A0A0A] hover:bg-[#EAE8E3] hover:border hover:border-[#0A0A0A]"
+                        className="h-7 w-7 p-0 rounded-[6px] text-[#0F172A] hover:bg-[#F1F5F9] hover:border hover:border-[#CBD5E1]"
                       >
                         <ArrowRight className="h-3.5 w-3.5" />
                       </Button>
@@ -1160,17 +1160,17 @@ export function WorkRequestList({
       )}
 
       {/* 4. Pagination Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-2 py-3 text-xs font-mono text-[#4A4945] border-t border-[#0A0A0A]" data-testid="wr-pagination">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-2 py-3 text-xs font-mono text-[#475569] border-t border-[#CBD5E1]" data-testid="wr-pagination">
         <div>
           Showing{' '}
-          <span className="font-bold text-[#0A0A0A] tabular-nums">
+          <span className="font-bold text-[#0F172A] tabular-nums">
             {totalItems === 0 ? 0 : (page - 1) * pageSize + 1}
           </span>{' '}
           to{' '}
-          <span className="font-bold text-[#0A0A0A] tabular-nums">
+          <span className="font-bold text-[#0F172A] tabular-nums">
             {Math.min(page * pageSize, totalItems)}
           </span>{' '}
-          of <span className="font-bold text-[#0A0A0A] tabular-nums">{totalItems}</span> work requests
+          of <span className="font-bold text-[#0F172A] tabular-nums">{totalItems}</span> work requests
         </div>
 
         <div className="flex items-center gap-3">
@@ -1184,10 +1184,10 @@ export function WorkRequestList({
                 setPage(1);
               }}
             >
-              <SelectTrigger className="h-7 w-16 text-xs font-mono rounded-none border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A]">
+              <SelectTrigger className="h-7 w-16 text-xs font-mono rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A]">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="rounded-none border-2 border-[#0A0A0A] bg-[#FAF9F5]">
+              <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]">
                 <SelectItem value="10" className="text-xs font-mono">10</SelectItem>
                 <SelectItem value="25" className="text-xs font-mono">25</SelectItem>
                 <SelectItem value="50" className="text-xs font-mono">50</SelectItem>
@@ -1205,11 +1205,11 @@ export function WorkRequestList({
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(p - 1, 1))}
               aria-label="Previous Page"
-              className="rounded-none border border-[#0A0A0A] bg-[#FAF9F5] hover:bg-[#EAE8E3] text-[#0A0A0A] disabled:opacity-40"
+              className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] hover:bg-[#F1F5F9] text-[#0F172A] disabled:opacity-40"
             >
               <ChevronLeft className="h-3.5 w-3.5" />
             </Button>
-            <span className="px-2 text-xs font-mono font-bold text-[#0A0A0A] tabular-nums">
+            <span className="px-2 text-xs font-mono font-bold text-[#0F172A] tabular-nums">
               Page {page} of {totalPages}
             </span>
             <Button
@@ -1219,7 +1219,7 @@ export function WorkRequestList({
               disabled={page >= totalPages}
               onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
               aria-label="Next Page"
-              className="rounded-none border border-[#0A0A0A] bg-[#FAF9F5] hover:bg-[#EAE8E3] text-[#0A0A0A] disabled:opacity-40"
+              className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] hover:bg-[#F1F5F9] text-[#0F172A] disabled:opacity-40"
             >
               <ChevronRight className="h-3.5 w-3.5" />
             </Button>

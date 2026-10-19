@@ -97,7 +97,7 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
           variant="outline"
           size="sm"
           onClick={() => refetch()}
-          className="text-xs font-medium h-8 px-3 rounded-[6px] border border-[#CBD5E1] bg-[#FFFFFF] hover:bg-[#F1F5F9] text-[#0F172A] transition-colors self-start sm:self-auto cursor-pointer shadow-2xs"
+          className="text-xs font-medium h-8 px-3 rounded-[6px] border-[#CBD5E1] bg-[#FFFFFF] hover:bg-[#F1F5F9] text-[#0F172A] transition-colors self-start sm:self-auto cursor-pointer shadow-2xs"
         >
           Refresh Report
         </Button>
@@ -243,7 +243,7 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by client or invoice number..."
-            className="pl-9 h-9 text-xs sm:text-sm rounded-[6px] border border-[#CBD5E1] bg-white text-[#0F172A] focus-visible:ring-[#1D4ED8]"
+            className="pl-9 h-9 text-xs sm:text-sm rounded-[6px] border-[#CBD5E1] bg-white text-[#0F172A] focus-visible:ring-[#1D4ED8]"
             data-testid="aging-search-input"
           />
         </div>
@@ -259,7 +259,7 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
 
       {/* 3. Table of Aging Invoices */}
       {isLoading ? (
-        <div className="p-12 text-center text-[#475569] bg-[#FFFFFF] rounded-[8px] border border-[#CBD5E1] shadow-card">
+        <div className="p-12 text-center text-[#475569] bg-[#FFFFFF] rounded-[8px] border-[#CBD5E1] shadow-card">
           <div className="inline-block animate-spin h-7 w-7 border-2 border-[#1D4ED8] border-t-transparent mb-2 rounded-full"></div>
           <p className="text-xs font-medium text-[#475569]">Loading aging report...</p>
         </div>
@@ -277,7 +277,7 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
           </p>
         </div>
       ) : (
-        <div className="w-full overflow-x-auto rounded-[8px] border border-[#CBD5E1] bg-[#FFFFFF] shadow-card">
+        <div className="w-full overflow-x-auto rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] shadow-card">
           <Table>
             <TableHeader className="bg-[#F1F5F9] border-b border-[#CBD5E1]">
               <TableRow>

@@ -234,30 +234,30 @@ export default function OperationsPage() {
 
   return (
     <div className="w-full space-y-6" data-testid="operations-page">
-      {/* 1. Blueprint Module Header */}
-      <div className="border-b-2 border-[#0A0A0A] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
+      {/* 1. Unified Module Header */}
+      <div className="border-b border-[#CBD5E1] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <nav
             aria-label="Breadcrumb"
-            className="font-mono text-xs uppercase tracking-wider text-[#4A4945] flex items-center gap-1.5 pb-1"
+            className="text-xs font-medium text-[#475569] flex items-center gap-1.5 pb-1"
           >
             <span>Modules</span>
             <span aria-hidden="true">/</span>
-            <span className="text-[#0A0A0A] font-semibold">Operations</span>
+            <span className="text-[#0F172A] font-semibold">Operations</span>
           </nav>
-          <h1 className="text-2xl font-extrabold tracking-tight text-[#0A0A0A]">
+          <h1 className="text-2xl font-semibold tracking-tight text-[#0F172A]">
             Operations &amp; Engagements
           </h1>
-          <p className="text-xs sm:text-sm text-[#4A4945] pt-0.5">
+          <p className="text-xs sm:text-sm text-[#475569] pt-0.5">
             Manage client deliverables, 4-phase lifecycle transitions, staff governance, and compliance.
           </p>
         </div>
 
-        {/* Header Controls: Mechanical Entity Switcher & Action Buttons */}
+        {/* Header Controls: Soft Segmented Entity Switcher & Action Buttons */}
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
           {/* Active Entity Toggle */}
           <div
-            className="flex items-center bg-[#EAE8E3] p-0 rounded-none border border-[#0A0A0A] divide-x divide-[#0A0A0A]"
+            className="flex items-center bg-[#F1F5F9] p-1 rounded-[8px] border border-[#CBD5E1]"
             data-testid="operations-entity-toggle"
           >
             {(['ATA', 'LTA', 'ALL'] as const).map((ent) => (
@@ -265,10 +265,10 @@ export default function OperationsPage() {
                 key={ent}
                 type="button"
                 onClick={() => setActiveEntity(ent as EntityCode)}
-                className={`px-3 py-1.5 rounded-none font-mono text-xs transition-colors cursor-pointer ${
+                className={`px-3 py-1 rounded-[6px] text-xs font-semibold transition-colors cursor-pointer ${
                   activeEntity === ent
-                    ? 'bg-[#0A0A0A] text-[#FAF9F5] font-semibold'
-                    : 'text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] font-medium'
+                    ? 'bg-[#1D4ED8] text-[#FFFFFF] shadow-2xs font-semibold'
+                    : 'text-[#475569] hover:text-[#0F172A] hover:bg-[#E2E8F0]/60'
                 }`}
                 data-testid={`entity-btn-${ent.toLowerCase()}`}
               >
@@ -287,10 +287,10 @@ export default function OperationsPage() {
                 setEditingTemplate(null);
                 setIsTemplateModalOpen(true);
               }}
-              className="text-xs font-mono font-semibold uppercase tracking-wider rounded-none border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A] hover:bg-[#EAE8E3] gap-1.5 shadow-none cursor-pointer"
+              className="text-xs font-medium rounded-[6px] border border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A] hover:bg-[#F1F5F9] gap-1.5 shadow-2xs cursor-pointer"
               data-testid="page-new-template-btn"
             >
-              <Plus className="h-4 w-4 text-[#4A4945]" /> New Template
+              <Plus className="h-4 w-4 text-[#475569]" /> New Template
             </Button>
           )}
 
@@ -300,10 +300,10 @@ export default function OperationsPage() {
               variant="outline"
               size="sm"
               onClick={() => setIsGenerateModalOpen(true)}
-              className="text-xs font-mono font-semibold uppercase tracking-wider rounded-none border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A] hover:bg-[#EAE8E3] gap-1.5 shadow-none cursor-pointer"
+              className="text-xs font-medium rounded-[6px] border border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A] hover:bg-[#F1F5F9] gap-1.5 shadow-2xs cursor-pointer"
               data-testid="generate-retainer-btn"
             >
-              <Zap className="h-3.5 w-3.5 text-[#E61919]" /> Generate Retainer
+              <Zap className="h-3.5 w-3.5 text-[#1D4ED8]" /> Generate Retainer
             </Button>
           )}
 
@@ -315,7 +315,7 @@ export default function OperationsPage() {
                 setEditingWr(null);
                 setIsCreateModalOpen(true);
               }}
-              className="text-xs font-mono font-semibold uppercase tracking-wider rounded-none border border-[#0A0A0A] bg-[#0A0A0A] text-[#FAF9F5] hover:bg-[#222220] gap-1.5 shadow-none cursor-pointer"
+              className="text-xs font-medium rounded-[6px] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] gap-1.5 shadow-2xs cursor-pointer"
               data-testid="page-new-wr-btn"
             >
               <Plus className="h-4 w-4" /> New Work Request
@@ -326,12 +326,12 @@ export default function OperationsPage() {
 
       {/* 2. Module Navigation Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#0A0A0A] pb-0">
-          <TabsList className="w-full sm:w-auto justify-start rounded-none bg-[#EAE8E3] p-0 border-0 gap-0 h-auto overflow-x-auto scrollbar-none flex flex-nowrap">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#CBD5E1] pb-2">
+          <TabsList className="w-full sm:w-auto justify-start rounded-[8px] bg-[#F1F5F9] p-1 border border-[#CBD5E1] gap-1 h-auto overflow-x-auto scrollbar-none flex flex-nowrap">
             {/* Tab 1: Work Requests */}
             <TabsTrigger
               value="work-requests"
-              className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+              className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
               data-testid="tab-work-requests"
             >
               <FileText className="h-4 w-4" />
@@ -342,7 +342,7 @@ export default function OperationsPage() {
             {canAccessRetainerTemplates && (
               <TabsTrigger
                 value="retainer-templates"
-                className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+                className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
                 data-testid="tab-retainer-templates"
               >
                 <Layers className="h-4 w-4" />
@@ -354,7 +354,7 @@ export default function OperationsPage() {
             {canUseRetainers && (
               <TabsTrigger
                 value="other-templates"
-                className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+                className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
                 data-testid="tab-other-templates"
               >
                 <Layers className="h-4 w-4" />
@@ -366,7 +366,7 @@ export default function OperationsPage() {
             {hasApprovalAuthority && (
               <TabsTrigger
                 value="pending-approvals"
-                className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+                className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
                 data-testid="tab-pending-approvals"
               >
                 <Clock className="h-4 w-4" />
@@ -375,7 +375,7 @@ export default function OperationsPage() {
                   <Badge
                     variant="warning"
                     size="compact"
-                    className="font-mono font-bold px-1.5 rounded-none border border-[#0A0A0A]"
+                    className="font-mono font-medium px-1.5 rounded-[4px] border border-[#FDE047] bg-[#FEFCE8] text-[#854D0E]"
                     data-testid="tab-pending-badge"
                   >
                     {pendingApprovalsCount}
@@ -387,13 +387,13 @@ export default function OperationsPage() {
             {/* Tab 4: Archive */}
             <TabsTrigger
               value="archive"
-              className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+              className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
               data-testid="tab-archive"
             >
               <ArchiveIcon className="h-4 w-4" />
               <span>Archive</span>
               {archivedCount > 0 && (
-                <Badge variant="secondary" size="compact" className="text-xs font-mono rounded-none border border-[#C8C5BC] bg-[#EAE8E3] text-[#0A0A0A]">
+                <Badge variant="secondary" size="compact" className="text-xs font-mono rounded-[4px] border border-[#CBD5E1] bg-[#E2E8F0]/70 text-[#0F172A]">
                   {archivedCount}
                 </Badge>
               )}
@@ -402,16 +402,16 @@ export default function OperationsPage() {
 
           {/* View Switcher (when on Work Requests tab) */}
           {activeTab === 'work-requests' && (
-            <div className="flex items-center gap-1 pb-1 self-end sm:self-auto">
+            <div className="flex items-center bg-[#F1F5F9] p-1 rounded-[8px] border border-[#CBD5E1] gap-1 self-end sm:self-auto">
               <Button
                 type="button"
-                variant={activeView === 'list' ? 'secondary' : 'ghost'}
+                variant="ghost"
                 size="xs"
                 onClick={() => handleViewChange('list')}
-                className={`text-xs font-mono font-semibold rounded-none border border-[#0A0A0A] h-7 gap-1 px-2.5 transition-colors cursor-pointer ${
+                className={`text-xs font-medium rounded-[6px] h-7 gap-1 px-2.5 transition-colors cursor-pointer ${
                   activeView === 'list'
-                    ? 'bg-[#0A0A0A] text-[#FAF9F5]'
-                    : 'bg-[#FAF9F5] text-[#4A4945] hover:text-[#0A0A0A] hover:bg-[#E4E2DC]'
+                    ? 'bg-[#FFFFFF] text-[#1E40AF] font-semibold shadow-2xs'
+                    : 'text-[#475569] hover:text-[#0F172A] hover:bg-[#E2E8F0]/60'
                 }`}
                 data-testid="view-switcher-list"
               >
@@ -419,13 +419,13 @@ export default function OperationsPage() {
               </Button>
               <Button
                 type="button"
-                variant={activeView === 'board' ? 'secondary' : 'ghost'}
+                variant="ghost"
                 size="xs"
                 onClick={() => handleViewChange('board')}
-                className={`text-xs font-mono font-semibold rounded-none border border-[#0A0A0A] h-7 gap-1 px-2.5 transition-colors cursor-pointer ${
+                className={`text-xs font-medium rounded-[6px] h-7 gap-1 px-2.5 transition-colors cursor-pointer ${
                   activeView === 'board'
-                    ? 'bg-[#0A0A0A] text-[#FAF9F5]'
-                    : 'bg-[#FAF9F5] text-[#4A4945] hover:text-[#0A0A0A] hover:bg-[#E4E2DC]'
+                    ? 'bg-[#FFFFFF] text-[#1E40AF] font-semibold shadow-2xs'
+                    : 'text-[#475569] hover:text-[#0F172A] hover:bg-[#E2E8F0]/60'
                 }`}
                 data-testid="view-switcher-board"
               >
@@ -534,7 +534,7 @@ export default function OperationsPage() {
                               setEditingTemplate(tpl);
                               setIsTemplateModalOpen(true);
                             }}
-                            className="text-xs font-mono font-semibold uppercase hover:underline px-1 text-[#0A0A0A]"
+                            className="text-xs font-medium hover:underline px-1 text-[#1D4ED8]"
                             data-testid={`edit-template-btn-${tpl.id}`}
                           >
                             Edit
@@ -672,7 +672,7 @@ export default function OperationsPage() {
                                   setEditingOtherTemplate(tpl);
                                   setIsOtherTemplateModalOpen(true);
                                 }}
-                                className="text-xs font-mono font-semibold uppercase hover:underline px-1 text-[#0A0A0A]"
+                                className="text-xs font-medium hover:underline px-1 text-[#1D4ED8]"
                                 data-testid={`edit-other-template-btn-${tpl.id}`}
                               >
                                 Edit
@@ -684,7 +684,7 @@ export default function OperationsPage() {
                                     await deleteTemplate(tpl.id);
                                   }
                                 }}
-                                className="text-xs font-mono font-semibold uppercase hover:underline px-1 text-[#E61919]"
+                                className="text-xs font-medium hover:underline px-1 text-[#DC2626]"
                                 data-testid={`delete-other-template-btn-${tpl.id}`}
                               >
                                 Delete
@@ -698,7 +698,7 @@ export default function OperationsPage() {
                                 setGenerateOtherTemplateId(tpl.id);
                                 setIsOtherGenerateModalOpen(true);
                               }}
-                              className="text-xs font-mono font-bold uppercase hover:underline flex items-center gap-0.5 px-1 text-[#0A0A0A]"
+                              className="text-xs font-medium hover:underline flex items-center gap-0.5 px-1 text-[#1D4ED8]"
                               data-testid={`generate-card-other-template-btn-${tpl.id}`}
                             >
                               <Zap className="h-3 w-3" /> Generate

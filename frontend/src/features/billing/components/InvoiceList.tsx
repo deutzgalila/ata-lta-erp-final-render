@@ -134,34 +134,34 @@ export function InvoiceList({
     <div className="space-y-4" data-testid="invoice-list-container">
       {/* 1. Stats Bar */}
       <div
-        className="grid grid-cols-2 md:grid-cols-4 gap-0 divide-x divide-y md:divide-y-0 divide-[#0A0A0A] bg-[#FAF9F5] p-0 rounded-none border border-[#0A0A0A] shadow-none font-mono"
+        className="grid grid-cols-2 md:grid-cols-4 gap-0 divide-x divide-y md:divide-y-0 divide-[#CBD5E1] bg-[#FFFFFF] p-0 rounded-[8px] border-[#CBD5E1] shadow-none font-mono"
         data-testid="billing-stats-bar"
       >
         <div className="p-3.5 flex flex-col justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-[#4A4945]">Total Invoices</span>
-          <span className="text-xl font-extrabold text-[#0A0A0A] tabular-nums" data-testid="stat-total-invoices">
+          <span className="text-xs font-bold uppercase tracking-wider text-[#475569]">Total Invoices</span>
+          <span className="text-xl font-extrabold text-[#0F172A] tabular-nums" data-testid="stat-total-invoices">
             {stats.count}
           </span>
         </div>
         <div className="p-3.5 flex flex-col justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-[#4A4945]">Total Value</span>
-          <span className="text-xl font-extrabold text-[#0A0A0A] tabular-nums" data-testid="stat-total-value">
+          <span className="text-xs font-bold uppercase tracking-wider text-[#475569]">Total Value</span>
+          <span className="text-xl font-extrabold text-[#0F172A] tabular-nums" data-testid="stat-total-value">
             {formatCurrency(stats.totalValue)}
           </span>
         </div>
         <div className="p-3.5 flex flex-col justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-[#4A4945]">Outstanding Balance</span>
+          <span className="text-xs font-bold uppercase tracking-wider text-[#475569]">Outstanding Balance</span>
           <span
-            className="text-xl font-extrabold text-[#0A0A0A] tabular-nums"
+            className="text-xl font-extrabold text-[#0F172A] tabular-nums"
             data-testid="stat-outstanding-balance"
           >
             {formatCurrency(stats.outstandingBalance)}
           </span>
         </div>
         <div className="p-3.5 flex flex-col justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-[#4A4945]">Overdue Invoices</span>
+          <span className="text-xs font-bold uppercase tracking-wider text-[#475569]">Overdue Invoices</span>
           <span
-            className={`text-xl font-extrabold tabular-nums ${stats.overdueCount > 0 ? 'text-[#E61919]' : 'text-[#0A0A0A]'}`}
+            className={`text-xl font-extrabold tabular-nums ${stats.overdueCount > 0 ? 'text-[#DC2626]' : 'text-[#0F172A]'}`}
             data-testid="stat-overdue-count"
           >
             {stats.overdueCount}
@@ -171,7 +171,7 @@ export function InvoiceList({
 
       {/* 2. Status Filter Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-mono">
-        <div className="flex items-center bg-[#EAE8E3] border border-[#0A0A0A] border-b-2 rounded-none divide-x divide-[#C8C5BC] overflow-x-auto p-0" data-testid="status-tabs">
+        <div className="flex items-center bg-[#F1F5F9] border-[#CBD5E1] border-b-2 rounded-[6px] divide-x divide-[#CBD5E1] overflow-x-auto p-0" data-testid="status-tabs">
           {STATUS_TABS.map((tab) => (
             <button
               key={tab.value}
@@ -180,10 +180,10 @@ export function InvoiceList({
                 setStatusFilter(tab.value);
                 setPage(1);
               }}
-              className={`px-3 py-2 text-xs font-mono font-bold rounded-none transition-all whitespace-nowrap cursor-pointer ${
+              className={`px-3 py-2 text-xs font-mono font-bold rounded-[6px] transition-all whitespace-nowrap cursor-pointer ${
                 statusFilter === tab.value
-                  ? 'bg-[#0A0A0A] text-[#FAF9F5] shadow-[inset_0_-3px_0_0_#E61919]'
-                  : 'text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A]'
+                  ? 'bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs '
+                  : 'text-[#475569] hover:bg-[#E2E8F0] hover:text-[#0F172A]'
               }`}
               data-testid={`tab-${tab.value.toLowerCase().replace(/\s+/g, '-')}`}
             >
@@ -208,7 +208,7 @@ export function InvoiceList({
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2 flex-1">
           <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#4A4945]" />
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#475569]" />
             <Input
               value={searchInput}
               onChange={(e) => {
@@ -223,7 +223,7 @@ export function InvoiceList({
               <button
                 type="button"
                 onClick={() => setSearchInput('')}
-                className="absolute right-2.5 top-2.5 text-[#4A4945] hover:text-[#4A4945]"
+                className="absolute right-2.5 top-2.5 text-[#475569] hover:text-[#475569]"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -258,7 +258,7 @@ export function InvoiceList({
               variant="ghost"
               size="sm"
               onClick={resetFilters}
-              className="h-9 text-xs text-[#4A4945] hover:text-[#0A0A0A] gap-1 px-2 cursor-pointer"
+              className="h-9 text-xs text-[#475569] hover:text-[#0F172A] gap-1 px-2 cursor-pointer"
               data-testid="clear-filters-button"
             >
               <X className="w-3.5 h-3.5" />
@@ -267,26 +267,26 @@ export function InvoiceList({
           )}
         </div>
 
-        <div className="text-xs text-[#4A4945] self-center">
-          Showing <span className="font-semibold text-[#0A0A0A]">{invoices.length}</span> of{' '}
-          <span className="font-semibold text-[#0A0A0A]">{totalCount}</span>
+        <div className="text-xs text-[#475569] self-center">
+          Showing <span className="font-semibold text-[#0F172A]">{invoices.length}</span> of{' '}
+          <span className="font-semibold text-[#0F172A]">{totalCount}</span>
         </div>
       </div>
 
       {/* 4. Content Area: Table or Cards */}
       {isLoading ? (
-        <div className="p-12 text-center text-[#4A4945] bg-white rounded-none border border-[#0A0A0A]">
-          <div className="inline-block animate-spin rounded-none h-8 w-8 border-b-2 border-[#0A0A0A] mb-2"></div>
+        <div className="p-12 text-center text-[#475569] bg-white rounded-[8px] border-[#CBD5E1]">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b border-[#CBD5E1] mb-2"></div>
           <p className="text-xs">Loading invoices...</p>
         </div>
       ) : invoices.length === 0 ? (
         <div
-          className="p-12 text-center bg-white rounded-none border border-[#0A0A0A] space-y-3"
+          className="p-12 text-center bg-white rounded-[8px] border-[#CBD5E1] space-y-3"
           data-testid="empty-invoices"
         >
-          <FileText className="w-10 h-10 text-[#C8C5BC] mx-auto" />
-          <h3 className="text-sm font-semibold text-[#0A0A0A]">No invoices found</h3>
-          <p className="text-xs text-[#4A4945] max-w-sm mx-auto">
+          <FileText className="w-10 h-10 text-[#94A3B8] mx-auto" />
+          <h3 className="text-sm font-semibold text-[#0F172A]">No invoices found</h3>
+          <p className="text-xs text-[#475569] max-w-sm mx-auto">
             {hasActiveFilters
               ? 'No invoices match the selected filters. Try adjusting your query or resetting filters.'
               : 'There are no invoices recorded in the system yet.'}
@@ -298,22 +298,22 @@ export function InvoiceList({
           )}
         </div>
       ) : viewMode === 'table' ? (
-        <div className="bg-white rounded-none border border-[#0A0A0A] shadow-none overflow-hidden">
+        <div className="bg-white rounded-[8px] border-[#CBD5E1] shadow-none overflow-hidden">
           <Table>
-            <TableHeader className="bg-[#EAE8E3]">
+            <TableHeader className="bg-[#F1F5F9]">
               <TableRow>
-                <TableHead className="text-xs font-semibold text-[#0A0A0A]">Invoice #</TableHead>
-                <TableHead className="text-xs font-semibold text-[#0A0A0A]">Client</TableHead>
-                <TableHead className="text-xs font-semibold text-[#0A0A0A]">Issue Date</TableHead>
-                <TableHead className="text-xs font-semibold text-[#0A0A0A]">Due Date</TableHead>
-                <TableHead className="text-xs font-semibold text-[#0A0A0A]">Status</TableHead>
-                <TableHead className="text-xs font-semibold text-[#0A0A0A] text-right">
+                <TableHead className="text-xs font-semibold text-[#0F172A]">Invoice #</TableHead>
+                <TableHead className="text-xs font-semibold text-[#0F172A]">Client</TableHead>
+                <TableHead className="text-xs font-semibold text-[#0F172A]">Issue Date</TableHead>
+                <TableHead className="text-xs font-semibold text-[#0F172A]">Due Date</TableHead>
+                <TableHead className="text-xs font-semibold text-[#0F172A]">Status</TableHead>
+                <TableHead className="text-xs font-semibold text-[#0F172A] text-right">
                   Total
                 </TableHead>
-                <TableHead className="text-xs font-semibold text-[#0A0A0A] text-right">
+                <TableHead className="text-xs font-semibold text-[#0F172A] text-right">
                   Balance
                 </TableHead>
-                <TableHead className="text-xs font-semibold text-[#0A0A0A] text-right">
+                <TableHead className="text-xs font-semibold text-[#0F172A] text-right">
                   Actions
                 </TableHead>
               </TableRow>
@@ -328,11 +328,11 @@ export function InvoiceList({
                 return (
                   <TableRow
                     key={inv.id}
-                    className="hover:bg-[#EAE8E3]/80 transition-colors cursor-pointer"
+                    className="hover:bg-[#F1F5F9]/80 transition-colors cursor-pointer"
                     onClick={() => onSelectInvoice && onSelectInvoice(inv)}
                     data-testid={`invoice-row-${inv.id}`}
                   >
-                    <TableCell className="font-semibold text-[#0A0A0A] text-xs py-3">
+                    <TableCell className="font-semibold text-[#0F172A] text-xs py-3">
                       <div className="flex items-center gap-1.5">
                         {inv.entity_code && (
                           <Badge variant="outline" className="text-xs font-mono px-1 py-0 h-4">
@@ -342,18 +342,18 @@ export function InvoiceList({
                         <span>{inv.invoice_number}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-xs text-[#0A0A0A] py-3">
+                    <TableCell className="text-xs text-[#0F172A] py-3">
                       {inv.clients?.name || '—'}
                     </TableCell>
-                    <TableCell className="text-xs text-[#4A4945] py-3">
+                    <TableCell className="text-xs text-[#475569] py-3">
                       {inv.issue_date?.slice(0, 10) || '—'}
                     </TableCell>
-                    <TableCell className="text-xs text-[#4A4945] py-3">
+                    <TableCell className="text-xs text-[#475569] py-3">
                       {inv.due_date?.slice(0, 10) || '—'}
                     </TableCell>
                     <TableCell className="py-3">
                       <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-none text-xs font-mono font-medium border ${getStatusBadgeVariant(
+                        className={`inline-flex items-center px-2 py-0.5 rounded-[6px] text-xs font-mono font-medium border ${getStatusBadgeVariant(
                           inv.status
                         )}`}
                         data-testid={`badge-status-${inv.status.toLowerCase().replace(/\s+/g, '-')}`}
@@ -361,12 +361,12 @@ export function InvoiceList({
                         {inv.status}
                       </span>
                     </TableCell>
-                    <TableCell className="text-xs font-medium text-[#0A0A0A] text-right py-3">
+                    <TableCell className="text-xs font-medium text-[#0F172A] text-right py-3">
                       {formatCurrency(inv.total)}
                     </TableCell>
                     <TableCell className="text-xs font-semibold text-right py-3">
                       <span
-                        className={Number(inv.balance || 0) > 0 ? 'text-amber-600' : 'text-[#4A4945]'}
+                        className={Number(inv.balance || 0) > 0 ? 'text-amber-600' : 'text-[#475569]'}
                       >
                         {formatCurrency(inv.balance)}
                       </span>
@@ -378,7 +378,7 @@ export function InvoiceList({
                           size="icon"
                           onClick={() => onPrintPreview && onPrintPreview(inv)}
                           title="Print Preview"
-                          className="h-7 w-7 text-[#4A4945] hover:text-[#0A0A0A] cursor-pointer"
+                          className="h-7 w-7 text-[#475569] hover:text-[#0F172A] cursor-pointer"
                           data-testid={`btn-print-preview-${inv.id}`}
                         >
                           <Printer className="w-3.5 h-3.5" />
@@ -402,7 +402,7 @@ export function InvoiceList({
                           size="icon"
                           onClick={() => onSelectInvoice && onSelectInvoice(inv)}
                           title="View Details"
-                          className="h-7 w-7 text-[#4A4945] hover:text-[#0A0A0A] cursor-pointer"
+                          className="h-7 w-7 text-[#475569] hover:text-[#0F172A] cursor-pointer"
                           data-testid={`btn-view-${inv.id}`}
                         >
                           <Eye className="w-3.5 h-3.5" />
@@ -428,7 +428,7 @@ export function InvoiceList({
               <div
                 key={inv.id}
                 onClick={() => onSelectInvoice && onSelectInvoice(inv)}
-                className="bg-white p-4 rounded-none border border-[#0A0A0A] shadow-none hover:border-[#0A0A0A] transition-all cursor-pointer flex flex-col justify-between space-y-3"
+                className="bg-white p-4 rounded-[8px] border-[#CBD5E1] shadow-none hover:border-[#CBD5E1] transition-all cursor-pointer flex flex-col justify-between space-y-3"
                 data-testid={`invoice-card-${inv.id}`}
               >
                 <div>
@@ -439,12 +439,12 @@ export function InvoiceList({
                           {inv.entity_code}
                         </Badge>
                       )}
-                      <span className="font-bold text-xs text-[#0A0A0A]">
+                      <span className="font-bold text-xs text-[#0F172A]">
                         {inv.invoice_number}
                       </span>
                     </div>
                     <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded-none text-xs font-mono font-medium border ${getStatusBadgeVariant(
+                      className={`inline-flex items-center px-2 py-0.5 rounded-[6px] text-xs font-mono font-medium border ${getStatusBadgeVariant(
                         inv.status
                       )}`}
                     >
@@ -452,25 +452,25 @@ export function InvoiceList({
                     </span>
                   </div>
 
-                  <p className="text-xs font-medium text-[#0A0A0A] flex items-center gap-1">
-                    <Building className="w-3 h-3 text-[#4A4945]" />
+                  <p className="text-xs font-medium text-[#0F172A] flex items-center gap-1">
+                    <Building className="w-3 h-3 text-[#475569]" />
                     <span className="truncate">{inv.clients?.name || 'No client linked'}</span>
                   </p>
 
-                  <div className="mt-2 pt-2 border-t border-[#C8C5BC] flex items-center justify-between text-xs font-mono text-[#4A4945]">
+                  <div className="mt-2 pt-2 border-t border-[#CBD5E1] flex items-center justify-between text-xs font-mono text-[#475569]">
                     <span className="flex items-center gap-1">
-                      <Calendar className="w-3 h-3 text-[#4A4945]" />
+                      <Calendar className="w-3 h-3 text-[#475569]" />
                       Due: {inv.due_date?.slice(0, 10) || '—'}
                     </span>
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-[#C8C5BC] flex items-center justify-between">
+                <div className="pt-2 border-t border-[#CBD5E1] flex items-center justify-between">
                   <div>
-                    <span className="text-xs font-mono text-[#4A4945] block">Balance Due</span>
+                    <span className="text-xs font-mono text-[#475569] block">Balance Due</span>
                     <span
                       className={`text-xs font-bold ${
-                        Number(inv.balance || 0) > 0 ? 'text-amber-600' : 'text-[#4A4945]'
+                        Number(inv.balance || 0) > 0 ? 'text-amber-600' : 'text-[#475569]'
                       }`}
                     >
                       {formatCurrency(inv.balance)}
@@ -482,7 +482,7 @@ export function InvoiceList({
                       variant="ghost"
                       size="icon"
                       onClick={() => onPrintPreview && onPrintPreview(inv)}
-                      className="h-7 w-7 text-[#4A4945] hover:text-[#0A0A0A] cursor-pointer"
+                      className="h-7 w-7 text-[#475569] hover:text-[#0F172A] cursor-pointer"
                       title="Print Preview"
                     >
                       <Printer className="w-3.5 h-3.5" />
@@ -509,11 +509,11 @@ export function InvoiceList({
       {/* 5. Pagination Controls */}
       {totalPages > 1 && (
         <div
-          className="flex items-center justify-between border-t border-[#0A0A0A] pt-3"
+          className="flex items-center justify-between border-t border-[#CBD5E1] pt-3"
           data-testid="invoice-pagination"
         >
           <div className="flex items-center gap-2">
-            <span className="text-xs text-[#4A4945]">Rows per page:</span>
+            <span className="text-xs text-[#475569]">Rows per page:</span>
             <Select
               value={String(pageSize)}
               onValueChange={(val) => {
@@ -533,7 +533,7 @@ export function InvoiceList({
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs text-[#4A4945]" data-testid="page-indicator">
+            <span className="text-xs text-[#475569]" data-testid="page-indicator">
               Page {page} of {totalPages}
             </span>
             <div className="flex items-center gap-1">

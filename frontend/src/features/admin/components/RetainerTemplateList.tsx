@@ -53,10 +53,10 @@ export function RetainerTemplateList({
       {/* Header with Title and Add Button */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h3 className="text-sm font-bold text-[#0A0A0A]">
+          <h3 className="text-sm font-bold text-[#0F172A]">
             Retainer Template Blueprints
           </h3>
-          <p className="text-xs text-[#4A4945] pt-0.5">
+          <p className="text-xs text-[#475569] pt-0.5">
             Standardized multi-task workflow templates for recurring client retainers.
           </p>
         </div>
@@ -65,7 +65,7 @@ export function RetainerTemplateList({
           <Button
             onClick={onNewTemplate}
             size="sm"
-            className="h-9 gap-1.5 text-xs font-semibold bg-[#0A0A0A] text-[#FAF9F5] hover:bg-[#262626] shadow-none shrink-0"
+            className="h-9 gap-1.5 text-xs font-semibold bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs shadow-none shrink-0"
             data-testid="new-template-button"
           >
             <Plus className="h-4 w-4" />
@@ -76,20 +76,20 @@ export function RetainerTemplateList({
 
       {/* Templates List */}
       {isLoading ? (
-        <div className="rounded-none border border-[#0A0A0A] bg-white p-8 text-center text-xs text-[#4A4945] space-y-2">
-          <div className="inline-block h-6 w-6 animate-spin rounded-none border-2 border-[#0A0A0A] border-t-blue-600" />
+        <div className="rounded-[8px] border-[#CBD5E1] bg-white p-8 text-center text-xs text-[#475569] space-y-2">
+          <div className="inline-block h-6 w-6 animate-spin rounded-[8px] border-[#CBD5E1] border-t-blue-600" />
           <p>Loading retainer templates...</p>
         </div>
       ) : error ? (
-        <div className="rounded-none border border-rose-200 bg-rose-50 p-6 text-center text-xs text-rose-700 space-y-1">
+        <div className="rounded-[8px] border-rose-200 bg-rose-50 p-6 text-center text-xs text-rose-700 space-y-1">
           <AlertCircle className="h-5 w-5 mx-auto text-rose-600" />
           <p className="font-semibold">Failed to load retainer templates</p>
           <p>{error.message}</p>
         </div>
       ) : templates.length === 0 ? (
-        <div className="rounded-none border border-dashed border-[#0A0A0A] bg-[#EAE8E3]/50 p-8 text-center text-xs text-[#4A4945] space-y-2">
-          <FileText className="h-8 w-8 mx-auto text-[#4A4945]" />
-          <p className="font-semibold text-[#0A0A0A]">No retainer templates created yet</p>
+        <div className="rounded-[8px] border-dashed border-[#CBD5E1] bg-[#F1F5F9]/50 p-8 text-center text-xs text-[#475569] space-y-2">
+          <FileText className="h-8 w-8 mx-auto text-[#475569]" />
+          <p className="font-semibold text-[#0F172A]">No retainer templates created yet</p>
           <p>Create reusable template blueprints to streamline annual or monthly service generations.</p>
           {canEditRetainers && (
             <Button
@@ -114,12 +114,12 @@ export function RetainerTemplateList({
               <div
                 key={tpl.id}
                 data-testid={`template-card-${tpl.id}`}
-                className="flex flex-col justify-between rounded-none border border-[#0A0A0A] bg-white p-4 shadow-none hover:border-[#0A0A0A] transition-all"
+                className="flex flex-col justify-between rounded-[8px] border-[#CBD5E1] bg-white p-4 shadow-none hover:border-[#CBD5E1] transition-all"
               >
                 <div className="space-y-3">
                   {/* Card Header & Badges */}
                   <div className="flex items-start justify-between gap-2">
-                    <h4 className="font-bold text-sm text-[#0A0A0A] leading-tight" data-testid={`template-name-${tpl.id}`}>
+                    <h4 className="font-bold text-sm text-[#0F172A] leading-tight" data-testid={`template-name-${tpl.id}`}>
                       {tpl.name}
                     </h4>
 
@@ -136,7 +136,7 @@ export function RetainerTemplateList({
                       ) : (
                         <Badge
                           variant="outline"
-                          className="text-xs font-mono py-0 px-1.5 border-[#0A0A0A] bg-[#EAE8E3] text-[#4A4945]"
+                          className="text-xs font-mono py-0 px-1.5 border-[#CBD5E1] bg-[#F1F5F9] text-[#475569]"
                         >
                           None
                         </Badge>
@@ -146,37 +146,37 @@ export function RetainerTemplateList({
 
                   {/* Description */}
                   {tpl.description && (
-                    <p className="text-xs text-[#4A4945] line-clamp-2">
+                    <p className="text-xs text-[#475569] line-clamp-2">
                       {tpl.description}
                     </p>
                   )}
 
                   {/* Client & Billing Info */}
-                  <div className="space-y-1.5 text-xs text-[#4A4945] pt-1 border-t border-[#C8C5BC]">
+                  <div className="space-y-1.5 text-xs text-[#475569] pt-1 border-t border-[#CBD5E1]">
                     {tpl.clients?.name && (
                       <div className="flex items-center gap-1.5">
-                        <Building2 className="h-3.5 w-3.5 text-[#4A4945]" />
-                        <span className="font-medium text-[#0A0A0A]">{tpl.clients.name}</span>
+                        <Building2 className="h-3.5 w-3.5 text-[#475569]" />
+                        <span className="font-medium text-[#0F172A]">{tpl.clients.name}</span>
                       </div>
                     )}
-                    <div className="flex items-center justify-between text-xs font-mono text-[#4A4945]">
-                      <span>Schedule: <strong className="text-[#0A0A0A] uppercase">{tpl.schedule || 'None'}</strong></span>
-                      <span>Priority: <strong className="text-[#0A0A0A]">{tpl.priority}</strong></span>
+                    <div className="flex items-center justify-between text-xs font-mono text-[#475569]">
+                      <span>Schedule: <strong className="text-[#0F172A] uppercase">{tpl.schedule || 'None'}</strong></span>
+                      <span>Priority: <strong className="text-[#0F172A]">{tpl.priority}</strong></span>
                     </div>
                     {tpl.pf_amount > 0 && (
-                      <div className="text-xs font-mono text-[#4A4945]">
+                      <div className="text-xs font-mono text-[#475569]">
                         PF Amount: <strong className="text-emerald-700">₱{tpl.pf_amount.toLocaleString()}</strong>
                       </div>
                     )}
                   </div>
 
                   {/* Task Phase Breakdown */}
-                  <div className="rounded-none bg-[#EAE8E3] p-2 text-xs flex items-center justify-between">
-                    <span className="flex items-center gap-1 font-medium text-[#0A0A0A]">
-                      <Layers className="h-3.5 w-3.5 text-[#0A0A0A]" />
+                  <div className="rounded-[6px] bg-[#F1F5F9] p-2 text-xs flex items-center justify-between">
+                    <span className="flex items-center gap-1 font-medium text-[#0F172A]">
+                      <Layers className="h-3.5 w-3.5 text-[#0F172A]" />
                       {totalTasks} Task{totalTasks !== 1 ? 's' : ''}
                     </span>
-                    <span className="text-xs font-mono text-[#4A4945]">
+                    <span className="text-xs font-mono text-[#475569]">
                       {preCount} Pre-Proc • {procCount} Proc
                     </span>
                   </div>
@@ -184,12 +184,12 @@ export function RetainerTemplateList({
 
                 {/* Card Actions Footer */}
                 {canEditRetainers && (
-                  <div className="flex items-center justify-end gap-1 pt-3 mt-3 border-t border-[#C8C5BC]">
+                  <div className="flex items-center justify-end gap-1 pt-3 mt-3 border-t border-[#CBD5E1]">
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => onEditTemplate(tpl)}
-                      className="h-8 gap-1 text-xs text-[#4A4945] hover:text-[#0A0A0A]"
+                      className="h-8 gap-1 text-xs text-[#475569] hover:text-[#0F172A]"
                       data-testid={`edit-template-btn-${tpl.id}`}
                     >
                       <Edit2 className="h-3.5 w-3.5" />
@@ -199,7 +199,7 @@ export function RetainerTemplateList({
                       variant="ghost"
                       size="sm"
                       onClick={() => setDeleteCandidate(tpl)}
-                      className="h-8 gap-1 text-xs text-[#4A4945] hover:text-rose-600"
+                      className="h-8 gap-1 text-xs text-[#475569] hover:text-rose-600"
                       data-testid={`delete-template-btn-${tpl.id}`}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -218,12 +218,12 @@ export function RetainerTemplateList({
         open={Boolean(deleteCandidate)}
         onOpenChange={(open) => !open && setDeleteCandidate(null)}
       >
-        <DialogContent className="max-w-md border-[#0A0A0A] rounded-none shadow-[4px_4px_0px_#0A0A0A] p-6 bg-[#FAF9F5] border-2" data-testid="template-delete-modal">
+        <DialogContent className="max-w-md border-[#CBD5E1] rounded-[12px] shadow-float p-6 bg-[#FFFFFF] border" data-testid="template-delete-modal">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-[#0A0A0A]">
+            <DialogTitle className="text-base font-bold text-[#0F172A]">
               Delete Retainer Template
             </DialogTitle>
-            <DialogDescription className="text-xs text-[#4A4945] pt-1">
+            <DialogDescription className="text-xs text-[#475569] pt-1">
               Are you sure you want to delete template &quot;{deleteCandidate?.name}&quot;? Existing work requests generated from this template will remain unaffected.
             </DialogDescription>
           </DialogHeader>

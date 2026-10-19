@@ -89,7 +89,7 @@ export function PrintPreviewModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
-        className="max-w-5xl max-h-[92vh] overflow-y-auto p-0 bg-[#EAE8E3]"
+        className="max-w-5xl max-h-[92vh] overflow-y-auto p-0 bg-[#F1F5F9] rounded-[12px] border border-[#CBD5E1] shadow-float"
         data-testid="print-preview-modal"
       >
         {/* Page margin boxes are only used by the separate print window. */}
@@ -112,7 +112,7 @@ export function PrintPreviewModal({
           }
         `}
         </style>
-        <DialogHeader className="billing-print-controls p-5 bg-white border-b border-[#0A0A0A]">
+        <DialogHeader className="billing-print-controls p-5 bg-white border-b border-[#CBD5E1]">
           <DialogTitle>Print Preview — {invoice.invoice_number}</DialogTitle>
           <div className="flex flex-wrap items-center gap-3 pt-3 pr-6">
             <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -180,7 +180,7 @@ export function PrintPreviewModal({
             </Button>
           ) : (
             <span
-              className="text-xs text-[#4A4945] flex items-center gap-1"
+              className="text-xs text-[#475569] flex items-center gap-1"
               data-testid="address-locked-indicator"
             >
               <Lock className="w-3 h-3" />
@@ -224,7 +224,7 @@ export function PrintPreviewModal({
             }}
           />
         </div>
-        <DialogFooter className="billing-print-controls p-4 bg-white border-t border-[#0A0A0A]">
+        <DialogFooter className="billing-print-controls p-4 bg-white border-t border-[#CBD5E1]">
           <Button variant="outline" size="sm" onClick={onClose}>
             Close
           </Button>

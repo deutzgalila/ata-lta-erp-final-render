@@ -307,9 +307,9 @@ export function RetainerTemplateModal({
   if (!canEditRetainers) {
     return (
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="max-w-md border-[#0A0A0A] rounded-none shadow-[4px_4px_0px_#0A0A0A] p-6 bg-[#FAF9F5] border-2" data-testid="unauthorized-retainer-modal">
+        <DialogContent className="max-w-md border-[#CBD5E1] rounded-[12px] shadow-float p-6 bg-[#FFFFFF] border" data-testid="unauthorized-retainer-modal">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-[#0A0A0A]">
+            <DialogTitle className="text-base font-bold text-[#0F172A]">
               Access Restricted
             </DialogTitle>
             <DialogDescription className="text-xs text-rose-600">
@@ -328,24 +328,24 @@ export function RetainerTemplateModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-3xl border-[#0A0A0A] rounded-none shadow-[4px_4px_0px_#0A0A0A] p-6 bg-[#FAF9F5] max-h-[90vh] overflow-y-auto border-2"
+      <DialogContent className="max-w-3xl border-[#CBD5E1] rounded-[12px] shadow-float p-6 bg-[#FFFFFF] max-h-[90vh] overflow-y-auto border"
         data-testid="retainer-template-modal"
       >
         <DialogHeader>
-          <DialogTitle className="text-base font-bold text-[#0A0A0A]">
+          <DialogTitle className="text-base font-bold text-[#0F172A]">
             {isEditing ? `Edit Template: ${template?.name}` : 'New Retainer Template Builder'}
           </DialogTitle>
-          <DialogDescription className="text-xs text-[#4A4945]">
+          <DialogDescription className="text-xs text-[#475569]">
             Configure reusable multi-task blueprint with P0-D phase assignments and recurrence rules.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-5 pt-2">
           {/* Header Metadata Section */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-none border border-[#0A0A0A] bg-[#EAE8E3]/50 p-3.5 text-xs">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-[8px] border-[#CBD5E1] bg-[#F1F5F9]/50 p-3.5 text-xs">
             {/* Template Name */}
             <div className="space-y-1 md:col-span-2">
-              <label className="text-xs font-semibold text-[#0A0A0A]">
+              <label className="text-xs font-semibold text-[#0F172A]">
                 Template Name <span className="text-rose-500">*</span>
               </label>
               <Input
@@ -362,7 +362,7 @@ export function RetainerTemplateModal({
 
             {/* Client (Optional default) */}
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#0A0A0A]">
+              <label className="text-xs font-semibold text-[#0F172A]">
                 Default Client (Optional)
               </label>
               <Select value={clientId || 'none'} onValueChange={(val) => setClientId(val === 'none' ? '' : val)}>
@@ -382,7 +382,7 @@ export function RetainerTemplateModal({
 
             {/* Billing Schedule */}
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#0A0A0A]">
+              <label className="text-xs font-semibold text-[#0F172A]">
                 Billing Schedule
               </label>
               <Select value={schedule} onValueChange={setSchedule}>
@@ -400,7 +400,7 @@ export function RetainerTemplateModal({
 
             {/* Default Priority */}
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#0A0A0A]">
+              <label className="text-xs font-semibold text-[#0F172A]">
                 Default Priority
               </label>
               <Select value={priority} onValueChange={(v) => setPriority(v as Priority)}>
@@ -418,7 +418,7 @@ export function RetainerTemplateModal({
 
             {/* PF Amount */}
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#0A0A0A]">
+              <label className="text-xs font-semibold text-[#0F172A]">
                 Professional Fee (PHP)
               </label>
               <Input
@@ -434,13 +434,13 @@ export function RetainerTemplateModal({
             </div>
 
             {/* Recurrence Toggle */}
-            <div className="space-y-1.5 md:col-span-2 pt-1 border-t border-[#0A0A0A]">
-              <label className="text-xs font-semibold text-[#0A0A0A] flex items-center gap-1.5">
+            <div className="space-y-1.5 md:col-span-2 pt-1 border-t border-[#CBD5E1]">
+              <label className="text-xs font-semibold text-[#0F172A] flex items-center gap-1.5">
                 <Calendar className="h-3.5 w-3.5 text-purple-600" />
                 <span>Recurrence Frequency:</span>
               </label>
               <div className="flex gap-4">
-                <label className="flex items-center gap-2 text-xs text-[#0A0A0A] cursor-pointer">
+                <label className="flex items-center gap-2 text-xs text-[#0F172A] cursor-pointer">
                   <input
                     type="radio"
                     name="recurrence"
@@ -452,7 +452,7 @@ export function RetainerTemplateModal({
                   />
                   <span>None / Ad-Hoc</span>
                 </label>
-                <label className="flex items-center gap-2 text-xs text-[#0A0A0A] cursor-pointer">
+                <label className="flex items-center gap-2 text-xs text-[#0F172A] cursor-pointer">
                   <input
                     type="radio"
                     name="recurrence"
@@ -469,7 +469,7 @@ export function RetainerTemplateModal({
               {/* Annual Period Label Formatting Guidance */}
               {recurrence === 'annual' && (
                 <div
-                  className="rounded-none bg-purple-50 border border-purple-200 p-2.5 text-xs text-purple-800 space-y-1"
+                  className="rounded-[6px] bg-purple-50 border-purple-200 p-2.5 text-xs text-purple-800 space-y-1"
                   data-testid="annual-period-hint"
                 >
                   <p className="font-semibold flex items-center gap-1">
@@ -488,11 +488,11 @@ export function RetainerTemplateModal({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="text-xs font-bold text-[#0A0A0A] flex items-center gap-1.5">
-                  <Layers className="h-4 w-4 text-[#0A0A0A]" />
+                <h4 className="text-xs font-bold text-[#0F172A] flex items-center gap-1.5">
+                  <Layers className="h-4 w-4 text-[#0F172A]" />
                   Task Blueprint Graph ({tasks.length} task{tasks.length !== 1 ? 's' : ''})
                 </h4>
-                <p className="text-xs font-mono text-[#4A4945]">
+                <p className="text-xs font-mono text-[#475569]">
                   Delimiter hint: Title text containing commas, semicolons, or newlines will be split into sibling tasks upon generation.
                 </p>
               </div>
@@ -502,7 +502,7 @@ export function RetainerTemplateModal({
                 variant="outline"
                 size="sm"
                 onClick={addTaskRow}
-                className="h-8 gap-1 text-xs text-[#0A0A0A] border-[#0A0A0A] hover:bg-[#EAE8E3]"
+                className="h-8 gap-1 text-xs text-[#0F172A] border-[#CBD5E1] hover:bg-[#F1F5F9]"
                 data-testid="add-task-row-btn"
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -522,12 +522,12 @@ export function RetainerTemplateModal({
                 return (
                   <div
                     key={task.local_id || idx}
-                    className="rounded-none border border-[#0A0A0A] bg-white p-3 shadow-none space-y-2.5"
+                    className="rounded-[8px] border-[#CBD5E1] bg-white p-3 shadow-none space-y-2.5"
                     data-testid={`task-row-${idx}`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2 flex-1">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-none bg-[#EAE8E3] text-xs font-mono font-bold text-[#4A4945]">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] bg-[#F1F5F9] text-xs font-mono font-bold text-[#475569]">
                           {idx + 1}
                         </span>
                         {/* Task Title Input */}
@@ -560,7 +560,7 @@ export function RetainerTemplateModal({
                             <SelectValue placeholder="Phase" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="pre_processing" className="text-xs text-[#0A0A0A]">
+                            <SelectItem value="pre_processing" className="text-xs text-[#0F172A]">
                               Pre-Processing
                             </SelectItem>
                             <SelectItem value="processing" className="text-xs text-emerald-700">
@@ -577,7 +577,7 @@ export function RetainerTemplateModal({
                           variant="ghost"
                           size="sm"
                           onClick={() => removeTaskRow(idx)}
-                          className="h-8 w-8 p-0 text-[#4A4945] hover:text-rose-600 shrink-0"
+                          className="h-8 w-8 p-0 text-[#475569] hover:text-rose-600 shrink-0"
                           title="Remove task row"
                           data-testid={`remove-task-btn-${idx}`}
                         >
@@ -587,10 +587,10 @@ export function RetainerTemplateModal({
                     </div>
 
                     {/* Secondary Row: Dependency & Assignees */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1 border-t border-[#C8C5BC]">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1 border-t border-[#CBD5E1]">
                       {/* Depends On Local ID */}
                       <div className="space-y-0.5">
-                        <label className="text-xs font-mono text-[#4A4945] font-medium">
+                        <label className="text-xs font-mono text-[#475569] font-medium">
                           Prerequisite Task (Dependency)
                         </label>
                         <Select
@@ -600,7 +600,7 @@ export function RetainerTemplateModal({
                           }
                         >
                           <SelectTrigger
-                            className="h-7 text-xs bg-[#EAE8E3]"
+                            className="h-7 text-xs bg-[#F1F5F9]"
                             data-testid={`task-dependency-select-${idx}`}
                           >
                             <SelectValue placeholder="No prerequisite" />
@@ -618,7 +618,7 @@ export function RetainerTemplateModal({
 
                       {/* Default Assignees Multi-Select / Picker */}
                       <div className="space-y-0.5">
-                        <label className="text-xs font-mono text-[#4A4945] font-medium">
+                        <label className="text-xs font-mono text-[#475569] font-medium">
                           Default Assigned Staff
                         </label>
                         <Select
@@ -632,7 +632,7 @@ export function RetainerTemplateModal({
                           }}
                         >
                           <SelectTrigger
-                            className="h-7 text-xs bg-[#EAE8E3]"
+                            className="h-7 text-xs bg-[#F1F5F9]"
                             data-testid={`task-assignee-select-${idx}`}
                           >
                             <SelectValue placeholder="Unassigned" />
@@ -650,10 +650,10 @@ export function RetainerTemplateModal({
                     </div>
 
                     {/* Checklist & Documents Sub-Section */}
-                    <div className="pt-2 border-t border-[#C8C5BC] space-y-2">
+                    <div className="pt-2 border-t border-[#CBD5E1] space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-mono font-semibold text-[#0A0A0A] flex items-center gap-1.5">
-                          <CheckSquare className="h-3.5 w-3.5 text-[#0A0A0A]" />
+                        <span className="text-xs font-mono font-semibold text-[#0F172A] flex items-center gap-1.5">
+                          <CheckSquare className="h-3.5 w-3.5 text-[#0F172A]" />
                           Checklist & Subtasks ({task.checklist?.length || 0})
                         </span>
                         <Button
@@ -661,7 +661,7 @@ export function RetainerTemplateModal({
                           variant="outline"
                           size="xs"
                           onClick={() => addChecklistItem(idx)}
-                          className="h-6 text-xs font-mono text-[#0A0A0A] hover:bg-[#EAE8E3] border-[#0A0A0A] gap-1"
+                          className="h-6 text-xs font-mono text-[#0F172A] hover:bg-[#F1F5F9] border-[#CBD5E1] gap-1"
                           data-testid={`add-subtask-btn-${idx}`}
                         >
                           <Plus className="h-3 w-3 mr-0.5" />
@@ -670,7 +670,7 @@ export function RetainerTemplateModal({
                       </div>
 
                       {task.checklist && task.checklist.length > 0 ? (
-                        <div className="space-y-1.5 bg-[#EAE8E3]/50 p-2 rounded border border-[#C8C5BC]">
+                        <div className="space-y-1.5 bg-[#F1F5F9]/50 p-2 rounded border-[#CBD5E1]">
                           {task.checklist.map((item, ci) => (
                             <div key={item.id || ci} className="flex items-center gap-2 text-xs">
                               {/* Text input */}
@@ -681,7 +681,7 @@ export function RetainerTemplateModal({
                                   updateChecklistItem(idx, ci, 'text', e.target.value)
                                 }
                                 placeholder="Checklist item or document requirement..."
-                                className="flex-1 text-xs border border-[#0A0A0A] rounded px-2 py-1 bg-white text-[#0A0A0A] placeholder:text-[#4A4945] focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                className="flex-1 text-xs border-[#CBD5E1] rounded px-2 py-1 bg-white text-[#0F172A] placeholder:text-[#475569] focus:outline-none focus:ring-1 focus:ring-blue-500"
                                 data-testid={`checklist-item-input-${idx}-${ci}`}
                               />
 
@@ -693,11 +693,11 @@ export function RetainerTemplateModal({
                                     item.category === 'document' ? 'subtask' : 'document';
                                   updateChecklistItem(idx, ci, 'category', nextCat);
                                 }}
-                                className="px-2 py-1 text-xs font-mono rounded border border-[#0A0A0A] bg-white text-[#4A4945] hover:bg-[#EAE8E3] font-medium shrink-0"
+                                className="px-2 py-1 text-xs font-mono rounded border-[#CBD5E1] bg-white text-[#475569] hover:bg-[#F1F5F9] font-medium shrink-0"
                                 data-testid={`checklist-category-toggle-${idx}-${ci}`}
                               >
                                 {item.category === 'document' ? (
-                                  <span className="flex items-center gap-1 text-[#0A0A0A]">
+                                  <span className="flex items-center gap-1 text-[#0F172A]">
                                     <FileText className="h-3 w-3" /> Doc
                                   </span>
                                 ) : (
@@ -718,7 +718,7 @@ export function RetainerTemplateModal({
                                       parseInt(e.target.value, 10) || null
                                     )
                                   }
-                                  className="w-16 text-xs p-1 border border-[#0A0A0A] rounded bg-white text-center shrink-0"
+                                  className="w-16 text-xs p-1 border-[#CBD5E1] rounded bg-white text-center shrink-0"
                                   placeholder="Year"
                                   data-testid={`checklist-period-year-${idx}-${ci}`}
                                 />
@@ -728,7 +728,7 @@ export function RetainerTemplateModal({
                               <button
                                 type="button"
                                 onClick={() => removeChecklistItem(idx, ci)}
-                                className="text-[#4A4945] hover:text-red-500 p-0.5 shrink-0"
+                                className="text-[#475569] hover:text-red-500 p-0.5 shrink-0"
                                 title="Remove item"
                                 data-testid={`checklist-remove-btn-${idx}-${ci}`}
                               >
@@ -738,7 +738,7 @@ export function RetainerTemplateModal({
                           ))}
                         </div>
                       ) : (
-                        <div className="text-xs font-mono text-[#4A4945] italic">
+                        <div className="text-xs font-mono text-[#475569] italic">
                           No checklist items.
                         </div>
                       )}
@@ -755,9 +755,9 @@ export function RetainerTemplateModal({
               size="sm"
               onClick={addTaskRow}
               data-testid="add-task-btn"
-              className="w-full border-dashed text-xs text-[#4A4945] hover:text-[#0A0A0A] hover:bg-[#EAE8E3] h-8"
+              className="w-full border-dashed text-xs text-[#475569] hover:text-[#0F172A] hover:bg-[#F1F5F9] h-8"
             >
-              <Plus className="h-3.5 w-3.5 mr-1 text-[#4A4945]" />
+              <Plus className="h-3.5 w-3.5 mr-1 text-[#475569]" />
               Add task
             </Button>
           </div>
@@ -776,7 +776,7 @@ export function RetainerTemplateModal({
             <Button
               type="submit"
               size="sm"
-              className="text-xs h-9 bg-[#0A0A0A] text-[#FAF9F5] hover:bg-[#262626]"
+              className="text-xs h-9 bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs"
               data-testid="template-modal-submit-btn"
             >
               {isEditing ? 'Save Template Changes' : 'Create Retainer Template'}

@@ -105,9 +105,9 @@ export function TransmittalTable({
   return (
     <div className="space-y-4" data-testid="transmittal-table-container">
       {/* Search and Filters Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3.5 rounded-none border border-[#0A0A0A]">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3.5 rounded-[8px] border-[#CBD5E1]">
         <div className="relative w-full sm:w-80">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-[#4A4945]" />
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-[#475569]" />
           <Input
             placeholder="Search tracking, client, recipient..."
             value={searchTerm}
@@ -118,7 +118,7 @@ export function TransmittalTable({
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <div className="flex items-center gap-1.5 text-xs text-[#4A4945] shrink-0">
+          <div className="flex items-center gap-1.5 text-xs text-[#475569] shrink-0">
             <Filter className="h-3.5 w-3.5" />
             <span>Status:</span>
           </div>
@@ -138,10 +138,10 @@ export function TransmittalTable({
       </div>
 
       {/* Table Container */}
-      <div className="border border-[#0A0A0A] rounded-none overflow-hidden bg-white shadow-none">
+      <div className="border-[#CBD5E1] rounded-[6px] overflow-hidden bg-white shadow-none">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-[#4A4945]" data-testid="transmittal-table">
-            <thead className="bg-[#EAE8E3] text-[#0A0A0A] font-semibold border-b border-[#0A0A0A] uppercase tracking-wider text-xs font-mono">
+          <table className="w-full text-left text-xs text-[#475569]" data-testid="transmittal-table">
+            <thead className="bg-[#F1F5F9] text-[#0F172A] font-semibold border-b border-[#CBD5E1] uppercase tracking-wider text-xs font-mono">
               <tr>
                 <th className="py-3 px-4">Tracking #</th>
                 <th className="py-3 px-4">Entity</th>
@@ -156,13 +156,13 @@ export function TransmittalTable({
             <tbody className="divide-y divide-slate-100">
               {isLoading && filteredTransmittals.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-[#4A4945]">
+                  <td colSpan={8} className="py-12 text-center text-[#475569]">
                     Loading transmittals...
                   </td>
                 </tr>
               ) : filteredTransmittals.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-[#4A4945]">
+                  <td colSpan={8} className="py-12 text-center text-[#475569]">
                     No transmittals found matching criteria.
                   </td>
                 </tr>
@@ -176,11 +176,11 @@ export function TransmittalTable({
                   return (
                     <tr
                       key={t.id}
-                      className="hover:bg-[#EAE8E3]/75 transition-colors"
+                      className="hover:bg-[#F1F5F9]/75 transition-colors"
                       data-testid={`transmittal-row-${t.id}`}
                     >
                       {/* Tracking Number */}
-                      <td className="py-3 px-4 font-mono font-bold text-[#0A0A0A]">
+                      <td className="py-3 px-4 font-mono font-bold text-[#0F172A]">
                         {t.tracking_number}
                       </td>
 
@@ -196,7 +196,7 @@ export function TransmittalTable({
                       </td>
 
                       {/* Client */}
-                      <td className="py-3 px-4 font-medium text-[#0A0A0A] max-w-[180px] truncate" title={t.clients?.name}>
+                      <td className="py-3 px-4 font-medium text-[#0F172A] max-w-[180px] truncate" title={t.clients?.name}>
                         {t.clients?.name || '—'}
                       </td>
 
@@ -212,8 +212,8 @@ export function TransmittalTable({
 
                       {/* Document Items */}
                       <td className="py-3 px-4">
-                        <span className="inline-flex items-center gap-1 text-[#4A4945]">
-                          <FileText className="h-3 w-3 text-[#4A4945]" />
+                        <span className="inline-flex items-center gap-1 text-[#475569]">
+                          <FileText className="h-3 w-3 text-[#475569]" />
                           {itemsCount} {itemsCount === 1 ? 'doc' : 'docs'}
                         </span>
                       </td>
@@ -224,7 +224,7 @@ export function TransmittalTable({
                       </td>
 
                       {/* Created Date */}
-                      <td className="py-3 px-4 text-[#4A4945] whitespace-nowrap">
+                      <td className="py-3 px-4 text-[#475569] whitespace-nowrap">
                         {new Date(t.created_at).toLocaleDateString(undefined, {
                           month: 'short',
                           day: 'numeric',
@@ -238,7 +238,7 @@ export function TransmittalTable({
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 w-7 p-0 text-[#4A4945] hover:text-[#0A0A0A]"
+                            className="h-7 w-7 p-0 text-[#475569] hover:text-[#0F172A]"
                             title="View Details"
                             onClick={() => onView(t.id)}
                             data-testid={`view-transmittal-btn-${t.id}`}
@@ -250,7 +250,7 @@ export function TransmittalTable({
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="h-7 w-7 p-0 text-[#4A4945] hover:text-[#0A0A0A]"
+                              className="h-7 w-7 p-0 text-[#475569] hover:text-[#0F172A]"
                               title="Edit"
                               onClick={() => onEdit(t)}
                               data-testid={`edit-transmittal-btn-${t.id}`}
@@ -262,7 +262,7 @@ export function TransmittalTable({
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 w-7 p-0 text-[#4A4945] hover:text-[#0A0A0A]"
+                            className="h-7 w-7 p-0 text-[#475569] hover:text-[#0F172A]"
                             title="Print Transmittal Letter"
                             onClick={() => onPrint(t)}
                             data-testid={`print-transmittal-btn-${t.id}`}
@@ -293,7 +293,7 @@ export function TransmittalTable({
                                     <Button
                                       size="sm"
                                       variant="ghost"
-                                      className="h-7 w-7 p-0 text-[#0A0A0A] hover:text-[#0A0A0A] hover:bg-[#EAE8E3] disabled:opacity-40"
+                                      className="h-7 w-7 p-0 text-[#0F172A] hover:text-[#0F172A] hover:bg-[#F1F5F9] disabled:opacity-40"
                                       disabled={isSendDisabled}
                                       title={isSendDisabled ? 'Requires Admin approval before sending' : 'Mark Sent'}
                                       onClick={() => onSend(t)}
@@ -332,7 +332,7 @@ export function TransmittalTable({
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-7 w-7 p-0 text-[#4A4945] hover:text-[#0A0A0A]"
+                                className="h-7 w-7 p-0 text-[#475569] hover:text-[#0F172A]"
                                 title="Restore from Archive"
                                 onClick={() => onUnarchive(t.id)}
                                 data-testid={`unarchive-transmittal-btn-${t.id}`}
@@ -343,7 +343,7 @@ export function TransmittalTable({
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-7 w-7 p-0 text-[#4A4945] hover:text-[#0A0A0A]"
+                                className="h-7 w-7 p-0 text-[#475569] hover:text-[#0F172A]"
                                 title="Archive"
                                 onClick={() => onArchive(t.id)}
                                 data-testid={`archive-transmittal-btn-${t.id}`}

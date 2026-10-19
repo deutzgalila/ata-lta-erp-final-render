@@ -64,31 +64,31 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="border-[#0A0A0A] rounded-none shadow-[4px_4px_0px_#0A0A0A] p-6 bg-[#FAF9F5] max-h-[90vh] overflow-y-auto max-w-2xl border-2"
+      <DialogContent className="border-[#CBD5E1] rounded-[12px] shadow-float p-6 bg-[#FFFFFF] max-h-[90vh] overflow-y-auto max-w-2xl border"
         data-testid="user-detail-modal"
       >
         <DialogHeader>
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-none bg-[#EAE8E3] text-[#0A0A0A] font-bold text-sm">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[6px] bg-[#F1F5F9] text-[#0F172A] font-bold text-sm">
               {user.name.charAt(0).toUpperCase()}
             </div>
             <div>
-              <DialogTitle className="text-base font-bold text-[#0A0A0A] flex items-center gap-2">
+              <DialogTitle className="text-base font-bold text-[#0F172A] flex items-center gap-2">
                 <span>{user.name}</span>
                 <Badge variant="outline" className="text-xs">
                   {user.role}
                 </Badge>
                 {user.isActive ? (
-                  <span className="rounded-none bg-emerald-50 px-2 py-0.5 text-xs font-mono font-medium text-emerald-700 border border-emerald-200">
+                  <span className="rounded-[6px] bg-emerald-50 px-2 py-0.5 text-xs font-mono font-medium text-emerald-700 border-emerald-200">
                     Active
                   </span>
                 ) : (
-                  <span className="rounded-none bg-[#EAE8E3] px-2 py-0.5 text-xs font-mono font-medium text-[#4A4945] border border-[#0A0A0A]">
+                  <span className="rounded-[6px] bg-[#F1F5F9] px-2 py-0.5 text-xs font-mono font-medium text-[#475569] border-[#CBD5E1]">
                     Disabled
                   </span>
                 )}
               </DialogTitle>
-              <DialogDescription className="text-xs text-[#4A4945] pt-0.5">
+              <DialogDescription className="text-xs text-[#475569] pt-0.5">
                 Profile details and effective permissions inspector
               </DialogDescription>
             </div>
@@ -96,18 +96,18 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
         </DialogHeader>
 
         {/* Profile Card */}
-        <div className="rounded-none border border-[#0A0A0A] bg-[#EAE8E3]/60 p-3.5 space-y-2 text-xs">
+        <div className="rounded-[8px] border-[#CBD5E1] bg-[#F1F5F9]/60 p-3.5 space-y-2 text-xs">
           <div className="grid grid-cols-2 gap-3">
-            <div className="flex items-center gap-2 text-[#4A4945]">
-              <Mail className="h-3.5 w-3.5 text-[#4A4945]" />
-              <span className="font-mono text-[#0A0A0A]">{user.email}</span>
+            <div className="flex items-center gap-2 text-[#475569]">
+              <Mail className="h-3.5 w-3.5 text-[#475569]" />
+              <span className="font-mono text-[#0F172A]">{user.email}</span>
             </div>
-            <div className="flex items-center gap-2 text-[#4A4945]">
-              <Building2 className="h-3.5 w-3.5 text-[#4A4945]" />
+            <div className="flex items-center gap-2 text-[#475569]">
+              <Building2 className="h-3.5 w-3.5 text-[#475569]" />
               <span>Entities: {user.entities.join(', ')}</span>
             </div>
-            <div className="flex items-center gap-2 text-[#4A4945]">
-              <Layers className="h-3.5 w-3.5 text-[#4A4945]" />
+            <div className="flex items-center gap-2 text-[#475569]">
+              <Layers className="h-3.5 w-3.5 text-[#475569]" />
               <span>
                 Departments:{' '}
                 {user.role === 'Admin' || user.email === 'lorein@ata-lta.ph'
@@ -117,14 +117,14 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                     : 'None assigned'}
               </span>
             </div>
-            <div className="flex items-center gap-2 text-[#4A4945]">
-              <Calendar className="h-3.5 w-3.5 text-[#4A4945]" />
+            <div className="flex items-center gap-2 text-[#475569]">
+              <Calendar className="h-3.5 w-3.5 text-[#475569]" />
               <span>Created: {new Date(user.createdAt).toLocaleDateString()}</span>
             </div>
           </div>
 
           {effectiveInfo.isAdminSuperUser && (
-            <div className="flex items-center gap-1.5 rounded-none bg-amber-50 border border-amber-200 p-2 text-xs font-mono text-amber-800 font-medium">
+            <div className="flex items-center gap-1.5 rounded-[6px] bg-amber-50 border-amber-200 p-2 text-xs font-mono text-amber-800 font-medium">
               <ShieldCheck className="h-4 w-4 text-amber-600 shrink-0" />
               <span>
                 <strong>Administrator Super-Privilege:</strong> Inherits all department permissions across all 5 departments plus all 8 exclusive administrative operations.
@@ -136,16 +136,16 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
         {/* Permissions Inspector Section */}
         <div className="space-y-3 pt-1">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-[#0A0A0A]">
-              <KeyRound className="h-4 w-4 text-[#0A0A0A]" />
+            <div className="flex items-center gap-1.5 text-xs font-bold text-[#0F172A]">
+              <KeyRound className="h-4 w-4 text-[#0F172A]" />
               <span>Effective Permissions Inspector</span>
-              <Badge variant="outline" className="text-xs font-mono ml-1 bg-[#EAE8E3] text-[#0A0A0A]">
+              <Badge variant="outline" className="text-xs font-mono ml-1 bg-[#F1F5F9] text-[#0F172A]">
                 {effectiveInfo.effectivePermissions.length} / {PERMISSION_KEYS.length} granted
               </Badge>
             </div>
 
             <div className="relative w-48">
-              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#4A4945]" />
+              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#475569]" />
               <Input
                 type="text"
                 placeholder="Filter permissions..."
@@ -158,10 +158,10 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
           </div>
 
           {/* Grouped Permission Keys Table */}
-          <div className="rounded-none border border-[#0A0A0A] divide-y divide-slate-200 max-h-72 overflow-y-auto bg-white text-xs">
+          <div className="rounded-[8px] border-[#CBD5E1] divide-y divide-slate-200 max-h-72 overflow-y-auto bg-white text-xs">
             {Array.from(groupedKeys.entries()).map(([moduleName, keys]) => (
               <div key={moduleName} className="p-3 space-y-2">
-                <h4 className="font-semibold text-[#0A0A0A] text-xs font-mono uppercase tracking-wider text-[#4A4945]">
+                <h4 className="font-semibold text-[#0F172A] text-xs font-mono uppercase tracking-wider text-[#475569]">
                   {moduleName}
                 </h4>
                 <div className="grid grid-cols-1 gap-1.5">
@@ -172,25 +172,25 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                     return (
                       <div
                         key={permKey}
-                        className={`flex items-center justify-between rounded-none p-1.5 text-xs ${
-                          isGranted ? 'bg-emerald-50/50' : 'bg-[#EAE8E3]/50 opacity-60'
+                        className={`flex items-center justify-between rounded-[6px] p-1.5 text-xs ${
+                          isGranted ? 'bg-emerald-50/50' : 'bg-[#F1F5F9]/50 opacity-60'
                         }`}
                         data-testid={`user-perm-${permKey}`}
                         data-granted={isGranted ? 'true' : 'false'}
                       >
                         <div className="flex items-center gap-2">
                           {isGranted ? (
-                            <span className="flex h-4 w-4 items-center justify-center rounded-none bg-emerald-100 text-emerald-700">
+                            <span className="flex h-4 w-4 items-center justify-center rounded-[6px] bg-emerald-100 text-emerald-700">
                               <Check className="h-3 w-3" />
                             </span>
                           ) : (
-                            <span className="flex h-4 w-4 items-center justify-center rounded-none bg-[#C8C5BC] text-[#4A4945] font-bold text-xs font-mono">
+                            <span className="flex h-4 w-4 items-center justify-center rounded-[6px] bg-[#E2E8F0] text-[#475569] font-bold text-xs font-mono">
                               —
                             </span>
                           )}
                           <span
                             className={`font-mono text-xs font-mono ${
-                              isGranted ? 'font-semibold text-[#0A0A0A]' : 'text-[#4A4945]'
+                              isGranted ? 'font-semibold text-[#0F172A]' : 'text-[#475569]'
                             }`}
                           >
                             {permKey}
@@ -208,7 +208,7 @@ export function UserDetailModal({ user, isOpen, onClose }: UserDetailModalProps)
                               <Badge
                                 key={src}
                                 variant="outline"
-                                className="text-xs font-mono py-0 px-1 border-[#0A0A0A] bg-[#EAE8E3] text-[#0A0A0A]"
+                                className="text-xs font-mono py-0 px-1 border-[#CBD5E1] bg-[#F1F5F9] text-[#0F172A]"
                               >
                                 {src}
                               </Badge>
