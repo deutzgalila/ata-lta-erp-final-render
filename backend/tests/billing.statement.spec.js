@@ -153,7 +153,7 @@ it.each(['true', 'false'])(
     expect(html).toContain('&lt;script&gt;bad&lt;/script&gt;');
     expect(html.includes('<img')).toBe(toggle === 'true');
     expect(html.includes('A.T.A. BUSINESS CONSULTANCY')).toBe(toggle === 'true');
-    expect(html).toContain('margin: 15mm 20mm');
+    expect(html).toContain('@page { size: A4; margin: 0; padding: 15mm 20mm; }');
     if (toggle === 'true') expect(html).toContain('data:image/jpeg;base64,');
     await getPdf().expect(200);
     const suffix = toggle === 'true' ? '' : '-no-company-details';
@@ -211,3 +211,16 @@ it.each(['ATA', 'LTA'])('escapes statement values and omits branding for %s', (e
   expect(html).toContain('&lt;img src=x&gt;');
   expect(html).toContain('L. Tan');
 });
+it.each(['ATA', 'LTA'])(
+  'omits the billing inquiry footer for %s in both branding modes',
+  (entity) => {
+    for (const includeCompanyDetails of [true, false]) {
+      const html = buildStatementDocument(
+        { ...invoice, entity_code: entity },
+        { includeCompanyDetails }
+      );
+      expect(html).not.toMatch(/Should you have any (?:enquiries|inquiries)/i);
+      expect(html).toContain('THANK YOU !!!');
+    }
+  }
+);
