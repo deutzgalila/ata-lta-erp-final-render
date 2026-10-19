@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { PRINT_PAGE_CSS, wrapPrintPage } from '@/lib/printPage';
 import {
   buildStatementDocument,
   printStatementDocument,
@@ -71,8 +72,11 @@ describe('Canonical statement rendering', () => {
     );
     printStatementDocument(invoice, { includeCompanyDetails: false });
     expect(write.mock.calls[0]![0]).toContain(
-      buildStatementDocument(invoice, { includeCompanyDetails: false })
+      wrapPrintPage(buildStatementDocument(invoice, { includeCompanyDetails: false }))
     );
-    expect(STATEMENT_CSS).toContain('@page { size: A4; margin: 0; padding: 15mm 20mm; }');
+    expect(write.mock.calls[0]![0]).toContain(STATEMENT_CSS + PRINT_PAGE_CSS);
+    expect(PRINT_PAGE_CSS).toContain('@page { size: A4; margin: 0; }');
+    expect(PRINT_PAGE_CSS).toContain('height: 15mm');
+    expect(PRINT_PAGE_CSS).toContain('padding: 0 20mm');
   });
 });

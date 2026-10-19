@@ -10,6 +10,8 @@
  * UAT-FIN5 / UAT-FIN8 / print parity.
  */
 
+import { PRINT_PAGE_CSS, wrapPrintPage } from './printPage';
+
 const esc = (v: unknown): string =>
   String(v ?? '')
     .replace(/&/g, '&amp;')
@@ -116,8 +118,7 @@ export function getInvoicePrintDetails(inv: StatementPrintInvoice): InvoicePrint
 
 export const STATEMENT_CSS = `
 * { box-sizing: border-box; }
-/* Zero margins suppress browser headers/footers; page padding repeats on every sheet. */
-@page { size: A4; margin: 0; padding: 15mm 20mm; }
+@page { size: A4; margin: 15mm 20mm; }
 body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #000; box-sizing: border-box; max-width: 210mm; margin: 0 auto; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
 /* Generic Header Styles */
@@ -380,8 +381,8 @@ export function printStatementDocument(
 ): void {
   openPrintWindow(
     `Statement ${inv.invoice_number || ''}`,
-    STATEMENT_CSS,
-    buildStatementDocument(inv, options)
+    STATEMENT_CSS + PRINT_PAGE_CSS,
+    wrapPrintPage(buildStatementDocument(inv, options))
   );
 }
 
