@@ -19,8 +19,8 @@ export function RouteGuard({ children, requiredPermission, adminOnly }: RouteGua
     return (
       <div className="flex h-screen w-full items-center justify-center p-8 bg-[#F8FAFC]">
         <div className="w-full max-w-md space-y-4 text-center">
-          <div className="mx-auto h-12 w-12 rounded-[8px] border border-[#CBD5E1] bg-[#FFFFFF] shadow-2xs flex items-center justify-center">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#CBD5E1] border-t-[#1D4ED8]" />
+          <div className="mx-auto h-12 w-12 rounded-[8px] border border-[#E2E8F0] bg-[#FFFFFF] shadow-2xs flex items-center justify-center">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#E2E8F0] border-t-[#1D4ED8]" />
           </div>
           <Skeleton className="h-4 w-3/4 mx-auto" />
           <Skeleton className="h-3 w-1/2 mx-auto" />

@@ -307,9 +307,9 @@ export function OtherTemplateModal({
   if (!canEditRetainers) {
     return (
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="max-w-md p-6 rounded-[12px] border-[#CBD5E1] bg-[#FFFFFF] shadow-float" data-testid="unauthorized-other-template-modal">
+        <DialogContent className="max-w-md p-6 rounded-[12px] border-[#E2E8F0] bg-[#FFFFFF] shadow-float" data-testid="unauthorized-other-template-modal">
           <DialogHeader>
-            <DialogTitle className="text-base font-extrabold tracking-tight text-[#0F172A]">
+            <DialogTitle className="text-base font-semibold tracking-tight text-[#1E293B]">
               Access Restricted
             </DialogTitle>
             <DialogDescription className="text-xs font-mono text-[#DC2626]">
@@ -317,7 +317,7 @@ export function OtherTemplateModal({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button size="sm" onClick={onClose} className="rounded-[8px] border-[#CBD5E1] text-[#0F172A] hover:bg-[#F1F5F9] font-mono text-xs uppercase tracking-wider">
+            <Button size="sm" onClick={onClose} className="rounded-[8px] border-[#E2E8F0] text-[#1E293B] hover:bg-[#F8FAFC] text-xs tracking-normal">
               Close
             </Button>
           </DialogFooter>
@@ -329,28 +329,28 @@ export function OtherTemplateModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
-        className="max-w-3xl p-6 max-h-[90vh] overflow-y-auto rounded-[12px] border-[#CBD5E1] bg-[#FFFFFF] shadow-float"
+        className="max-w-3xl p-6 max-h-[90vh] overflow-y-auto rounded-[12px] border-[#E2E8F0] bg-[#FFFFFF] shadow-float"
         data-testid="other-template-modal"
       >
         <DialogHeader>
-          <DialogTitle className="text-base font-extrabold tracking-tight text-[#0F172A]">
+          <DialogTitle className="text-base font-semibold tracking-tight text-[#1E293B]">
             {isEditing ? `Edit Other Template: ${template?.name}` : 'New Other Template Builder'}
           </DialogTitle>
-          <DialogDescription className="text-xs font-mono text-[#475569]">
+          <DialogDescription className="text-xs text-[#475569]">
             Configure reusable ad-hoc workflow blueprint with strictly Title and Tasks/Subtasks.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} noValidate className="space-y-4 pt-2">
           {errors.form && (
-            <div className="p-2.5 bg-[#FFFFFF] border-[#FCA5A5] rounded-[6px] text-xs font-mono text-[#DC2626]">
+            <div className="p-2.5 bg-[#FFFFFF] border-[#FCA5A5] rounded-[6px] text-xs text-[#DC2626]">
               {errors.form}
             </div>
           )}
 
           {/* 1. Template Title (Required) */}
           <div className="space-y-1">
-            <label className="text-xs font-mono uppercase tracking-wider text-[#475569] block">
+            <label className="text-xs tracking-normal text-[#475569] block">
               Template Title <span className="text-[#DC2626]">*</span>
             </label>
             <Input
@@ -361,15 +361,15 @@ export function OtherTemplateModal({
                 setTitle(e.target.value);
                 if (errors.title) setErrors((prev) => ({ ...prev, title: '' }));
               }}
-              className="h-9 bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] font-mono text-xs text-[#0F172A] placeholder:text-[#475569]"
+              className="h-9 bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px] text-xs text-[#1E293B] placeholder:text-[#475569]"
               data-testid="other-template-title-input"
             />
-            {errors.title && <p className="text-xs font-mono text-[#DC2626]">{errors.title}</p>}
+            {errors.title && <p className="text-xs text-[#DC2626]">{errors.title}</p>}
           </div>
 
           {/* 2. Description / Notes (Optional) */}
           <div className="space-y-1">
-            <label className="text-xs font-mono uppercase tracking-wider text-[#475569] block">
+            <label className="text-xs tracking-normal text-[#475569] block">
               Description / Notes (Optional)
             </label>
             <textarea
@@ -377,20 +377,20 @@ export function OtherTemplateModal({
               placeholder="Provide workflow context or operational instructions..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] p-2 text-xs font-mono text-[#0F172A] placeholder:text-[#475569] focus:outline-none focus:ring-1 focus:ring-[#1D4ED8]"
+              className="w-full rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] p-2 text-xs text-[#1E293B] placeholder:text-[#475569] focus:outline-none focus:ring-1 focus:ring-[#1D4ED8]"
               data-testid="other-template-description-input"
             />
           </div>
 
           {/* 3. Tasks & Subtasks Builder */}
-          <div className="space-y-3 pt-2 border-t border-[#CBD5E1]">
+          <div className="space-y-3 pt-2 border-t border-[#E2E8F0]">
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-[#0F172A] flex items-center gap-1.5">
-                  <Layers className="h-4 w-4 text-[#0F172A]" />
+                <h4 className="text-xs font-bold tracking-normal text-[#1E293B] flex items-center gap-1.5">
+                  <Layers className="h-4 w-4 text-[#1E293B]" />
                   Tasks & Subtasks Builder ({tasks.length} task{tasks.length !== 1 ? 's' : ''})
                 </h4>
-                <p className="text-xs font-mono text-[#475569]">
+                <p className="text-xs text-[#475569]">
                   Define workflow phases and dependencies. Titles containing commas can be expanded into individual tasks.
                 </p>
               </div>
@@ -400,7 +400,7 @@ export function OtherTemplateModal({
                 variant="outline"
                 size="sm"
                 onClick={addTaskRow}
-                className="h-8 gap-1 text-xs font-mono uppercase tracking-wider text-[#0F172A] border-[#CBD5E1] bg-[#FFFFFF] hover:bg-[#F1F5F9] rounded-[6px]"
+                className="h-8 gap-1 text-xs tracking-normal text-[#1E293B] border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] rounded-[6px]"
                 data-testid="add-task-row-btn"
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -408,7 +408,7 @@ export function OtherTemplateModal({
               </Button>
             </div>
 
-            {errors.tasks && <p className="text-xs font-mono text-[#DC2626]">{errors.tasks}</p>}
+            {errors.tasks && <p className="text-xs text-[#DC2626]">{errors.tasks}</p>}
 
             {/* Task Rows List */}
             <div className="space-y-2.5" data-testid="task-rows-container">
@@ -424,12 +424,12 @@ export function OtherTemplateModal({
                 return (
                   <div
                     key={task.local_id || idx}
-                    className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] p-3 shadow-none space-y-2.5 font-mono"
+                    className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] p-3 shadow-none space-y-2.5"
                     data-testid={`task-row-${idx}`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2 flex-1">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] bg-[#1D4ED8] text-xs font-mono font-bold text-[#FFFFFF]">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] bg-[#1D4ED8] text-xs font-bold text-[#FFFFFF]">
                           {idx + 1}
                         </span>
                         {/* Task Title Input */}
@@ -442,21 +442,21 @@ export function OtherTemplateModal({
                             placeholder="Task title (e.g. Draft Resolution, Review Filings)"
                             value={task.title}
                             onChange={(e) => updateTaskField(idx, 'title', e.target.value)}
-                            className="h-8 text-xs font-mono rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A]"
+                            className="h-8 text-xs rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B]"
                             data-testid={`task-title-input-${idx}`}
                           />
                           {errors[`task_${idx}`] && (
-                            <p className="text-xs font-mono text-[#DC2626]">{errors[`task_${idx}`]}</p>
+                            <p className="text-xs text-[#DC2626]">{errors[`task_${idx}`]}</p>
                           )}
                           {tokenizer.shouldSplit && (
                             <div className="flex items-center gap-2 pt-0.5">
-                              <span className="text-xs text-[#FFFFFF] bg-[#1D4ED8] px-1.5 py-0.5 rounded-[6px] font-mono">
+                              <span className="text-xs text-[#FFFFFF] bg-[#1D4ED8] px-1.5 py-0.5 rounded-[6px] tabular-nums">
                                 Contains delimiter ({tokenizer.count} tasks detected)
                               </span>
                               <button
                                 type="button"
                                 onClick={() => handleSplitTask(idx)}
-                                className="text-xs text-[#0F172A] hover:text-[#DC2626] underline flex items-center gap-0.5 font-mono font-semibold"
+                                className="text-xs text-[#1E293B] hover:text-[#DC2626] underline flex items-center gap-0.5 font-semibold"
                                 data-testid={`split-task-btn-${idx}`}
                               >
                                 <Split className="h-3 w-3" /> Split into rows
@@ -473,16 +473,16 @@ export function OtherTemplateModal({
                           onValueChange={(val) => updateTaskField(idx, 'phase', val as CreatablePhase)}
                         >
                           <SelectTrigger
-                            className="h-8 text-xs font-mono bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] text-[#0F172A]"
+                            className="h-8 text-xs bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px] text-[#1E293B]"
                             data-testid={`task-phase-select-${idx}`}
                           >
                             <SelectValue placeholder="Phase" />
                           </SelectTrigger>
-                          <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]">
-                            <SelectItem value="pre_processing" className="text-xs font-mono text-[#0F172A]">
+                          <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
+                            <SelectItem value="pre_processing" className="text-xs text-[#1E293B]">
                               Pre-Processing
                             </SelectItem>
-                            <SelectItem value="processing" className="text-xs font-mono text-[#0F172A]">
+                            <SelectItem value="processing" className="text-xs text-[#1E293B]">
                               Processing
                             </SelectItem>
                           </SelectContent>
@@ -496,7 +496,7 @@ export function OtherTemplateModal({
                           variant="ghost"
                           size="sm"
                           onClick={() => removeTaskRow(idx)}
-                          className="h-8 w-8 p-0 text-[#475569] hover:text-[#DC2626] hover:bg-[#F1F5F9] rounded-[6px] shrink-0"
+                          className="h-8 w-8 p-0 text-[#475569] hover:text-[#DC2626] hover:bg-[#F8FAFC] rounded-[6px] shrink-0"
                           title="Remove task row"
                           data-testid={`remove-task-btn-${idx}`}
                         >
@@ -506,9 +506,9 @@ export function OtherTemplateModal({
                     </div>
 
                     {/* Secondary Row: Dependency */}
-                    <div className="text-xs pt-1 border-t border-[#CBD5E1] flex items-center justify-between">
+                    <div className="text-xs pt-1 border-t border-[#E2E8F0] flex items-center justify-between">
                       <div className="flex items-center gap-2 flex-1">
-                        <label className="text-xs font-mono uppercase tracking-wider text-[#475569] whitespace-nowrap">
+                        <label className="text-xs tracking-normal text-[#475569] whitespace-nowrap">
                           Depends on:
                         </label>
                         <Select
@@ -519,7 +519,7 @@ export function OtherTemplateModal({
                           disabled={predecessorOptions.length === 0}
                         >
                           <SelectTrigger
-                            className="h-7 text-xs font-mono bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] max-w-xs text-[#0F172A]"
+                            className="h-7 text-xs bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px] max-w-xs text-[#1E293B]"
                             data-testid={`task-dep-select-${idx}`}
                           >
                             <SelectValue
@@ -530,12 +530,12 @@ export function OtherTemplateModal({
                               }
                             />
                           </SelectTrigger>
-                          <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]">
-                            <SelectItem value="none" className="text-xs font-mono text-[#475569]">
+                          <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
+                            <SelectItem value="none" className="text-xs text-[#475569]">
                               None (Independent)
                             </SelectItem>
                             {predecessorOptions.map((opt) => (
-                              <SelectItem key={opt.localId} value={opt.localId} className="text-xs font-mono">
+                              <SelectItem key={opt.localId} value={opt.localId} className="text-xs">
                                 {opt.title}
                               </SelectItem>
                             ))}
@@ -545,10 +545,10 @@ export function OtherTemplateModal({
                     </div>
 
                     {/* Checklist & Documents Sub-Section */}
-                    <div className="pt-2 border-t border-[#CBD5E1] space-y-2">
+                    <div className="pt-2 border-t border-[#E2E8F0] space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#0F172A] flex items-center gap-1.5">
-                          <CheckSquare className="h-3.5 w-3.5 text-[#0F172A]" />
+                        <span className="text-xs font-bold tracking-normal text-[#1E293B] flex items-center gap-1.5">
+                          <CheckSquare className="h-3.5 w-3.5 text-[#1E293B]" />
                           Checklist & Subtasks ({task.checklist?.length || 0})
                         </span>
                         <Button
@@ -556,7 +556,7 @@ export function OtherTemplateModal({
                           variant="outline"
                           size="xs"
                           onClick={() => addChecklistItem(idx)}
-                          className="h-6 text-xs font-mono uppercase tracking-wider text-[#0F172A] hover:bg-[#F1F5F9] border-[#CBD5E1] rounded-[6px] gap-1"
+                          className="h-6 text-xs tracking-normal text-[#1E293B] hover:bg-[#F8FAFC] border-[#E2E8F0] rounded-[6px] gap-1"
                           data-testid={`add-subtask-btn-${idx}`}
                         >
                           <Plus className="h-3 w-3 mr-0.5" />
@@ -565,7 +565,7 @@ export function OtherTemplateModal({
                       </div>
 
                       {task.checklist && task.checklist.length > 0 ? (
-                        <div className="space-y-1.5 bg-[#F1F5F9] p-2 rounded-[8px] border-[#CBD5E1]">
+                        <div className="space-y-1.5 bg-[#F8FAFC] p-2 rounded-[8px] border-[#E2E8F0]">
                           {task.checklist.map((item, ci) => (
                             <div key={item.id || ci} className="flex items-center gap-2 text-xs">
                               {/* Text input */}
@@ -576,7 +576,7 @@ export function OtherTemplateModal({
                                   updateChecklistItem(idx, ci, 'text', e.target.value)
                                 }
                                 placeholder="Checklist item or document requirement..."
-                                className="flex-1 text-xs font-mono border-[#CBD5E1] rounded-[6px] px-2 py-1 bg-[#FFFFFF] text-[#0F172A] placeholder:text-[#475569] focus:outline-none focus:ring-1 focus:ring-[#1D4ED8]"
+                                className="flex-1 text-xs border-[#E2E8F0] rounded-[6px] px-2 py-1 bg-[#FFFFFF] text-[#1E293B] placeholder:text-[#475569] focus:outline-none focus:ring-1 focus:ring-[#1D4ED8]"
                                 data-testid={`checklist-item-input-${idx}-${ci}`}
                               />
 
@@ -588,11 +588,11 @@ export function OtherTemplateModal({
                                     item.category === 'document' ? 'subtask' : 'document';
                                   updateChecklistItem(idx, ci, 'category', nextCat);
                                 }}
-                                className="px-2 py-1 text-xs font-mono rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A] hover:bg-[#F1F5F9] uppercase tracking-wider font-medium shrink-0"
+                                className="px-2 py-1 text-xs rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B] hover:bg-[#F8FAFC] tracking-normal font-medium shrink-0"
                                 data-testid={`checklist-category-toggle-${idx}-${ci}`}
                               >
                                 {item.category === 'document' ? (
-                                  <span className="flex items-center gap-1 text-[#0F172A]">
+                                  <span className="flex items-center gap-1 text-[#1E293B]">
                                     <FileText className="h-3 w-3" /> Doc
                                   </span>
                                 ) : (
@@ -613,7 +613,7 @@ export function OtherTemplateModal({
                                       parseInt(e.target.value, 10) || null
                                     )
                                   }
-                                  className="w-16 text-xs font-mono p-1 border-[#CBD5E1] rounded-[6px] bg-[#FFFFFF] text-[#0F172A] text-center shrink-0"
+                                  className="w-16 text-xs p-1 border-[#E2E8F0] rounded-[6px] bg-[#FFFFFF] text-[#1E293B] text-center shrink-0"
                                   placeholder="Year"
                                   data-testid={`checklist-period-year-${idx}-${ci}`}
                                 />
@@ -633,7 +633,7 @@ export function OtherTemplateModal({
                           ))}
                         </div>
                       ) : (
-                        <div className="text-xs font-mono text-[#475569] italic">
+                        <div className="text-xs text-[#475569] italic">
                           No checklist items.
                         </div>
                       )}
@@ -650,20 +650,20 @@ export function OtherTemplateModal({
               size="sm"
               onClick={addTaskRow}
               data-testid="add-task-btn"
-              className="w-full border-dashed border-[#CBD5E1] text-xs font-mono uppercase tracking-wider text-[#0F172A] hover:bg-[#F1F5F9] rounded-[6px] h-8"
+              className="w-full border-dashed border-[#E2E8F0] text-xs tracking-normal text-[#1E293B] hover:bg-[#F8FAFC] rounded-[6px] h-8"
             >
-              <Plus className="h-3.5 w-3.5 mr-1 text-[#0F172A]" />
+              <Plus className="h-3.5 w-3.5 mr-1 text-[#1E293B]" />
               Add task
             </Button>
           </div>
 
-          <DialogFooter className="pt-4 border-t border-[#CBD5E1]">
+          <DialogFooter className="pt-4 border-t border-[#E2E8F0]">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={onClose}
-              className="rounded-[8px] border-[#CBD5E1] text-[#0F172A] hover:bg-[#F1F5F9] font-mono text-xs uppercase tracking-wider"
+              className="rounded-[8px] border-[#E2E8F0] text-[#1E293B] hover:bg-[#F8FAFC] text-xs tracking-normal"
               data-testid="other-template-cancel-btn"
             >
               Cancel
@@ -672,7 +672,7 @@ export function OtherTemplateModal({
               type="submit"
               size="sm"
               disabled={isPending}
-              className="rounded-[6px] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs hover:bg-[#DC2626] font-mono text-xs uppercase tracking-wider disabled:bg-[#F1F5F9] disabled:text-[#475569]/50"
+              className="rounded-[6px] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs text-xs tracking-normal disabled:bg-[#F8FAFC] disabled:text-[#475569]/50"
               data-testid="other-template-submit-btn"
             >
               {isPending

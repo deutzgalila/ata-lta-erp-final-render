@@ -32,7 +32,7 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 rounded-[12px] border border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A] p-6 shadow-float overscroll-contain duration-150 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+        'fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 rounded-[12px] border border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B] p-6 shadow-float overscroll-contain duration-150 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
         className
       )}
       {...props}
@@ -53,7 +53,7 @@ const DialogContent = React.forwardRef<
       }}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-[6px] p-1 text-[#475569] opacity-80 transition-[opacity,background-color,color] hover:opacity-100 hover:bg-[#F1F5F9] hover:text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#1D4ED8] disabled:pointer-events-none cursor-pointer">
+      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-[6px] p-1 text-[#475569] opacity-80 transition-[opacity,background-color,color] hover:opacity-100 hover:bg-[#F8FAFC] hover:text-[#1E293B] focus:outline-none focus:ring-2 focus:ring-[#1D4ED8] disabled:pointer-events-none cursor-pointer">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>
@@ -93,7 +93,7 @@ const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn('text-lg font-semibold leading-none tracking-tight text-[#0F172A]', className)}
+    className={cn('text-lg font-semibold leading-none tracking-tight text-[#1E293B]', className)}
     {...props}
   />
 ));

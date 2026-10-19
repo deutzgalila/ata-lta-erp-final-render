@@ -97,7 +97,7 @@ export function ProfilePasswordCard({ isLoading = false }: ProfilePasswordCardPr
   const passwordsMatch = confirmPassword.length > 0 && confirmPassword === newPassword;
 
   return (
-    <Card className="border-[#CBD5E1] dark:border-zinc-800 shadow-none" data-testid="profile-password-card">
+    <Card className="border-[#E2E8F0] dark:border-zinc-800 shadow-none" data-testid="profile-password-card">
       <CardHeader>
         <CardTitle className="text-lg font-bold text-foreground">Change Password</CardTitle>
         <CardDescription>Use a strong password meeting modern security complexity requirements.</CardDescription>
@@ -108,7 +108,7 @@ export function ProfilePasswordCard({ isLoading = false }: ProfilePasswordCardPr
           <div className="space-y-1.5">
             <label
               htmlFor="profile-current-password"
-              className="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+              className="text-xs font-semibold text-muted-foreground tracking-normal"
             >
               Current Password
             </label>
@@ -147,7 +147,7 @@ export function ProfilePasswordCard({ isLoading = false }: ProfilePasswordCardPr
               <div className="flex items-center justify-between">
                 <label
                   htmlFor="profile-new-password"
-                  className="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+                  className="text-xs font-semibold text-muted-foreground tracking-normal"
                 >
                   New Password
                 </label>
@@ -203,7 +203,7 @@ export function ProfilePasswordCard({ isLoading = false }: ProfilePasswordCardPr
               <div className="flex items-center justify-between">
                 <label
                   htmlFor="profile-confirm-password"
-                  className="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+                  className="text-xs font-semibold text-muted-foreground tracking-normal"
                 >
                   Confirm New Password
                 </label>
@@ -257,23 +257,23 @@ export function ProfilePasswordCard({ isLoading = false }: ProfilePasswordCardPr
 
           {/* Real-time Guardrails & Strength Meter */}
           <div
-            className="rounded-[8px] border-[#CBD5E1] dark:border-zinc-800 bg-muted/20 p-4 space-y-3"
+            className="rounded-[8px] border-[#E2E8F0] dark:border-zinc-800 bg-muted/20 p-4 space-y-3"
             data-testid="password-guardrails-container"
           >
             {/* Strength Meter Header */}
             <div className="flex items-center justify-between text-xs">
               <span className="font-medium text-muted-foreground">Password Strength</span>
               <span
-                className={`text-xs font-mono font-semibold px-2 py-0.5 rounded-[6px] uppercase tracking-wider ${
+                className={`text-xs font-mono font-semibold px-2 py-0.5 rounded-[6px] tracking-normal ${
                   evalRes.strength === 'strong'
                     ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
                     : evalRes.strength === 'good'
-                    ? 'bg-[#F1F5F9]0/15 text-[#0F172A] dark:text-blue-400'
+                    ? 'bg-[#F8FAFC]0/15 text-[#1E293B] dark:text-blue-400'
                     : evalRes.strength === 'fair'
                     ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
                     : evalRes.strength === 'weak'
                     ? 'bg-destructive/15 text-destructive'
-                    : 'bg-muted text-muted-foreground border-[#CBD5E1] dark:border-zinc-800'
+                    : 'bg-muted text-muted-foreground border-[#E2E8F0] dark:border-zinc-800'
                 }`}
                 data-testid="password-strength-badge"
               >
@@ -288,7 +288,7 @@ export function ProfilePasswordCard({ isLoading = false }: ProfilePasswordCardPr
                 let bgColor = 'bg-border';
                 if (isActive) {
                   if (evalRes.strength === 'strong') bgColor = 'bg-emerald-500';
-                  else if (evalRes.strength === 'good') bgColor = 'bg-[#F1F5F9]0';
+                  else if (evalRes.strength === 'good') bgColor = 'bg-[#F8FAFC]0';
                   else if (evalRes.strength === 'fair') bgColor = 'bg-amber-500';
                   else if (evalRes.strength === 'weak') bgColor = 'bg-destructive';
                 }

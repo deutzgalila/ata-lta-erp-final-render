@@ -322,7 +322,7 @@ export function DocumentUploadModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="bg-[#FFFFFF] shadow-float border-[#CBD5E1] rounded-[12px] max-w-lg border" data-testid="document-upload-modal">
+      <DialogContent className="bg-[#FFFFFF] shadow-float border-[#E2E8F0] rounded-[12px] max-w-lg border" data-testid="document-upload-modal">
         <DialogHeader>
           <DialogTitle>Upload Document</DialogTitle>
           <DialogDescription>
@@ -331,7 +331,7 @@ export function DocumentUploadModal({
         </DialogHeader>
 
         {/* Mode Selector */}
-        <div className="flex border-b border-[#CBD5E1] -mx-6 px-6 pb-3 gap-4 text-sm font-medium">
+        <div className="flex border-b border-[#E2E8F0] -mx-6 px-6 pb-3 gap-4 text-sm font-medium">
           <button
             type="button"
             onClick={() => {
@@ -340,8 +340,8 @@ export function DocumentUploadModal({
             }}
             className={`flex items-center gap-2 pb-1 border-b-2 transition-colors ${
               mode === 'file'
-                ? 'border-[#CBD5E1] text-[#0F172A]'
-                : 'border-transparent text-[#475569] hover:text-[#0F172A]'
+                ? 'border-[#E2E8F0] text-[#1E293B]'
+                : 'border-transparent text-[#475569] hover:text-[#1E293B]'
             }`}
             data-testid="mode-tab-file"
           >
@@ -356,8 +356,8 @@ export function DocumentUploadModal({
             }}
             className={`flex items-center gap-2 pb-1 border-b-2 transition-colors ${
               mode === 'external'
-                ? 'border-[#CBD5E1] text-[#0F172A]'
-                : 'border-transparent text-[#475569] hover:text-[#0F172A]'
+                ? 'border-[#E2E8F0] text-[#1E293B]'
+                : 'border-transparent text-[#475569] hover:text-[#1E293B]'
             }`}
             data-testid="mode-tab-external"
           >
@@ -381,11 +381,11 @@ export function DocumentUploadModal({
               {!selectedFile ? (
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-[#CBD5E1] hover:border-[#CBD5E1] rounded-[6px] p-6 text-center cursor-pointer transition-colors bg-[#FFFFFF]"
+                  className="border-2 border-dashed border-[#E2E8F0] hover:border-[#E2E8F0] rounded-[6px] p-6 text-center cursor-pointer transition-colors bg-[#FFFFFF]"
                   data-testid="file-dropzone"
                 >
                   <Upload className="h-8 w-8 mx-auto text-[#475569] mb-2" />
-                  <p className="text-sm font-medium text-[#0F172A]">
+                  <p className="text-sm font-medium text-[#1E293B]">
                     Click to select a document file
                   </p>
                   <p className="text-xs text-[#475569] mt-1">
@@ -393,11 +393,11 @@ export function DocumentUploadModal({
                   </p>
                 </div>
               ) : (
-                <div className="flex items-center justify-between p-3 rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]">
+                <div className="flex items-center justify-between p-3 rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
                   <div className="flex items-center gap-3 truncate">
-                    <FileText className="h-6 w-6 text-[#0F172A] shrink-0" />
+                    <FileText className="h-6 w-6 text-[#1E293B] shrink-0" />
                     <div className="truncate">
-                      <p className="text-sm font-medium text-[#0F172A] truncate">
+                      <p className="text-sm font-medium text-[#1E293B] truncate">
                         {selectedFile.name}
                       </p>
                       <p className="text-xs text-[#475569]">
@@ -414,7 +414,7 @@ export function DocumentUploadModal({
                       setFileName('');
                       if (fileInputRef.current) fileInputRef.current.value = '';
                     }}
-                    className="h-8 w-8 p-0 text-[#475569] hover:text-[#0F172A]"
+                    className="h-8 w-8 p-0 text-[#475569] hover:text-[#1E293B]"
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -435,7 +435,7 @@ export function DocumentUploadModal({
           ) : (
             /* External URL Input */
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-[#0F172A]">
+              <label className="text-xs font-medium text-[#1E293B]">
                 External URL <span className="text-rose-500">*</span>
               </label>
               <Input
@@ -454,7 +454,7 @@ export function DocumentUploadModal({
 
           {/* Document / File Name */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-[#0F172A]">
+            <label className="text-xs font-medium text-[#1E293B]">
               Document Display Name <span className="text-rose-500">*</span>
             </label>
             <Input
@@ -469,7 +469,7 @@ export function DocumentUploadModal({
           {/* Category & Document Type */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-[#0F172A]">
+              <label className="text-xs font-medium text-[#1E293B]">
                 Category <span className="text-rose-500">*</span>
               </label>
               <Select
@@ -490,7 +490,7 @@ export function DocumentUploadModal({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-[#0F172A]">
+              <label className="text-xs font-medium text-[#1E293B]">
                 Document Type
               </label>
               <Input
@@ -504,11 +504,11 @@ export function DocumentUploadModal({
 
           {/* Work Request & Task Link (for allowed users) */}
           {isAllowedUser && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]/50">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]/50">
               <div className="space-y-1.5">
                 <label
                   htmlFor="workRequest"
-                  className="text-xs font-medium text-[#0F172A] flex items-center gap-1"
+                  className="text-xs font-medium text-[#1E293B] flex items-center gap-1"
                 >
                   <Briefcase className="h-3.5 w-3.5 text-[#475569]" />
                   Work Request (Optional)
@@ -540,7 +540,7 @@ export function DocumentUploadModal({
               <div className="space-y-1.5">
                 <label
                   htmlFor="workRequestTask"
-                  className="text-xs font-medium text-[#0F172A] flex items-center gap-1"
+                  className="text-xs font-medium text-[#1E293B] flex items-center gap-1"
                 >
                   <Briefcase className="h-3.5 w-3.5 text-[#475569]" />
                   Work Request Task (Optional)
@@ -572,7 +572,7 @@ export function DocumentUploadModal({
 
           {/* Description */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-[#0F172A]">
+            <label className="text-xs font-medium text-[#1E293B]">
               Description (Optional)
             </label>
             <textarea
@@ -580,7 +580,7 @@ export function DocumentUploadModal({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Notes, compliance references, or custody notes..."
               rows={2}
-              className="w-full text-sm rounded-[8px] border-[#CBD5E1] bg-transparent p-2 focus:outline-none focus:ring-1 focus:ring-[#1D4ED8]"
+              className="w-full text-sm rounded-[8px] border-[#E2E8F0] bg-transparent p-2 focus:outline-none focus:ring-1 focus:ring-[#1D4ED8]"
               data-testid="document-description-input"
             />
           </div>

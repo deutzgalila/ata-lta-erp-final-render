@@ -11,7 +11,7 @@ export interface DisbursementStatusBadgeProps {
 const statusStyles: Record<string, { label: string; className: string }> = {
   Draft: {
     label: 'Draft',
-    className: 'bg-[#F1F5F9] text-[#334155] border-[#CBD5E1] hover:bg-[#F1F5F9]',
+    className: 'bg-[#F8FAFC] text-[#334155] border-[#E2E8F0] hover:bg-[#F8FAFC]',
   },
   Submitted: {
     label: 'Submitted',
@@ -47,7 +47,7 @@ const statusStyles: Record<string, { label: string; className: string }> = {
   },
   Cancelled: {
     label: 'Cancelled',
-    className: 'bg-[#F1F5F9] text-[#475569] border-[#CBD5E1] hover:bg-[#F1F5F9]',
+    className: 'bg-[#F8FAFC] text-[#475569] border-[#E2E8F0] hover:bg-[#F8FAFC]',
   },
 };
 
@@ -57,7 +57,7 @@ export const DisbursementStatusBadge: React.FC<DisbursementStatusBadgeProps> = (
 }) => {
   const config = statusStyles[status] || {
     label: status,
-    className: 'bg-[#F1F5F9] text-[#334155] border-[#CBD5E1]',
+    className: 'bg-[#F8FAFC] text-[#334155] border-[#E2E8F0]',
   };
 
   return (
@@ -66,7 +66,7 @@ export const DisbursementStatusBadge: React.FC<DisbursementStatusBadgeProps> = (
       data-testid="disbursement-status-badge"
       data-test-status={status.toLowerCase()}
       className={cn(
-        'font-mono font-medium text-xs px-2.5 py-0.5 rounded-[6px] border transition-none',
+        ' font-medium text-xs px-2.5 py-0.5 rounded-[6px] border transition-none',
         config.className,
         className
       )}

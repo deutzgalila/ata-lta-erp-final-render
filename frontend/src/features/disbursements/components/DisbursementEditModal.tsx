@@ -162,7 +162,7 @@ export function DisbursementEditModal({
             Description
             <textarea
               aria-label="Description"
-              className="w-full border-[#CBD5E1] rounded-[6px] p-2"
+              className="w-full border-[#E2E8F0] rounded-[6px] p-2"
               rows={3}
               maxLength={2000}
               value={description}
@@ -173,7 +173,7 @@ export function DisbursementEditModal({
             Fund source
             <select
               aria-label="Fund source"
-              className="w-full border-[#CBD5E1] rounded-[6px] p-2"
+              className="w-full border-[#E2E8F0] rounded-[6px] p-2"
               value={fundSource}
               onChange={(e) => setFundSource(e.target.value as FundSource)}
             >
@@ -189,7 +189,7 @@ export function DisbursementEditModal({
             Notes
             <textarea
               aria-label="Notes"
-              className="w-full border-[#CBD5E1] rounded-[6px] p-2"
+              className="w-full border-[#E2E8F0] rounded-[6px] p-2"
               rows={2}
               maxLength={2000}
               value={notes}
@@ -197,7 +197,7 @@ export function DisbursementEditModal({
             />
           </label>
         </div>
-        <fieldset className="border-t border-[#CBD5E1] pt-3 space-y-3">
+        <fieldset className="border-t border-[#E2E8F0] pt-3 space-y-3">
           <legend className="text-sm font-semibold">Printed voucher details</legend>
           <p className="text-xs text-[#475569]">
             These values appear on the document. Use Edit Payment Details to correct the recorded
@@ -230,7 +230,7 @@ export function DisbursementEditModal({
   );
   return inline ? (
     <section
-      className="bg-white border-[#CBD5E1] rounded-[6px] p-4 space-y-3"
+      className="bg-white border-[#E2E8F0] rounded-[6px] p-4 space-y-3"
       data-testid="disbursement-inline-editor"
     >
       {content}

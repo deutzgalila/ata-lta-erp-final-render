@@ -36,7 +36,7 @@ export function TooltipContent({
   return (
     <div
       role="tooltip"
-      className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block z-50 px-2 py-1 text-xs text-[#FFFFFF] bg-[#1D4ED8] rounded-[8px] border-[#CBD5E1] font-mono shadow-none whitespace-nowrap pointer-events-none ${className}`}
+      className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block z-50 px-2 py-1 text-xs text-[#FFFFFF] bg-[#1D4ED8] rounded-[8px] border-[#E2E8F0]  shadow-none whitespace-nowrap pointer-events-none ${className}`}
       {...props}
     >
       {children}

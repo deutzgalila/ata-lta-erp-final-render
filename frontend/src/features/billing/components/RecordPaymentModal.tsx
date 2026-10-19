@@ -103,11 +103,11 @@ export function RecordPaymentModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="shadow-float rounded-[6px] max-w-md rounded-[12px] bg-white bg-[#FFFFFF] p-6 border-[#CBD5E1] border"
+      <DialogContent className="shadow-float rounded-[6px] max-w-md rounded-[12px] bg-white bg-[#FFFFFF] p-6 border-[#E2E8F0] border"
         data-testid="record-payment-modal"
       >
         <DialogHeader>
-          <DialogTitle className="text-base font-bold text-[#0F172A] flex items-center gap-2">
+          <DialogTitle className="text-base font-bold text-[#1E293B] flex items-center gap-2">
             <CreditCard className="w-5 h-5 text-emerald-600" />
             <span>Record Payment</span>
           </DialogTitle>
@@ -117,26 +117,26 @@ export function RecordPaymentModal({
         </DialogHeader>
 
         {/* Invoice Summary Card */}
-        <div className="bg-[#F1F5F9] p-3 rounded-[8px] border-[#CBD5E1] text-xs space-y-1.5">
+        <div className="bg-[#F8FAFC] p-3 rounded-[8px] border-[#E2E8F0] text-xs space-y-1.5">
           <div className="flex justify-between">
             <span className="text-[#475569]">Client:</span>
-            <span className="font-semibold text-[#0F172A]">
+            <span className="font-semibold text-[#1E293B]">
               {invoice.clients?.name || 'N/A'}
             </span>
           </div>
           <div className="flex justify-between">
             <span className="text-[#475569]">Total Invoice Amount:</span>
-            <span className="font-mono text-[#0F172A]">{formatCurrency(invoice.total)}</span>
+            <span className="tabular-nums text-[#1E293B]">{formatCurrency(invoice.total)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-[#475569]">Amount Paid So Far:</span>
-            <span className="font-mono text-emerald-600">
+            <span className="tabular-nums text-emerald-600">
               {formatCurrency(invoice.amount_paid || 0)}
             </span>
           </div>
-          <div className="flex justify-between pt-1 border-t border-[#CBD5E1] font-bold">
-            <span className="text-[#0F172A]">Remaining Balance:</span>
-            <span className="font-mono text-amber-600 text-sm" data-testid="remaining-balance-value">
+          <div className="flex justify-between pt-1 border-t border-[#E2E8F0] font-bold">
+            <span className="text-[#1E293B]">Remaining Balance:</span>
+            <span className="tabular-nums text-amber-600 text-sm" data-testid="remaining-balance-value">
               {formatCurrency(currentBalance)}
             </span>
           </div>
@@ -156,11 +156,11 @@ export function RecordPaymentModal({
           {/* Amount Field */}
           <div>
             <div className="flex justify-between items-center mb-1">
-              <label htmlFor="payment-amount" className="text-xs font-semibold text-[#0F172A]">Payment Amount (₱)*</label>
+              <label htmlFor="payment-amount" className="text-xs font-semibold text-[#1E293B]">Payment Amount (₱)*</label>
               <button
                 type="button"
                 onClick={handlePayFullBalance}
-                className="text-xs font-mono text-[#0F172A] hover:text-[#0F172A] font-medium cursor-pointer"
+                className="text-xs tabular-nums text-[#1E293B] hover:text-[#1E293B] font-medium cursor-pointer"
                 data-testid="pay-full-balance-button"
               >
                 Pay Full Balance
@@ -186,7 +186,7 @@ export function RecordPaymentModal({
 
           {/* Payment Method */}
           <div>
-            <label htmlFor="payment-method-select" className="text-xs font-semibold text-[#0F172A] block mb-1">Payment Method*</label>
+            <label htmlFor="payment-method-select" className="text-xs font-semibold text-[#1E293B] block mb-1">Payment Method*</label>
             <Select value={method} onValueChange={setMethod}>
               <SelectTrigger id="payment-method-select" className="h-9 text-xs" data-testid="payment-method-select">
                 <SelectValue />
@@ -203,7 +203,7 @@ export function RecordPaymentModal({
 
           {/* Payment Date */}
           <div>
-            <label htmlFor="payment-date" className="text-xs font-semibold text-[#0F172A] block mb-1">Payment Date*</label>
+            <label htmlFor="payment-date" className="text-xs font-semibold text-[#1E293B] block mb-1">Payment Date*</label>
             <DateInput
                   aria-label="Payment date"
               id="payment-date"
@@ -218,7 +218,7 @@ export function RecordPaymentModal({
 
           {/* Reference # */}
           <div>
-            <label htmlFor="payment-reference" className="text-xs font-semibold text-[#0F172A] block mb-1">
+            <label htmlFor="payment-reference" className="text-xs font-semibold text-[#1E293B] block mb-1">
               Reference # (e.g. Check #, Transaction ID)
             </label>
             <Input
@@ -234,7 +234,7 @@ export function RecordPaymentModal({
 
           {/* Notes */}
           <div>
-            <label htmlFor="payment-notes" className="text-xs font-semibold text-[#0F172A] block mb-1">Notes</label>
+            <label htmlFor="payment-notes" className="text-xs font-semibold text-[#1E293B] block mb-1">Notes</label>
             <Input
               id="payment-notes"
               type="text"

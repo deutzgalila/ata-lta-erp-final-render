@@ -78,8 +78,8 @@ export function ApproveDialog({ transmittal, isOpen, onClose }: ApproveDialogPro
           </DialogTitle>
           <DialogDescription className="text-xs text-[#475569]">
             As an Administrator, approving transmittal{' '}
-            <span className="font-mono font-bold text-[#0F172A]">{transmittal.tracking_number}</span>{' '}
-            will mark it as approved and transition its status directly to <span className="font-semibold text-[#0F172A]">Sent</span>.
+            <span className="font-mono font-bold text-[#1E293B]">{transmittal.tracking_number}</span>{' '}
+            will mark it as approved and transition its status directly to <span className="font-semibold text-[#1E293B]">Sent</span>.
           </DialogDescription>
         </DialogHeader>
 
@@ -141,14 +141,14 @@ export function SendDialog({ transmittal, isOpen, onClose }: SendDialogProps) {
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent data-testid="send-transmittal-dialog">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base font-bold text-[#0F172A]">
-            <Send className="h-5 w-5 text-[#0F172A]" />
+          <DialogTitle className="flex items-center gap-2 text-base font-bold text-[#1E293B]">
+            <Send className="h-5 w-5 text-[#1E293B]" />
             Mark Transmittal as Sent
           </DialogTitle>
           <DialogDescription className="text-xs text-[#475569]">
             Confirm dispatch of transmittal{' '}
-            <span className="font-mono font-bold text-[#0F172A]">{transmittal.tracking_number}</span> to{' '}
-            <span className="font-semibold text-[#0F172A]">{transmittal.recipient_name || transmittal.clients?.name}</span>.
+            <span className="font-mono font-bold text-[#1E293B]">{transmittal.tracking_number}</span> to{' '}
+            <span className="font-semibold text-[#1E293B]">{transmittal.recipient_name || transmittal.clients?.name}</span>.
           </DialogDescription>
         </DialogHeader>
 
@@ -160,13 +160,13 @@ export function SendDialog({ transmittal, isOpen, onClose }: SendDialogProps) {
             <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold">Requires Admin approval before sending</p>
-              <p className="text-xs font-mono text-amber-700 mt-0.5">
+              <p className="text-xs text-amber-700 mt-0.5">
                 Staff users cannot mark unapproved transmittals as sent. Please request an Administrator to approve this draft first.
               </p>
             </div>
           </div>
         ) : (
-          <div className="p-3 bg-[#F1F5F9] border-[#CBD5E1] rounded text-xs text-[#0F172A]">
+          <div className="p-3 bg-[#F8FAFC] border-[#E2E8F0] rounded text-xs text-[#1E293B]">
             {isAdmin && !isApproved ? (
               <p>As Admin, confirming dispatch will automatically grant approval and record transmission.</p>
             ) : (
@@ -242,7 +242,7 @@ export function AcknowledgeDialog({ transmittal, isOpen, onClose }: AcknowledgeD
           </DialogTitle>
           <DialogDescription className="text-xs text-[#475569]">
             Confirm that documents for transmittal{' '}
-            <span className="font-mono font-bold text-[#0F172A]">{transmittal.tracking_number}</span> were physically received and signed by the recipient.
+            <span className="font-mono font-bold text-[#1E293B]">{transmittal.tracking_number}</span> were physically received and signed by the recipient.
           </DialogDescription>
         </DialogHeader>
 
@@ -303,7 +303,7 @@ export function DeleteDialog({ transmittalId, trackingNumber, isOpen, onClose }:
           </DialogTitle>
           <DialogDescription className="text-xs text-[#475569]">
             Are you sure you want to soft-delete transmittal{' '}
-            <span className="font-mono font-bold text-[#0F172A]">{trackingNumber || transmittalId}</span>?
+            <span className="font-mono font-bold text-[#1E293B]">{trackingNumber || transmittalId}</span>?
           </DialogDescription>
         </DialogHeader>
 
@@ -363,10 +363,10 @@ export function ArchiveDialog({ transmittalId, isArchived, isOpen, onClose }: Ar
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent data-testid="archive-transmittal-dialog">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base font-bold text-[#0F172A]">
+          <DialogTitle className="flex items-center gap-2 text-base font-bold text-[#1E293B]">
             {isArchived ? (
               <>
-                <ArchiveRestore className="h-5 w-5 text-[#0F172A]" />
+                <ArchiveRestore className="h-5 w-5 text-[#1E293B]" />
                 Restore Transmittal
               </>
             ) : (

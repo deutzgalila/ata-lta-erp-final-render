@@ -105,7 +105,7 @@ export function TransmittalTable({
   return (
     <div className="space-y-4" data-testid="transmittal-table-container">
       {/* Search and Filters Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3.5 rounded-[8px] border-[#CBD5E1]">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3.5 rounded-[8px] border-[#E2E8F0]">
         <div className="relative w-full sm:w-80">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-[#475569]" />
           <Input
@@ -138,10 +138,10 @@ export function TransmittalTable({
       </div>
 
       {/* Table Container */}
-      <div className="border-[#CBD5E1] rounded-[6px] overflow-hidden bg-white shadow-none">
+      <div className="border-[#E2E8F0] rounded-[6px] overflow-hidden bg-white shadow-none">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-[#475569]" data-testid="transmittal-table">
-            <thead className="bg-[#F1F5F9] text-[#0F172A] font-semibold border-b border-[#CBD5E1] uppercase tracking-wider text-xs font-mono">
+            <thead className="bg-[#F8FAFC] text-[#1E293B] font-semibold border-b border-[#E2E8F0] tracking-normal text-xs">
               <tr>
                 <th className="py-3 px-4">Tracking #</th>
                 <th className="py-3 px-4">Entity</th>
@@ -176,18 +176,18 @@ export function TransmittalTable({
                   return (
                     <tr
                       key={t.id}
-                      className="hover:bg-[#F1F5F9]/75 transition-colors"
+                      className="hover:bg-[#F8FAFC]/75 transition-colors"
                       data-testid={`transmittal-row-${t.id}`}
                     >
                       {/* Tracking Number */}
-                      <td className="py-3 px-4 font-mono font-bold text-[#0F172A]">
+                      <td className="py-3 px-4 font-mono font-bold text-[#1E293B]">
                         {t.tracking_number}
                       </td>
 
                       {/* Entity */}
                       <td className="py-3 px-4">
                         {t.entity_code ? (
-                          <Badge variant="secondary" className="text-xs font-mono font-semibold py-0 px-1.5">
+                          <Badge variant="secondary" className="text-xs font-semibold py-0 px-1.5">
                             {t.entity_code}
                           </Badge>
                         ) : (
@@ -196,7 +196,7 @@ export function TransmittalTable({
                       </td>
 
                       {/* Client */}
-                      <td className="py-3 px-4 font-medium text-[#0F172A] max-w-[180px] truncate" title={t.clients?.name}>
+                      <td className="py-3 px-4 font-medium text-[#1E293B] max-w-[180px] truncate" title={t.clients?.name}>
                         {t.clients?.name || '—'}
                       </td>
 
@@ -238,7 +238,7 @@ export function TransmittalTable({
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 w-7 p-0 text-[#475569] hover:text-[#0F172A]"
+                            className="h-7 w-7 p-0 text-[#475569] hover:text-[#1E293B]"
                             title="View Details"
                             onClick={() => onView(t.id)}
                             data-testid={`view-transmittal-btn-${t.id}`}
@@ -250,7 +250,7 @@ export function TransmittalTable({
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="h-7 w-7 p-0 text-[#475569] hover:text-[#0F172A]"
+                              className="h-7 w-7 p-0 text-[#475569] hover:text-[#1E293B]"
                               title="Edit"
                               onClick={() => onEdit(t)}
                               data-testid={`edit-transmittal-btn-${t.id}`}
@@ -262,7 +262,7 @@ export function TransmittalTable({
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 w-7 p-0 text-[#475569] hover:text-[#0F172A]"
+                            className="h-7 w-7 p-0 text-[#475569] hover:text-[#1E293B]"
                             title="Print Transmittal Letter"
                             onClick={() => onPrint(t)}
                             data-testid={`print-transmittal-btn-${t.id}`}
@@ -293,7 +293,7 @@ export function TransmittalTable({
                                     <Button
                                       size="sm"
                                       variant="ghost"
-                                      className="h-7 w-7 p-0 text-[#0F172A] hover:text-[#0F172A] hover:bg-[#F1F5F9] disabled:opacity-40"
+                                      className="h-7 w-7 p-0 text-[#1E293B] hover:text-[#1E293B] hover:bg-[#F8FAFC] disabled:opacity-40"
                                       disabled={isSendDisabled}
                                       title={isSendDisabled ? 'Requires Admin approval before sending' : 'Mark Sent'}
                                       onClick={() => onSend(t)}
@@ -332,7 +332,7 @@ export function TransmittalTable({
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-7 w-7 p-0 text-[#475569] hover:text-[#0F172A]"
+                                className="h-7 w-7 p-0 text-[#475569] hover:text-[#1E293B]"
                                 title="Restore from Archive"
                                 onClick={() => onUnarchive(t.id)}
                                 data-testid={`unarchive-transmittal-btn-${t.id}`}
@@ -343,7 +343,7 @@ export function TransmittalTable({
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-7 w-7 p-0 text-[#475569] hover:text-[#0F172A]"
+                                className="h-7 w-7 p-0 text-[#475569] hover:text-[#1E293B]"
                                 title="Archive"
                                 onClick={() => onArchive(t.id)}
                                 data-testid={`archive-transmittal-btn-${t.id}`}

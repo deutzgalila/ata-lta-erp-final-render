@@ -234,14 +234,14 @@ export function RetainerGenerateModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
-        className="max-w-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto rounded-[12px] border-[#CBD5E1] bg-[#FFFFFF] shadow-float"
+        className="max-w-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto rounded-[12px] border-[#E2E8F0] bg-[#FFFFFF] shadow-float"
         data-testid="retainer-generate-modal"
       >
         <DialogHeader>
-          <DialogTitle className="text-base font-extrabold tracking-tight text-[#0F172A]">
+          <DialogTitle className="text-base font-semibold tracking-tight text-[#1E293B]">
             Generate from Retainer Template
           </DialogTitle>
-          <DialogDescription className="text-xs font-mono text-[#475569] pt-1">
+          <DialogDescription className="text-xs tabular-nums text-[#475569] pt-1">
             Create recurring work requests with full project team governance and scoped tasks.
           </DialogDescription>
         </DialogHeader>
@@ -249,7 +249,7 @@ export function RetainerGenerateModal({
         <form onSubmit={handleGenerate} className="space-y-4">
           {/* Template Selection */}
           <div className="space-y-1">
-            <label className="text-xs font-mono uppercase tracking-wider text-[#475569] block">
+            <label className="text-xs tracking-normal text-[#475569] block">
               Retainer Template <span className="text-[#DC2626]">*</span>
             </label>
             <Select
@@ -261,13 +261,13 @@ export function RetainerGenerateModal({
               disabled={isTemplatesLoading}
             >
               <SelectTrigger
-                className="h-9 bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] font-mono text-xs text-[#0F172A]"
+                className="h-9 bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px] text-xs text-[#1E293B]"
                 data-testid="template-select"
               >
                 <SelectValue placeholder="Select Template..." />
               </SelectTrigger>
-              <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]">
-                <SelectItem value="unselected" className="font-mono text-xs">— Choose Template —</SelectItem>
+              <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
+                <SelectItem value="unselected" className="text-xs">— Choose Template —</SelectItem>
                 {templates.map((tpl) => {
                   const entityCode =
                     (tpl.entity && tpl.entity.length <= 4 ? tpl.entity : undefined) ||
@@ -296,7 +296,7 @@ export function RetainerGenerateModal({
 
           {/* Period Label Prompt */}
           <div className="space-y-1">
-            <label className="text-xs font-mono uppercase tracking-wider text-[#475569] block">
+            <label className="text-xs tracking-normal text-[#475569] block">
               Period Label
               {selectedTemplate?.recurrence === 'annual' && (
                 <span className="text-[#DC2626]"> *</span>
@@ -309,10 +309,10 @@ export function RetainerGenerateModal({
                 if (error) setError(null);
               }}
               placeholder="e.g. 2026, Q1 2026, January 2026"
-              className="h-9 bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] font-mono text-xs text-[#0F172A] placeholder:text-[#475569]"
+              className="h-9 bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px] text-xs text-[#1E293B] placeholder:text-[#475569]"
               data-testid="period-label-input"
             />
-            <span className="text-xs font-mono text-[#475569] block">
+            <span className="text-xs tabular-nums text-[#475569] block">
               Appended to generated work request titles (e.g. "Annual Tax Return - 2026")
             </span>
           </div>
@@ -321,17 +321,17 @@ export function RetainerGenerateModal({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {/* Target Client Override */}
             <div className="space-y-1">
-              <label className="text-xs font-mono uppercase tracking-wider text-[#475569] block">
+              <label className="text-xs tracking-normal text-[#475569] block">
                 Target Client
               </label>
               <Select
                 value={clientId || 'all'}
                 onValueChange={(val) => setClientId(val === 'all' ? '' : val)}
               >
-                <SelectTrigger className="h-9 bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] font-mono text-xs text-[#0F172A]" data-testid="client-select">
+                <SelectTrigger className="h-9 bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px] font-mono text-xs text-[#1E293B]" data-testid="client-select">
                   <SelectValue placeholder="All retainer clients" />
                 </SelectTrigger>
-                <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]">
+                <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
                   <SelectItem value="all" className="font-mono text-xs">— All Retainer Clients —</SelectItem>
                   {clients.map((c) => (
                     <SelectItem key={c.id} value={c.id} className="font-mono text-xs">
@@ -344,7 +344,7 @@ export function RetainerGenerateModal({
 
             {/* Due Date Override */}
             <div className="space-y-1">
-              <label className="text-xs font-mono uppercase tracking-wider text-[#475569] flex items-center gap-1">
+              <label className="text-xs tracking-normal text-[#475569] flex items-center gap-1">
                 <Calendar className="h-3 w-3 text-[#475569]" />
                 <span>Due Date</span>
               </label>
@@ -352,36 +352,36 @@ export function RetainerGenerateModal({
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className="h-9 bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] font-mono text-xs text-[#0F172A]"
+                className="h-9 bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px] tabular-nums text-xs text-[#1E293B]"
                 data-testid="due-date-input"
               />
             </div>
 
             {/* Priority Override */}
             <div className="space-y-1">
-              <label className="text-xs font-mono uppercase tracking-wider text-[#475569] block">
+              <label className="text-xs tracking-normal text-[#475569] block">
                 Priority
               </label>
               <Select
                 value={priority}
                 onValueChange={(val) => setPriority(val as Priority)}
               >
-                <SelectTrigger className="h-9 bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] font-mono text-xs text-[#0F172A]" data-testid="priority-select">
+                <SelectTrigger className="h-9 bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px] text-xs text-[#1E293B]" data-testid="priority-select">
                   <SelectValue placeholder="Select priority" />
                 </SelectTrigger>
-                <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]">
-                  <SelectItem value="Low" className="text-xs font-mono">Low</SelectItem>
-                  <SelectItem value="Normal" className="text-xs font-mono">Normal</SelectItem>
-                  <SelectItem value="High" className="text-xs font-mono">High</SelectItem>
-                  <SelectItem value="Urgent" className="text-xs font-mono">Urgent</SelectItem>
+                <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
+                  <SelectItem value="Low" className="text-xs">Low</SelectItem>
+                  <SelectItem value="Normal" className="text-xs">Normal</SelectItem>
+                  <SelectItem value="High" className="text-xs">High</SelectItem>
+                  <SelectItem value="Urgent" className="text-xs">Urgent</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
           {/* Team Governance Section */}
-          <div className="p-3 bg-[#F1F5F9] border-[#CBD5E1] rounded-[6px] space-y-3">
-            <h4 className="text-xs font-mono font-bold text-[#0F172A] uppercase tracking-wider">
+          <div className="p-3 bg-[#F8FAFC] border-[#E2E8F0] rounded-[6px] space-y-3">
+            <h4 className="text-xs font-bold text-[#1E293B] tracking-normal">
               Team Governance
             </h4>
             <AssignerSelect
@@ -400,7 +400,7 @@ export function RetainerGenerateModal({
               }}
             />
             {managerError && (
-              <span className="text-xs font-mono text-[#DC2626] block" data-testid="manager-error">
+              <span className="text-xs text-[#DC2626] block" data-testid="manager-error">
                 {managerError}
               </span>
             )}
@@ -408,13 +408,13 @@ export function RetainerGenerateModal({
 
           {/* Task Blueprint Preview & Mapping */}
           {selectedTemplate && blueprintTasks.length > 0 && (
-            <div className="space-y-2 pt-2 border-t border-[#CBD5E1]" data-testid="task-blueprint-preview">
+            <div className="space-y-2 pt-2 border-t border-[#E2E8F0]" data-testid="task-blueprint-preview">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-mono uppercase tracking-wider text-[#475569] flex items-center gap-1.5">
+                <label className="text-xs tracking-normal text-[#475569] flex items-center gap-1.5">
                   <Layers className="h-3.5 w-3.5 text-[#475569]" />
                   <span>Task Blueprint Preview & Mapping ({blueprintTasks.length})</span>
                 </label>
-                <span className="text-xs font-mono text-[#475569]">
+                <span className="text-xs text-[#475569]">
                   Assignees strictly scoped to project team
                 </span>
               </div>
@@ -431,34 +431,34 @@ export function RetainerGenerateModal({
                     <div
                       key={task.local_id || idx}
                       data-testid={`blueprint-task-${task.local_id}`}
-                      className={`p-2.5 rounded-[8px] border text-xs font-mono space-y-1.5 ${
+                      className={`p-2.5 rounded-[8px] border text-xs  space-y-1.5 ${
                         isUnmapped
                           ? 'bg-[#FFFFFF] border-[#FCA5A5]'
-                          : 'bg-[#FFFFFF] border-[#CBD5E1]'
+                          : 'bg-[#FFFFFF] border-[#E2E8F0]'
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <span className="text-xs font-mono text-[#475569] shrink-0">
+                          <span className="text-xs text-[#475569] shrink-0">
                             #{idx + 1}
                           </span>
-                          <span className="font-semibold text-[#0F172A] truncate" title={task.title}>
+                          <span className="font-semibold text-[#1E293B] truncate" title={task.title}>
                             {task.title}
                           </span>
                         </div>
                         <Badge
                           variant={task.phase === 'processing' ? 'default' : 'secondary'}
-                          className="text-xs shrink-0 font-mono rounded-[6px] uppercase"
+                          className="text-xs shrink-0 rounded-[6px] uppercase"
                         >
                           {task.phase === 'processing' ? 'Processing' : 'Pre-Processing'}
                         </Badge>
                       </div>
 
                       <div className="flex items-center justify-between gap-3 pt-1">
-                        <div className="text-xs font-mono text-[#475569] truncate">
+                        <div className="text-xs text-[#475569] truncate">
                           {task.depends_on && (
                             <span>
-                              Prerequisite: <span className="font-mono">{task.depends_on}</span>
+                              Prerequisite: <span className="">{task.depends_on}</span>
                             </span>
                           )}
                         </div>
@@ -486,14 +486,14 @@ export function RetainerGenerateModal({
                             }}
                           >
                             <SelectTrigger
-                              className="h-8 text-xs font-mono bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] text-[#0F172A]"
+                              className="h-8 text-xs bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px] text-[#1E293B]"
                               data-testid={`task-assignee-select-${task.local_id}`}
                             >
                               <SelectValue placeholder="— Unassigned —" />
                             </SelectTrigger>
-                            <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]">
+                            <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
                               {isUnmapped && (
-                                <SelectItem value="__unmapped__" disabled className="text-xs font-mono text-[#DC2626]">
+                                <SelectItem value="__unmapped__" disabled className="text-xs text-[#DC2626]">
                                   ⚠️ Unmapped ({unmappedName || 'Template Default'})
                                 </SelectItem>
                               )}
@@ -510,7 +510,7 @@ export function RetainerGenerateModal({
 
                       {isUnmapped && (
                         <div
-                          className="text-xs font-mono text-[#FFFFFF] bg-[#DC2626] p-2 rounded-[6px] flex items-center gap-1.5"
+                          className="text-xs text-[#FFFFFF] bg-[#DC2626] p-2 rounded-[6px] flex items-center gap-1.5"
                           data-testid={`unmapped-assignee-alert-${task.local_id}`}
                         >
                           <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-[#FFFFFF]" />
@@ -527,7 +527,7 @@ export function RetainerGenerateModal({
           )}
 
           {error && (
-            <div className="text-xs font-mono text-[#DC2626] font-medium" data-testid="generate-error">
+            <div className="text-xs tabular-nums text-[#DC2626] font-medium" data-testid="generate-error">
               {error}
             </div>
           )}
@@ -538,7 +538,7 @@ export function RetainerGenerateModal({
               variant="outline"
               size="sm"
               onClick={onClose}
-              className="rounded-[8px] border-[#CBD5E1] text-[#0F172A] hover:bg-[#F1F5F9] font-mono text-xs uppercase tracking-wider"
+              className="rounded-[8px] border-[#E2E8F0] text-[#1E293B] hover:bg-[#F8FAFC] text-xs tracking-normal"
             >
               Cancel
             </Button>
@@ -547,7 +547,7 @@ export function RetainerGenerateModal({
               size="sm"
               disabled={!templateId}
               data-testid="generate-submit-btn"
-              className="rounded-[6px] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs hover:bg-[#DC2626] font-mono text-xs uppercase tracking-wider disabled:bg-[#F1F5F9] disabled:text-[#475569]/50"
+              className="rounded-[6px] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs tabular-nums text-xs tracking-normal disabled:bg-[#F8FAFC] disabled:text-[#475569]/50"
             >
               Generate Work Requests
             </Button>

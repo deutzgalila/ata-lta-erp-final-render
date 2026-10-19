@@ -91,7 +91,7 @@ export function MonthlyPendingTab() {
             type="month"
             value={selectedMonth}
             onValueChange={(value) => setSelectedMonth(value || getCurrentMonthString())}
-            className="w-[184px] rounded-[6px] border border-[#CBD5E1] bg-white font-mono text-xs text-[#0F172A] focus:border-[#1D4ED8] focus:ring-1 focus:ring-[#1D4ED8]"
+            className="w-[184px] rounded-[6px] border border-[#E2E8F0] bg-white text-xs text-[#1E293B] focus:border-[#1D4ED8] focus:ring-1 focus:ring-[#1D4ED8]"
             data-testid="monthly-month-picker"
           />
           <div className="flex items-center gap-1">
@@ -102,7 +102,7 @@ export function MonthlyPendingTab() {
               onClick={handlePrevMonth}
               aria-label="Previous month"
               title="Previous month"
-              className="h-9 w-9 p-0 rounded-[6px] border border-[#CBD5E1] bg-[#FFFFFF] hover:bg-[#F1F5F9] text-[#0F172A] cursor-pointer shadow-2xs transition-colors"
+              className="h-9 w-9 p-0 rounded-[6px] border border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] text-[#1E293B] cursor-pointer shadow-2xs transition-colors"
               data-testid="monthly-prev-month-btn"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -114,7 +114,7 @@ export function MonthlyPendingTab() {
               onClick={handleNextMonth}
               aria-label="Next month"
               title="Next month"
-              className="h-9 w-9 p-0 rounded-[6px] border border-[#CBD5E1] bg-[#FFFFFF] hover:bg-[#F1F5F9] text-[#0F172A] cursor-pointer shadow-2xs transition-colors"
+              className="h-9 w-9 p-0 rounded-[6px] border border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] text-[#1E293B] cursor-pointer shadow-2xs transition-colors"
               data-testid="monthly-next-month-btn"
             >
               <ChevronRight className="w-4 h-4" />
@@ -125,7 +125,7 @@ export function MonthlyPendingTab() {
             variant="outline"
             size="sm"
             onClick={handleThisMonth}
-            className="h-9 px-3 rounded-[6px] border border-[#CBD5E1] bg-[#FFFFFF] hover:bg-[#F1F5F9] text-[#0F172A] text-xs font-medium cursor-pointer shadow-2xs transition-colors"
+            className="h-9 px-3 rounded-[6px] border border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] text-[#1E293B] text-xs font-medium cursor-pointer shadow-2xs transition-colors"
             data-testid="monthly-this-month-btn"
           >
             This month
@@ -139,7 +139,7 @@ export function MonthlyPendingTab() {
             size="sm"
             onClick={() => refetch()}
             disabled={isRefetching}
-            className="h-9 px-3 text-xs font-medium gap-1.5 cursor-pointer rounded-[6px] border border-[#CBD5E1] bg-[#FFFFFF] hover:bg-[#F1F5F9] text-[#0F172A] shadow-2xs transition-colors"
+            className="h-9 px-3 text-xs font-medium gap-1.5 cursor-pointer rounded-[6px] border border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] text-[#1E293B] shadow-2xs transition-colors"
             data-testid="monthly-refresh-button"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isRefetching ? 'animate-spin' : ''}`} />
@@ -169,7 +169,7 @@ export function MonthlyPendingTab() {
             <button
               type="button"
               onClick={() => scrollToReportSection('section-monthly-overdue-invoices')}
-              className="bg-[#FFFFFF] rounded-[8px] border border-[#CBD5E1] hover:bg-[#F1F5F9] hover:border-[#94A3B8] p-4 shadow-card transition-colors text-left cursor-pointer flex flex-col justify-between"
+              className="bg-[#FFFFFF] rounded-[8px] border border-[#E2E8F0] hover:bg-[#F8FAFC] hover:border-[#94A3B8] p-4 shadow-card transition-colors text-left cursor-pointer flex flex-col justify-between"
               data-testid="card-overdue-invoices"
             >
               <div>
@@ -177,19 +177,19 @@ export function MonthlyPendingTab() {
                   <span className="text-xs font-medium text-[#475569]">
                     Overdue invoices
                   </span>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#BFDBFE] font-mono text-xs font-medium bg-[#EFF6FF] text-[#1E40AF]">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#BFDBFE] text-xs font-medium bg-[#EFF6FF] text-[#1E40AF]">
                     Follow-up
                   </span>
                 </div>
                 <div className="mt-2 flex items-baseline gap-3">
                   <span
-                    className="font-mono text-2xl font-bold text-[#0F172A] tabular-nums"
+                    className="text-2xl font-bold text-[#1E293B] tabular-nums"
                     data-testid="kpi-overdue-invoices"
                   >
                     {formatCount(overdueInvoices.count)}
                   </span>
                   <span
-                    className="font-mono text-lg sm:text-xl font-bold text-[#0F172A] tabular-nums"
+                    className="text-lg sm:text-xl font-bold text-[#1E293B] tabular-nums"
                     data-testid="kpi-overdue-outstanding"
                   >
                     {formatCurrency(overdueInvoices.totalOutstanding)}
@@ -205,7 +205,7 @@ export function MonthlyPendingTab() {
             <button
               type="button"
               onClick={() => scrollToReportSection('section-monthly-pending-disbursements')}
-              className="bg-[#FFFFFF] rounded-[8px] border border-[#CBD5E1] hover:bg-[#F1F5F9] hover:border-[#94A3B8] p-4 shadow-card transition-colors text-left cursor-pointer flex flex-col justify-between"
+              className="bg-[#FFFFFF] rounded-[8px] border border-[#E2E8F0] hover:bg-[#F8FAFC] hover:border-[#94A3B8] p-4 shadow-card transition-colors text-left cursor-pointer flex flex-col justify-between"
               data-testid="card-pending-disbursements"
             >
               <div>
@@ -213,19 +213,19 @@ export function MonthlyPendingTab() {
                   <span className="text-xs font-medium text-[#475569]">
                     Pending disbursements
                   </span>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#BFDBFE] font-mono text-xs font-medium bg-[#EFF6FF] text-[#1E40AF]">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#BFDBFE] text-xs font-medium bg-[#EFF6FF] text-[#1E40AF]">
                     Queue
                   </span>
                 </div>
                 <div className="mt-2 flex items-baseline gap-3">
                   <span
-                    className="font-mono text-2xl font-bold text-[#0F172A] tabular-nums"
+                    className="text-2xl font-bold text-[#1E293B] tabular-nums"
                     data-testid="kpi-pending-disbursements"
                   >
                     {formatCount(pendingDisbursements.count)}
                   </span>
                   <span
-                    className="font-mono text-lg sm:text-xl font-bold text-[#0F172A] tabular-nums"
+                    className="text-lg sm:text-xl font-bold text-[#1E293B] tabular-nums"
                     data-testid="kpi-pending-disb-total"
                   >
                     {formatCurrency(pendingDisbursements.totalAmount)}
@@ -241,7 +241,7 @@ export function MonthlyPendingTab() {
             <button
               type="button"
               onClick={() => scrollToReportSection('section-monthly-stale-transmittals')}
-              className="bg-[#FFFFFF] rounded-[8px] border border-[#CBD5E1] hover:bg-[#F1F5F9] hover:border-[#94A3B8] p-4 shadow-card transition-colors text-left cursor-pointer flex flex-col justify-between"
+              className="bg-[#FFFFFF] rounded-[8px] border border-[#E2E8F0] hover:bg-[#F8FAFC] hover:border-[#94A3B8] p-4 shadow-card transition-colors text-left cursor-pointer flex flex-col justify-between"
               data-testid="card-stale-transmittals"
             >
               <div>
@@ -249,13 +249,13 @@ export function MonthlyPendingTab() {
                   <span className="text-xs font-medium text-[#475569]">
                     Stale transmittals
                   </span>
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#BFDBFE] font-mono text-xs font-medium bg-[#EFF6FF] text-[#1E40AF]">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#BFDBFE] text-xs font-medium bg-[#EFF6FF] text-[#1E40AF]">
                     &gt; 7 days draft
                   </span>
                 </div>
                 <div className="mt-2 flex items-baseline gap-3">
                   <span
-                    className="font-mono text-2xl font-bold text-[#0F172A] tabular-nums"
+                    className="text-2xl font-bold text-[#1E293B] tabular-nums"
                     data-testid="kpi-stale-transmittals"
                   >
                     {formatCount(staleTransmittals.count)}
@@ -298,24 +298,24 @@ export function MonthlyPendingTab() {
                     <TableBody>
                       {overdueInvoices.items.map((inv) => (
                         <TableRow key={inv.id}>
-                          <TableCell className="font-mono font-medium text-[#0F172A] tabular-nums">
+                          <TableCell className="font-mono font-medium text-[#1E293B] tabular-nums">
                             {inv.invoice_number}
                           </TableCell>
-                          <TableCell className="font-medium text-[#0F172A]">
+                          <TableCell className="font-medium text-[#1E293B]">
                             {inv.clients?.name || 'Unknown Client'}
                           </TableCell>
-                          <TableCell className="font-mono text-xs text-[#0F172A] tabular-nums">
+                          <TableCell className="text-xs text-[#1E293B] tabular-nums">
                             {formatManilaDate(inv.due_date)}
                           </TableCell>
                           <TableCell>
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#CBD5E1] font-mono text-xs font-medium bg-[#F1F5F9] text-[#0F172A]">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#E2E8F0] text-xs font-medium bg-[#F8FAFC] text-[#1E293B]">
                               {inv.status}
                             </span>
                           </TableCell>
-                          <TableCell className="text-right font-mono text-xs text-[#475569] tabular-nums">
+                          <TableCell className="text-right text-xs text-[#475569] tabular-nums">
                             {formatCurrency(inv.total)}
                           </TableCell>
-                          <TableCell className="text-right font-mono font-bold text-[#0F172A] tabular-nums">
+                          <TableCell className="text-right font-bold text-[#1E293B] tabular-nums">
                             {formatCurrency(inv.balance)}
                           </TableCell>
                         </TableRow>
@@ -353,27 +353,27 @@ export function MonthlyPendingTab() {
                     <TableBody>
                       {pendingDisbursements.items.map((d) => (
                         <TableRow key={d.id}>
-                          <TableCell className="font-mono font-medium text-[#0F172A] tabular-nums">
+                          <TableCell className="font-mono font-medium text-[#1E293B] tabular-nums">
                             {d.disbursement_number}
                           </TableCell>
-                          <TableCell className="font-mono text-xs text-[#475569]">
+                          <TableCell className="text-xs text-[#475569]">
                             {d.category || 'General'}
                           </TableCell>
                           <TableCell>
                             <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded-[4px] border font-mono text-xs font-medium ${
+                              className={`inline-flex items-center px-2 py-0.5 rounded-[4px] border  text-xs font-medium ${
                                 d.status === 'Approved'
                                   ? 'border-[#1D4ED8] bg-[#EFF6FF] text-[#1E40AF]'
-                                  : 'border-[#CBD5E1] bg-[#F1F5F9] text-[#0F172A]'
+                                  : 'border-[#E2E8F0] bg-[#F8FAFC] text-[#1E293B]'
                               }`}
                             >
                               {d.status}
                             </span>
                           </TableCell>
-                          <TableCell className="text-right font-mono text-xs text-[#475569] tabular-nums">
+                          <TableCell className="text-right text-xs text-[#475569] tabular-nums">
                             {formatManilaDate(d.created_at)}
                           </TableCell>
-                          <TableCell className="text-right font-mono font-bold text-[#0F172A] tabular-nums">
+                          <TableCell className="text-right font-bold text-[#1E293B] tabular-nums">
                             {formatCurrency(d.amount)}
                           </TableCell>
                         </TableRow>
@@ -410,18 +410,18 @@ export function MonthlyPendingTab() {
                     <TableBody>
                       {staleTransmittals.items.map((t) => (
                         <TableRow key={t.id}>
-                          <TableCell className="font-mono font-medium text-[#0F172A] tabular-nums">
+                          <TableCell className="font-mono font-medium text-[#1E293B] tabular-nums">
                             {t.tracking_number}
                           </TableCell>
-                          <TableCell className="font-medium text-[#0F172A]">
+                          <TableCell className="font-medium text-[#1E293B]">
                             {t.clients?.name || 'Unknown Client'}
                           </TableCell>
                           <TableCell>
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#FDE047] font-mono text-xs font-medium bg-[#FEFCE8] text-[#854D0E]">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#FDE047] text-xs font-medium bg-[#FEFCE8] text-[#854D0E]">
                               {t.status || 'Draft'}
                             </span>
                           </TableCell>
-                          <TableCell className="text-right font-mono text-xs text-[#475569] tabular-nums">
+                          <TableCell className="text-right text-xs text-[#475569] tabular-nums">
                             {formatManilaDate(t.created_at)}
                           </TableCell>
                         </TableRow>

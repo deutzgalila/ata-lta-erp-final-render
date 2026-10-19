@@ -142,7 +142,7 @@ export function NotificationBellPanel() {
     switch (type) {
       case 'wr.transition_request.received':
         return (
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border-[#CBD5E1] bg-[#F1F5F9] text-[#0F172A]">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border-[#E2E8F0] bg-[#F8FAFC] text-[#1E293B]">
             <ArrowRightCircle className="h-4 w-4" />
           </div>
         );
@@ -150,13 +150,13 @@ export function NotificationBellPanel() {
         const outcome = String(payload.outcome || '').toLowerCase();
         if (outcome === 'approved') {
           return (
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border-[#CBD5E1] bg-[#F1F5F9] text-[#0F172A]">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border-[#E2E8F0] bg-[#F8FAFC] text-[#1E293B]">
               <CheckCircle2 className="h-4 w-4" />
             </div>
           );
         }
         return (
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] text-[#DC2626]">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] text-[#DC2626]">
             <XCircle className="h-4 w-4" />
           </div>
         );
@@ -164,7 +164,7 @@ export function NotificationBellPanel() {
       case 'pending_request.resolved': {
         const resourceType = String(payload.resourceType || payload.resource_type || '').toLowerCase();
         return (
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border-[#CBD5E1] bg-[#F1F5F9] text-[#0F172A]">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border-[#E2E8F0] bg-[#F8FAFC] text-[#1E293B]">
             {resourceType === 'disbursement' ? (
               <Wallet className="h-4 w-4" />
             ) : (
@@ -175,13 +175,13 @@ export function NotificationBellPanel() {
       }
       case 'wr.qa_reroute':
         return (
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border-[#CBD5E1] bg-[#F1F5F9] text-[#0F172A]">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border-[#E2E8F0] bg-[#F8FAFC] text-[#1E293B]">
             <AlertTriangle className="h-4 w-4" />
           </div>
         );
       default:
         return (
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border-[#CBD5E1] bg-[#F1F5F9] text-[#475569]">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border-[#E2E8F0] bg-[#F8FAFC] text-[#475569]">
             <Clock className="h-4 w-4" />
           </div>
         );
@@ -254,16 +254,16 @@ export function NotificationBellPanel() {
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="relative flex h-9 w-9 items-center justify-center rounded-[6px] text-[#0F172A] hover:bg-[#F1F5F9] transition-colors cursor-pointer"
+        className="relative flex h-9 w-9 items-center justify-center rounded-[6px] text-[#1E293B] hover:bg-[#F8FAFC] transition-colors cursor-pointer"
         aria-label="Notifications"
         aria-expanded={isOpen}
         data-testid="notification-bell-btn"
       >
-        <Bell className="h-5 w-5 text-[#0F172A]" />
+        <Bell className="h-5 w-5 text-[#1E293B]" />
         {unreadCount > 0 && (
           <span
             data-testid="unread-badge"
-            className="absolute -top-1 -right-1 flex min-w-5 h-5 items-center justify-center rounded-[6px] bg-[#DC2626] px-1 text-xs font-mono font-bold text-[#FFFFFF] border-[#CBD5E1]"
+            className="absolute -top-1 -right-1 flex min-w-5 h-5 items-center justify-center rounded-[6px] bg-[#DC2626] px-1 text-xs tabular-nums font-bold text-[#FFFFFF] border-[#E2E8F0]"
           >
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
@@ -273,15 +273,15 @@ export function NotificationBellPanel() {
       {/* Flyout Panel */}
       {isOpen && (
         <div
-          className="absolute right-0 mt-2 w-96 rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] shadow-float z-50 overflow-hidden flex flex-col max-h-[520px]"
+          className="absolute right-0 mt-2 w-96 rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] shadow-float z-50 overflow-hidden flex flex-col max-h-[520px]"
           data-testid="notifications-dropdown"
         >
           {/* Header */}
-          <div className="p-3.5 border-b border-[#CBD5E1] flex items-center justify-between bg-[#F1F5F9]">
+          <div className="p-3.5 border-b border-[#E2E8F0] flex items-center justify-between bg-[#F8FAFC]">
             <div className="flex items-center gap-2">
-              <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-[#0F172A]">Notifications</h3>
+              <h3 className="text-xs tabular-nums font-bold tracking-normal text-[#1E293B]">Notifications</h3>
               {unreadCount > 0 && (
-                <Badge variant="default" className="text-xs font-mono px-1.5 py-0.5 rounded-[8px] border-[#CBD5E1] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs">
+                <Badge variant="default" className="text-xs tabular-nums px-1.5 py-0.5 rounded-[8px] border-[#E2E8F0] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs">
                   {unreadCount} unread
                 </Badge>
               )}
@@ -295,7 +295,7 @@ export function NotificationBellPanel() {
                   size="xs"
                   onClick={handleMarkAllRead}
                   disabled={markAllReadMutation.isPending}
-                  className="text-xs font-mono rounded-[6px] text-[#475569] hover:text-[#0F172A] hover:bg-[#E2E8F0] h-7 gap-1 cursor-pointer"
+                  className="text-xs rounded-[6px] text-[#475569] hover:text-[#1E293B] hover:bg-[#E2E8F0] h-7 gap-1 cursor-pointer"
                   data-testid="mark-all-read-btn"
                 >
                   <CheckCheck className="h-3.5 w-3.5" />
@@ -306,14 +306,14 @@ export function NotificationBellPanel() {
           </div>
 
           {/* Filters Bar */}
-          <div className="px-3.5 py-1.5 border-b border-[#CBD5E1] flex items-center gap-2 text-xs bg-[#F1F5F9]">
+          <div className="px-3.5 py-1.5 border-b border-[#E2E8F0] flex items-center gap-2 text-xs bg-[#F8FAFC]">
             <button
               type="button"
               onClick={() => setFilterUnreadOnly(false)}
-              className={`px-2 py-0.5 rounded-[6px] text-xs font-mono transition-colors cursor-pointer ${
+              className={`px-2 py-0.5 rounded-[6px] text-xs  transition-colors cursor-pointer ${
                 !filterUnreadOnly
                   ? 'bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs font-semibold'
-                  : 'text-[#475569] hover:text-[#0F172A]'
+                  : 'text-[#475569] hover:text-[#1E293B]'
               }`}
               data-testid="filter-all-btn"
             >
@@ -322,10 +322,10 @@ export function NotificationBellPanel() {
             <button
               type="button"
               onClick={() => setFilterUnreadOnly(true)}
-              className={`px-2 py-0.5 rounded-[6px] text-xs font-mono transition-colors cursor-pointer ${
+              className={`px-2 py-0.5 rounded-[6px] text-xs  transition-colors cursor-pointer ${
                 filterUnreadOnly
                   ? 'bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs font-semibold'
-                  : 'text-[#475569] hover:text-[#0F172A]'
+                  : 'text-[#475569] hover:text-[#1E293B]'
               }`}
               data-testid="filter-unread-btn"
             >
@@ -337,13 +337,13 @@ export function NotificationBellPanel() {
           <div className="flex-1 overflow-y-auto divide-y divide-[#CBD5E1]" data-testid="notifications-list">
             {isLoading ? (
               <div className="p-4 space-y-3">
-                <div className="h-12 bg-[#F1F5F9] animate-pulse rounded-[8px] border-[#CBD5E1]" />
-                <div className="h-12 bg-[#F1F5F9] animate-pulse rounded-[8px] border-[#CBD5E1]" />
-                <div className="h-12 bg-[#F1F5F9] animate-pulse rounded-[8px] border-[#CBD5E1]" />
+                <div className="h-12 bg-[#F8FAFC] animate-pulse rounded-[8px] border-[#E2E8F0]" />
+                <div className="h-12 bg-[#F8FAFC] animate-pulse rounded-[8px] border-[#E2E8F0]" />
+                <div className="h-12 bg-[#F8FAFC] animate-pulse rounded-[8px] border-[#E2E8F0]" />
               </div>
             ) : displayedNotifications.length === 0 ? (
               <div
-                className="py-10 text-center text-xs font-mono text-[#475569]"
+                className="py-10 text-center text-xs text-[#475569]"
                 data-testid="no-notifications-message"
               >
                 {filterUnreadOnly
@@ -359,7 +359,7 @@ export function NotificationBellPanel() {
                   <div
                     key={item.id}
                     onClick={() => handleNotificationClick(item)}
-                    className={`p-3 text-left transition-colors cursor-pointer flex items-start gap-3 hover:bg-[#F1F5F9] ${
+                    className={`p-3 text-left transition-colors cursor-pointer flex items-start gap-3 hover:bg-[#F8FAFC] ${
                       isUnread ? 'bg-[#FFFFFF] border-l-2 border-l-[#1D4ED8]' : 'bg-[#FFFFFF]'
                     }`}
                     data-testid={`notification-item-${item.id}`}
@@ -370,7 +370,7 @@ export function NotificationBellPanel() {
                       <div className="flex items-start justify-between gap-1">
                         <span
                           className={`text-xs leading-snug line-clamp-1 ${
-                            isUnread ? 'font-bold text-[#0F172A]' : 'font-medium text-[#475569]'
+                            isUnread ? 'font-bold text-[#1E293B]' : 'font-medium text-[#475569]'
                           }`}
                         >
                           {getTitle(item)}
@@ -387,11 +387,11 @@ export function NotificationBellPanel() {
                         {getMessage(item)}
                       </p>
 
-                      <div className="flex items-center justify-between pt-1 font-mono text-xs text-[#475569]">
+                      <div className="flex items-center justify-between pt-1 text-xs text-[#475569]">
                         <span>
                           {formatRelativeTime(item.createdAt)}
                         </span>
-                        <span className="text-[#0F172A] font-medium flex items-center gap-0.5 hover:underline">
+                        <span className="text-[#1E293B] font-medium flex items-center gap-0.5 hover:underline">
                           View details <ExternalLink className="h-2.5 w-2.5" />
                         </span>
                       </div>

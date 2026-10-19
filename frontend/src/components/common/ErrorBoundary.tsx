@@ -33,11 +33,11 @@ export class ErrorBoundary extends Component<Props, State> {
   public override render(): ReactNode {
     if (this.state.hasError) {
       return (
-        <div className="flex min-h-[400px] flex-col items-center justify-center p-8 text-center rounded-[8px] border border-[#CBD5E1] bg-[#FFFFFF] shadow-card">
+        <div className="flex min-h-[400px] flex-col items-center justify-center p-8 text-center rounded-[8px] border border-[#E2E8F0] bg-[#FFFFFF] shadow-card">
           <div className="rounded-full bg-[#FEF2F2] p-4 text-[#991B1B] mb-4 border border-[#FCA5A5]">
             <AlertCircle className="h-8 w-8 text-[#DC2626]" />
           </div>
-          <h2 className="text-xl font-semibold tracking-tight text-[#0F172A] mb-2">
+          <h2 className="text-xl font-semibold tracking-tight text-[#1E293B] mb-2">
             Unexpected Application Error
           </h2>
           <p className="text-sm text-[#475569] max-w-md mb-6 break-words">

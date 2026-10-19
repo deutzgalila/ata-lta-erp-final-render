@@ -102,7 +102,7 @@ export function AssignerSelect({
       {/* Primary Assignee Selector (if onPrimaryChange provided) */}
       {onPrimaryChange && (
         <div className="space-y-1">
-          <label className="text-xs font-mono uppercase tracking-wider text-[#475569] flex items-center gap-1.5">
+          <label className="text-xs tracking-normal text-[#475569] flex items-center gap-1.5">
             <Users className="h-3.5 w-3.5 text-[#475569]" />
             <span>{managerOnlyPrimary ? 'Manager *' : 'Primary Assignee'}</span>
           </label>
@@ -119,12 +119,12 @@ export function AssignerSelect({
             disabled={disabled}
           >
             <SelectTrigger
-              className="w-full h-9 bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] font-mono text-xs text-[#0F172A]"
+              className="w-full h-9 bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px] text-xs text-[#1E293B]"
               data-testid="assigner-primary-select"
             >
               <SelectValue placeholder={managerOnlyPrimary ? 'Select Manager' : 'Select Assignee'} />
             </SelectTrigger>
-            <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]">
+            <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
               <SelectItem value="unassigned" className="font-mono text-xs">— Unassigned —</SelectItem>
               {primaryCandidates.map((m) => (
                 <SelectItem key={m.id} value={m.id} className="font-mono text-xs">
@@ -139,7 +139,7 @@ export function AssignerSelect({
       {/* Co-Assignees / Team Members Section */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <label className="text-xs font-mono uppercase tracking-wider text-[#475569] flex items-center gap-1.5">
+          <label className="text-xs tracking-normal text-[#475569] flex items-center gap-1.5">
             <UserPlus className="h-3.5 w-3.5 text-[#475569]" />
             <span>Team Members (Co-Assignees)</span>
           </label>
@@ -150,7 +150,7 @@ export function AssignerSelect({
               size="xs"
               onClick={handleAssignAll}
               data-testid="assigner-assign-all-btn"
-              className="text-xs font-mono text-[#0F172A] hover:text-[#DC2626] hover:bg-transparent h-6 px-1.5 underline underline-offset-2"
+              className="text-xs text-[#1E293B] hover:text-[#DC2626] hover:bg-transparent h-6 px-1.5 underline underline-offset-2"
             >
               Assign all ({eligibleCoAssignees.length})
             </Button>
@@ -159,7 +159,7 @@ export function AssignerSelect({
 
         {/* Selected Chips */}
         {selectedCoAssigneeIds.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5 p-2 bg-[#F1F5F9] rounded-[8px] border-[#CBD5E1] min-h-9 items-center">
+          <div className="flex flex-wrap gap-1.5 p-2 bg-[#F8FAFC] rounded-[8px] border-[#E2E8F0] min-h-9 items-center">
             {selectedCoAssigneeIds.map((id) => {
               const member = staffById.get(id);
               const displayName = member?.name || id;
@@ -168,7 +168,7 @@ export function AssignerSelect({
                   key={id}
                   variant="secondary"
                   size="compact"
-                  className="flex items-center gap-1 pl-2 pr-1 py-0.5 bg-[#FFFFFF] border-[#CBD5E1] text-[#0F172A] rounded-[6px] font-mono text-xs"
+                  className="flex items-center gap-1 pl-2 pr-1 py-0.5 bg-[#FFFFFF] border-[#E2E8F0] text-[#1E293B] rounded-[6px] text-xs"
                   data-testid={`assigner-coassignee-chip-${id}`}
                 >
                   <span className="text-xs truncate max-w-36">{displayName}</span>
@@ -187,19 +187,19 @@ export function AssignerSelect({
             })}
           </div>
         ) : (
-          <div className="text-xs font-mono text-[#475569] italic py-1">No co-assignees selected.</div>
+          <div className="text-xs text-[#475569] italic py-1">No co-assignees selected.</div>
         )}
 
         {/* Add Co-Assignee Dropdown */}
         {!disabled && eligibleCoAssignees.length > 0 && (
           <Select value="" onValueChange={handleAddCoAssignee}>
             <SelectTrigger
-              className="w-full h-8 text-xs font-mono bg-[#FFFFFF] border-[#CBD5E1] text-[#475569] rounded-[6px]"
+              className="w-full h-8 text-xs bg-[#FFFFFF] border-[#E2E8F0] text-[#475569] rounded-[6px]"
               data-testid="assigner-coassignee-select"
             >
               <SelectValue placeholder="+ Add team member..." />
             </SelectTrigger>
-            <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]">
+            <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
               {eligibleCoAssignees.map((m) => (
                 <SelectItem key={m.id} value={m.id} className="text-xs font-mono">
                   {m.name} ({m.role})
@@ -213,7 +213,7 @@ export function AssignerSelect({
       {/* Attribution Display */}
       {attribution?.assignedByName && (
         <div
-          className="text-xs font-mono text-[#475569] pt-0.5"
+          className="text-xs text-[#475569] pt-0.5"
           data-testid="assigner-attribution"
         >
           Assigned by {attribution.assignedByName}

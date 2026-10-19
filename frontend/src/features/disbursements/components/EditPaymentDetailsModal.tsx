@@ -119,17 +119,17 @@ export function EditPaymentDetailsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="space-y-4 border-[#CBD5E1] border p-6 shadow-float rounded-[12px] bg-[#FFFFFF] max-w-md"
+      <DialogContent className="space-y-4 border-[#E2E8F0] border p-6 shadow-float rounded-[12px] bg-[#FFFFFF] max-w-md"
         data-testid="edit-payment-details-modal"
       >
         <DialogHeader>
-          <DialogTitle className="text-base font-bold text-[#0F172A] flex items-center gap-2">
+          <DialogTitle className="text-base font-bold text-[#1E293B] flex items-center gap-2">
             <Pencil className="h-4 w-4 text-purple-600" />
             <span>Correct Payment Details</span>
           </DialogTitle>
           <DialogDescription className="text-xs text-[#475569]">
             Update release payment information for voucher{' '}
-            <span className="font-mono font-semibold text-[#0F172A]">
+            <span className="font-semibold text-[#1E293B]">
               {disbNumber}
             </span>
             . Lifecycle status, authorization timestamps, and audit history remain unchanged.
@@ -139,7 +139,7 @@ export function EditPaymentDetailsModal({
         <form onSubmit={handleSubmit} className="space-y-3" data-testid="edit-payment-details-form">
           {/* Payment Method */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#0F172A]">
+            <label className="text-xs font-semibold text-[#1E293B]">
               Payment Method <span className="text-red-500">*</span>
             </label>
             <select
@@ -148,7 +148,7 @@ export function EditPaymentDetailsModal({
                 setMethod(e.target.value);
                 if (errors.method) setErrors((prev) => ({ ...prev, method: '' }));
               }}
-              className={`w-full text-xs p-2 border rounded-[6px] bg-white border-[#CBD5E1] focus:outline-none focus:ring-1 focus:ring-purple-500 ${
+              className={`w-full text-xs p-2 border rounded-[6px] bg-white border-[#E2E8F0] focus:outline-none focus:ring-1 focus:ring-purple-500 ${
                 errors.method ? 'border-red-500' : ''
               }`}
               data-testid="select-edit-payment-method"
@@ -160,13 +160,13 @@ export function EditPaymentDetailsModal({
               <option value="Other">Other</option>
             </select>
             {errors.method && (
-              <span className="text-xs font-mono text-red-600 block">{errors.method}</span>
+              <span className="text-xs text-red-600 block">{errors.method}</span>
             )}
           </div>
 
           {/* Reference */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#0F172A]">
+            <label className="text-xs font-semibold text-[#1E293B]">
               Payment Reference / Check Number (Optional)
             </label>
             <Input
@@ -181,7 +181,7 @@ export function EditPaymentDetailsModal({
 
           {/* Bank */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#0F172A]">
+            <label className="text-xs font-semibold text-[#1E293B]">
               Bank / Institution (Optional)
             </label>
             <Input
@@ -196,7 +196,7 @@ export function EditPaymentDetailsModal({
 
           {/* Date */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#0F172A]">
+            <label className="text-xs font-semibold text-[#1E293B]">
               Payment Date <span className="text-red-500">*</span>
             </label>
             <DateInput
@@ -211,7 +211,7 @@ export function EditPaymentDetailsModal({
               data-testid="input-edit-payment-date"
             />
             {errors.date && (
-              <span className="text-xs font-mono text-red-600 block">{errors.date}</span>
+              <span className="text-xs text-red-600 block">{errors.date}</span>
             )}
           </div>
 

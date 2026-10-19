@@ -102,7 +102,7 @@ export default function BillingPage() {
   return (
     <div className="w-full space-y-6" data-testid="billing-page">
       {/* 1. Unified Module Header */}
-      <div className="border-b border-[#CBD5E1] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
+      <div className="border-b border-[#E2E8F0] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <nav
             aria-label="Breadcrumb"
@@ -110,9 +110,9 @@ export default function BillingPage() {
           >
             <span>Modules</span>
             <span aria-hidden="true">/</span>
-            <span className="text-[#0F172A] font-semibold">Billing</span>
+            <span className="text-[#1E293B] font-semibold">Billing</span>
           </nav>
-          <h1 className="text-2xl font-semibold tracking-tight text-[#0F172A] flex items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight text-[#1E293B] flex items-center gap-2">
             <Receipt className="w-6 h-6 text-[#1D4ED8]" />
             <span>Billing, Invoicing &amp; Collections</span>
           </h1>
@@ -125,7 +125,7 @@ export default function BillingPage() {
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
           {/* Active Entity Toggle */}
           <div
-            className="flex items-center bg-[#F1F5F9] p-1 rounded-[8px] border border-[#CBD5E1]"
+            className="flex items-center bg-[#F8FAFC] p-1 rounded-[8px] border border-[#E2E8F0]"
             data-testid="entity-switcher"
           >
             {(['ATA', 'LTA', 'ALL'] as const).map((ent) => (
@@ -136,7 +136,7 @@ export default function BillingPage() {
                 className={`px-3 py-1 rounded-[6px] text-xs font-semibold transition-colors cursor-pointer ${
                   activeEntity === ent
                     ? 'bg-[#1D4ED8] text-[#FFFFFF] shadow-2xs font-semibold'
-                    : 'text-[#475569] hover:text-[#0F172A] hover:bg-[#E2E8F0]/60'
+                    : 'text-[#475569] hover:text-[#1E293B] hover:bg-[#E2E8F0]/60'
                 }`}
                 data-testid={`entity-btn-${ent.toLowerCase()}`}
               >
@@ -161,16 +161,16 @@ export default function BillingPage() {
 
       {/* 2. Main Module Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-        <TabsList className="w-full justify-start rounded-[8px] bg-[#F1F5F9] p-1 border border-[#CBD5E1] gap-1 h-auto overflow-x-auto scrollbar-none flex flex-nowrap">
+        <TabsList className="w-full justify-start rounded-[8px] bg-[#F8FAFC] p-1 border border-[#E2E8F0] gap-1 h-auto overflow-x-auto scrollbar-none flex flex-nowrap">
           <TabsTrigger
             value="invoices"
-            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-trigger-invoices"
           >
             <FileText className="w-3.5 h-3.5" />
             <span>Invoices</span>
             {activeCount > 0 && (
-              <Badge variant="secondary" className="text-xs font-mono px-1.5 py-0 h-4 ml-1.5 rounded-[4px] border border-[#CBD5E1] bg-[#E2E8F0]/70 text-[#0F172A]">
+              <Badge variant="secondary" className="text-xs tabular-nums px-1.5 py-0 h-4 ml-1.5 rounded-[4px] border border-[#E2E8F0] bg-[#E2E8F0]/70 text-[#1E293B]">
                 {activeCount}
               </Badge>
             )}
@@ -178,7 +178,7 @@ export default function BillingPage() {
 
           <TabsTrigger
             value="aging"
-            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-trigger-aging"
           >
             <TrendingUp className="w-3.5 h-3.5" />
@@ -187,13 +187,13 @@ export default function BillingPage() {
 
           <TabsTrigger
             value="archive"
-            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#0F172A] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-trigger-archive"
           >
             <Archive className="w-3.5 h-3.5" />
             <span>Archive</span>
             {archivedCount > 0 && (
-              <Badge variant="secondary" className="text-xs font-mono px-1.5 py-0 h-4 ml-1.5 rounded-[4px] border border-[#CBD5E1] bg-[#E2E8F0]/70 text-[#0F172A]">
+              <Badge variant="secondary" className="text-xs tabular-nums px-1.5 py-0 h-4 ml-1.5 rounded-[4px] border border-[#E2E8F0] bg-[#E2E8F0]/70 text-[#1E293B]">
                 {archivedCount}
               </Badge>
             )}

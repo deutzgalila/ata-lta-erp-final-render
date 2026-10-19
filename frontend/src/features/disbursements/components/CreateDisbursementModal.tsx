@@ -392,11 +392,11 @@ export function CreateDisbursementModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90vh] space-y-4 overflow-y-auto border p-6 border-[#CBD5E1] shadow-float rounded-[12px] bg-[#FFFFFF] max-w-lg"
+      <DialogContent className="max-h-[90vh] space-y-4 overflow-y-auto border p-6 border-[#E2E8F0] shadow-float rounded-[12px] bg-[#FFFFFF] max-w-lg"
         data-testid="create-disbursement-modal"
       >
         <DialogHeader>
-          <DialogTitle className="text-lg font-bold text-[#0F172A]">
+          <DialogTitle className="text-lg font-bold text-[#1E293B]">
             New Disbursement Voucher
           </DialogTitle>
           <DialogDescription className="text-xs text-[#475569]">
@@ -413,7 +413,7 @@ export function CreateDisbursementModal({
         >
           {/* Work Request Dropdown (UAT2-12: eliminates manual WR-id input) */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#0F172A]">
+            <label className="text-xs font-semibold text-[#1E293B]">
               Linked Work Request <span className="text-red-500">*</span>
             </label>
             <div className="space-y-1.5">
@@ -425,7 +425,7 @@ export function CreateDisbursementModal({
                 }
                 onChange={(e) => handleSelectWorkRequest(e.target.value)}
                 disabled={isWrLocked}
-                className="w-full text-xs p-2 border rounded-[6px] bg-white border-[#CBD5E1] focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-[#F1F5F9] disabled:cursor-not-allowed"
+                className="w-full text-xs p-2 border rounded-[6px] bg-white border-[#E2E8F0] focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-[#F8FAFC] disabled:cursor-not-allowed"
                 data-testid="select-work-request"
               >
                 <option value="">Select Work Request...</option>
@@ -446,7 +446,7 @@ export function CreateDisbursementModal({
           {/* Associated Client (Auto-Detected, Read-Only) & Linked Task */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#0F172A]">
+              <label className="text-xs font-semibold text-[#1E293B]">
                 Associated Client (Auto-Detected)
               </label>
               <Input
@@ -458,18 +458,18 @@ export function CreateDisbursementModal({
                   (clientId ? `Client Associated (${clientId.slice(0, 8)})` : '')
                 }
                 placeholder="Auto-detected from Work Request"
-                className="bg-[#F1F5F9] text-[#0F172A] cursor-not-allowed text-xs disabled:opacity-80"
+                className="bg-[#F8FAFC] text-[#1E293B] cursor-not-allowed text-xs disabled:opacity-80"
                 data-testid="display-client-name"
               />
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#0F172A]">Linked Task (Optional)</label>
+              <label className="text-xs font-semibold text-[#1E293B]">Linked Task (Optional)</label>
               <select
                 value={selectedTaskId}
                 onChange={(e) => setSelectedTaskId(e.target.value)}
                 disabled={isTaskLocked || !linkedWorkRequestId}
-                className="w-full text-xs p-2 border rounded-[6px] bg-white border-[#CBD5E1] focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-[#F1F5F9] disabled:cursor-not-allowed"
+                className="w-full text-xs p-2 border rounded-[6px] bg-white border-[#E2E8F0] focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-[#F8FAFC] disabled:cursor-not-allowed"
                 data-testid="select-work-request-task"
               >
                 <option value="">
@@ -489,13 +489,13 @@ export function CreateDisbursementModal({
           {/* Category & Fund Source */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#0F172A]">
+              <label className="text-xs font-semibold text-[#1E293B]">
                 Category <span className="text-red-500">*</span>
               </label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full text-xs p-2 border rounded-[6px] bg-white border-[#CBD5E1] focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full text-xs p-2 border rounded-[6px] bg-white border-[#E2E8F0] focus:outline-none focus:ring-1 focus:ring-blue-500"
                 data-testid="select-category"
               >
                 {DISBURSEMENT_CATEGORIES.map((cat) => (
@@ -515,18 +515,18 @@ export function CreateDisbursementModal({
                 />
               )}
               {errors.category && (
-                <span className="text-xs font-mono text-red-600 block">{errors.category}</span>
+                <span className="text-xs text-red-600 block">{errors.category}</span>
               )}
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#0F172A]">
+              <label className="text-xs font-semibold text-[#1E293B]">
                 Fund Source <span className="text-red-500">*</span>
               </label>
               <select
                 value={fundSource}
                 onChange={(e) => setFundSource(e.target.value as FundSource)}
-                className="w-full text-xs p-2 border rounded-[6px] bg-white border-[#CBD5E1] focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full text-xs p-2 border rounded-[6px] bg-white border-[#E2E8F0] focus:outline-none focus:ring-1 focus:ring-blue-500"
                 data-testid="select-fund-source"
               >
                 {FUND_SOURCES.map((src) => (
@@ -541,7 +541,7 @@ export function CreateDisbursementModal({
           {/* Amount & Due Date */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#0F172A]">
+              <label className="text-xs font-semibold text-[#1E293B]">
                 Amount (PHP) <span className="text-red-500">*</span>
               </label>
               <Input
@@ -558,14 +558,14 @@ export function CreateDisbursementModal({
                 data-testid="input-amount"
               />
               {errors.amount && (
-                <span className="text-xs font-mono text-red-600 block" data-testid="error-amount">
+                <span className="text-xs tabular-nums text-red-600 block" data-testid="error-amount">
                   {errors.amount}
                 </span>
               )}
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#0F172A]">Due Date</label>
+              <label className="text-xs font-semibold text-[#1E293B]">Due Date</label>
               <DateInput
                 aria-label="Disbursement due date"
                 type="date"
@@ -578,20 +578,20 @@ export function CreateDisbursementModal({
 
           {/* Locked Requester Display */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#0F172A]">Requester</label>
+            <label className="text-xs font-semibold text-[#1E293B]">Requester</label>
             <div
-              className="w-full text-xs p-2.5 border rounded-[6px] bg-[#F1F5F9] text-[#0F172A] border-[#CBD5E1] flex items-center justify-between"
+              className="w-full text-xs p-2.5 border rounded-[6px] bg-[#F8FAFC] text-[#1E293B] border-[#E2E8F0] flex items-center justify-between"
               data-testid="requester-locked-display"
             >
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-[#0F172A]">
+                <span className="font-semibold text-[#1E293B]">
                   {currentUser?.name || 'Authenticated Staff'}
                 </span>
-                <span className="text-xs font-mono text-[#475569]">
+                <span className="text-xs text-[#475569]">
                   ({currentUser?.email || 'session user'})
                 </span>
               </div>
-              <span className="text-xs font-mono font-semibold text-[#475569] px-2 py-0.5 rounded bg-[#E2E8F0]">
+              <span className="text-xs font-semibold text-[#475569] px-2 py-0.5 rounded bg-[#E2E8F0]">
                 Session Locked
               </span>
             </div>
@@ -616,7 +616,7 @@ export function CreateDisbursementModal({
 
           {/* Description */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#0F172A]">
+            <label className="text-xs font-semibold text-[#1E293B]">
               Description / Expense Purpose <span className="text-red-500">*</span>
             </label>
             <textarea
@@ -627,13 +627,13 @@ export function CreateDisbursementModal({
                 if (errors.description) setErrors((prev) => ({ ...prev, description: '' }));
               }}
               placeholder="e.g. BIR filing documentary stamp tax and notarization fees"
-              className={`w-full text-xs p-2.5 border rounded-[6px] bg-white text-[#0F172A] resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                errors.description ? 'border-red-500' : 'border-[#CBD5E1]'
+              className={`w-full text-xs p-2.5 border rounded-[6px] bg-white text-[#1E293B] resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                errors.description ? 'border-red-500' : 'border-[#E2E8F0]'
               }`}
               data-testid="textarea-description"
             />
             {errors.description && (
-              <span className="text-xs font-mono text-red-600 block" data-testid="error-description">
+              <span className="text-xs text-red-600 block" data-testid="error-description">
                 {errors.description}
               </span>
             )}
@@ -641,7 +641,7 @@ export function CreateDisbursementModal({
 
           {/* Notes */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#0F172A]">
+            <label className="text-xs font-semibold text-[#1E293B]">
               Internal Notes (Optional)
             </label>
             <textarea
@@ -649,14 +649,14 @@ export function CreateDisbursementModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Additional internal remarks or references..."
-              className="w-full text-xs p-2 border rounded-[6px] bg-white border-[#CBD5E1] resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full text-xs p-2 border rounded-[6px] bg-white border-[#E2E8F0] resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
               data-testid="textarea-notes"
             />
           </div>
 
           {/* Receipt Attachment */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#0F172A]">
+            <label className="text-xs font-semibold text-[#1E293B]">
               Receipt Attachment
             </label>
             <input
@@ -683,16 +683,16 @@ export function CreateDisbursementModal({
               }}
               className={`border-2 border-dashed rounded-[6px] p-4 text-center transition-colors cursor-pointer ${
                 isDragging
-                  ? 'border-blue-500 bg-[#F1F5F9]'
-                  : 'border-[#CBD5E1] hover:border-[#CBD5E1] bg-[#F1F5F9]/50'
+                  ? 'border-blue-500 bg-[#F8FAFC]'
+                  : 'border-[#E2E8F0] hover:border-[#E2E8F0] bg-[#F8FAFC]/50'
               }`}
               data-testid="receipt-dropzone"
             >
               {receiptFile || receiptFilename ? (
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 truncate">
-                    <FileText className="h-4 w-4 text-[#0F172A] shrink-0" />
-                    <span className="text-xs font-medium text-[#0F172A] truncate" data-testid="receipt-attached-filename">
+                    <FileText className="h-4 w-4 text-[#1E293B] shrink-0" />
+                    <span className="text-xs font-medium text-[#1E293B] truncate" data-testid="receipt-attached-filename">
                       {receiptFile?.name || receiptFilename}
                     </span>
                   </div>
@@ -716,17 +716,17 @@ export function CreateDisbursementModal({
               ) : (
                 <div className="flex flex-col items-center justify-center py-2">
                   <Upload className="h-6 w-6 text-[#475569] mb-1" />
-                  <p className="text-xs font-medium text-[#0F172A]">
+                  <p className="text-xs font-medium text-[#1E293B]">
                     Drag and drop receipt here, or browse
                   </p>
-                  <p className="text-xs font-mono text-[#475569] mt-0.5">
+                  <p className="text-xs text-[#475569] mt-0.5">
                     PDF, PNG, JPG up to 10MB
                   </p>
                 </div>
               )}
             </div>
             {errors.receipt && (
-              <span className="text-xs font-mono text-red-600 block mt-1" data-testid="error-receipt">
+              <span className="text-xs text-red-600 block mt-1" data-testid="error-receipt">
                 {errors.receipt}
               </span>
             )}
@@ -759,9 +759,9 @@ export function CreateDisbursementModal({
 
       {/* In-App Non-Blocking Confirmation for Missing Supporting Document */}
       <Dialog open={isNoReceiptConfirmOpen} onOpenChange={setIsNoReceiptConfirmOpen}>
-        <DialogContent className="border-[#CBD5E1] border p-6 shadow-float rounded-[12px] bg-[#FFFFFF] space-y-3 max-w-md" data-testid="no-receipt-confirm-dialog">
+        <DialogContent className="border-[#E2E8F0] border p-6 shadow-float rounded-[12px] bg-[#FFFFFF] space-y-3 max-w-md" data-testid="no-receipt-confirm-dialog">
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-[#0F172A] flex items-center gap-2">
+            <DialogTitle className="text-base font-bold text-[#1E293B] flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-amber-500" />
               <span>No Supporting Document Attached</span>
             </DialogTitle>

@@ -667,12 +667,12 @@ export function WorkRequestModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
-        className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden rounded-[12px] border-[#CBD5E1] bg-[#FFFFFF] shadow-float"
+        className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden rounded-[12px] border-[#E2E8F0] bg-[#FFFFFF] shadow-float"
         data-testid="work-request-modal"
       >
-        <DialogHeader className="px-6 py-4 border-b border-[#CBD5E1]">
+        <DialogHeader className="px-6 py-4 border-b border-[#E2E8F0]">
           <div className="flex items-center justify-between">
-            <DialogTitle className="text-lg font-extrabold uppercase tracking-tight text-[#0F172A]">
+            <DialogTitle className="text-lg font-semibold uppercase tracking-tight text-[#1E293B]">
               {isEditMode ? 'Edit Work Request' : 'New Work Request'}
             </DialogTitle>
           </div>
@@ -681,10 +681,10 @@ export function WorkRequestModal({
         {/* Completed Work Request Locked Banner */}
         {isCompleted && (
           <div
-            className="px-6 py-2.5 bg-[#F1F5F9] border-b border-[#CBD5E1] flex items-center gap-2 text-xs font-mono uppercase font-bold text-[#0F172A]"
+            className="px-6 py-2.5 bg-[#F8FAFC] border-b border-[#E2E8F0] flex items-center gap-2 text-xs uppercase font-bold text-[#1E293B]"
             data-testid="completed-wr-locked-banner"
           >
-            <Lock className="h-4 w-4 text-[#0F172A] shrink-0" />
+            <Lock className="h-4 w-4 text-[#1E293B] shrink-0" />
             <span>This Work Request is completed and locked. Modifications are disabled.</span>
           </div>
         )}
@@ -692,7 +692,7 @@ export function WorkRequestModal({
         {/* Draft Restore Alert Banner */}
         {hasDraftBanner && (
           <div
-            className="px-6 py-2 bg-[#FEF2F2] border-b border-[#FCA5A5] flex items-center justify-between text-xs font-mono text-[#DC2626]"
+            className="px-6 py-2 bg-[#FEF2F2] border-b border-[#FCA5A5] flex items-center justify-between text-xs text-[#DC2626]"
             data-testid="draft-restore-banner"
           >
             <span>You have an unsaved draft from a previous session.</span>
@@ -702,7 +702,7 @@ export function WorkRequestModal({
                 variant="outline"
                 size="xs"
                 onClick={handleRestoreDraft}
-                className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A] text-xs font-mono uppercase"
+                className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B] text-xs uppercase"
               >
                 Restore
               </Button>
@@ -711,7 +711,7 @@ export function WorkRequestModal({
                 variant="ghost"
                 size="xs"
                 onClick={handleDiscardDraft}
-                className="rounded-[6px] text-[#DC2626] hover:bg-[#DC2626]/20 text-xs font-mono uppercase"
+                className="rounded-[6px] text-[#DC2626] hover:bg-[#DC2626]/20 text-xs uppercase"
               >
                 Discard
               </Button>
@@ -724,7 +724,7 @@ export function WorkRequestModal({
           <fieldset disabled={isCompleted} className="space-y-5">
           {/* Work Request Title */}
           <div className="space-y-1">
-            <label className="text-xs font-mono uppercase tracking-wider font-bold text-[#0F172A]">
+            <label className="text-xs tracking-normal font-bold text-[#1E293B]">
               Title <span className="text-[#DC2626]">*</span>
             </label>
             <Input
@@ -736,27 +736,27 @@ export function WorkRequestModal({
               }}
               placeholder="e.g. Annual Corporate Income Tax Return 2025"
               autoFocus
-              className={`h-9 font-mono text-xs rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A] ${titleError ? 'border-[#FCA5A5]' : ''}`}
+              className={`h-9 tabular-nums text-xs rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B] ${titleError ? 'border-[#FCA5A5]' : ''}`}
               data-testid="wr-modal-title-input"
             />
             {titleError && (
-              <span className="text-xs font-mono text-[#DC2626] block">{titleError}</span>
+              <span className="text-xs text-[#DC2626] block">{titleError}</span>
             )}
           </div>
 
           {/* Entity Scoping Bar (ATA vs LTA) */}
-          <div className="flex items-center justify-between p-2.5 bg-[#F1F5F9] rounded-[8px] border-[#CBD5E1]">
+          <div className="flex items-center justify-between p-2.5 bg-[#F8FAFC] rounded-[8px] border-[#E2E8F0]">
             <div className="space-y-0.5">
-              <span className="text-xs font-mono uppercase tracking-wider font-bold text-[#0F172A] block">
+              <span className="text-xs tracking-normal font-bold text-[#1E293B] block">
                 Operating Entity
               </span>
-              <span className="text-xs font-mono text-[#475569]">
+              <span className="text-xs text-[#475569]">
                 {isEntityLocked
                   ? "Locked to client's registered entity"
                   : 'Select ATA or LTA entity for this engagement'}
               </span>
             </div>
-            <div className="flex border-[#CBD5E1] divide-x divide-[#CBD5E1] bg-[#FFFFFF]" data-testid="wr-modal-entity-toggle">
+            <div className="flex border-[#E2E8F0] divide-x divide-[#CBD5E1] bg-[#FFFFFF]" data-testid="wr-modal-entity-toggle">
               <Button
                 type="button"
                 variant="ghost"
@@ -766,8 +766,8 @@ export function WorkRequestModal({
                   setEntity('ATA');
                   setIsDirty(true);
                 }}
-                className={`text-xs font-mono font-bold uppercase rounded-[6px] h-7 px-3 ${
-                  entity === 'ATA' ? 'bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs' : 'bg-transparent text-[#0F172A] hover:bg-[#F1F5F9]'
+                className={`text-xs  font-bold uppercase rounded-[6px] h-7 px-3 ${
+                  entity === 'ATA' ? 'bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs' : 'bg-transparent text-[#1E293B] hover:bg-[#F8FAFC]'
                 }`}
               >
                 ATA
@@ -781,8 +781,8 @@ export function WorkRequestModal({
                   setEntity('LTA');
                   setIsDirty(true);
                 }}
-                className={`text-xs font-mono font-bold uppercase rounded-[6px] h-7 px-3 ${
-                  entity === 'LTA' ? 'bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs' : 'bg-transparent text-[#0F172A] hover:bg-[#F1F5F9]'
+                className={`text-xs  font-bold uppercase rounded-[6px] h-7 px-3 ${
+                  entity === 'LTA' ? 'bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs' : 'bg-transparent text-[#1E293B] hover:bg-[#F8FAFC]'
                 }`}
               >
                 LTA
@@ -794,16 +794,16 @@ export function WorkRequestModal({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Client Select */}
             <div className="space-y-1">
-              <label className="text-xs font-mono uppercase tracking-wider font-bold text-[#0F172A]">Client</label>
+              <label className="text-xs font-mono tracking-normal font-bold text-[#1E293B]">Client</label>
               <Select value={clientId || 'unselected'} onValueChange={handleClientChange}>
                 <SelectTrigger
-                  className="h-9 font-mono text-xs rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A]"
+                  className="h-9 font-mono text-xs rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B]"
                   data-testid="wr-modal-client-select"
                 >
                   <SelectValue placeholder="Select Client..." />
                 </SelectTrigger>
-                <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]">
-                  <SelectItem value="unselected" className="text-xs font-mono">— No Client —</SelectItem>
+                <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
+                  <SelectItem value="unselected" className="text-xs">— No Client —</SelectItem>
                   {clients
                     .filter((c) => !isEntityLocked || c.entity === entity)
                     .map((c) => (
@@ -817,7 +817,7 @@ export function WorkRequestModal({
 
             {/* Priority */}
             <div className="space-y-1">
-              <label className="text-xs font-mono uppercase tracking-wider font-bold text-[#0F172A]">Priority</label>
+              <label className="text-xs tracking-normal font-bold text-[#1E293B]">Priority</label>
               <Select
                 value={priority}
                 onValueChange={(val) => {
@@ -825,22 +825,22 @@ export function WorkRequestModal({
                   setIsDirty(true);
                 }}
               >
-                <SelectTrigger className="h-9 font-mono text-xs rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A]">
+                <SelectTrigger className="h-9 text-xs rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B]">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF]">
-                  <SelectItem value="Low" className="text-xs font-mono">Low</SelectItem>
-                  <SelectItem value="Normal" className="text-xs font-mono">Normal</SelectItem>
-                  <SelectItem value="Medium" className="text-xs font-mono">Medium</SelectItem>
-                  <SelectItem value="High" className="text-xs font-mono">High</SelectItem>
-                  <SelectItem value="Urgent" className="text-xs font-mono">Urgent</SelectItem>
+                <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
+                  <SelectItem value="Low" className="text-xs">Low</SelectItem>
+                  <SelectItem value="Normal" className="text-xs">Normal</SelectItem>
+                  <SelectItem value="Medium" className="text-xs">Medium</SelectItem>
+                  <SelectItem value="High" className="text-xs">High</SelectItem>
+                  <SelectItem value="Urgent" className="text-xs">Urgent</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             {/* Due Date */}
             <div className="space-y-1">
-              <label className="text-xs font-mono uppercase tracking-wider font-bold text-[#0F172A]">Due Date</label>
+              <label className="text-xs tracking-normal font-bold text-[#1E293B]">Due Date</label>
               <DateInput
                 type="date"
                 aria-label="Work request due date"
@@ -850,15 +850,15 @@ export function WorkRequestModal({
                   setDueDate(value);
                   setIsDirty(true);
                 }}
-                className="h-9 font-mono text-xs rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A]"
+                className="h-9 text-xs rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B]"
                 data-testid="wr-modal-due-date"
               />
             </div>
           </div>
 
           {/* Team Governance Section */}
-          <div className="p-3 bg-[#F1F5F9] border-[#CBD5E1] rounded-[6px] space-y-3">
-            <h4 className="text-xs font-mono uppercase tracking-wider font-bold text-[#0F172A]">
+          <div className="p-3 bg-[#F8FAFC] border-[#E2E8F0] rounded-[6px] space-y-3">
+            <h4 className="text-xs tracking-normal font-bold text-[#1E293B]">
               Team Governance
             </h4>
             <AssignerSelect
@@ -877,7 +877,7 @@ export function WorkRequestModal({
               }}
             />
             {managerError && (
-              <span className="text-xs font-mono text-[#DC2626] block" data-testid="manager-error">
+              <span className="text-xs text-[#DC2626] block" data-testid="manager-error">
                 {managerError}
               </span>
             )}
@@ -885,7 +885,7 @@ export function WorkRequestModal({
 
           {/* Description Textarea */}
           <div className="space-y-1">
-            <label className="text-xs font-mono uppercase tracking-wider font-bold text-[#0F172A]">
+            <label className="text-xs tracking-normal font-bold text-[#1E293B]">
               Description / Notes
             </label>
             <textarea
@@ -896,7 +896,7 @@ export function WorkRequestModal({
               }}
               placeholder="Scope summary, special requirements, client instructions..."
               rows={2}
-              className="w-full text-xs font-mono p-2.5 border-[#CBD5E1] rounded-[6px] bg-[#FFFFFF] text-[#0F172A] placeholder:text-[#475569] focus:outline-none focus:ring-1 focus:ring-[#1D4ED8]"
+              className="w-full text-xs tabular-nums p-2.5 border-[#E2E8F0] rounded-[6px] bg-[#FFFFFF] text-[#1E293B] placeholder:text-[#475569] focus:outline-none focus:ring-1 focus:ring-[#1D4ED8]"
             />
           </div>
 
@@ -915,13 +915,13 @@ export function WorkRequestModal({
           </fieldset>
         </form>
 
-        <DialogFooter className="px-6 py-3 border-t border-[#CBD5E1] bg-[#F1F5F9] flex items-center justify-between">
+        <DialogFooter className="px-6 py-3 border-t border-[#E2E8F0] bg-[#F8FAFC] flex items-center justify-between">
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={onClose}
-            className="text-xs font-mono uppercase tracking-wider rounded-[8px] border-[#CBD5E1] bg-[#FFFFFF] hover:bg-[#F1F5F9] text-[#0F172A]"
+            className="text-xs tracking-normal rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] text-[#1E293B]"
           >
             Cancel
           </Button>
@@ -932,7 +932,7 @@ export function WorkRequestModal({
             onClick={handleSubmit}
             disabled={isCompleted}
             data-testid="wr-modal-submit-btn"
-            className="text-xs font-mono uppercase tracking-wider font-bold rounded-[6px] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs hover:bg-[#DC2626]"
+            className="text-xs tracking-normal font-bold rounded-[6px] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs"
           >
             {isEditMode ? 'Save Changes' : 'Create Work Request'}
           </Button>

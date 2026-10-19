@@ -63,7 +63,7 @@ export function Topbar() {
 
   return (
     <header
-      className="flex h-14 w-full items-center justify-between border-b border-[#CBD5E1] bg-[#FFFFFF] px-4 sm:px-6 shadow-2xs select-none shrink-0"
+      className="flex h-14 w-full items-center justify-between border-b border-[#E2E8F0] bg-[#FFFFFF] px-4 sm:px-6 shadow-2xs select-none shrink-0"
       data-testid="app-topbar"
     >
       {/* Left: Mobile Menu Trigger + Entity Switcher */}
@@ -74,7 +74,7 @@ export function Topbar() {
           onClick={() => setMobileDrawerOpen(true)}
           aria-label="Open navigation menu"
           data-testid="mobile-menu-trigger"
-          className="lg:hidden flex min-h-[36px] min-w-[36px] items-center justify-center rounded-[6px] border border-[#CBD5E1] bg-[#FFFFFF] text-[#0F172A] hover:bg-[#F1F5F9] transition-colors cursor-pointer"
+          className="lg:hidden flex min-h-[36px] min-w-[36px] items-center justify-center rounded-[6px] border border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B] hover:bg-[#F8FAFC] transition-colors cursor-pointer"
         >
           <Menu className="h-4 w-4" />
         </button>
@@ -115,7 +115,7 @@ export function Topbar() {
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="flex items-center gap-2.5 rounded-[6px] border border-[#CBD5E1] bg-[#FFFFFF] p-1 pr-2.5 hover:bg-[#F1F5F9] transition-colors cursor-pointer outline-none shadow-2xs"
+              className="flex items-center gap-2.5 rounded-[6px] border border-[#E2E8F0] bg-[#FFFFFF] p-1 pr-2.5 hover:bg-[#F8FAFC] transition-colors cursor-pointer outline-none shadow-2xs"
               data-testid="user-menu-button"
             >
               <div
@@ -142,7 +142,7 @@ export function Topbar() {
                 )}
               </div>
               <div className="hidden sm:flex flex-col text-left">
-                <span className="text-xs font-semibold text-[#0F172A] leading-tight">
+                <span className="text-xs font-semibold text-[#1E293B] leading-tight">
                   {user?.name || 'User'}
                 </span>
                 <span className="text-xs text-[#475569] leading-tight">
@@ -154,7 +154,7 @@ export function Topbar() {
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>
               <div className="flex flex-col space-y-1">
-                <p className="text-xs font-semibold leading-none text-[#0F172A]">{user?.name}</p>
+                <p className="text-xs font-semibold leading-none text-[#1E293B]">{user?.name}</p>
                 <p className="text-xs leading-none text-[#475569]">{user?.email}</p>
               </div>
             </DropdownMenuLabel>
@@ -166,7 +166,7 @@ export function Topbar() {
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => navigate('/profile')}
-              className="cursor-pointer text-[#0F172A] hover:bg-[#F1F5F9]"
+              className="cursor-pointer text-[#1E293B] hover:bg-[#F8FAFC]"
               data-testid="my-profile-menu-item"
             >
               <User className="mr-2 h-4 w-4 text-[#475569]" />
@@ -191,7 +191,7 @@ export function Topbar() {
           title="Sign out"
           aria-label="Sign out"
           data-testid="header-signout-btn"
-          className="flex h-8 w-8 items-center justify-center rounded-[6px] border border-[#CBD5E1] bg-[#FFFFFF] text-[#475569] hover:text-[#991B1B] hover:bg-[#FEF2F2] hover:border-[#FCA5A5] transition-colors cursor-pointer shadow-2xs"
+          className="flex h-8 w-8 items-center justify-center rounded-[6px] border border-[#E2E8F0] bg-[#FFFFFF] text-[#475569] hover:text-[#991B1B] hover:bg-[#FEF2F2] hover:border-[#FCA5A5] transition-colors cursor-pointer shadow-2xs"
         >
           <LogOut className="h-4 w-4" />
         </button>
@@ -199,9 +199,9 @@ export function Topbar() {
 
       {/* Mobile/Tablet Radix Dialog Navigation Drawer */}
       <Dialog open={mobileDrawerOpen} onOpenChange={setMobileDrawerOpen}>
-        <DialogContent className="fixed inset-y-0 left-0 top-0 z-50 h-full w-[260px] max-w-[85vw] translate-x-0 translate-y-0 p-0 border-r border-[#CBD5E1] bg-[#F1F5F9] shadow-float overscroll-contain rounded-l-none rounded-r-[12px] duration-200">
-          <div className="flex h-14 items-center justify-between border-b border-[#CBD5E1] px-4 bg-[#FFFFFF] rounded-tr-[12px]">
-            <DialogTitle className="flex items-center gap-2 text-sm font-semibold tracking-tight text-[#0F172A]">
+        <DialogContent className="fixed inset-y-0 left-0 top-0 z-50 h-full w-[260px] max-w-[85vw] translate-x-0 translate-y-0 p-0 border-r border-[#E2E8F0] bg-[#F8FAFC] shadow-float overscroll-contain rounded-l-none rounded-r-[12px] duration-200">
+          <div className="flex h-14 items-center justify-between border-b border-[#E2E8F0] px-4 bg-[#FFFFFF] rounded-tr-[12px]">
+            <DialogTitle className="flex items-center gap-2 text-sm font-semibold tracking-tight text-[#1E293B]">
               <div className="flex h-7 w-7 items-center justify-center rounded-[6px] bg-[#1E3A8A] text-[#FFFFFF] font-bold text-xs shadow-2xs">
                 ERP
               </div>
@@ -211,7 +211,7 @@ export function Topbar() {
               type="button"
               onClick={() => setMobileDrawerOpen(false)}
               aria-label="Close navigation"
-              className="flex h-7 w-7 items-center justify-center rounded-[6px] border border-[#CBD5E1] bg-[#FFFFFF] text-[#475569] hover:text-[#0F172A] hover:bg-[#F1F5F9] transition-colors cursor-pointer"
+              className="flex h-7 w-7 items-center justify-center rounded-[6px] border border-[#E2E8F0] bg-[#FFFFFF] text-[#475569] hover:text-[#1E293B] hover:bg-[#F8FAFC] transition-colors cursor-pointer"
             >
               <X className="h-4 w-4" />
             </button>

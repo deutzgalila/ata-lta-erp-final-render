@@ -95,7 +95,7 @@ export function DailyActivityTab() {
             type="date"
             value={selectedDate}
             onValueChange={(value) => setSelectedDate(value || getTodayString())}
-            className="w-[176px] rounded-[6px] border border-[#CBD5E1] bg-white text-xs text-[#0F172A]"
+            className="w-[176px] rounded-[6px] border border-[#E2E8F0] bg-white text-xs text-[#1E293B]"
             data-testid="daily-date-picker"
           />
           <div className="flex items-center gap-1">
@@ -106,7 +106,7 @@ export function DailyActivityTab() {
               onClick={handlePrevDay}
               aria-label="Previous day"
               title="Previous day"
-              className="h-9 w-9 p-0 rounded-[6px] border border-[#CBD5E1] bg-[#FFFFFF] hover:bg-[#F1F5F9] text-[#0F172A] cursor-pointer shadow-2xs"
+              className="h-9 w-9 p-0 rounded-[6px] border border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] text-[#1E293B] cursor-pointer shadow-2xs"
               data-testid="daily-prev-day-btn"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -118,7 +118,7 @@ export function DailyActivityTab() {
               onClick={handleNextDay}
               aria-label="Next day"
               title="Next day"
-              className="h-9 w-9 p-0 rounded-[6px] border border-[#CBD5E1] bg-[#FFFFFF] hover:bg-[#F1F5F9] text-[#0F172A] cursor-pointer shadow-2xs"
+              className="h-9 w-9 p-0 rounded-[6px] border border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] text-[#1E293B] cursor-pointer shadow-2xs"
               data-testid="daily-next-day-btn"
             >
               <ChevronRight className="w-4 h-4" />
@@ -129,7 +129,7 @@ export function DailyActivityTab() {
             variant="outline"
             size="sm"
             onClick={handleToday}
-            className="h-9 px-3 rounded-[6px] border border-[#CBD5E1] bg-[#FFFFFF] hover:bg-[#F1F5F9] text-[#0F172A] text-xs font-semibold cursor-pointer shadow-2xs"
+            className="h-9 px-3 rounded-[6px] border border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] text-[#1E293B] text-xs font-semibold cursor-pointer shadow-2xs"
             data-testid="daily-today-btn"
           >
             Today
@@ -143,7 +143,7 @@ export function DailyActivityTab() {
             size="sm"
             onClick={() => refetch()}
             disabled={isRefetching}
-            className="h-9 px-3 text-xs font-semibold gap-1.5 cursor-pointer rounded-[6px] border border-[#CBD5E1] bg-[#FFFFFF] hover:bg-[#F1F5F9] text-[#0F172A] transition-colors shadow-2xs"
+            className="h-9 px-3 text-xs font-semibold gap-1.5 cursor-pointer rounded-[6px] border border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] text-[#1E293B] transition-colors shadow-2xs"
             data-testid="daily-refresh-button"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isRefetching ? 'animate-spin' : ''}`} />
@@ -237,12 +237,12 @@ export function DailyActivityTab() {
                 key={cat.id}
                 data-testid={cat.testId}
                 onClick={() => scrollToReportSection(cat.targetId)}
-                className="flex items-center justify-between gap-2 p-3 bg-[#FFFFFF] rounded-[8px] border border-[#CBD5E1] hover:bg-[#F1F5F9] hover:border-[#94A3B8] shadow-card transition-colors cursor-pointer text-left"
+                className="flex items-center justify-between gap-2 p-3 bg-[#FFFFFF] rounded-[8px] border border-[#E2E8F0] hover:bg-[#F8FAFC] hover:border-[#94A3B8] shadow-card transition-colors cursor-pointer text-left"
               >
                 <span className="text-xs font-medium text-[#475569] leading-snug">
                   {cat.label}
                 </span>
-                <span className="font-mono text-xs font-semibold text-[#1E40AF] tabular-nums px-2 py-0.5 rounded-[4px] border border-[#BFDBFE] bg-[#EFF6FF]">
+                <span className="text-xs font-semibold text-[#1E40AF] tabular-nums px-2 py-0.5 rounded-[4px] border border-[#BFDBFE] bg-[#EFF6FF]">
                   {formatCount(cat.count)}
                 </span>
               </button>
@@ -276,7 +276,7 @@ export function DailyActivityTab() {
                     <TableBody>
                       {workRequests.map((wr) => (
                         <TableRow key={wr.id}>
-                          <TableCell className="font-medium text-[#0F172A]">
+                          <TableCell className="font-medium text-[#1E293B]">
                             <span
                               className="line-clamp-2 max-w-xl break-words"
                               title={wr.title}
@@ -285,11 +285,11 @@ export function DailyActivityTab() {
                             </span>
                           </TableCell>
                           <TableCell>
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#CBD5E1] font-mono text-xs font-medium bg-[#F1F5F9] text-[#0F172A]">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#E2E8F0] text-xs font-medium bg-[#F8FAFC] text-[#1E293B]">
                               {wr.status}
                             </span>
                           </TableCell>
-                          <TableCell className="text-right font-mono text-xs text-[#475569] tabular-nums">
+                          <TableCell className="text-right text-xs text-[#475569] tabular-nums">
                             {formatManilaDate(wr.created_at)}
                           </TableCell>
                         </TableRow>
@@ -326,18 +326,18 @@ export function DailyActivityTab() {
                     <TableBody>
                       {invoices.map((inv) => (
                         <TableRow key={inv.id}>
-                          <TableCell className="font-mono font-semibold text-[#0F172A] tabular-nums">
+                          <TableCell className="font-mono font-semibold text-[#1E293B] tabular-nums">
                             {inv.invoice_number}
                           </TableCell>
                           <TableCell>
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#CBD5E1] font-mono text-xs font-medium bg-[#F1F5F9] text-[#0F172A]">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#E2E8F0] text-xs font-medium bg-[#F8FAFC] text-[#1E293B]">
                               {inv.status}
                             </span>
                           </TableCell>
-                          <TableCell className="text-right font-mono font-semibold text-[#0F172A] tabular-nums">
+                          <TableCell className="text-right font-semibold text-[#1E293B] tabular-nums">
                             {formatCurrency(inv.total)}
                           </TableCell>
-                          <TableCell className="text-right font-mono text-xs text-[#475569] tabular-nums">
+                          <TableCell className="text-right text-xs text-[#475569] tabular-nums">
                             {formatManilaDate(inv.created_at)}
                           </TableCell>
                         </TableRow>
@@ -374,18 +374,18 @@ export function DailyActivityTab() {
                     <TableBody>
                       {payments.map((p) => (
                         <TableRow key={p.id}>
-                          <TableCell className="text-right font-mono font-bold text-[#0F172A] tabular-nums">
+                          <TableCell className="text-right font-mono font-bold text-[#1E293B] tabular-nums">
                             {formatCurrency(p.amount)}
                           </TableCell>
-                          <TableCell className="text-[#0F172A] font-mono text-xs">{p.method}</TableCell>
-                          <TableCell className="font-mono text-xs text-[#475569] tabular-nums">
+                          <TableCell className="text-[#1E293B] tabular-nums text-xs">{p.method}</TableCell>
+                          <TableCell className="text-xs text-[#475569] tabular-nums">
                             {p.invoice_id ? (
                               <span title={p.invoice_id}>{p.invoice_id}</span>
                             ) : (
                               '—'
                             )}
                           </TableCell>
-                          <TableCell className="text-right font-mono text-xs text-[#475569] tabular-nums">
+                          <TableCell className="text-right text-xs text-[#475569] tabular-nums">
                             {formatManilaDate(p.payment_date || p.created_at)}
                           </TableCell>
                         </TableRow>
@@ -422,18 +422,18 @@ export function DailyActivityTab() {
                     <TableBody>
                       {disbursements.map((d) => (
                         <TableRow key={d.id}>
-                          <TableCell className="font-mono font-semibold text-[#0F172A] tabular-nums">
+                          <TableCell className="font-mono font-semibold text-[#1E293B] tabular-nums">
                             {d.disbursement_number}
                           </TableCell>
                           <TableCell>
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#CBD5E1] font-mono text-xs font-medium bg-[#F1F5F9] text-[#0F172A]">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#E2E8F0] text-xs font-medium bg-[#F8FAFC] text-[#1E293B]">
                               {d.status}
                             </span>
                           </TableCell>
-                          <TableCell className="text-right font-mono font-semibold text-[#0F172A] tabular-nums">
+                          <TableCell className="text-right font-semibold text-[#1E293B] tabular-nums">
                             {formatCurrency(d.amount)}
                           </TableCell>
-                          <TableCell className="text-right font-mono text-xs text-[#475569] tabular-nums">
+                          <TableCell className="text-right text-xs text-[#475569] tabular-nums">
                             {formatManilaDate(d.created_at)}
                           </TableCell>
                         </TableRow>
@@ -469,7 +469,7 @@ export function DailyActivityTab() {
                     <TableBody>
                       {documents.map((doc) => (
                         <TableRow key={doc.id}>
-                          <TableCell className="font-medium text-[#0F172A]">
+                          <TableCell className="font-medium text-[#1E293B]">
                             <span
                               className="line-clamp-2 max-w-xl break-words"
                               title={doc.original_name}
@@ -478,11 +478,11 @@ export function DailyActivityTab() {
                             </span>
                           </TableCell>
                           <TableCell>
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#CBD5E1] font-mono text-xs font-medium bg-[#F1F5F9] text-[#0F172A]">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#E2E8F0] text-xs font-medium bg-[#F8FAFC] text-[#1E293B]">
                               {doc.category}
                             </span>
                           </TableCell>
-                          <TableCell className="text-right font-mono text-xs text-[#475569] tabular-nums">
+                          <TableCell className="text-right text-xs text-[#475569] tabular-nums">
                             {formatManilaDate(doc.created_at)}
                           </TableCell>
                         </TableRow>
@@ -518,15 +518,15 @@ export function DailyActivityTab() {
                     <TableBody>
                       {transmittals.map((t) => (
                         <TableRow key={t.id}>
-                          <TableCell className="font-mono font-semibold text-[#0F172A] tabular-nums">
+                          <TableCell className="font-mono font-semibold text-[#1E293B] tabular-nums">
                             {t.tracking_number}
                           </TableCell>
                           <TableCell>
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#CBD5E1] font-mono text-xs font-medium bg-[#F1F5F9] text-[#0F172A]">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#E2E8F0] text-xs font-medium bg-[#F8FAFC] text-[#1E293B]">
                               {t.status}
                             </span>
                           </TableCell>
-                          <TableCell className="text-right font-mono text-xs text-[#475569] tabular-nums">
+                          <TableCell className="text-right text-xs text-[#475569] tabular-nums">
                             {formatManilaDate(t.created_at)}
                           </TableCell>
                         </TableRow>

@@ -10,7 +10,7 @@ const TableDensityContext = React.createContext<'standard' | 'compact'>('standar
 const Table = React.forwardRef<HTMLTableElement, TableProps>(
   ({ className, density = 'standard', ...props }, ref) => (
     <TableDensityContext.Provider value={density}>
-      <div className="relative w-full overflow-auto rounded-[8px] border border-[#CBD5E1] bg-[#FFFFFF] shadow-card">
+      <div className="relative w-full overflow-auto rounded-[8px] border border-[#E2E8F0] bg-[#FFFFFF] shadow-card">
         <table
           ref={ref}
           className={cn(
@@ -32,7 +32,7 @@ const TableHeader = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <thead
     ref={ref}
-    className={cn('bg-[#F1F5F9] border-b border-[#CBD5E1] [&_tr]:border-b [&_tr]:border-[#CBD5E1]', className)}
+    className={cn('bg-[#F8FAFC] border-b border-[#E2E8F0] [&_tr]:border-b [&_tr]:border-[#E2E8F0]', className)}
     {...props}
   />
 ));
@@ -57,7 +57,7 @@ const TableFooter = React.forwardRef<
   <tfoot
     ref={ref}
     className={cn(
-      'border-t border-[#CBD5E1] bg-[#F1F5F9] font-semibold text-[#0F172A] [&>tr]:last:border-b-0',
+      'border-t border-[#E2E8F0] bg-[#F8FAFC] font-semibold text-[#1E293B] [&>tr]:last:border-b-0',
       className
     )}
     {...props}
@@ -72,7 +72,7 @@ const TableRow = React.forwardRef<
   <tr
     ref={ref}
     className={cn(
-      'border-b border-[#E2E8F0] transition-colors duration-150 hover:bg-[#F1F5F9]/80 data-[state=selected]:bg-[#EFF6FF]',
+      'border-b border-[#E2E8F0] transition-colors duration-150 hover:bg-[#F8FAFC]/80 data-[state=selected]:bg-[#EFF6FF]',
       className
     )}
     {...props}
@@ -112,7 +112,7 @@ const TableCell = React.forwardRef<
     <td
       ref={ref}
       className={cn(
-        'align-middle [&:has([role=checkbox])]:pr-0 text-[#0F172A]',
+        'align-middle [&:has([role=checkbox])]:pr-0 text-[#1E293B]',
         density === 'compact' ? 'p-2 text-xs' : 'p-3.5 text-[13px]',
         className
       )}

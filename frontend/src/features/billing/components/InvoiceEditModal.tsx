@@ -358,12 +358,12 @@ export function InvoiceEditModal({
     <>
       <DialogHeader>
         <div className="flex items-center justify-between gap-2">
-          <EditorTitle className="text-base font-bold text-[#0F172A] flex items-center gap-2">
-            <Pencil className="w-5 h-5 text-[#0F172A]" />
+          <EditorTitle className="text-base font-bold text-[#1E293B] flex items-center gap-2">
+            <Pencil className="w-5 h-5 text-[#1E293B]" />
             <span>Edit Invoice {invoice.invoice_number}</span>
           </EditorTitle>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-[#475569] font-mono">v{currentVersion}</span>
+            <span className="text-xs text-[#475569]">v{currentVersion}</span>
             <span
               className={`inline-flex items-center px-2 py-0.5 rounded-[6px] text-xs font-semibold border ${getStatusBadgeVariant(
                 invoice.status
@@ -436,7 +436,7 @@ export function InvoiceEditModal({
           <div>
             <label
               htmlFor="edit-invoice-client"
-              className="text-xs font-semibold text-[#0F172A] block mb-1"
+              className="text-xs font-semibold text-[#1E293B] block mb-1"
             >
               Client*
             </label>
@@ -468,7 +468,7 @@ export function InvoiceEditModal({
           <div>
             <label
               htmlFor="edit-invoice-wr"
-              className="text-xs font-semibold text-[#0F172A] block mb-1"
+              className="text-xs font-semibold text-[#1E293B] block mb-1"
             >
               Associated Work Request
             </label>
@@ -501,7 +501,7 @@ export function InvoiceEditModal({
           <div>
             <label
               htmlFor="edit-invoice-task"
-              className="text-xs font-semibold text-[#0F172A] block mb-1"
+              className="text-xs font-semibold text-[#1E293B] block mb-1"
             >
               Linked Task (Optional)
             </label>
@@ -538,7 +538,7 @@ export function InvoiceEditModal({
           <div>
             <label
               htmlFor="edit-invoice-number"
-              className="text-xs font-semibold text-[#0F172A] block mb-1"
+              className="text-xs font-semibold text-[#1E293B] block mb-1"
             >
               Invoice Number*
             </label>
@@ -559,7 +559,7 @@ export function InvoiceEditModal({
             <div>
               <label
                 htmlFor="edit-invoice-issue-date"
-                className="text-xs font-semibold text-[#0F172A] block mb-1"
+                className="text-xs font-semibold text-[#1E293B] block mb-1"
               >
                 Issue Date*
               </label>
@@ -578,7 +578,7 @@ export function InvoiceEditModal({
             <div>
               <label
                 htmlFor="edit-invoice-due-date"
-                className="text-xs font-semibold text-[#0F172A] block mb-1"
+                className="text-xs font-semibold text-[#1E293B] block mb-1"
               >
                 Due Date*
               </label>
@@ -598,10 +598,10 @@ export function InvoiceEditModal({
         </div>
 
         {/* 2. Dynamic Line Items Section */}
-        <div className="space-y-2 pt-2 border-t border-[#CBD5E1]">
+        <div className="space-y-2 pt-2 border-t border-[#E2E8F0]">
           <div className="flex items-center justify-between">
             <div>
-              <h4 className="text-xs font-bold text-[#0F172A] uppercase tracking-wide">
+              <h4 className="text-xs font-bold text-[#1E293B] uppercase tracking-wide">
                 Line Items
               </h4>
               <p className="text-xs text-[#475569]">
@@ -626,10 +626,10 @@ export function InvoiceEditModal({
             {lineItems.map((item, index) => (
               <div
                 key={item.id}
-                className="flex items-center gap-2 p-2.5 bg-[#F1F5F9] border-[#CBD5E1] rounded-[6px]"
+                className="flex items-center gap-2 p-2.5 bg-[#F8FAFC] border-[#E2E8F0] rounded-[6px]"
                 data-testid={`line-item-row-${index}`}
               >
-                <span className="text-xs font-mono text-[#475569] w-4 text-center">
+                <span className="text-xs text-[#475569] w-4 text-center">
                   {index + 1}
                 </span>
 
@@ -681,7 +681,7 @@ export function InvoiceEditModal({
                     value={item.amount}
                     onChange={(e) => handleUpdateLineItem(index, 'amount', e.target.value)}
                     placeholder="0.00"
-                    className="h-8 text-xs bg-white text-right font-mono"
+                    className="h-8 text-xs bg-white text-right tabular-nums"
                     disabled={!canEditFinancials}
                     required
                     data-testid={`line-item-amount-${index}`}
@@ -694,7 +694,7 @@ export function InvoiceEditModal({
                     type="button"
                     disabled={!canEditFinancials || index === 0}
                     onClick={() => handleMoveLineItem(index, 'up')}
-                    className="p-1 text-[#475569] hover:text-[#0F172A] disabled:opacity-30 cursor-pointer"
+                    className="p-1 text-[#475569] hover:text-[#1E293B] disabled:opacity-30 cursor-pointer"
                     title="Move up"
                     data-testid={`btn-move-up-${index}`}
                   >
@@ -704,7 +704,7 @@ export function InvoiceEditModal({
                     type="button"
                     disabled={!canEditFinancials || index === lineItems.length - 1}
                     onClick={() => handleMoveLineItem(index, 'down')}
-                    className="p-1 text-[#475569] hover:text-[#0F172A] disabled:opacity-30 cursor-pointer"
+                    className="p-1 text-[#475569] hover:text-[#1E293B] disabled:opacity-30 cursor-pointer"
                     title="Move down"
                     data-testid={`btn-move-down-${index}`}
                   >
@@ -727,28 +727,28 @@ export function InvoiceEditModal({
 
           {/* Subtotal & Total display */}
           <div className="flex justify-end pt-2">
-            <div className="w-64 bg-[#F1F5F9] p-2.5 rounded-[8px] border-[#CBD5E1] text-xs space-y-1">
+            <div className="w-64 bg-[#F8FAFC] p-2.5 rounded-[8px] border-[#E2E8F0] text-xs space-y-1">
               <div className="flex justify-between text-[#475569]">
                 <span>Subtotal:</span>
-                <span className="font-mono" data-testid="edit-calc-subtotal">
+                <span className="tabular-nums" data-testid="edit-calc-subtotal">
                   {formatCurrency(totals.subtotal)}
                 </span>
               </div>
-              <div className="flex justify-between font-bold text-[#0F172A] border-t border-[#CBD5E1] pt-1">
+              <div className="flex justify-between font-bold text-[#1E293B] border-t border-[#E2E8F0] pt-1">
                 <span>Total Amount:</span>
-                <span className="font-mono text-sm" data-testid="edit-calc-total">
+                <span className="tabular-nums text-sm" data-testid="edit-calc-total">
                   {formatCurrency(totals.total)}
                 </span>
               </div>
               {totals.amountPaid > 0 && (
                 <div className="flex justify-between text-[#475569]">
                   <span>Amount Paid:</span>
-                  <span className="font-mono">{formatCurrency(totals.amountPaid)}</span>
+                  <span className="tabular-nums">{formatCurrency(totals.amountPaid)}</span>
                 </div>
               )}
-              <div className="flex justify-between font-semibold text-[#0F172A] border-t border-[#CBD5E1] pt-1">
+              <div className="flex justify-between font-semibold text-[#1E293B] border-t border-[#E2E8F0] pt-1">
                 <span>Balance:</span>
-                <span className="font-mono" data-testid="edit-calc-balance">
+                <span className="tabular-nums" data-testid="edit-calc-balance">
                   {formatCurrency(totals.balance)}
                 </span>
               </div>
@@ -771,11 +771,11 @@ export function InvoiceEditModal({
           </>
         )}
         {/* 3. Notes & Terms */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#CBD5E1]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#E2E8F0]">
           <div>
             <label
               htmlFor="edit-invoice-notes"
-              className="text-xs font-semibold text-[#0F172A] block mb-1"
+              className="text-xs font-semibold text-[#1E293B] block mb-1"
             >
               Notes
             </label>
@@ -785,14 +785,14 @@ export function InvoiceEditModal({
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Notes to client..."
               rows={2}
-              className="w-full text-xs rounded-[8px] border-[#CBD5E1] p-2 text-[#0F172A] focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+              className="w-full text-xs rounded-[8px] border-[#E2E8F0] p-2 text-[#1E293B] focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
               data-testid="textarea-edit-notes"
             />
           </div>
           <div>
             <label
               htmlFor="edit-invoice-terms"
-              className="text-xs font-semibold text-[#0F172A] block mb-1"
+              className="text-xs font-semibold text-[#1E293B] block mb-1"
             >
               Payment Terms
             </label>
@@ -803,7 +803,7 @@ export function InvoiceEditModal({
               placeholder="e.g. Net 30"
               rows={2}
               disabled={!canEditFinancials}
-              className="w-full text-xs rounded-[8px] border-[#CBD5E1] p-2 text-[#0F172A] focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none disabled:bg-[#F1F5F9] disabled:cursor-not-allowed"
+              className="w-full text-xs rounded-[8px] border-[#E2E8F0] p-2 text-[#1E293B] focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none disabled:bg-[#F8FAFC] disabled:cursor-not-allowed"
               data-testid="input-edit-terms"
             />
           </div>
@@ -836,7 +836,7 @@ export function InvoiceEditModal({
     <>
       {inline ? (
         <section
-          className="p-4 bg-white border-[#CBD5E1] rounded-[6px]"
+          className="p-4 bg-white border-[#E2E8F0] rounded-[6px]"
           data-testid="invoice-inline-editor"
         >
           {editorContent}

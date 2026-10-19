@@ -100,7 +100,7 @@ export function TransmittalCard({
 
   return (
     <div
-      className="bg-white border rounded-[6px] p-3.5 shadow-none hover:shadow transition-all space-y-3 cursor-grab active:cursor-grabbing border-[#CBD5E1]"
+      className="bg-white border rounded-[6px] p-3.5 shadow-none hover:shadow transition-all space-y-3 cursor-grab active:cursor-grabbing border-[#E2E8F0]"
       data-testid={`transmittal-card-${transmittal.id}`}
       draggable={draggable}
       onDragStart={(e) => onDragStart?.(e, transmittal)}
@@ -114,7 +114,7 @@ export function TransmittalCard({
             <GripVertical className="h-4 w-4 text-[#475569] shrink-0 cursor-grab hover:text-[#475569]" />
           )}
           <span
-            className="font-mono text-xs font-bold text-[#0F172A] truncate"
+            className="font-mono text-xs font-bold text-[#1E293B] truncate"
             data-testid="transmittal-card-tracking"
             title={transmittal.tracking_number}
           >
@@ -123,18 +123,18 @@ export function TransmittalCard({
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {transmittal.entity_code && (
-            <Badge variant="secondary" className="text-xs font-mono py-0 px-1.5 font-semibold">
+            <Badge variant="secondary" className="text-xs py-0 px-1.5 font-semibold">
               {transmittal.entity_code}
             </Badge>
           )}
-          <TransmittalStatusBadge status={transmittal.status} className="text-xs font-mono py-0 px-1.5" />
+          <TransmittalStatusBadge status={transmittal.status} className="text-xs py-0 px-1.5" />
         </div>
       </div>
 
       {/* Client Name & Approval Badge */}
       <div className="space-y-1">
         <div
-          className="text-sm font-semibold text-[#0F172A] line-clamp-1"
+          className="text-sm font-semibold text-[#1E293B] line-clamp-1"
           data-testid="transmittal-card-client"
           title={clientName}
         >
@@ -148,7 +148,7 @@ export function TransmittalCard({
       </div>
 
       {/* Metadata items: item count, recipient, date */}
-      <div className="text-xs text-[#475569] space-y-1 pt-1 border-t border-[#CBD5E1]">
+      <div className="text-xs text-[#475569] space-y-1 pt-1 border-t border-[#E2E8F0]">
         <div className="flex items-center gap-1.5 text-[#475569]">
           <FileText className="h-3.5 w-3.5 shrink-0 text-[#475569]" />
           <span>
@@ -164,7 +164,7 @@ export function TransmittalCard({
         )}
 
         {displayDate && (
-          <div className="flex items-center gap-1.5 text-[#475569] text-xs font-mono">
+          <div className="flex items-center gap-1.5 text-[#475569] text-xs">
             <Calendar className="h-3 w-3 shrink-0" />
             <span>{displayDate}</span>
           </div>
@@ -172,12 +172,12 @@ export function TransmittalCard({
       </div>
 
       {/* Card Footer Actions */}
-      <div className="flex items-center justify-between pt-2 border-t border-[#CBD5E1] gap-1">
+      <div className="flex items-center justify-between pt-2 border-t border-[#E2E8F0] gap-1">
         <div className="flex items-center gap-1">
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 w-7 p-0 text-[#475569] hover:text-[#0F172A]"
+            className="h-7 w-7 p-0 text-[#475569] hover:text-[#1E293B]"
             title="View Details"
             onClick={() => onView(transmittal.id)}
             data-testid="view-transmittal-btn"
@@ -189,7 +189,7 @@ export function TransmittalCard({
             <Button
               size="sm"
               variant="ghost"
-              className="h-7 w-7 p-0 text-[#475569] hover:text-[#0F172A]"
+              className="h-7 w-7 p-0 text-[#475569] hover:text-[#1E293B]"
               title="Edit Transmittal"
               onClick={() => onEdit(transmittal)}
               data-testid="edit-transmittal-btn"
@@ -201,7 +201,7 @@ export function TransmittalCard({
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 w-7 p-0 text-[#475569] hover:text-[#0F172A]"
+            className="h-7 w-7 p-0 text-[#475569] hover:text-[#1E293B]"
             title="Print Transmittal Letter"
             onClick={() => onPrint(transmittal)}
             data-testid="print-transmittal-btn"
@@ -248,7 +248,7 @@ export function TransmittalCard({
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 text-xs px-2 text-[#0F172A] border-[#CBD5E1] hover:bg-[#F1F5F9] gap-1 disabled:opacity-50 disabled:pointer-events-none"
+                      className="h-7 text-xs px-2 text-[#1E293B] border-[#E2E8F0] hover:bg-[#F8FAFC] gap-1 disabled:opacity-50 disabled:pointer-events-none"
                       disabled={isSendDisabled}
                       onClick={() => onSend(transmittal)}
                       data-testid="send-transmittal-btn"
