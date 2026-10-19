@@ -12,6 +12,43 @@ const auditService = require('../../services/auditService');
 const AppError = require('../../lib/AppError');
 const { concurrencyConflict, resolveExpectedVersion } = require('../../lib/concurrency');
 const { resolveEntityCode } = require('../../lib/entityResolver');
+const { isUserAssignedToTask } = require('../operations/service');
+
+const resolveEffectiveUser = async (user, userId) => {
+  if (user) return user;
+  if (!userId) return null;
+  const { data: userProfile } = await supabaseAdmin
+    .from('users')
+    .select('id, role, departments, user_departments(departments(name))')
+    .eq('id', userId)
+    .maybeSingle();
+  if (!userProfile) return null;
+  const depts = [
+    ...(Array.isArray(userProfile.departments) ? userProfile.departments : []),
+    ...(userProfile.user_departments || [])
+      .map((row) => row.departments?.name)
+      .filter(Boolean),
+  ];
+  return {
+    id: userProfile.id,
+    role: userProfile.role,
+    departments: [...new Set(depts)],
+  };
+};
+
+const isDocumentationUser = (u) => {
+  if (!u) return false;
+  return (
+    String(u.role || '').toLowerCase() === 'documentation' ||
+    (u.departments || []).some((d) => String(d).toLowerCase() === 'documentation')
+  );
+};
+
+const isNonAdminDocumentationUser = (u) => {
+  if (!u) return false;
+  if (String(u.role || '').toLowerCase() === 'admin') return false;
+  return isDocumentationUser(u);
+};
 
 /**
  * List transmittals for the active entity.
@@ -49,8 +86,7 @@ const listTransmittals = async ({ entityId, filters = {}, user }) => {
   }
 
   const isAdmin = user?.role === 'Admin';
-  const isDocumentation =
-    (user?.departments || []).includes('Documentation') || user?.role === 'Documentation';
+  const isDocumentation = isDocumentationUser(user);
   if (!isAdmin && !isDocumentation) {
     const { getUserConcernedWorkRequestIds } = require('../../lib/userScope');
     const concernedWrIds = await getUserConcernedWorkRequestIds(user);
@@ -125,8 +161,7 @@ const countTransmittals = async ({ entityId, user }) => {
   }
 
   const isAdmin = user?.role === 'Admin';
-  const isDocumentation =
-    (user?.departments || []).includes('Documentation') || user?.role === 'Documentation';
+  const isDocumentation = isDocumentationUser(user);
   if (!isAdmin && !isDocumentation) {
     const { getUserConcernedWorkRequestIds } = require('../../lib/userScope');
     const concernedWrIds = await getUserConcernedWorkRequestIds(user);
@@ -155,6 +190,132 @@ const countTransmittals = async ({ entityId, user }) => {
 };
 
 /**
+ * Authoritatively validates transmittal relationships:
+ * - Checks linked task existence, entity, deletion, and that its parent WR matches workRequestId.
+ * - Checks work request existence, entity, deletion, and that its client matches clientId.
+ * - If non-Admin Documentation user, enforces task assignment and task requirement.
+ */
+const validateTransmittalRelationships = async ({
+  entityId,
+  clientId,
+  workRequestId,
+  linkedTaskId,
+  userId,
+  caller,
+}) => {
+  const isDoc = isNonAdminDocumentationUser(caller);
+
+  if (isDoc) {
+    const hasLinkedTask =
+      linkedTaskId && typeof linkedTaskId === 'string' && linkedTaskId.trim() !== '';
+    if (!hasLinkedTask) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: 'A valid linked task is required for transmittals',
+      });
+    }
+  }
+
+  let task = null;
+  if (linkedTaskId && typeof linkedTaskId === 'string' && linkedTaskId.trim() !== '') {
+    const { data: taskRow, error: taskErr } = await supabaseAdmin
+      .from('tasks')
+      .select('id, work_request_id, assignee_id, deleted_at')
+      .eq('id', linkedTaskId)
+      .maybeSingle();
+
+    if (taskErr) {
+      throw new AppError({
+        statusCode: 500,
+        title: 'Database Error',
+        detail: taskErr.message,
+      });
+    }
+
+    if (!taskRow || Boolean(taskRow.deleted_at)) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: 'Linked task not found or has been deleted',
+      });
+    }
+
+    task = taskRow;
+
+    if (isDoc) {
+      const assigned = await isUserAssignedToTask(linkedTaskId, userId);
+      if (!assigned) {
+        throw new AppError({
+          statusCode: 403,
+          title: 'Forbidden',
+          detail: 'You are not assigned to this task',
+        });
+      }
+    }
+
+    if (workRequestId && task.work_request_id && task.work_request_id !== workRequestId) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: 'Linked task does not belong to the specified work request',
+      });
+    }
+  }
+
+  const effectiveWrId = workRequestId || (task ? task.work_request_id : null);
+  if (effectiveWrId) {
+    const { data: wrRow, error: wrErr } = await supabaseAdmin
+      .from('work_requests')
+      .select('id, client_id, entity_id, deleted_at')
+      .eq('id', effectiveWrId)
+      .maybeSingle();
+
+    if (wrErr) {
+      throw new AppError({
+        statusCode: 500,
+        title: 'Database Error',
+        detail: wrErr.message,
+      });
+    }
+
+    if (!wrRow || Boolean(wrRow.deleted_at)) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: 'Work request not found or has been deleted',
+      });
+    }
+
+    if (entityId && entityId !== 'ALL' && wrRow.entity_id && wrRow.entity_id !== entityId) {
+      const wrCode = await resolveEntityCode(wrRow.entity_id);
+      const activeCode = await resolveEntityCode(entityId);
+      if (
+        wrCode &&
+        activeCode &&
+        wrCode !== 'ALL' &&
+        activeCode !== 'ALL' &&
+        String(wrCode).toUpperCase() !== String(activeCode).toUpperCase()
+      ) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Bad Request',
+          detail: 'Work request does not belong to active entity',
+        });
+      }
+    }
+
+    if (clientId && wrRow.client_id && wrRow.client_id !== clientId) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: 'Client does not match work request client',
+      });
+    }
+  }
+};
+
+/**
  * Create a transmittal with items.
  * @param {object} params
  * @param {string} params.entityId
@@ -162,7 +323,17 @@ const countTransmittals = async ({ entityId, user }) => {
  * @param {object} params.data
  * @returns {Promise<object>}
  */
-const createTransmittal = async ({ entityId, entityCode, userId, data }) => {
+const createTransmittal = async ({ entityId, entityCode, userId, user, data }) => {
+  const caller = await resolveEffectiveUser(user, userId);
+  await validateTransmittalRelationships({
+    entityId,
+    clientId: data.clientId,
+    workRequestId: data.workRequestId,
+    linkedTaskId: data.linkedTaskId,
+    userId,
+    caller,
+  });
+
   let trackingNumber = data.trackingNumber;
   if (!trackingNumber) {
     const rawCode = entityCode || (await resolveEntityCode(entityId)) || 'ATA';
@@ -270,8 +441,7 @@ const getTransmittalById = async ({ entityId, id, user }) => {
 
   if (user) {
     const isAdmin = user.role === 'Admin';
-    const isDocumentation =
-      (user?.departments || []).includes('Documentation') || user?.role === 'Documentation';
+    const isDocumentation = isDocumentationUser(user);
     if (!isAdmin && !isDocumentation && transmittal.created_by !== user.id) {
       const { getUserConcernedWorkRequestIds } = require('../../lib/userScope');
       const concernedWrIds = await getUserConcernedWorkRequestIds(user);
@@ -291,7 +461,8 @@ const getTransmittalById = async ({ entityId, id, user }) => {
     .eq('transmittal_id', id)
     .order('sort_order', { ascending: true });
 
-  return { ...transmittal, items: items || [] };
+  const { data: entity } = await supabaseAdmin.from('entities').select('code').eq('id', transmittal.entity_id).single();
+  return { ...transmittal, entity_code: entity?.code || transmittal.entity_code, items: items || [] };
 };
 
 /**
@@ -303,12 +474,15 @@ const getTransmittalById = async ({ entityId, id, user }) => {
  * @param {object} params.data
  * @returns {Promise<object>}
  */
-const updateTransmittal = async ({ entityId, id, userId, data }) => {
+const updateTransmittal = async ({ entityId, id, userId, user, data }) => {
   const existing = await getTransmittalById({ entityId, id });
+
+  const caller = await resolveEffectiveUser(user, userId);
+  const isUserAdmin = caller?.role === 'Admin';
 
   // Board-order reordering is allowed for any status so the kanban board can
   // persist drag-and-drop order in Sent/Acknowledged columns. All other edits
-  // remain restricted to Draft transmittals.
+  // remain restricted to Draft transmittals except for authenticated Admin corrections.
   const hasNonOrderEdit =
     data.clientId !== undefined ||
     data.workRequestId !== undefined ||
@@ -318,13 +492,29 @@ const updateTransmittal = async ({ entityId, id, userId, data }) => {
     data.recipientDetails !== undefined ||
     data.items !== undefined;
 
-  if (existing.status !== 'Draft' && hasNonOrderEdit) {
+  if (existing.status !== 'Draft' && hasNonOrderEdit && !isUserAdmin) {
     throw new AppError({
       statusCode: 409,
       title: 'Conflict',
       detail: `Cannot edit transmittal in "${existing.status}" status. Only Draft transmittals can be edited.`,
     });
   }
+
+  const effectiveLinkedTaskId =
+    data.linkedTaskId !== undefined ? data.linkedTaskId : existing.linked_task_id;
+  const effectiveWorkRequestId =
+    data.workRequestId !== undefined ? data.workRequestId : existing.work_request_id;
+  const effectiveClientId =
+    data.clientId !== undefined ? data.clientId : existing.client_id;
+
+  await validateTransmittalRelationships({
+    entityId,
+    clientId: effectiveClientId,
+    workRequestId: effectiveWorkRequestId,
+    linkedTaskId: effectiveLinkedTaskId,
+    userId,
+    caller,
+  });
 
   const updates = {
     updated_by: userId,
@@ -338,21 +528,6 @@ const updateTransmittal = async ({ entityId, id, userId, data }) => {
   if (data.recipientName !== undefined) updates.recipient_name = data.recipientName;
   if (data.recipientDetails !== undefined) updates.recipient_details = data.recipientDetails;
   if (data.boardOrder !== undefined) updates.board_order = data.boardOrder;
-
-  // Replace items if provided
-  if (data.items) {
-    await supabaseAdmin.from('transmittal_items').delete().eq('transmittal_id', id);
-
-    const items = data.items.map((item, idx) => ({
-      transmittal_id: id,
-      description: item.description,
-      document_type: item.documentType || null,
-      quantity: item.quantity || 1,
-      sort_order: idx,
-    }));
-
-    await supabaseAdmin.from('transmittal_items').insert(items);
-  }
 
   // OCC (Spec 2.2 / R-10): version-guard the update when the client declares
   // the version it read; zero matching rows become a 409 conflict.
@@ -388,6 +563,21 @@ const updateTransmittal = async ({ entityId, id, userId, data }) => {
       title: 'Not Found',
       detail: `Transmittal ${id} not found`,
     });
+  }
+
+  // Replace items if provided
+  if (data.items) {
+    await supabaseAdmin.from('transmittal_items').delete().eq('transmittal_id', id);
+
+    const items = data.items.map((item, idx) => ({
+      transmittal_id: id,
+      description: item.description,
+      document_type: item.documentType || null,
+      quantity: item.quantity || 1,
+      sort_order: idx,
+    }));
+
+    await supabaseAdmin.from('transmittal_items').insert(items);
   }
 
   return attachItems(updated);
@@ -466,33 +656,19 @@ const approveTransmittal = async ({ entityId, id, userId }) => {
   return attachItems(updated);
 };
 
-const sendTransmittal = async ({ entityId, id, userId, boardOrder }) => {
+const sendTransmittal = async ({ entityId, id, userId, user, boardOrder }) => {
   const existing = await getTransmittalById({ entityId, id });
 
   if (existing.status !== 'Draft') {
     throw new AppError({
       statusCode: 409,
-      title: 'Invalid Transition',
+      title: 'Conflict',
       detail: `Cannot send a transmittal in "${existing.status}" status. Must be Draft.`,
     });
   }
 
-  // Load the user's role to apply the admin approval guardrail
-  const { data: userProfile, error: userError } = await supabaseAdmin
-    .from('users')
-    .select('role')
-    .eq('id', userId)
-    .maybeSingle();
-
-  if (userError) {
-    throw new AppError({
-      statusCode: 500,
-      title: 'Database Error',
-      detail: 'Failed to retrieve user profile for verification.',
-    });
-  }
-
-  const isUserAdmin = userProfile?.role === 'Admin';
+  const caller = await resolveEffectiveUser(user, userId);
+  const isUserAdmin = caller?.role === 'Admin';
   if (!isUserAdmin && !existing.approved) {
     throw new AppError({
       statusCode: 403,
@@ -500,6 +676,15 @@ const sendTransmittal = async ({ entityId, id, userId, boardOrder }) => {
       detail: 'Cannot send transmittal because it has not been approved by Admin.',
     });
   }
+
+  await validateTransmittalRelationships({
+    entityId,
+    clientId: existing.client_id,
+    workRequestId: existing.work_request_id,
+    linkedTaskId: existing.linked_task_id,
+    userId,
+    caller,
+  });
 
   const updates = {
     status: 'Sent',
@@ -719,4 +904,6 @@ module.exports = {
   archiveTransmittal,
   unarchiveTransmittal,
   deleteTransmittal,
+  isDocumentationUser,
+  isNonAdminDocumentationUser,
 };

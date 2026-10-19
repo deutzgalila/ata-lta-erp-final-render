@@ -32,6 +32,10 @@ router.get(
   documentsController.getDocument
 );
 
+// File previews have the same entity scope and read permission as document details.
+router.get('/:id/download-url', resolveEntity({ allowAll: true }),
+  requirePermission('dms:view'), documentsController.getDownloadUrl);
+
 // Resolve entity code → UUID for all remaining mutation routes in this module
 router.use(resolveEntity());
 
@@ -109,8 +113,6 @@ router.post(
   documentsController.confirmUpload
 );
 
-// Get signed download URL
-router.get('/:id/download-url', requirePermission('dms:view'), documentsController.getDownloadUrl);
 
 // Transition lifecycle state
 router.put(

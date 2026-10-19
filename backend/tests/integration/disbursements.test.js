@@ -371,7 +371,7 @@ describe('/v1/disbursements', () => {
     expect(adminList.body.data.some((d) => d.category === 'DraftCategory')).toBe(true);
     expect(adminList.body.data.some((d) => d.category === 'ReleasedCategory')).toBe(true);
 
-    // 2. Ops lists disbursements -> strictly scoped to own vouchers under D1
+    // 2. Ops lists disbursements -> cannot see either because Ops is not the creator
     const opsList = await request(app)
       .get('/v1/disbursements')
       .set('Authorization', `Bearer ${ops}`)
@@ -387,21 +387,58 @@ describe('/v1/disbursements', () => {
       .set('X-Active-Entity', 'ATA')
       .expect(403);
 
-    // 4. Ops gets counts -> does not leak admin vouchers under D1
+    // 3b. Ops tries to fetch released disbursement directly -> 403 Forbidden (Released is not a read exception)
+    await request(app)
+      .get(`/v1/disbursements/${releasedRes.body.data.id}`)
+      .set('Authorization', `Bearer ${ops}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(403);
+
+    // 4. Ops gets counts -> 0 active because Ops has not created any disbursements
     const opsCounts = await request(app)
       .get('/v1/disbursements/counts')
       .set('Authorization', `Bearer ${ops}`)
       .set('X-Active-Entity', 'ATA')
       .expect(200);
-    expect(opsCounts.body.data.active).toBe(0); // Scoped to own vouchers
+    expect(opsCounts.body.data.active).toBe(0);
 
-    // 5. Admin gets counts -> count includes both
+    // 5. Admin gets counts -> count includes both created by admin
     const adminCounts = await request(app)
       .get('/v1/disbursements/counts')
       .set('Authorization', `Bearer ${admin}`)
       .set('X-Active-Entity', 'ATA')
       .expect(200);
     expect(adminCounts.body.data.active).toBe(2);
+
+    // 6. Ops creates their own disbursement -> Ops can see own disbursement and count is 1
+    const opsCreatedRes = await request(app)
+      .post('/v1/disbursements')
+      .set('Authorization', `Bearer ${ops}`)
+      .set('X-Active-Entity', 'ATA')
+      .send({ ...validDisbursement, category: 'OpsCategory' })
+      .expect(201);
+
+    const opsListAfter = await request(app)
+      .get('/v1/disbursements')
+      .set('Authorization', `Bearer ${ops}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+    expect(opsListAfter.body.data.some((d) => d.category === 'OpsCategory')).toBe(true);
+    expect(opsListAfter.body.data.some((d) => d.category === 'ReleasedCategory')).toBe(false);
+
+    const opsGetOwn = await request(app)
+      .get(`/v1/disbursements/${opsCreatedRes.body.data.id}`)
+      .set('Authorization', `Bearer ${ops}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+    expect(opsGetOwn.body.data.id).toBe(opsCreatedRes.body.data.id);
+
+    const opsCountsAfter = await request(app)
+      .get('/v1/disbursements/counts')
+      .set('Authorization', `Bearer ${ops}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+    expect(opsCountsAfter.body.data.active).toBe(1);
   });
 
   it('supports linking a transmittal to a disbursement on create, update, and filtering by linkedTransmittalId', async () => {
@@ -472,7 +509,7 @@ describe('/v1/disbursements', () => {
     expect(updateRes.body.data.linked_transmittal_id).toBe(TRANSMITTAL_ID_2);
   });
 
-  it('allows non-admin creator and employee to view their own Draft/Pending disbursements (Task A.9)', async () => {
+  it('enforces strict creator-only visibility for non-admin users (Task A.9 updated)', async () => {
     const creatorId = 'creator-user-1111';
     const employeeId = 'employee-user-2222';
     const otherId = 'other-user-3333';
@@ -536,7 +573,7 @@ describe('/v1/disbursements', () => {
       archived: false,
     });
 
-    // Seed 2: Pending where employee is employeeId
+    // Seed 2: Pending where employee is employeeId but created by someone else
     mockTables.disbursements.set('disb-pending-employee', {
       id: 'disb-pending-employee',
       entity_id: 'ent-ata',
@@ -569,21 +606,20 @@ describe('/v1/disbursements', () => {
     expect(creatorListAll.body.data.some((d) => d.id === 'disb-draft-creator')).toBe(true);
     expect(creatorListAll.body.data.some((d) => d.id === 'disb-pending-employee')).toBe(false);
 
-    // 3. Employee listing Pending status sees disbursement where they are employee_id
+    // 3. Employee listing Pending status CANNOT see disbursement where they are only employee_id (payee)
     const empListPending = await request(app)
       .get('/v1/disbursements?status=Pending')
       .set('Authorization', `Bearer ${employeeToken}`)
       .set('X-Active-Entity', 'ATA')
       .expect(200);
-    expect(empListPending.body.data.some((d) => d.id === 'disb-pending-employee')).toBe(true);
+    expect(empListPending.body.data.some((d) => d.id === 'disb-pending-employee')).toBe(false);
 
-    // 4. Employee can fetch their disbursement directly by ID (isSelf via employee_id)
-    const empGetRes = await request(app)
+    // 4. Employee cannot fetch disbursement directly by ID (payee is not a read exception -> 403 Forbidden)
+    await request(app)
       .get('/v1/disbursements/disb-pending-employee')
       .set('Authorization', `Bearer ${employeeToken}`)
       .set('X-Active-Entity', 'ATA')
-      .expect(200);
-    expect(empGetRes.body.data.id).toBe('disb-pending-employee');
+      .expect(403);
 
     // 5. Other user listing Draft or Pending cannot see creator's or employee's disbursement
     const otherListDraft = await request(app)
@@ -592,6 +628,7 @@ describe('/v1/disbursements', () => {
       .set('X-Active-Entity', 'ATA')
       .expect(200);
     expect(otherListDraft.body.data.some((d) => d.id === 'disb-draft-creator')).toBe(false);
+    expect(otherListDraft.body.data.some((d) => d.id === 'disb-pending-employee')).toBe(false);
 
     // 6. Other user cannot fetch employee's pending disbursement directly
     await request(app)
@@ -860,6 +897,207 @@ describe('/v1/disbursements', () => {
       expect(res.body.data.notes).toContain('[Edited by Accounting on ');
       expect(res.body.data.notes).toContain('by Jen Andoga]');
       expect(res.body.data.notes).toContain('Adjusted per official receipt');
+    });
+  });
+
+  describe('Strict Creator-Only Authorization Suite', () => {
+    it('returns 401 Unauthorized when requesting GET /:id without authentication', async () => {
+      const DISB_ID = 'disb-unauth-check';
+      mockTables.disbursements.set(DISB_ID, {
+        id: DISB_ID,
+        entity_id: 'ent-ata',
+        category: 'Supplies',
+        description: 'Unauth check',
+        amount: 100,
+        fund_source: 'Firm Fund',
+        status: 'Draft',
+        created_by: 'some-creator',
+        archived: false,
+      });
+
+      await request(app)
+        .get(`/v1/disbursements/${DISB_ID}`)
+        .expect(401);
+    });
+
+    it('allows creator to view own disbursement when linked_work_request_id is null', async () => {
+      const creatorId = 'creator-no-wr-user';
+      const creatorToken = registerUser({
+        id: creatorId,
+        email: 'creator-nowr@ata-lta.ph',
+        name: 'Creator No WR',
+        role: 'Operations',
+        entities: ['ATA'],
+      });
+
+      const DISB_ID = 'disb-nowr-1234';
+      mockTables.disbursements.set(DISB_ID, {
+        id: DISB_ID,
+        entity_id: 'ent-ata',
+        category: 'Office',
+        description: 'Personal office expense without WR',
+        amount: 85,
+        fund_source: 'Firm Fund',
+        status: 'Draft',
+        created_by: creatorId,
+        linked_work_request_id: null,
+        archived: false,
+      });
+
+      const res = await request(app)
+        .get(`/v1/disbursements/${DISB_ID}`)
+        .set('Authorization', `Bearer ${creatorToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(200);
+
+      expect(res.body.data.id).toBe(DISB_ID);
+      expect(res.body.data.created_by).toBe(creatorId);
+
+      const listRes = await request(app)
+        .get('/v1/disbursements')
+        .set('Authorization', `Bearer ${creatorToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(200);
+
+      expect(listRes.body.data.some((d) => d.id === DISB_ID)).toBe(true);
+    });
+
+    it('denies Manager role from viewing disbursements created by other users (403 Forbidden)', async () => {
+      const managerToken = registerUser({
+        id: 'manager-user-999',
+        email: 'manager@ata-lta.ph',
+        name: 'Manager User',
+        role: 'Manager',
+        entities: ['ATA'],
+      });
+
+      const DISB_DRAFT = 'disb-manager-test-draft';
+      const DISB_RELEASED = 'disb-manager-test-released';
+
+      mockTables.disbursements.set(DISB_DRAFT, {
+        id: DISB_DRAFT,
+        entity_id: 'ent-ata',
+        category: 'Supplies',
+        description: 'Staff draft',
+        amount: 200,
+        fund_source: 'Firm Fund',
+        status: 'Draft',
+        created_by: 'other-staff-id',
+        archived: false,
+      });
+
+      mockTables.disbursements.set(DISB_RELEASED, {
+        id: DISB_RELEASED,
+        entity_id: 'ent-ata',
+        category: 'Travel',
+        description: 'Staff released',
+        amount: 300,
+        fund_source: 'Firm Fund',
+        status: 'Released',
+        created_by: 'other-staff-id',
+        archived: false,
+      });
+
+      await request(app)
+        .get(`/v1/disbursements/${DISB_DRAFT}`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(403);
+
+      await request(app)
+        .get(`/v1/disbursements/${DISB_RELEASED}`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(403);
+
+      const listRes = await request(app)
+        .get('/v1/disbursements')
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(200);
+
+      expect(listRes.body.data.some((d) => d.id === DISB_DRAFT)).toBe(false);
+      expect(listRes.body.data.some((d) => d.id === DISB_RELEASED)).toBe(false);
+    });
+
+    it('denies non-creator access across Funded and Rejected statuses (403 Forbidden)', async () => {
+      const staffToken = registerUser({
+        id: 'staff-user-888',
+        email: 'staff@ata-lta.ph',
+        name: 'Staff User',
+        role: 'Operations',
+        entities: ['ATA'],
+      });
+
+      const DISB_FUNDED = 'disb-check-funded';
+      const DISB_REJECTED = 'disb-check-rejected';
+
+      mockTables.disbursements.set(DISB_FUNDED, {
+        id: DISB_FUNDED,
+        entity_id: 'ent-ata',
+        category: 'Supplies',
+        description: 'Funded supplies',
+        amount: 400,
+        fund_source: 'Firm Fund',
+        status: 'Funded',
+        created_by: 'original-creator-id',
+        archived: false,
+      });
+
+      mockTables.disbursements.set(DISB_REJECTED, {
+        id: DISB_REJECTED,
+        entity_id: 'ent-ata',
+        category: 'Supplies',
+        description: 'Rejected supplies',
+        amount: 400,
+        fund_source: 'Firm Fund',
+        status: 'Rejected',
+        created_by: 'original-creator-id',
+        archived: false,
+      });
+
+      await request(app)
+        .get(`/v1/disbursements/${DISB_FUNDED}`)
+        .set('Authorization', `Bearer ${staffToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(403);
+
+      await request(app)
+        .get(`/v1/disbursements/${DISB_REJECTED}`)
+        .set('Authorization', `Bearer ${staffToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(403);
+    });
+
+    it('allows Accounting user to view any disbursement across all statuses', async () => {
+      const accountingToken = registerUser({
+        id: 'acct-audit-user',
+        email: 'acct-audit@ata-lta.ph',
+        name: 'Acct Audit User',
+        role: 'Accounting',
+        entities: ['ATA'],
+      });
+
+      const DISB_ID = 'disb-for-acct-check';
+      mockTables.disbursements.set(DISB_ID, {
+        id: DISB_ID,
+        entity_id: 'ent-ata',
+        category: 'Travel',
+        description: 'Check by accounting',
+        amount: 350,
+        fund_source: 'Firm Fund',
+        status: 'Draft',
+        created_by: 'someone-else',
+        archived: false,
+      });
+
+      const res = await request(app)
+        .get(`/v1/disbursements/${DISB_ID}`)
+        .set('Authorization', `Bearer ${accountingToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(200);
+
+      expect(res.body.data.id).toBe(DISB_ID);
     });
   });
 });

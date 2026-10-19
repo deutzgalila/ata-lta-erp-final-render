@@ -59,6 +59,23 @@ const createRequest = async (req, res, next) => {
         ? 'wr_phase_transition'
         : (validated.type || validated.request_type);
 
+    if (effectiveType === 'billing' && req.user?.role !== 'Admin') {
+      const isDocumentation =
+        req.user?.role?.toLowerCase() === 'documentation' ||
+        (req.user?.departments || []).some(
+          (d) => String(d).toLowerCase() === 'documentation'
+        );
+      if (isDocumentation) {
+        return next(
+          new AppError({
+            statusCode: 403,
+            title: 'Forbidden',
+            detail: 'Documentation users cannot request invoice billing',
+          })
+        );
+      }
+    }
+
     const perms = req.userPermissions;
     if (effectiveType === 'wr_phase_transition') {
       if (!hasPermission(perms, 'workflow:transition_request') && req.user.role !== 'Admin') {
@@ -211,6 +228,31 @@ const getCounts = async (req, res, next) => {
   }
 };
 
+/** @type {import('express').RequestHandler} */
+const approveRequest = async (req, res, next) => {
+  req.body = {
+    ...(req.body || {}),
+    status: 'fulfilled',
+    fulfilledBy: req.user?.id,
+  };
+  return updateRequest(req, res, next);
+};
+
+/** @type {import('express').RequestHandler} */
+const rejectRequest = async (req, res, next) => {
+  const reason =
+    req.body?.rejectionReason ||
+    req.body?.rejection_reason ||
+    req.body?.reason ||
+    'Rejected by approver';
+  req.body = {
+    ...(req.body || {}),
+    status: 'rejected',
+    rejectionReason: reason,
+  };
+  return updateRequest(req, res, next);
+};
+
 module.exports = {
   operationsRequestsController: {
     listRequests,
@@ -219,5 +261,7 @@ module.exports = {
     updateRequest,
     deleteRequest,
     getCounts,
+    approveRequest,
+    rejectRequest,
   },
 };

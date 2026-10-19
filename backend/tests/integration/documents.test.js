@@ -487,4 +487,30 @@ describe('/v1/documents', () => {
     expect(listRes.body.data[0].work_request_title).toBe('Tax Compliance 2026');
     expect(listRes.body.data[0].linked_task_title).toBe('Prepare BIR 1702');
   });
+  describe('Uploaded previews in consolidated view', () => {
+    const id = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    let token;
+    beforeEach(() => {
+      token = registerUser({ email: 'preview-admin@ata-lta.ph', name: 'Admin', role: 'Admin', entities: ['ATA', 'LTA'] });
+      mockTables.documents.set(id, {
+        id, entity_id: 'ent-lta', status: 'active', storage_path: 'lta/preview.pdf',
+        file_name: 'preview.pdf', original_name: 'Preview.pdf', content_type: 'application/pdf', deleted_at: null,
+      });
+    });
+    it.each(['ALL', undefined])('returns a signed preview URL for LTA with entity %s', async (entity) => {
+      const req = request(app).get(`/v1/documents/${id}/download-url`).set('Authorization', `Bearer ${token}`);
+      if (entity) req.set('X-Active-Entity', entity);
+      const res = await req.expect(200);
+      expect(res.body.data.url).toBeTruthy();
+      expect(res.body.data.fileName).toBe('Preview.pdf');
+    });
+    it('retains explicit entity and consolidated-access restrictions', async () => {
+      await request(app).get(`/v1/documents/${id}/download-url`)
+        .set('Authorization', `Bearer ${token}`).set('X-Active-Entity', 'ATA').expect(404);
+      const restricted = registerUser({ email: 'restricted-preview@ata-lta.ph', name: 'Admin', role: 'Admin', entities: ['ATA'] });
+      await request(app).get(`/v1/documents/${id}/download-url`)
+        .set('Authorization', `Bearer ${restricted}`).set('X-Active-Entity', 'ALL').expect(403);
+    });
+  });
+
 });
