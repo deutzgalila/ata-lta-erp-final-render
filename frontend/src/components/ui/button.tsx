@@ -4,24 +4,24 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50 select-none cursor-pointer',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-none font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E61919] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 select-none cursor-pointer',
   {
     variants: {
       variant: {
-        default: 'bg-[#2563eb] text-white shadow-sm hover:bg-[#1d4ed8]',
-        destructive: 'bg-[#ef4444] text-white shadow-sm hover:bg-[#dc2626]',
-        outline: 'border border-[#f0f0f5] bg-white text-[#1e293b] shadow-xs hover:bg-[#f0f1f3] hover:text-[#1e293b]',
-        secondary: 'bg-[#f0f1f3] text-[#1e293b] hover:bg-[#e4e5e9]',
-        ghost: 'text-[#1e293b] hover:bg-[#f0f1f3]',
-        link: 'text-[#2563eb] underline-offset-4 hover:underline p-0 h-auto font-normal',
-        ata: 'bg-[#2563eb] text-white hover:bg-[#1d4ed8]',
-        lta: 'bg-[#475569] text-white hover:bg-[#334155]',
+        default: 'border border-[#0A0A0A] bg-[#0A0A0A] text-[#FAF9F5] shadow-none hover:bg-[#222220]',
+        destructive: 'border border-[#0A0A0A] bg-[#E61919] text-[#FAF9F5] shadow-none hover:bg-[#C41212]',
+        outline: 'border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A] shadow-none hover:bg-[#E4E2DC] hover:text-[#0A0A0A]',
+        secondary: 'border border-[#0A0A0A] bg-[#EAE8E3] text-[#0A0A0A] shadow-none hover:bg-[#E4E2DC]',
+        ghost: 'text-[#0A0A0A] hover:bg-[#E4E2DC] hover:text-[#0A0A0A]',
+        link: 'text-[#0A0A0A] underline-offset-4 hover:underline p-0 h-auto font-normal',
+        ata: 'border border-[#0A0A0A] bg-[#0A0A0A] text-[#FAF9F5] hover:bg-[#222220]',
+        lta: 'border border-[#0A0A0A] bg-[#3A3935] text-[#FAF9F5] hover:bg-[#222220]',
       },
       size: {
         default: 'h-9 px-4 py-2 text-sm',
-        sm: 'h-8 rounded-md px-3 text-xs',
-        xs: 'h-7 rounded-md px-2.5 text-[11px]',
-        lg: 'h-10 rounded-md px-6 text-base',
+        sm: 'h-8 px-3 text-xs',
+        xs: 'h-7 px-2.5 text-xs',
+        lg: 'h-10 px-6 text-base font-semibold',
         icon: 'h-9 w-9 p-0',
         'icon-sm': 'h-8 w-8 p-0',
         'icon-xs': 'h-7 w-7 p-0',

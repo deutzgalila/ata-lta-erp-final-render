@@ -33,18 +33,20 @@ export class ErrorBoundary extends Component<Props, State> {
   public override render(): ReactNode {
     if (this.state.hasError) {
       return (
-        <div className="flex min-h-[400px] flex-col items-center justify-center p-8 text-center">
-          <div className="rounded-full bg-red-100 p-4 text-red-600 mb-4">
-            <AlertCircle className="h-8 w-8" />
+        <div className="flex min-h-[400px] flex-col items-center justify-center p-8 text-center border-2 border-[#0A0A0A] bg-[#FAF9F5] rounded-none shadow-[4px_4px_0px_#0A0A0A]">
+          <div className="rounded-none bg-[#FCE8E8] p-4 text-[#A81212] mb-4 border border-[#E61919]">
+            <AlertCircle className="h-8 w-8 text-[#E61919]" />
           </div>
-          <h2 className="text-xl font-bold text-[#1e293b] mb-2">Something went wrong</h2>
-          <p className="text-sm text-[#9494a0] max-w-md mb-6">
-            An unexpected error occurred while rendering this view.
-            {this.state.error?.message ? ` (${this.state.error.message})` : ''}
+          <h2 className="text-xl font-bold uppercase tracking-tight text-[#0A0A0A] mb-2 font-display">
+            Execution Fault Intercepted
+          </h2>
+          <p className="font-mono text-xs text-[#4A4945] max-w-md mb-6 break-words">
+            An unhandled runtime exception occurred during rendering.
+            {this.state.error?.message ? ` [CODE: ${this.state.error.message}]` : ''}
           </p>
-          <Button onClick={this.handleReset} className="gap-2">
+          <Button onClick={this.handleReset} className="gap-2 font-mono text-xs uppercase font-bold">
             <RefreshCw className="h-4 w-4" />
-            Reload Page
+            Restart Application
           </Button>
         </div>
       );

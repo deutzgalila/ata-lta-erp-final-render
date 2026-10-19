@@ -10,25 +10,30 @@ export function Forbidden({ requiredPermission }: ForbiddenProps) {
   return (
     <div
       data-testid="forbidden-screen"
-      className="flex min-h-[500px] flex-col items-center justify-center p-8 text-center"
+      className="flex min-h-[500px] flex-col items-center justify-center p-8 text-center border-2 border-[#0A0A0A] bg-[#FAF9F5] rounded-none shadow-[4px_4px_0px_#0A0A0A]"
     >
-      <div className="rounded-full bg-amber-100 p-4 text-amber-600 mb-4 shadow-xs">
-        <ShieldAlert className="h-10 w-10" />
+      <div className="rounded-none bg-[#FDF3D7] p-4 text-[#734800] mb-4 border border-[#B87500]">
+        <ShieldAlert className="h-10 w-10 text-[#734800]" />
       </div>
-      <h1 className="text-2xl font-bold text-[#1e293b] mb-2">Access Forbidden</h1>
-      <p className="text-sm text-[#9494a0] max-w-md mb-2">
-        You do not have the required permissions to view this resource.
+      <div className="mb-2 inline-block border border-[#0A0A0A] bg-[#EAE8E3] px-2.5 py-0.5 font-mono text-xs font-bold uppercase tracking-wider text-[#0A0A0A]">
+        ERR // 403 UNAUTHORIZED
+      </div>
+      <h1 className="text-2xl font-black uppercase tracking-tight text-[#0A0A0A] mb-2 font-display">
+        Access Forbidden
+      </h1>
+      <p className="text-sm text-[#4A4945] max-w-md mb-2">
+        You do not possess the necessary operational permissions to access this ledger division.
       </p>
       {requiredPermission && (
-        <div className="my-2 rounded-md bg-[#f0f1f3] px-3 py-1 text-xs font-mono text-[#1e293b]">
-          Required: <span className="font-semibold text-[#2563eb]">{requiredPermission}</span>
+        <div className="my-2 rounded-none bg-[#EAE8E3] border border-[#0A0A0A] px-3 py-1 text-xs font-mono text-[#0A0A0A]">
+          REQUIRED PERMISSION: <span className="font-bold text-[#E61919]">{requiredPermission}</span>
         </div>
       )}
       <div className="mt-6">
-        <Button asChild variant="outline" className="gap-2">
+        <Button asChild variant="outline" className="gap-2 font-mono text-xs uppercase font-bold">
           <Link to="/">
             <ArrowLeft className="h-4 w-4" />
-            Back to Dashboard
+            Return to Dashboard
           </Link>
         </Button>
       </div>
