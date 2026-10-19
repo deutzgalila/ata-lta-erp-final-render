@@ -1,3 +1,5 @@
+import { PRINT_PAGE_CSS, wrapPrintPage } from './printPage';
+
 /** Canonical expense report used by preview, print, and the equivalent backend PDF renderer. */
 export interface DisbursementPrintDetails {
   requesterName?: string;
@@ -146,8 +148,7 @@ export function disbursementAmountInWords(amount: number): string {
   const whole = Math.floor(cents / 100);
   return `${convert(whole) || 'Zero'} Pesos${cents % 100 ? ' and ' + convert(cents % 100) + ' Centavos' : ''} Only`.toUpperCase();
 }
-// Zero margins suppress browser headers/footers; page padding repeats on every sheet.
-export const DISBURSEMENT_PAGE_CSS = `@page { size: A4; margin: 0; padding: 15mm 20mm; }`;
+export const DISBURSEMENT_PAGE_CSS = `@page { size: A4; margin: 15mm 20mm; }`;
 export const DISBURSEMENT_DOCUMENT_CSS = `
 .disbursement-document { font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.5; color: #111; background: white; }
 .disbursement-document * { box-sizing: border-box; }
@@ -220,7 +221,7 @@ export function printDisbursementDocument(
   if (!w) return;
   w.document.open();
   w.document.write(
-    `<!doctype html><html><head><meta charset="utf-8"><title>Expense Report ${esc(d.disbursement_number || d.id)}</title><style>${DISBURSEMENT_PAGE_CSS}${DISBURSEMENT_DOCUMENT_CSS}body { margin: 0; }</style></head><body><main class="disbursement-document">${buildDisbursementDocument(d, options)}</main></body></html>`
+    `<!doctype html><html><head><meta charset="utf-8"><title>Expense Report ${esc(d.disbursement_number || d.id)}</title><style>${DISBURSEMENT_PAGE_CSS}${DISBURSEMENT_DOCUMENT_CSS}${PRINT_PAGE_CSS}body { margin: 0; }</style></head><body>${wrapPrintPage(`<main class="disbursement-document">${buildDisbursementDocument(d, options)}</main>`)}</body></html>`
   );
   w.document.close();
   w.focus();

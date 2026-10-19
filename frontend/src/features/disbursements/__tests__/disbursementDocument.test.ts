@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { PRINT_PAGE_CSS, wrapPrintPage } from '@/lib/printPage';
 import {
   buildDisbursementDocument,
   disbursementAmountInWords,
@@ -93,9 +94,17 @@ describe('Canonical expense document', () => {
     printDisbursementDocument(item, { noLogo: true });
     await Promise.resolve();
     await Promise.resolve();
-    expect(write.mock.calls[0]![0]).toContain(buildDisbursementDocument(item, { noLogo: true }));
+    expect(write.mock.calls[0]![0]).toContain(
+      wrapPrintPage(
+        `<main class="disbursement-document">${buildDisbursementDocument(item, { noLogo: true })}</main>`
+      )
+    );
     expect(write.mock.calls[0]![0]).not.toContain('Print Document');
     expect(print).toHaveBeenCalledOnce();
-    expect(DISBURSEMENT_PAGE_CSS).toContain('@page { size: A4; margin: 0; padding: 15mm 20mm; }');
+    expect(write.mock.calls[0]![0]).toContain(DISBURSEMENT_PAGE_CSS);
+    expect(write.mock.calls[0]![0]).toContain(PRINT_PAGE_CSS);
+    expect(PRINT_PAGE_CSS).toContain('@page { size: A4; margin: 0; }');
+    expect(PRINT_PAGE_CSS).toContain('height: 15mm');
+    expect(PRINT_PAGE_CSS).toContain('padding: 0 20mm');
   });
 });
