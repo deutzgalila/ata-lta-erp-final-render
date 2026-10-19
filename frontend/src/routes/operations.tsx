@@ -11,6 +11,7 @@ import {
   LayoutList,
   Columns,
   Layers,
+  Briefcase,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -245,7 +246,8 @@ export default function OperationsPage() {
             <span aria-hidden="true">/</span>
             <span className="text-[#1E293B] font-semibold">Operations</span>
           </nav>
-          <h1 className="text-2xl font-semibold tracking-tight text-[#1E293B]">
+          <h1 className="text-2xl font-semibold tracking-tight text-[#1E293B] flex items-center gap-2">
+            <Briefcase className="h-6 w-6 text-[#1D4ED8]" />
             Operations &amp; Engagements
           </h1>
           <p className="text-xs sm:text-sm text-[#475569] pt-0.5">

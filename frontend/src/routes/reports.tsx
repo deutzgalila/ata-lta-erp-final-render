@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { BarChart3 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Forbidden } from '@/components/common/Forbidden';
 import { BlockingActionModal } from '@/features/operations/components/BlockingActionModal';
@@ -113,7 +114,8 @@ export default function ReportsPage() {
               {tabDisplayTitles[activeTab] || 'Overview'}
             </span>
           </nav>
-          <h1 className="text-2xl font-semibold tracking-tight text-[#1E293B]">
+          <h1 className="text-2xl font-semibold tracking-tight text-[#1E293B] flex items-center gap-2">
+            <BarChart3 className="h-6 w-6 text-[#1D4ED8]" />
             Reports
           </h1>
           <p className="text-xs sm:text-sm text-[#475569] pt-0.5">
