@@ -398,17 +398,17 @@ export function ClientModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
-        className="max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-5"
+        className="max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-5 rounded-none border-2 border-[#0A0A0A] bg-[#FAF9F5] shadow-[4px_4px_0px_#0A0A0A]"
         data-testid="client-modal"
       >
-        <DialogHeader className="border-b border-slate-100 pb-3">
-          <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <Building2 className="h-5 w-5 text-blue-600" />
+        <DialogHeader className="border-b border-[#0A0A0A] pb-3">
+          <DialogTitle className="text-base font-extrabold uppercase tracking-tight text-[#0A0A0A] flex items-center gap-2">
+            <Building2 className="h-5 w-5 text-[#E61919]" />
             <span data-testid="client-modal-title">
               {isEditing ? `Edit Client: ${client?.name}` : 'Register New Client'}
             </span>
           </DialogTitle>
-          <DialogDescription className="text-xs text-slate-500">
+          <DialogDescription className="text-xs font-mono text-[#4A4945]">
             {isEditing
               ? 'Modify client master record, tax identification, and contact information.'
               : 'Add a new client record to the master corporate directory.'}
@@ -418,14 +418,14 @@ export function ClientModal({
         <form onSubmit={handleSubmit} noValidate className="space-y-4" data-testid="client-form">
           {/* Section 1: Basic Corporate & Tax Information */}
           <div className="space-y-3">
-            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+            <h4 className="text-xs font-mono font-bold text-[#0A0A0A] uppercase tracking-wider">
               General & Tax Details
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Client Name */}
               <div className="space-y-1 sm:col-span-2">
-                <label className="text-xs font-semibold text-slate-700">
-                  Client Registered Name <span className="text-red-500">*</span>
+                <label className="text-xs font-mono uppercase tracking-wider font-bold text-[#0A0A0A]">
+                  Client Registered Name <span className="text-[#E61919]">*</span>
                 </label>
                 <Input
                   type="text"
@@ -435,12 +435,12 @@ export function ClientModal({
                     setName(e.target.value);
                     if (errors.name) setErrors((prev) => ({ ...prev, name: '' }));
                   }}
-                  className={`text-xs h-9 ${errors.name ? 'border-red-500' : ''}`}
+                  className={`text-xs h-9 font-mono rounded-none border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A] ${errors.name ? 'border-[#E61919]' : ''}`}
                   data-testid="client-input-name"
                   required
                 />
                 {errors.name && (
-                  <p className="text-[11px] text-red-500" data-testid="error-client-name">
+                  <p className="text-xs font-mono text-[#E61919]" data-testid="error-client-name">
                     {errors.name}
                   </p>
                 )}
@@ -448,7 +448,7 @@ export function ClientModal({
 
               {/* Trade Name */}
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700">
+                <label className="text-xs font-mono uppercase tracking-wider font-bold text-[#0A0A0A]">
                   Trade Name / DBA (Optional)
                 </label>
                 <Input
@@ -459,11 +459,11 @@ export function ClientModal({
                     setTradeName(e.target.value);
                     if (errors.tradeName) setErrors((prev) => ({ ...prev, tradeName: '' }));
                   }}
-                  className={`text-xs h-9 ${errors.tradeName ? 'border-red-500' : ''}`}
+                  className={`text-xs h-9 font-mono rounded-none border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A] ${errors.tradeName ? 'border-[#E61919]' : ''}`}
                   data-testid="client-input-trade-name"
                 />
                 {errors.tradeName && (
-                  <p className="text-[11px] text-red-500" data-testid="error-client-trade-name">
+                  <p className="text-xs font-mono text-[#E61919]" data-testid="error-client-trade-name">
                     {errors.tradeName}
                   </p>
                 )}
@@ -471,28 +471,28 @@ export function ClientModal({
 
               {/* Entity */}
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700">
-                  Entity <span className="text-red-500">*</span>
+                <label className="text-xs font-mono uppercase tracking-wider font-bold text-[#0A0A0A]">
+                  Entity <span className="text-[#E61919]">*</span>
                 </label>
                 <Select
                   value={entity}
                   onValueChange={(val: 'ATA' | 'LTA') => setEntity(val)}
                   disabled={isEditing}
                 >
-                  <SelectTrigger className="text-xs h-9" data-testid="client-select-entity">
+                  <SelectTrigger className="text-xs font-mono h-9 rounded-none border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A]" data-testid="client-select-entity">
                     <SelectValue placeholder="Select Entity" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ATA">ATA</SelectItem>
-                    <SelectItem value="LTA">LTA</SelectItem>
+                  <SelectContent className="rounded-none border-2 border-[#0A0A0A] bg-[#FAF9F5]">
+                    <SelectItem value="ATA" className="text-xs font-mono font-bold">ATA</SelectItem>
+                    <SelectItem value="LTA" className="text-xs font-mono font-bold">LTA</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               {/* TIN */}
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700">
-                  Tax Identification Number (TIN) <span className="text-red-500">*</span>
+                <label className="text-xs font-mono uppercase tracking-wider font-bold text-[#0A0A0A]">
+                  Tax Identification Number (TIN) <span className="text-[#E61919]">*</span>
                 </label>
                 <Input
                   type="text"
@@ -504,12 +504,12 @@ export function ClientModal({
                     setTin(formatted);
                     if (errors.tin) setErrors((prev) => ({ ...prev, tin: '' }));
                   }}
-                  className={`text-xs h-9 font-mono ${errors.tin ? 'border-red-500' : ''}`}
+                  className={`text-xs h-9 font-mono rounded-none border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A] tabular-nums ${errors.tin ? 'border-[#E61919]' : ''}`}
                   data-testid="client-input-tin"
                   required
                 />
                 {errors.tin && (
-                  <p className="text-[11px] text-red-500" data-testid="error-client-tin">
+                  <p className="text-xs font-mono text-[#E61919]" data-testid="error-client-tin">
                     {errors.tin}
                   </p>
                 )}
@@ -517,7 +517,7 @@ export function ClientModal({
 
               {/* RDO Code */}
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700">
+                <label className="text-xs font-mono uppercase tracking-wider font-bold text-[#0A0A0A]">
                   Revenue District Office (RDO)
                 </label>
                 <Input
@@ -530,11 +530,11 @@ export function ClientModal({
                     setRdoCode(formatted);
                     if (errors.rdoCode) setErrors((prev) => ({ ...prev, rdoCode: '' }));
                   }}
-                  className={`text-xs h-9 font-mono ${errors.rdoCode ? 'border-red-500' : ''}`}
+                  className={`text-xs h-9 font-mono rounded-none border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A] ${errors.rdoCode ? 'border-[#E61919]' : ''}`}
                   data-testid="client-input-rdo"
                 />
                 {errors.rdoCode && (
-                  <p className="text-[11px] text-red-500" data-testid="error-client-rdo">
+                  <p className="text-xs font-mono text-[#E61919]" data-testid="error-client-rdo">
                     {errors.rdoCode}
                   </p>
                 )}
@@ -542,7 +542,7 @@ export function ClientModal({
 
               {/* Registered Address */}
               <div className="space-y-1 sm:col-span-2">
-                <label className="text-xs font-semibold text-slate-700">
+                <label className="text-xs font-mono uppercase tracking-wider font-bold text-[#0A0A0A]">
                   Official Registered Address
                 </label>
                 <Input
@@ -553,11 +553,11 @@ export function ClientModal({
                     setAddress(e.target.value);
                     if (errors.address) setErrors((prev) => ({ ...prev, address: '' }));
                   }}
-                  className={`text-xs h-9 ${errors.address ? 'border-red-500' : ''}`}
+                  className={`text-xs h-9 font-mono rounded-none border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A] ${errors.address ? 'border-[#E61919]' : ''}`}
                   data-testid="client-input-address"
                 />
                 {errors.address && (
-                  <p className="text-[11px] text-red-500" data-testid="error-client-address">
+                  <p className="text-xs font-mono text-[#E61919]" data-testid="error-client-address">
                     {errors.address}
                   </p>
                 )}
@@ -566,12 +566,12 @@ export function ClientModal({
           </div>
 
           {/* Section 2: Retainer Agreement */}
-          <div className="space-y-3 pt-2 border-t border-slate-100">
-            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
-              <CreditCard className="h-3.5 w-3.5" />
+          <div className="space-y-3 pt-2 border-t border-[#0A0A0A]">
+            <h4 className="text-xs font-mono font-bold text-[#0A0A0A] uppercase tracking-wider flex items-center gap-1.5">
+              <CreditCard className="h-3.5 w-3.5 text-[#0A0A0A]" />
               Retainer Agreement
             </h4>
-            <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg space-y-3">
+            <div className="p-3 bg-[#EAE8E3] border border-[#0A0A0A] rounded-none space-y-3">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -582,18 +582,18 @@ export function ClientModal({
                     if (!checked) setRetainerFee('');
                     if (errors.retainerFee) setErrors((prev) => ({ ...prev, retainerFee: '' }));
                   }}
-                  className="h-4 w-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                  className="h-4 w-4 rounded-none border border-[#0A0A0A] text-[#0A0A0A] focus:ring-0"
                   data-testid="client-checkbox-retainer"
                 />
-                <span className="text-xs font-medium text-slate-800">
+                <span className="text-xs font-mono font-medium text-[#0A0A0A]">
                   This client maintains an active monthly retainer agreement
                 </span>
               </label>
 
               {retainer && (
                 <div className="space-y-1 max-w-xs pt-1">
-                  <label className="text-xs font-semibold text-slate-700">
-                    Monthly Retainer Fee (PHP) <span className="text-red-500">*</span>
+                  <label className="text-xs font-mono uppercase tracking-wider font-bold text-[#0A0A0A]">
+                    Monthly Retainer Fee (PHP) <span className="text-[#E61919]">*</span>
                   </label>
                   <Input
                     type="number"
@@ -605,11 +605,11 @@ export function ClientModal({
                       setRetainerFee(e.target.value);
                       if (errors.retainerFee) setErrors((prev) => ({ ...prev, retainerFee: '' }));
                     }}
-                    className={`text-xs h-9 font-mono ${errors.retainerFee ? 'border-red-500' : ''}`}
+                    className={`text-xs h-9 font-mono rounded-none border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A] tabular-nums ${errors.retainerFee ? 'border-[#E61919]' : ''}`}
                     data-testid="client-input-retainer-fee"
                   />
                   {errors.retainerFee && (
-                    <p className="text-[11px] text-red-500" data-testid="error-client-retainer-fee">
+                    <p className="text-xs font-mono text-[#E61919]" data-testid="error-client-retainer-fee">
                       {errors.retainerFee}
                     </p>
                   )}
@@ -619,10 +619,10 @@ export function ClientModal({
           </div>
 
           {/* Section 3: Point of Contact & Contact Channels */}
-          <div className="space-y-3 pt-2 border-t border-slate-100">
+          <div className="space-y-3 pt-2 border-t border-[#0A0A0A]">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
-                <User className="h-3.5 w-3.5" />
+              <h4 className="text-xs font-mono font-bold text-[#0A0A0A] uppercase tracking-wider flex items-center gap-1.5">
+                <User className="h-3.5 w-3.5 text-[#0A0A0A]" />
                 Contact Information
               </h4>
               <Button
@@ -630,7 +630,7 @@ export function ClientModal({
                 variant="outline"
                 size="sm"
                 onClick={handleAddContact}
-                className="text-xs h-7 gap-1"
+                className="text-xs font-mono uppercase tracking-wider h-7 gap-1 rounded-none border border-[#0A0A0A] bg-[#EAE8E3] hover:bg-[#E4E2DC] text-[#0A0A0A]"
                 data-testid="client-add-contact-btn"
               >
                 <Plus className="h-3 w-3" />
@@ -641,23 +641,23 @@ export function ClientModal({
             <div className="space-y-3">
               {/* Point of Contact Dropdown (showing registered users) */}
               <div className="space-y-1 max-w-sm">
-                <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                <label className="text-xs font-mono uppercase tracking-wider font-bold text-[#0A0A0A] flex items-center gap-1.5">
                   Point of Contact
                 </label>
                 <Select
                   value={currentPocSelectValue}
                   onValueChange={handlePocChange}
                 >
-                  <SelectTrigger className="text-xs h-9 bg-white" data-testid="client-select-poc">
+                  <SelectTrigger className="text-xs font-mono h-9 rounded-none border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A]" data-testid="client-select-poc">
                     <SelectValue placeholder="-- Select Point of Contact --" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">-- Select Point of Contact --</SelectItem>
+                  <SelectContent className="rounded-none border-2 border-[#0A0A0A] bg-[#FAF9F5]">
+                    <SelectItem value="none" className="text-xs font-mono">-- Select Point of Contact --</SelectItem>
                     {registeredUsers.map((u) => (
                       <SelectItem
                         key={u.id}
                         value={u.id}
-                        className="text-xs"
+                        className="text-xs font-mono"
                         data-testid={`poc-user-${u.id}`}
                       >
                         {u.name} {u.role ? `(${u.role})` : u.email ? `(${u.email})` : ''}
@@ -669,7 +669,7 @@ export function ClientModal({
                       !registeredUsers.some((u) => u.name === client.contactPerson) && (
                         <SelectItem
                           value={`custom:${client.contactPerson}`}
-                          className="text-xs"
+                          className="text-xs font-mono"
                           data-testid="poc-user-custom"
                         >
                           {client.contactPerson} (Custom)
@@ -677,7 +677,7 @@ export function ClientModal({
                       )}
                   </SelectContent>
                 </Select>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-xs font-mono text-[#4A4945]">
                   Select an internal user account as the firm representative for this client.
                 </p>
               </div>
@@ -686,7 +686,7 @@ export function ClientModal({
               {contactDetails.map((cd, index) => (
                 <div key={index} className="space-y-1">
                   <div
-                    className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                    className="flex items-center gap-2 p-2 bg-[#EAE8E3] border border-[#0A0A0A] rounded-none text-xs"
                     data-testid={`contact-row-${index}`}
                   >
                     <div className="w-28 shrink-0">
@@ -696,15 +696,15 @@ export function ClientModal({
                           handleContactTypeChange(index, val)
                         }
                       >
-                        <SelectTrigger className="text-xs h-8 bg-white" data-testid={`contact-type-${index}`}>
+                        <SelectTrigger className="text-xs font-mono h-8 rounded-none border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A]" data-testid={`contact-type-${index}`}>
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="mobile">Mobile</SelectItem>
-                          <SelectItem value="email">Email</SelectItem>
-                          <SelectItem value="phone">Phone</SelectItem>
-                          <SelectItem value="landline">Landline</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
+                        <SelectContent className="rounded-none border-2 border-[#0A0A0A] bg-[#FAF9F5]">
+                          <SelectItem value="mobile" className="text-xs font-mono">Mobile</SelectItem>
+                          <SelectItem value="email" className="text-xs font-mono">Email</SelectItem>
+                          <SelectItem value="phone" className="text-xs font-mono">Phone</SelectItem>
+                          <SelectItem value="landline" className="text-xs font-mono">Landline</SelectItem>
+                          <SelectItem value="other" className="text-xs font-mono">Other</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -715,8 +715,8 @@ export function ClientModal({
                       maxLength={getContactMaxLength(cd.type)}
                       value={cd.value}
                       onChange={(e) => handleContactValueChange(index, e.target.value)}
-                      className={`text-xs h-8 flex-1 bg-white ${
-                        errors[`contact_${index}`] ? 'border-red-500' : ''
+                      className={`text-xs h-8 flex-1 font-mono rounded-none border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A] ${
+                        errors[`contact_${index}`] ? 'border-[#E61919]' : ''
                       }`}
                       data-testid={`contact-value-${index}`}
                     />
@@ -726,7 +726,7 @@ export function ClientModal({
                       placeholder="Label (e.g. Finance)"
                       value={cd.label}
                       onChange={(e) => handleContactLabelChange(index, e.target.value)}
-                      className="text-xs h-8 w-28 bg-white"
+                      className="text-xs h-8 w-28 font-mono rounded-none border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A]"
                       data-testid={`contact-label-${index}`}
                     />
 
@@ -735,7 +735,7 @@ export function ClientModal({
                       variant="ghost"
                       size="sm"
                       onClick={() => handleRemoveContact(index)}
-                      className="h-8 w-8 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 shrink-0"
+                      className="h-8 w-8 p-0 rounded-none text-[#0A0A0A] hover:text-[#E61919] hover:bg-transparent shrink-0"
                       data-testid={`contact-remove-btn-${index}`}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -743,7 +743,7 @@ export function ClientModal({
                   </div>
 
                   {errors[`contact_${index}`] && (
-                    <p className="text-[11px] text-red-500 pl-1" data-testid={`error-contact-${index}`}>
+                    <p className="text-xs font-mono text-[#E61919] pl-1" data-testid={`error-contact-${index}`}>
                       {errors[`contact_${index}`]}
                     </p>
                   )}
@@ -753,14 +753,14 @@ export function ClientModal({
           </div>
 
           {/* Section 4: Related Companies & Affiliates */}
-          <div className="space-y-3 pt-2 border-t border-slate-100">
+          <div className="space-y-3 pt-2 border-t border-[#0A0A0A]">
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
-                  <LinkIcon className="h-3.5 w-3.5 text-slate-500" />
+                <h4 className="text-xs font-mono font-bold text-[#0A0A0A] uppercase tracking-wider flex items-center gap-1.5">
+                  <LinkIcon className="h-3.5 w-3.5 text-[#0A0A0A]" />
                   Related Companies & Affiliates
                 </h4>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-xs font-mono text-[#4A4945]">
                   Select registered clients from the master corporate directory.
                 </p>
               </div>
@@ -769,7 +769,7 @@ export function ClientModal({
                 variant="outline"
                 size="sm"
                 onClick={handleAddRelatedCompany}
-                className="text-xs h-7 gap-1"
+                className="text-xs font-mono uppercase tracking-wider h-7 gap-1 rounded-none border border-[#0A0A0A] bg-[#EAE8E3] hover:bg-[#E4E2DC] text-[#0A0A0A]"
                 data-testid="client-add-related-btn"
               >
                 <Plus className="h-3 w-3" />
@@ -783,7 +783,7 @@ export function ClientModal({
               return (
                 <div key={index} className="space-y-1">
                   <div
-                    className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                    className="flex items-center gap-2 p-2 bg-[#EAE8E3] border border-[#0A0A0A] rounded-none text-xs"
                     data-testid={`related-row-${index}`}
                   >
                     {/* Client Dropdown */}
@@ -795,16 +795,16 @@ export function ClientModal({
                         }
                       >
                         <SelectTrigger
-                          className={`text-xs h-8 bg-white ${
-                            errors[`related_${index}`] ? 'border-red-500' : ''
+                          className={`text-xs font-mono h-8 rounded-none border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A] ${
+                            errors[`related_${index}`] ? 'border-[#E61919]' : ''
                           }`}
                           data-testid={`related-client-id-${index}`}
                         >
                           <SelectValue placeholder="— Select Client —" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="rounded-none border-2 border-[#0A0A0A] bg-[#FAF9F5]">
                           {availableClients.length === 0 ? (
-                            <SelectItem value="none" disabled>
+                            <SelectItem value="none" disabled className="text-xs font-mono">
                               No other clients available
                             </SelectItem>
                           ) : (
@@ -813,7 +813,7 @@ export function ClientModal({
                                 key={c.id}
                                 value={c.id}
                                 disabled={selectedOtherIds.has(c.id)}
-                                className="text-xs"
+                                className="text-xs font-mono"
                                 data-testid={`related-client-option-${c.id}`}
                               >
                                 {c.name} {c.entity ? `(${c.entity})` : ''}
@@ -826,7 +826,7 @@ export function ClientModal({
                               <SelectItem
                                 key={rc.relatedClientId}
                                 value={rc.relatedClientId}
-                                className="text-xs"
+                                className="text-xs font-mono"
                               >
                                 Client ID: {rc.relatedClientId}
                               </SelectItem>
@@ -844,17 +844,17 @@ export function ClientModal({
                         }
                       >
                         <SelectTrigger
-                          className="text-xs h-8 bg-white"
+                          className="text-xs font-mono h-8 rounded-none border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A]"
                           data-testid={`related-relationship-${index}`}
                         >
                           <SelectValue placeholder="Relationship" />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Parent">Parent</SelectItem>
-                          <SelectItem value="Subsidiary">Subsidiary</SelectItem>
-                          <SelectItem value="Sister Company">Sister Company</SelectItem>
-                          <SelectItem value="Affiliate">Affiliate</SelectItem>
-                          <SelectItem value="Branch">Branch</SelectItem>
+                        <SelectContent className="rounded-none border-2 border-[#0A0A0A] bg-[#FAF9F5]">
+                          <SelectItem value="Parent" className="text-xs font-mono">Parent</SelectItem>
+                          <SelectItem value="Subsidiary" className="text-xs font-mono">Subsidiary</SelectItem>
+                          <SelectItem value="Sister Company" className="text-xs font-mono">Sister Company</SelectItem>
+                          <SelectItem value="Affiliate" className="text-xs font-mono">Affiliate</SelectItem>
+                          <SelectItem value="Branch" className="text-xs font-mono">Branch</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -864,7 +864,7 @@ export function ClientModal({
                       variant="ghost"
                       size="sm"
                       onClick={() => handleRemoveRelatedCompany(index)}
-                      className="h-8 w-8 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 shrink-0"
+                      className="h-8 w-8 p-0 rounded-none text-[#0A0A0A] hover:text-[#E61919] hover:bg-transparent shrink-0"
                       data-testid={`related-remove-btn-${index}`}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -872,7 +872,7 @@ export function ClientModal({
                   </div>
 
                   {errors[`related_${index}`] && (
-                    <p className="text-[11px] text-red-500 pl-1" data-testid={`error-related-${index}`}>
+                    <p className="text-xs font-mono text-[#E61919] pl-1" data-testid={`error-related-${index}`}>
                       {errors[`related_${index}`]}
                     </p>
                   )}
@@ -881,13 +881,13 @@ export function ClientModal({
             })}
           </div>
 
-          <DialogFooter className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+          <DialogFooter className="flex items-center justify-end gap-2 pt-3 border-t border-[#0A0A0A]">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={onClose}
-              className="text-xs"
+              className="text-xs font-mono uppercase tracking-wider rounded-none border border-[#0A0A0A] bg-[#FAF9F5] hover:bg-[#EAE8E3] text-[#0A0A0A]"
             >
               Cancel
             </Button>
@@ -895,7 +895,7 @@ export function ClientModal({
               type="submit"
               variant="default"
               size="sm"
-              className="text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white"
+              className="text-xs font-mono uppercase tracking-wider font-bold rounded-none bg-[#0A0A0A] hover:bg-[#E61919] text-[#FAF9F5]"
               data-testid="client-submit-btn"
             >
               {isEditing ? 'Save Modifications' : 'Create Client'}

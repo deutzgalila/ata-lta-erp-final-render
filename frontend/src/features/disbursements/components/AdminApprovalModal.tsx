@@ -113,18 +113,17 @@ export function AdminApprovalModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent
-        className="max-w-md p-6 space-y-4"
+      <DialogContent className="space-y-4 border-[#0A0A0A] border-2 p-6 shadow-[4px_4px_0px_#0A0A0A] rounded-none bg-[#FAF9F5] max-w-md"
         data-testid="admin-approval-modal"
       >
         <DialogHeader>
-          <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+          <DialogTitle className="text-base font-bold text-[#0A0A0A] flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-emerald-600" />
             <span>Admin Direct Approval & Release</span>
           </DialogTitle>
-          <DialogDescription className="text-xs text-slate-600">
+          <DialogDescription className="text-xs text-[#4A4945]">
             Adjudicate and authorize disbursement{' '}
-            <span className="font-mono font-semibold text-slate-800">
+            <span className="font-mono font-semibold text-[#0A0A0A]">
               {disbNumber}
             </span>
             . Saving payment details will directly transition this voucher to{' '}
@@ -133,25 +132,25 @@ export function AdminApprovalModal({
         </DialogHeader>
 
         {/* Financial Summary Card */}
-        <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1.5">
+        <div className="p-3 bg-[#EAE8E3] border border-[#0A0A0A] rounded-none text-xs space-y-1.5">
           <div className="flex justify-between items-center">
-            <span className="text-slate-500">Amount to Release:</span>
-            <span className="font-bold text-slate-900 text-sm" data-testid="approval-amount">
+            <span className="text-[#4A4945]">Amount to Release:</span>
+            <span className="font-bold text-[#0A0A0A] text-sm" data-testid="approval-amount">
               ₱{disbursement.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
             </span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-slate-500">Fund Source:</span>
-            <span className="font-semibold text-blue-700">
+            <span className="text-[#4A4945]">Fund Source:</span>
+            <span className="font-semibold text-[#0A0A0A]">
               {disbursement.fund_source || disbursement.fundSource}
             </span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-slate-500">Category:</span>
-            <span className="font-medium text-slate-700">{disbursement.category}</span>
+            <span className="text-[#4A4945]">Category:</span>
+            <span className="font-medium text-[#0A0A0A]">{disbursement.category}</span>
           </div>
-          <div className="pt-1 border-t border-slate-200 text-slate-600 line-clamp-2">
-            <span className="text-slate-400">Purpose: </span>
+          <div className="pt-1 border-t border-[#0A0A0A] text-[#4A4945] line-clamp-2">
+            <span className="text-[#4A4945]">Purpose: </span>
             {disbursement.description}
           </div>
         </div>
@@ -159,7 +158,7 @@ export function AdminApprovalModal({
         <form onSubmit={handleSubmit} className="space-y-3" data-testid="admin-approval-form">
           {/* Payment Method */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700">
+            <label className="text-xs font-semibold text-[#0A0A0A]">
               Payment Method <span className="text-red-500">*</span>
             </label>
             <select
@@ -168,7 +167,7 @@ export function AdminApprovalModal({
                 setMethod(e.target.value);
                 if (errors.method) setErrors((prev) => ({ ...prev, method: '' }));
               }}
-              className={`w-full text-xs p-2 border rounded-md bg-white border-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 ${
+              className={`w-full text-xs p-2 border rounded-none bg-white border-[#0A0A0A] focus:outline-none focus:ring-1 focus:ring-emerald-500 ${
                 errors.method ? 'border-red-500' : ''
               }`}
               data-testid="select-payment-method"
@@ -180,13 +179,13 @@ export function AdminApprovalModal({
               <option value="Other">Other</option>
             </select>
             {errors.method && (
-              <span className="text-[11px] text-red-600 block">{errors.method}</span>
+              <span className="text-xs font-mono text-red-600 block">{errors.method}</span>
             )}
           </div>
 
           {/* Reference Number */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700">
+            <label className="text-xs font-semibold text-[#0A0A0A]">
               Payment Reference / Check Number (Optional)
             </label>
             <Input
@@ -201,7 +200,7 @@ export function AdminApprovalModal({
 
           {/* Bank */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700">
+            <label className="text-xs font-semibold text-[#0A0A0A]">
               Bank / Institution (Optional)
             </label>
             <Input
@@ -216,7 +215,7 @@ export function AdminApprovalModal({
 
           {/* Date */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700">
+            <label className="text-xs font-semibold text-[#0A0A0A]">
               Payment Date <span className="text-red-500">*</span>
             </label>
             <DateInput
@@ -231,7 +230,7 @@ export function AdminApprovalModal({
               data-testid="input-payment-date"
             />
             {errors.date && (
-              <span className="text-[11px] text-red-600 block">{errors.date}</span>
+              <span className="text-xs font-mono text-red-600 block">{errors.date}</span>
             )}
           </div>
 

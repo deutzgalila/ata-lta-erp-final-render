@@ -9,7 +9,7 @@
  * - PDF inline iframe, image preview, text preview, fallback download cards
  * - Comments pane (view, add, edit, delete)
  * - File replace/upload with 50 MB limit guard
- * - Shared design tokens (#f0f0f5, #f0f1f3, #2563eb, #1e293b, #9494a0)
+ * - Shared design tokens (#0A0A0A, #EAE8E3, #0A0A0A, #0A0A0A, #4A4945)
  */
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
@@ -307,15 +307,15 @@ export function DocumentViewerModal({
   const renderPreview = () => {
     if (!doc) {
       return (
-        <div className="h-full flex flex-col items-center justify-center text-[#9494a0] p-8 space-y-3">
-          <Upload className="h-12 w-12 text-[#9494a0]" />
+        <div className="h-full flex flex-col items-center justify-center text-[#4A4945] p-8 space-y-3">
+          <Upload className="h-12 w-12 text-[#4A4945]" />
           <p className="text-sm">No document selected. Upload a file to preview.</p>
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={() => fileInputRef.current?.click()}
-            className="border-[#f0f0f5] text-[#1e293b]"
+            className="border-[#0A0A0A] text-[#0A0A0A]"
           >
             Select Document
           </Button>
@@ -325,7 +325,7 @@ export function DocumentViewerModal({
 
     if (isDownloadLoading && !doc?.external_url && !doc?.externalUrl) {
       return (
-        <div className="h-full flex items-center justify-center text-[#9494a0] text-sm">
+        <div className="h-full flex items-center justify-center text-[#4A4945] text-sm">
           Loading document preview...
         </div>
       );
@@ -333,7 +333,7 @@ export function DocumentViewerModal({
 
     if (downloadError && !effectiveExternalUrl) {
       return (
-        <div role="alert" className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center text-slate-600">
+        <div role="alert" className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center text-[#4A4945]">
           <p className="text-sm font-medium">Unable to load document preview</p>
           <p className="text-xs">{downloadError.message}</p>
           <Button type="button" variant="outline" size="sm" disabled={isDownloadFetching} onClick={() => void retryDownload()}>
@@ -346,7 +346,7 @@ export function DocumentViewerModal({
     if (parsedExternal.isGoogleDrive && previewUrl) {
       return (
         <div className="w-full h-full flex flex-col">
-          <div className="bg-blue-50 border-b border-blue-100 px-4 py-2 flex items-center justify-between text-xs text-blue-800">
+          <div className="bg-[#EAE8E3] border-b border-blue-100 px-4 py-2 flex items-center justify-between text-xs text-[#0A0A0A]">
             <span>Google Drive Document Preview</span>
             <a
               href={parsedExternal.originalUrl}
@@ -373,16 +373,16 @@ export function DocumentViewerModal({
       const openUrl = effectiveExternalUrl || parsedExternal.originalUrl;
       return (
         <div className="h-full flex flex-col items-center justify-center p-8 space-y-4 text-center">
-          <ExternalLink className="h-16 w-16 text-[#2563eb]" />
+          <ExternalLink className="h-16 w-16 text-[#0A0A0A]" />
           <div className="space-y-1">
-            <h4 className="font-semibold text-[#1e293b] text-sm">{fileName}</h4>
-            <p className="text-xs text-[#9494a0] max-w-sm">
+            <h4 className="font-semibold text-[#0A0A0A] text-sm">{fileName}</h4>
+            <p className="text-xs text-[#4A4945] max-w-sm">
               This external document cannot be embedded inline. You can open the external link directly in your browser.
             </p>
           </div>
           {openUrl && (
             <a href={openUrl} target="_blank" rel="noopener noreferrer">
-              <Button type="button" size="sm" className="gap-2 bg-[#2563eb] hover:bg-[#1d4ed8] text-white">
+              <Button type="button" size="sm" className="gap-2 bg-[#0A0A0A] hover:bg-[#262626] text-white">
                 <ExternalLink className="h-4 w-4" /> Open External Link
               </Button>
             </a>
@@ -408,7 +408,7 @@ export function DocumentViewerModal({
       return (
         <iframe
           src={previewUrl}
-          className="w-full h-full border-0 rounded-md"
+          className="w-full h-full border-0 rounded-none"
           title={fileName}
           data-testid="doc-preview-pdf"
         />
@@ -421,7 +421,7 @@ export function DocumentViewerModal({
           <img
             src={previewUrl}
             alt={fileName}
-            className="max-w-full max-h-full object-contain shadow-xs rounded"
+            className="max-w-full max-h-full object-contain shadow-none rounded"
             data-testid="doc-preview-image"
           />
         </div>
@@ -442,10 +442,10 @@ export function DocumentViewerModal({
     if (isDocx || isLegacyDoc) {
       return (
         <div className="h-full flex flex-col items-center justify-center p-8 space-y-4 text-center">
-          <FileText className="h-16 w-16 text-[#2563eb]" />
+          <FileText className="h-16 w-16 text-[#0A0A0A]" />
           <div className="space-y-1">
-            <h4 className="font-semibold text-[#1e293b] text-sm">{fileName}</h4>
-            <p className="text-xs text-[#9494a0] max-w-sm">
+            <h4 className="font-semibold text-[#0A0A0A] text-sm">{fileName}</h4>
+            <p className="text-xs text-[#4A4945] max-w-sm">
               {isLegacyDoc
                 ? 'Legacy Word document (.doc) cannot be previewed inline. Please download to view.'
                 : 'Word Document (.docx) preview is ready for download.'}
@@ -458,7 +458,7 @@ export function DocumentViewerModal({
               target="_blank"
               rel="noreferrer"
             >
-              <Button type="button" size="sm" className="gap-2 bg-[#2563eb] hover:bg-[#1d4ed8] text-white">
+              <Button type="button" size="sm" className="gap-2 bg-[#0A0A0A] hover:bg-[#262626] text-white">
                 <Download className="h-4 w-4" /> Download to View
               </Button>
             </a>
@@ -470,10 +470,10 @@ export function DocumentViewerModal({
     // Generic / Fallback
     return (
       <div className="h-full flex flex-col items-center justify-center p-8 space-y-4 text-center">
-        <FileQuestion className="h-16 w-16 text-[#9494a0]" />
+        <FileQuestion className="h-16 w-16 text-[#4A4945]" />
         <div className="space-y-1">
-          <h4 className="font-semibold text-[#1e293b] text-sm">{fileName}</h4>
-          <p className="text-xs text-[#9494a0] max-w-sm">
+          <h4 className="font-semibold text-[#0A0A0A] text-sm">{fileName}</h4>
+          <p className="text-xs text-[#4A4945] max-w-sm">
             This file type does not support inline preview. You can download the file to inspect its contents.
           </p>
         </div>
@@ -484,7 +484,7 @@ export function DocumentViewerModal({
             target="_blank"
             rel="noreferrer"
           >
-            <Button type="button" size="sm" variant="outline" className="gap-2 border-[#f0f0f5] text-[#1e293b]">
+            <Button type="button" size="sm" variant="outline" className="gap-2 border-[#0A0A0A] text-[#0A0A0A]">
               <Download className="h-4 w-4" /> Download File
             </Button>
           </a>
@@ -495,7 +495,7 @@ export function DocumentViewerModal({
 
   const contentClasses = isFullPage
     ? 'fixed inset-0 left-0 top-0 translate-x-0 translate-y-0 w-screen h-screen max-w-none max-h-none rounded-none border-0 p-0 flex flex-col overflow-hidden z-50 bg-white gap-0'
-    : 'max-w-6xl w-[95vw] h-[88vh] max-h-[92vh] flex flex-col p-0 overflow-hidden border border-[#f0f0f5] bg-white gap-0';
+    : 'max-w-6xl w-[95vw] h-[88vh] max-h-[92vh] flex flex-col p-0 overflow-hidden border border-[#0A0A0A] bg-white gap-0';
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -504,13 +504,13 @@ export function DocumentViewerModal({
         data-testid="document-viewer-modal"
       >
         {/* Header */}
-        <DialogHeader className="px-6 py-3 border-b border-[#f0f0f5] flex flex-row items-center justify-between space-y-0">
+        <DialogHeader className="px-6 py-3 border-b border-[#0A0A0A] flex flex-row items-center justify-between space-y-0">
           <div className="flex items-center gap-2 min-w-0">
-            <DialogTitle className="text-base font-bold text-[#1e293b] truncate max-w-md">
+            <DialogTitle className="text-base font-bold text-[#0A0A0A] truncate max-w-md">
               {fileName}
             </DialogTitle>
             {doc?.category && (
-              <Badge variant="outline" size="compact" className="text-[10px]">
+              <Badge variant="outline" size="compact" className="text-xs font-mono">
                 {doc.category}
               </Badge>
             )}
@@ -529,7 +529,7 @@ export function DocumentViewerModal({
               variant="outline"
               size="xs"
               onClick={() => setIsFullPage(!isFullPage)}
-              className="gap-1.5 text-xs text-[#1e293b] border-[#f0f0f5] hover:bg-[#f0f1f3]"
+              className="gap-1.5 text-xs text-[#0A0A0A] border-[#0A0A0A] hover:bg-[#EAE8E3]"
               title={isFullPage ? 'Exit full-page view' : 'Full-page preview'}
               data-testid="toggle-fullpage-preview"
             >
@@ -559,7 +559,7 @@ export function DocumentViewerModal({
                 variant="outline"
                 size="xs"
                 onClick={() => fileInputRef.current?.click()}
-                className="gap-1 text-xs text-[#1e293b] border-[#f0f0f5] hover:bg-[#f0f1f3]"
+                className="gap-1 text-xs text-[#0A0A0A] border-[#0A0A0A] hover:bg-[#EAE8E3]"
                 data-testid="upload-doc-btn"
               >
                 <Upload className="h-3.5 w-3.5" /> Replace / Upload
@@ -571,7 +571,7 @@ export function DocumentViewerModal({
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <Button variant="outline" size="xs" className="gap-1.5 text-xs text-[#2563eb]">
+                <Button variant="outline" size="xs" className="gap-1.5 text-xs text-[#0A0A0A]">
                   <ExternalLink className="h-3.5 w-3.5" />
                   {parsedExternal.isGoogleDrive ? 'Open in Google Drive' : 'Open External Link'}
                 </Button>
@@ -582,7 +582,7 @@ export function DocumentViewerModal({
                   type="button"
                   variant="outline"
                   size="xs"
-                  className="gap-1 text-xs text-[#1e293b] border-[#f0f0f5] hover:bg-[#f0f1f3]"
+                  className="gap-1 text-xs text-[#0A0A0A] border-[#0A0A0A] hover:bg-[#EAE8E3]"
                   data-testid="download-doc-btn"
                 >
                   <Download className="h-3.5 w-3.5" /> Download
@@ -603,7 +603,7 @@ export function DocumentViewerModal({
         {/* 2-Column Viewer & Comments Body */}
         <div className="flex-1 flex overflow-hidden min-h-[520px]">
           {/* Left: Document Preview */}
-          <div className="flex-1 bg-[#f8fafc] border-r border-[#f0f0f5] p-2 overflow-auto flex flex-col items-center justify-center">
+          <div className="flex-1 bg-[#FAF9F5] border-r border-[#0A0A0A] p-2 overflow-auto flex flex-col items-center justify-center">
             {renderPreview()}
           </div>
 
@@ -611,44 +611,44 @@ export function DocumentViewerModal({
           <div className="w-80 sm:w-96 flex flex-col bg-white">
             {/* Document Details Metadata Panel */}
             <div
-              className="p-3 border-b border-[#f0f0f5] bg-[#f8fafc] text-xs space-y-2 shrink-0"
+              className="p-3 border-b border-[#0A0A0A] bg-[#FAF9F5] text-xs space-y-2 shrink-0"
               data-testid="document-details-panel"
             >
-              <div className="font-semibold text-[#1e293b] text-xs">
+              <div className="font-semibold text-[#0A0A0A] text-xs">
                 Document Details
               </div>
-              <div className="space-y-1.5 text-[11px]">
+              <div className="space-y-1.5 text-xs font-mono">
                 <div className="flex items-start justify-between gap-2">
-                  <span className="text-[#9494a0] shrink-0">Uploader:</span>
+                  <span className="text-[#4A4945] shrink-0">Uploader:</span>
                   <span
-                    className="font-medium text-[#1e293b] text-right truncate"
+                    className="font-medium text-[#0A0A0A] text-right truncate"
                     data-testid="doc-uploader-name"
                   >
                     {doc?.uploader_name || doc?.uploaderName || (doc?.uploader_id ? teamMap.get(doc.uploader_id) : undefined) || 'Unknown User'}
                   </span>
                 </div>
                 <div className="flex items-start justify-between gap-2">
-                  <span className="text-[#9494a0] shrink-0">Date Uploaded:</span>
+                  <span className="text-[#4A4945] shrink-0">Date Uploaded:</span>
                   <span
-                    className="font-medium text-[#1e293b] text-right truncate"
+                    className="font-medium text-[#0A0A0A] text-right truncate"
                     data-testid="doc-upload-date"
                   >
                     {formattedUploadDate}
                   </span>
                 </div>
                 <div className="flex items-start justify-between gap-2">
-                  <span className="text-[#9494a0] shrink-0">Work Request:</span>
+                  <span className="text-[#4A4945] shrink-0">Work Request:</span>
                   <span
-                    className="font-medium text-[#1e293b] text-right truncate"
+                    className="font-medium text-[#0A0A0A] text-right truncate"
                     data-testid="doc-work-request"
                   >
                     {doc?.work_request_title || workRequest?.title || 'None / Not Linked'}
                   </span>
                 </div>
                 <div className="flex items-start justify-between gap-2">
-                  <span className="text-[#9494a0] shrink-0">Linked Task:</span>
+                  <span className="text-[#4A4945] shrink-0">Linked Task:</span>
                   <span
-                    className="font-medium text-[#1e293b] text-right truncate"
+                    className="font-medium text-[#0A0A0A] text-right truncate"
                     data-testid="doc-linked-task"
                   >
                     {doc?.linked_task_title || 'None / Not Linked'}
@@ -657,8 +657,8 @@ export function DocumentViewerModal({
               </div>
             </div>
 
-            <div className="p-3 border-b border-[#f0f0f5] flex items-center gap-1.5 text-xs font-semibold text-[#1e293b]">
-              <MessageSquare className="h-3.5 w-3.5 text-[#2563eb]" />
+            <div className="p-3 border-b border-[#0A0A0A] flex items-center gap-1.5 text-xs font-semibold text-[#0A0A0A]">
+              <MessageSquare className="h-3.5 w-3.5 text-[#0A0A0A]" />
               <span>Comments ({doc?.comments?.length || 0})</span>
             </div>
 
@@ -678,12 +678,12 @@ export function DocumentViewerModal({
                   return (
                     <div
                       key={commentId}
-                      className="p-2.5 rounded-md bg-[#f8fafc] border border-[#f0f0f5] text-xs space-y-1.5"
+                      className="p-2.5 rounded-none bg-[#FAF9F5] border border-[#0A0A0A] text-xs space-y-1.5"
                       data-testid={`comment-item-${commentId}`}
                     >
-                      <div className="flex items-center justify-between text-[11px] text-[#9494a0]">
-                        <span className="font-semibold text-[#1e293b]">
-                          <span aria-hidden="true" className="mr-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-blue-800">
+                      <div className="flex items-center justify-between text-xs font-mono text-[#4A4945]">
+                        <span className="font-semibold text-[#0A0A0A]">
+                          <span aria-hidden="true" className="mr-1 inline-flex h-5 w-5 items-center justify-center rounded-none bg-[#EAE8E3] text-[#0A0A0A]">
                             {sender.split(' ').map((part) => part[0]).slice(0, 2).join('')}
                           </span>{sender}
                         </span>
@@ -702,7 +702,7 @@ export function DocumentViewerModal({
                             maxLength={4000}
                             aria-label="Edit comment"
                             rows={2}
-                            className="w-full text-xs p-1.5 border border-[#f0f0f5] rounded bg-white text-[#1e293b] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
+                            className="w-full text-xs p-1.5 border border-[#0A0A0A] rounded bg-white text-[#0A0A0A] focus:outline-none focus:ring-1 focus:ring-[#0A0A0A]"
                           />
                           <div className="flex justify-end gap-1">
                             <Button
@@ -710,7 +710,7 @@ export function DocumentViewerModal({
                               variant="ghost"
                               size="xs"
                               onClick={() => setEditingCommentId(null)}
-                              className="h-5 text-[10px]"
+                              className="h-5 text-xs font-mono"
                             >
                               Cancel
                             </Button>
@@ -719,27 +719,27 @@ export function DocumentViewerModal({
                               size="xs"
                               disabled={editComment.isPending || !editingCommentText.trim()}
                               onClick={() => handleSaveEditComment(commentId)}
-                              className="h-5 text-[10px] bg-[#2563eb] hover:bg-[#1d4ed8] text-white"
+                              className="h-5 text-xs font-mono bg-[#0A0A0A] hover:bg-[#262626] text-white"
                             >
                               Save
                             </Button>
                           </div>
                         </div>
                       ) : (
-                        <p className="text-[#1e293b] whitespace-pre-wrap">
+                        <p className="text-[#0A0A0A] whitespace-pre-wrap">
                           {comment.text}
                         </p>
                       )}
 
                       {!isReadOnly && !isEditing && Boolean(comment.id) && (isAuthor || isAdmin) && (
-                        <div className="flex justify-end gap-2 pt-1 border-t border-[#f0f0f5] text-[10px] text-[#9494a0]">
+                        <div className="flex justify-end gap-2 pt-1 border-t border-[#0A0A0A] text-xs font-mono text-[#4A4945]">
                           {isAuthor && <button
                             type="button"
                             onClick={() => {
                               setEditingCommentId(commentId);
                               setEditingCommentText(comment.text);
                             }}
-                            className="hover:text-[#2563eb] flex items-center gap-0.5 cursor-pointer"
+                            className="hover:text-[#0A0A0A] flex items-center gap-0.5 cursor-pointer"
                           >
                             <Edit2 className="h-2.5 w-2.5" /> Edit
                           </button>}
@@ -757,7 +757,7 @@ export function DocumentViewerModal({
                   );
                 })
               ) : (
-                <div className="text-xs text-[#9494a0] italic py-4 text-center">
+                <div className="text-xs text-[#4A4945] italic py-4 text-center">
                   No comments yet. Start the conversation below.
                 </div>
               )}
@@ -766,7 +766,7 @@ export function DocumentViewerModal({
             {commentError && <p role="alert" className="px-3 py-2 text-xs text-rose-700">{commentError}</p>}
             {/* Add Comment Box */}
             {!isReadOnly && (
-              <form onSubmit={handleAddComment} className="p-3 border-t border-[#f0f0f5] space-y-2">
+              <form onSubmit={handleAddComment} className="p-3 border-t border-[#0A0A0A] space-y-2">
                 <textarea
                   maxLength={4000}
                   onKeyDown={(e) => {
@@ -779,7 +779,7 @@ export function DocumentViewerModal({
                   onChange={(e) => setNewCommentText(e.target.value)}
                   placeholder="Add a comment or review note..."
                   rows={2}
-                  className="w-full text-xs p-2 border border-[#f0f0f5] rounded-md bg-white text-[#1e293b] placeholder:text-[#9494a0] focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
+                  className="w-full text-xs p-2 border border-[#0A0A0A] rounded-none bg-white text-[#0A0A0A] placeholder:text-[#4A4945] focus:outline-none focus:ring-1 focus:ring-[#0A0A0A]"
                   data-testid="new-comment-textarea"
                 />
                 <div className="flex justify-end">
@@ -788,7 +788,7 @@ export function DocumentViewerModal({
                     size="xs"
                     disabled={!newCommentText.trim() || addComment.isPending}
                     data-testid="post-comment-btn"
-                    className="text-xs bg-[#2563eb] hover:bg-[#1d4ed8] text-white"
+                    className="text-xs bg-[#0A0A0A] hover:bg-[#262626] text-white"
                   >
                     {addComment.isPending ? 'Sending...' : 'Post Comment'}
                   </Button>
@@ -798,13 +798,13 @@ export function DocumentViewerModal({
           </div>
         </div>
 
-        <DialogFooter className="px-6 py-2.5 border-t border-[#f0f0f5] bg-[#f8fafc] flex items-center justify-end">
+        <DialogFooter className="px-6 py-2.5 border-t border-[#0A0A0A] bg-[#FAF9F5] flex items-center justify-end">
           <Button
             type="button"
             variant="ghost"
             size="sm"
             onClick={onClose}
-            className="text-xs text-[#1e293b] hover:bg-[#f0f1f3]"
+            className="text-xs text-[#0A0A0A] hover:bg-[#EAE8E3]"
           >
             Close
           </Button>

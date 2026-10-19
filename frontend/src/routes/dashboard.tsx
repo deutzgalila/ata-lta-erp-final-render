@@ -1,6 +1,5 @@
 import { useSessionStore } from '@/lib/session';
 import { useEntityRealtimeSync } from '@/lib/realtime';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ShieldCheck, Building2, Bell, Clock } from 'lucide-react';
 import { LogTimeWidget } from '@/features/dashboard/components/LogTimeWidget';
@@ -26,80 +25,88 @@ export default function DashboardPage() {
   const formattedTodayTime = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
 
   return (
-    <div className="space-y-6" data-testid="dashboard-page">
-      {/* Welcome Banner */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <div className="w-full space-y-6" data-testid="dashboard-page">
+      {/* 1. Blueprint Module Header */}
+      <div className="border-b-2 border-[#0A0A0A] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[#1e293b]">
+          <nav
+            aria-label="Breadcrumb"
+            className="font-mono text-xs uppercase tracking-wider text-[#4A4945] flex items-center gap-1.5 pb-1"
+          >
+            <span>Modules</span>
+            <span aria-hidden="true">/</span>
+            <span className="text-[#0A0A0A] font-semibold">Dashboard</span>
+          </nav>
+          <h1 className="text-2xl font-extrabold tracking-tight text-[#0A0A0A]">
             Welcome back, {user?.name || 'User'}
           </h1>
-          <p className="text-sm text-[#9494a0]">
+          <p className="text-xs sm:text-sm text-[#4A4945] pt-0.5">
             ATA &amp; LTA Accounting Firm ERP — Enterprise Architecture v2.0
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="ata" className="text-xs font-semibold">
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+          <Badge variant="ata" className="text-xs font-mono font-semibold rounded-none border border-[#0A0A0A]">
             {activeEntity || 'ATA'} ACTIVE
           </Badge>
-          <Badge variant="secondary" className="text-xs">
+          <Badge variant="secondary" className="text-xs font-mono rounded-none border border-[#C8C5BC] bg-[#EAE8E3] text-[#0A0A0A]">
             Role: {user?.role || 'Staff'}
           </Badge>
         </div>
       </div>
 
-      {/* Overview Stat Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-medium text-[#9494a0]">Current Role</CardTitle>
-            <ShieldCheck className="h-4 w-4 text-[#2563eb]" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold text-[#1e293b]" data-testid="stat-role">{user?.role}</div>
-            <p className="text-[11px] text-[#9494a0] mt-1">
+      {/* 2. Overview Stat Cards (Blueprint Telemetry Matrix) */}
+      <div className="grid gap-px bg-[#0A0A0A] border border-[#0A0A0A] sm:grid-cols-2 lg:grid-cols-4">
+        <div className="p-4 bg-[#FAF9F5] space-y-2">
+          <div className="flex flex-row items-center justify-between pb-1">
+            <span className="text-xs font-mono uppercase tracking-wider text-[#4A4945]">Current Role</span>
+            <ShieldCheck className="h-4 w-4 text-[#0A0A0A]" />
+          </div>
+          <div>
+            <div className="text-xl font-bold font-mono tabular-nums text-[#0A0A0A]" data-testid="stat-role">{user?.role}</div>
+            <p className="text-xs text-[#4A4945] mt-1 font-mono">
               {permissions.size} active permissions granted
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-medium text-[#9494a0]">Active Entity</CardTitle>
-            <Building2 className="h-4 w-4 text-[#475569]" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold text-[#1e293b]" data-testid="stat-entity">{activeEntity}</div>
-            <p className="text-[11px] text-[#9494a0] mt-1">
+        <div className="p-4 bg-[#FAF9F5] space-y-2">
+          <div className="flex flex-row items-center justify-between pb-1">
+            <span className="text-xs font-mono uppercase tracking-wider text-[#4A4945]">Active Entity</span>
+            <Building2 className="h-4 w-4 text-[#0A0A0A]" />
+          </div>
+          <div>
+            <div className="text-xl font-bold font-mono tabular-nums text-[#0A0A0A]" data-testid="stat-entity">{activeEntity}</div>
+            <p className="text-xs text-[#4A4945] mt-1 font-mono">
               Entities: {(user?.entities || []).join(', ') || 'None'}
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-medium text-[#9494a0]">Notifications</CardTitle>
-            <Bell className="h-4 w-4 text-amber-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold text-[#1e293b]" data-testid="stat-unread-count">{unreadCount}</div>
-            <p className="text-[11px] text-[#9494a0] mt-1">Unread alerts requiring attention</p>
-          </CardContent>
-        </Card>
+        <div className="p-4 bg-[#FAF9F5] space-y-2">
+          <div className="flex flex-row items-center justify-between pb-1">
+            <span className="text-xs font-mono uppercase tracking-wider text-[#4A4945]">Notifications</span>
+            <Bell className="h-4 w-4 text-[#0A0A0A]" />
+          </div>
+          <div>
+            <div className="text-xl font-bold font-mono tabular-nums text-[#0A0A0A]" data-testid="stat-unread-count">{unreadCount}</div>
+            <p className="text-xs text-[#4A4945] mt-1 font-mono">Unread alerts requiring attention</p>
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-xs font-medium text-[#9494a0]">Today's Time Logged</CardTitle>
-            <Clock className="h-4 w-4 text-[#10b981]" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold text-[#10b981]" data-testid="stat-today-hours">
+        <div className="p-4 bg-[#FAF9F5] space-y-2">
+          <div className="flex flex-row items-center justify-between pb-1">
+            <span className="text-xs font-mono uppercase tracking-wider text-[#4A4945]">Today's Time Logged</span>
+            <Clock className="h-4 w-4 text-[#0A0A0A]" />
+          </div>
+          <div>
+            <div className="text-xl font-bold font-mono tabular-nums text-[#0A0A0A]" data-testid="stat-today-hours">
               {formattedTodayTime}
             </div>
-            <p className="text-[11px] text-[#9494a0] mt-1">
+            <p className="text-xs text-[#4A4945] mt-1 font-mono">
               {summary?.byTask.length ?? 0} tasks logged today
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
       {/* Dashboard Pending Tasks Card */}

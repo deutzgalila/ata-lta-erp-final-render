@@ -339,7 +339,7 @@ export function BlockingActionModal() {
         <DialogPrimitive.Content
           className={cn(
             'fixed left-[50%] top-[50%] z-50 grid w-full max-w-md translate-x-[-50%] translate-y-[-50%]',
-            'gap-4 rounded-xl border border-[#f0f0f5] bg-white p-6 shadow-2xl duration-200',
+            'gap-4 rounded-none border-2 border-[#0A0A0A] bg-[#FAF9F5] p-6 shadow-[4px_4px_0px_#0A0A0A]',
             'focus:outline-none'
           )}
           onPointerDownOutside={(e) => e.preventDefault()}
@@ -356,28 +356,28 @@ export function BlockingActionModal() {
           {status === 'loading' && (
             <div className="flex flex-col items-center text-center py-4 space-y-4" aria-busy="true">
               <div className="relative flex items-center justify-center p-3">
-                <Loader2 className="h-10 w-10 animate-spin text-[#2563eb]" />
+                <Loader2 className="h-10 w-10 animate-spin text-[#0A0A0A]" />
               </div>
               <div className="space-y-1">
-                <DialogPrimitive.Title className="text-lg font-semibold text-[#1e293b]">
+                <DialogPrimitive.Title className="text-lg font-extrabold uppercase tracking-tight text-[#0A0A0A]">
                   {title}
                 </DialogPrimitive.Title>
-                <DialogPrimitive.Description className="text-sm text-[#64748b] leading-relaxed">
+                <DialogPrimitive.Description className="text-xs font-mono text-[#4A4945] leading-relaxed">
                   {message}
                 </DialogPrimitive.Description>
               </div>
 
               {progress && (
-                <div className="w-full space-y-1.5 pt-2">
-                  <div className="flex justify-between text-xs text-[#64748b]">
+                <div className="w-full space-y-1.5 pt-2 font-mono">
+                  <div className="flex justify-between text-xs text-[#4A4945]">
                     <span>{progress.label || 'Progress'}</span>
-                    <span>
+                    <span className="tabular-nums font-bold text-[#0A0A0A]">
                       {progress.current} / {progress.total}
                     </span>
                   </div>
-                  <div className="h-1.5 w-full bg-[#f1f5f9] rounded-full overflow-hidden">
+                  <div className="h-2 w-full bg-[#EAE8E3] border border-[#0A0A0A] rounded-none overflow-hidden">
                     <div
-                      className="h-full bg-[#2563eb] transition-all duration-300"
+                      className="h-full bg-[#0A0A0A] transition-all duration-300"
                       style={{
                         width: `${Math.min(100, (progress.current / progress.total) * 100)}%`,
                       }}
@@ -391,21 +391,21 @@ export function BlockingActionModal() {
           {/* 2. SUCCESS STATE */}
           {status === 'success' && (
             <div className="flex flex-col items-center text-center py-2 space-y-4">
-              <div className="rounded-full bg-emerald-50 p-3 text-emerald-600">
-                <CheckCircle2 className="h-10 w-10" />
+              <div className="rounded-none border border-[#0A0A0A] bg-[#0A0A0A] p-3 text-[#FAF9F5]">
+                <CheckCircle2 className="h-10 w-10 text-[#FAF9F5]" />
               </div>
               <div className="space-y-1">
-                <DialogPrimitive.Title className="text-lg font-semibold text-[#1e293b]">
+                <DialogPrimitive.Title className="text-lg font-extrabold uppercase tracking-tight text-[#0A0A0A]">
                   {successTitle || 'Operation Successful'}
                 </DialogPrimitive.Title>
-                <DialogPrimitive.Description className="text-sm text-[#64748b]">
+                <DialogPrimitive.Description className="text-xs font-mono text-[#4A4945]">
                   {typeof successMessage === 'function'
                     ? 'Completed successfully.'
                     : successMessage || 'The action was persisted successfully.'}
                 </DialogPrimitive.Description>
               </div>
               <div className="w-full pt-2">
-                <Button className="w-full" onClick={close} data-testid="blocking-action-ok-btn">
+                <Button className="w-full text-xs font-mono uppercase tracking-wider font-bold rounded-none bg-[#0A0A0A] text-[#FAF9F5] hover:bg-[#E61919]" onClick={close} data-testid="blocking-action-ok-btn">
                   OK
                 </Button>
               </div>
@@ -415,10 +415,10 @@ export function BlockingActionModal() {
           {/* 3. ERROR STATE (RFC 7807 Verbatim Surfacing) */}
           {status === 'error' && error && (
             <div className="space-y-4">
-              <div className="flex items-start justify-between gap-3 border-b border-[#f1f5f9] pb-3">
+              <div className="flex items-start justify-between gap-3 border-b border-[#0A0A0A] pb-3">
                 <div className="flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5 text-red-600 shrink-0" />
-                  <DialogPrimitive.Title className="text-base font-semibold text-[#1e293b]">
+                  <AlertCircle className="h-5 w-5 text-[#E61919] shrink-0" />
+                  <DialogPrimitive.Title className="text-base font-extrabold uppercase tracking-tight text-[#0A0A0A]">
                     {error.title || 'Action Failed'}
                   </DialogPrimitive.Title>
                 </div>
@@ -427,7 +427,7 @@ export function BlockingActionModal() {
                   <Badge
                     variant="destructive"
                     data-testid="error-code-badge"
-                    className="font-mono text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 shrink-0"
+                    className="font-mono text-xs font-bold uppercase tracking-wider px-2 py-0.5 shrink-0 rounded-none bg-[#E61919] text-[#FAF9F5]"
                   >
                     {error.code}
                   </Badge>
@@ -435,10 +435,10 @@ export function BlockingActionModal() {
               </div>
 
               {/* Body message container displaying error.detail verbatim */}
-              <div className="rounded-lg bg-red-50/60 border border-red-200/80 p-3.5">
+              <div className="rounded-none bg-[#E61919]/10 border border-[#E61919] p-3.5">
                 <p
                   data-testid="error-detail-body"
-                  className="text-sm text-red-950 font-medium leading-relaxed break-words whitespace-pre-wrap"
+                  className="text-xs font-mono text-[#E61919] font-medium leading-relaxed break-words whitespace-pre-wrap"
                 >
                   {error.detail}
                 </p>
@@ -446,17 +446,18 @@ export function BlockingActionModal() {
 
               {/* Technical context for status code */}
               {error.status && (
-                <div className="text-xs text-[#94a3b8] flex justify-between px-1">
+                <div className="text-xs font-mono text-[#4A4945] flex justify-between px-1">
                   <span>HTTP Status: {error.status}</span>
                   {error.code && <span>Code: {error.code}</span>}
                 </div>
               )}
 
               {/* Recovery Action Buttons */}
-              <div className="flex items-center justify-end gap-2 pt-2">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#0A0A0A]">
                 <Button
                   variant="outline"
                   size="sm"
+                  className="text-xs font-mono uppercase tracking-wider rounded-none border border-[#0A0A0A] bg-[#FAF9F5] hover:bg-[#EAE8E3] text-[#0A0A0A]"
                   data-testid="error-dismiss-btn"
                   onClick={() => {
                     if (onDismiss) onDismiss();
@@ -469,6 +470,7 @@ export function BlockingActionModal() {
                   <Button
                     variant="default"
                     size="sm"
+                    className="text-xs font-mono uppercase tracking-wider font-bold rounded-none bg-[#0A0A0A] text-[#FAF9F5] hover:bg-[#E61919]"
                     data-testid="error-retry-btn"
                     onClick={async () => {
                       close();

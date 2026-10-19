@@ -116,7 +116,7 @@ export function PrintPreviewModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
-        className="max-w-4xl max-h-[92vh] overflow-y-auto p-0 rounded-xl bg-slate-100 print:p-0 print:m-0 print:max-w-none print:max-h-none print:w-full print:static print:transform-none print:border-none print:shadow-none print:overflow-visible print:bg-white print:rounded-none"
+        className="max-w-4xl max-h-[92vh] overflow-y-auto p-0 rounded-none border-2 border-[#0A0A0A] bg-[#FAF9F5] shadow-[4px_4px_0px_#0A0A0A] print:p-0 print:m-0 print:max-w-none print:max-h-none print:w-full print:static print:transform-none print:border-none print:shadow-none print:overflow-visible print:bg-white print:rounded-none"
         data-testid="print-preview-modal"
       >
         {/* Dedicated Print Stylesheet: authentic prototype print fidelity */}
@@ -227,16 +227,16 @@ export function PrintPreviewModal({
           }
         `}</style>
 
-        <DialogHeader className="p-4 bg-white border-b border-slate-200 sticky top-0 z-10 flex flex-row items-center justify-between print:hidden">
+        <DialogHeader className="p-4 bg-[#EAE8E3] border-b-2 border-[#0A0A0A] sticky top-0 z-10 flex flex-row items-center justify-between print:hidden">
           <div>
-            <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Printer className="w-4 h-4 text-blue-600" />
+            <DialogTitle className="text-base font-bold text-[#0A0A0A] flex items-center gap-2 font-mono">
+              <Printer className="w-4 h-4 text-[#0A0A0A]" />
               <span>Print Document Preview</span>
-              <Badge variant="outline" className="text-xs">
+              <Badge variant="outline" className="text-xs rounded-none border-[#0A0A0A] font-mono">
                 {invoice.invoice_number}
               </Badge>
             </DialogTitle>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-[#4A4945] font-mono">
               On-screen rendering of official document layout. Click &quot;Print Document&quot; to print.
             </p>
           </div>
@@ -246,7 +246,7 @@ export function PrintPreviewModal({
               variant="outline"
               size="sm"
               onClick={handleDownloadPdf}
-              className="text-xs h-8 gap-1.5 cursor-pointer"
+              className="text-xs h-8 gap-1.5 cursor-pointer rounded-none border-[#0A0A0A] bg-[#FAF9F5] hover:bg-[#EAE8E3] text-[#0A0A0A] font-mono"
               data-testid="download-pdf-button"
             >
               <Download className="w-3.5 h-3.5" />
@@ -254,7 +254,7 @@ export function PrintPreviewModal({
             </Button>
             <Button
               onClick={handlePrint}
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 gap-1.5 shadow-xs cursor-pointer"
+              className="bg-[#0A0A0A] hover:bg-[#262626] text-[#FAF9F5] text-xs h-8 gap-1.5 shadow-none cursor-pointer rounded-none font-mono"
               data-testid="print-document-button"
             >
               <Printer className="w-3.5 h-3.5" />
@@ -266,14 +266,14 @@ export function PrintPreviewModal({
         {/* Success Banner if address updated */}
         {addressSuccessMessage && (
           <div
-            className="mx-6 mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between text-xs text-emerald-800 print:hidden"
+            className="mx-6 mt-4 p-3 bg-[#EAE8E3] border border-[#0A0A0A] rounded-none flex items-center justify-between text-xs text-[#0A0A0A] font-mono print:hidden"
             data-testid="address-update-success-banner"
           >
             <span>{addressSuccessMessage}</span>
             <button
               type="button"
               onClick={() => setAddressSuccessMessage(null)}
-              className="text-emerald-600 hover:text-emerald-800"
+              className="text-[#4A4945] hover:text-[#0A0A0A]"
             >
               <X className="w-4 h-4" />
             </button>

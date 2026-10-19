@@ -143,29 +143,32 @@ export default function TransmittalsPage() {
   const deleteTargetTransmittal = transmittals.find((t) => t.id === deleteTargetId) || null;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6" data-testid="transmittals-page">
-      {/* 1. Page Header & Breadcrumbs */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="w-full space-y-6" data-testid="transmittals-page">
+      {/* 1. Blueprint Module Header */}
+      <div className="border-b-2 border-[#0A0A0A] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <div className="text-xs font-medium text-slate-500 flex items-center gap-1.5 pb-1">
+          <nav
+            aria-label="Breadcrumb"
+            className="font-mono text-xs uppercase tracking-wider text-[#4A4945] flex items-center gap-1.5 pb-1"
+          >
             <span>Modules</span>
-            <span>/</span>
-            <span className="text-slate-900 font-semibold">Transmittals</span>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
-            <Send className="h-6 w-6 text-blue-600" />
+            <span aria-hidden="true">/</span>
+            <span className="text-[#0A0A0A] font-semibold">Transmittals</span>
+          </nav>
+          <h1 className="text-2xl font-extrabold tracking-tight text-[#0A0A0A] flex items-center gap-2">
+            <Send className="h-6 w-6 text-[#0A0A0A]" />
             Document Transmittals
           </h1>
-          <p className="text-xs text-slate-500 pt-0.5">
+          <p className="text-xs sm:text-sm text-[#4A4945] pt-0.5">
             Document manifests, courier dispatch manifests, dual-path approval, and receipt tracking.
           </p>
         </div>
 
         {/* Header Controls: Entity Switcher & Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
           {/* Active Entity Toggle */}
           <div
-            className="flex items-center p-0.5 bg-slate-100 rounded-lg border border-slate-200"
+            className="flex items-center bg-[#EAE8E3] p-0 rounded-none border border-[#0A0A0A] divide-x divide-[#0A0A0A]"
             data-testid="transmittals-entity-toggle"
           >
             {(['ATA', 'LTA', 'ALL'] as const).map((ent) => (
@@ -173,14 +176,10 @@ export default function TransmittalsPage() {
                 key={ent}
                 type="button"
                 onClick={() => setActiveEntity(ent as EntityCode)}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                className={`px-3 py-1.5 rounded-none font-mono text-xs transition-colors cursor-pointer ${
                   activeEntity === ent
-                    ? ent === 'ATA'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : ent === 'LTA'
-                        ? 'bg-slate-700 text-white shadow-xs'
-                        : 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-[#0A0A0A] text-[#FAF9F5] font-semibold'
+                    : 'text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] font-medium'
                 }`}
                 data-testid={`entity-btn-${ent.toLowerCase()}`}
               >
@@ -198,7 +197,7 @@ export default function TransmittalsPage() {
                 setFormEditTarget(null);
                 setIsFormModalOpen(true);
               }}
-              className="text-xs font-semibold gap-1.5 bg-blue-600 hover:bg-blue-700 text-white"
+              className="text-xs font-mono font-semibold uppercase tracking-wider gap-1.5 bg-[#0A0A0A] hover:bg-[#222220] text-[#FAF9F5] rounded-none border border-[#0A0A0A] h-9 shadow-none cursor-pointer"
               data-testid="new-transmittal-btn"
             >
               <Plus className="h-4 w-4" /> New Transmittal
@@ -207,73 +206,73 @@ export default function TransmittalsPage() {
         </div>
       </div>
 
-      {/* 2. Metric Summary KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="p-3.5 bg-white rounded-lg border border-slate-200 shadow-xs space-y-1">
-          <div className="flex items-center justify-between text-xs text-slate-500">
+      {/* 2. Metric Summary KPI Cards (Blueprint Telemetry Matrix) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-[#0A0A0A] border border-[#0A0A0A]">
+        <div className="p-3.5 bg-[#FAF9F5] space-y-1">
+          <div className="flex items-center justify-between text-xs font-mono uppercase tracking-wider text-[#4A4945]">
             <span>Active Manifests</span>
-            <Layers className="h-4 w-4 text-slate-400" />
+            <Layers className="h-4 w-4 text-[#4A4945]" />
           </div>
-          <div className="text-xl font-bold text-slate-900" data-testid="kpi-active-count">
+          <div className="text-xl font-bold font-mono tabular-nums text-[#0A0A0A]" data-testid="kpi-active-count">
             {activeCount}
           </div>
         </div>
 
-        <div className="p-3.5 bg-white rounded-lg border border-slate-200 shadow-xs space-y-1">
-          <div className="flex items-center justify-between text-xs text-slate-500">
+        <div className="p-3.5 bg-[#FAF9F5] space-y-1">
+          <div className="flex items-center justify-between text-xs font-mono uppercase tracking-wider text-[#4A4945]">
             <span>Drafts</span>
-            <Clock className="h-4 w-4 text-amber-500" />
+            <Clock className="h-4 w-4 text-[#4A4945]" />
           </div>
-          <div className="text-xl font-bold text-slate-800" data-testid="kpi-draft-count">
+          <div className="text-xl font-bold font-mono tabular-nums text-[#0A0A0A]" data-testid="kpi-draft-count">
             {draftCount}
           </div>
         </div>
 
-        <div className="p-3.5 bg-white rounded-lg border border-slate-200 shadow-xs space-y-1">
-          <div className="flex items-center justify-between text-xs text-slate-500">
+        <div className="p-3.5 bg-[#FAF9F5] space-y-1">
+          <div className="flex items-center justify-between text-xs font-mono uppercase tracking-wider text-[#4A4945]">
             <span>In Transit / Sent</span>
-            <Send className="h-4 w-4 text-blue-500" />
+            <Send className="h-4 w-4 text-[#4A4945]" />
           </div>
-          <div className="text-xl font-bold text-blue-700" data-testid="kpi-sent-count">
+          <div className="text-xl font-bold font-mono tabular-nums text-[#0A0A0A]" data-testid="kpi-sent-count">
             {sentCount}
           </div>
         </div>
 
-        <div className="p-3.5 bg-white rounded-lg border border-slate-200 shadow-xs space-y-1">
-          <div className="flex items-center justify-between text-xs text-slate-500">
+        <div className="p-3.5 bg-[#FAF9F5] space-y-1">
+          <div className="flex items-center justify-between text-xs font-mono uppercase tracking-wider text-[#4A4945]">
             <span>Acknowledged</span>
-            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+            <CheckCircle2 className="h-4 w-4 text-[#4A4945]" />
           </div>
-          <div className="text-xl font-bold text-emerald-700" data-testid="kpi-acknowledged-count">
+          <div className="text-xl font-bold font-mono tabular-nums text-[#0A0A0A]" data-testid="kpi-acknowledged-count">
             {ackCount}
           </div>
         </div>
       </div>
 
       {/* 3. Navigation Tabs and View Switcher Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-slate-200 pb-3">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-[#0A0A0A] pb-0">
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full sm:w-auto">
-          <TabsList className="bg-slate-100 p-1 rounded-lg" data-testid="transmittal-tabs">
+          <TabsList className="w-full sm:w-auto justify-start rounded-none bg-[#EAE8E3] p-0 border-0 gap-0 h-auto overflow-x-auto scrollbar-none flex flex-nowrap" data-testid="transmittal-tabs">
             <TabsTrigger
               value="active"
-              className="text-xs font-semibold gap-1.5 data-[state=active]:bg-white"
+              className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
               data-testid="tab-active"
             >
               <Layers className="h-3.5 w-3.5" />
               Active Transmittals
-              <Badge variant="secondary" className="text-[10px] py-0 px-1 font-bold ml-1">
+              <Badge variant="secondary" className="text-xs font-mono py-0 px-1.5 rounded-none border border-[#C8C5BC] bg-[#EAE8E3] text-[#0A0A0A] font-bold ml-1.5">
                 {activeCount}
               </Badge>
             </TabsTrigger>
 
             <TabsTrigger
               value="archived"
-              className="text-xs font-semibold gap-1.5 data-[state=active]:bg-white"
+              className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
               data-testid="tab-archived"
             >
               <Archive className="h-3.5 w-3.5" />
               Archived
-              <Badge variant="secondary" className="text-[10px] py-0 px-1 font-bold ml-1">
+              <Badge variant="secondary" className="text-xs font-mono py-0 px-1.5 rounded-none border border-[#C8C5BC] bg-[#EAE8E3] text-[#0A0A0A] font-bold ml-1.5">
                 {archivedCount}
               </Badge>
             </TabsTrigger>
@@ -286,7 +285,7 @@ export default function TransmittalsPage() {
           onChange={(m) => handleViewChange(m as 'kanban' | 'table')}
           availableModes={['kanban', 'table']}
           testIdPrefix="view-toggle"
-          className="self-end sm:self-auto"
+          className="self-end sm:self-auto mb-2 sm:mb-0"
         />
       </div>
 

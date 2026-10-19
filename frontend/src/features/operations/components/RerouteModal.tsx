@@ -79,17 +79,17 @@ export function RerouteModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md p-6 space-y-4" data-testid="reroute-modal">
+      <DialogContent className="max-w-md p-6 space-y-4 rounded-none border-2 border-[#0A0A0A] bg-[#FAF9F5] shadow-[4px_4px_0px_#0A0A0A]" data-testid="reroute-modal">
         <DialogHeader>
           <div className="flex items-center gap-2">
-            <div className="p-2 bg-amber-50 rounded-full text-amber-600">
+            <div className="p-2 bg-[#EAE8E3] border border-[#0A0A0A] rounded-none text-[#0A0A0A]">
               <RotateCcw className="h-5 w-5" />
             </div>
             <div>
-              <DialogTitle className="text-base font-bold text-slate-900">
+              <DialogTitle className="text-base font-extrabold tracking-tight text-[#0A0A0A]">
                 Reroute Work Request
               </DialogTitle>
-              <DialogDescription className="text-xs text-slate-600 pt-0.5">
+              <DialogDescription className="text-xs font-mono text-[#4A4945] pt-0.5">
                 Return this engagement from QA back to an earlier phase. Only tasks marked as failed will be reopened.
               </DialogDescription>
             </div>
@@ -99,21 +99,21 @@ export function RerouteModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Target Phase Selection */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700">
+            <label className="text-xs font-mono uppercase tracking-wider text-[#4A4945]">
               Return to Phase *
             </label>
             <Select
               value={toPhase}
               onValueChange={(val) => setToPhase(val as 'pre_processing' | 'processing')}
             >
-              <SelectTrigger className="w-full h-9 bg-white text-xs" data-testid="reroute-to-phase-select">
+              <SelectTrigger className="w-full h-9 bg-[#FAF9F5] border border-[#0A0A0A] rounded-none font-mono text-xs text-[#0A0A0A]" data-testid="reroute-to-phase-select">
                 <SelectValue placeholder="Select target phase" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="processing" className="text-xs">
+              <SelectContent className="rounded-none border border-[#0A0A0A] bg-[#FAF9F5]">
+                <SelectItem value="processing" className="text-xs font-mono">
                   Processing (Phase 2)
                 </SelectItem>
-                <SelectItem value="pre_processing" className="text-xs">
+                <SelectItem value="pre_processing" className="text-xs font-mono">
                   Pre-processing (Phase 1)
                 </SelectItem>
               </SelectContent>
@@ -121,21 +121,21 @@ export function RerouteModal({
           </div>
 
           {/* Reopened Tasks Summary */}
-          <div className="space-y-1.5 bg-slate-50 border border-slate-200 rounded-md p-3">
-            <div className="flex items-center justify-between text-xs font-medium text-slate-700">
+          <div className="space-y-1.5 bg-[#EAE8E3] border border-[#0A0A0A] rounded-none p-3">
+            <div className="flex items-center justify-between text-xs font-mono font-medium text-[#0A0A0A]">
               <span className="flex items-center gap-1.5">
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                <AlertTriangle className="h-3.5 w-3.5 text-[#0A0A0A]" />
                 Tasks to be Reopened ({failedTasks.length})
               </span>
               {failedTasks.length > 0 && (
-                <Badge variant="destructive" size="compact" data-testid="reroute-failed-badge">
+                <Badge variant="destructive" size="compact" className="rounded-none font-mono text-xs" data-testid="reroute-failed-badge">
                   {failedTasks.length} Failed
                 </Badge>
               )}
             </div>
 
             {failedTasks.length === 0 ? (
-              <p className="text-[11px] text-slate-500 italic pt-1">
+              <p className="text-xs font-mono text-[#4A4945] italic pt-1">
                 No tasks currently marked failed. (Mark failing tasks with QA controls before rerouting).
               </p>
             ) : (
@@ -143,10 +143,10 @@ export function RerouteModal({
                 {failedTasks.map((t) => (
                   <li
                     key={t.id}
-                    className="text-xs text-slate-800 flex items-center justify-between py-0.5 border-b border-slate-100 last:border-none"
+                    className="text-xs font-mono text-[#0A0A0A] flex items-center justify-between py-1 border-b border-[#C8C5BC] last:border-none"
                   >
                     <span className="truncate pr-2">{t.title}</span>
-                    <Badge variant="destructive" size="compact" className="text-[10px]">
+                    <Badge variant="destructive" size="compact" className="rounded-none font-mono text-xs">
                       Reopen
                     </Badge>
                   </li>
@@ -157,9 +157,9 @@ export function RerouteModal({
 
           {/* Audit Reason Textarea */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+            <label className="text-xs font-mono uppercase tracking-wider text-[#4A4945] flex items-center justify-between">
               <span>Audit Rationale (Required) *</span>
-              <span className="text-[10px] text-slate-400 font-normal">
+              <span className="text-xs font-mono text-[#4A4945] normal-case">
                 Dispatched to task assignees
               </span>
             </label>
@@ -171,15 +171,15 @@ export function RerouteModal({
               }}
               placeholder="Detail the QA compliance failure or required corrections..."
               rows={3}
-              className={`w-full text-xs p-2.5 border rounded-md bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 ${
+              className={`w-full text-xs font-mono p-2.5 border rounded-none bg-[#FAF9F5] text-[#0A0A0A] placeholder:text-[#4A4945] focus:outline-none focus:ring-1 ${
                 error
-                  ? 'border-red-500 focus:ring-red-500'
-                  : 'border-slate-300 focus:ring-blue-500'
+                  ? 'border-[#E61919] focus:ring-[#E61919]'
+                  : 'border-[#0A0A0A] focus:ring-[#0A0A0A]'
               }`}
               data-testid="reroute-reason-input"
             />
             {error && (
-              <p className="text-[11px] text-red-600 flex items-center gap-1" data-testid="reroute-reason-error">
+              <p className="text-xs font-mono text-[#E61919] flex items-center gap-1" data-testid="reroute-reason-error">
                 <AlertCircle className="h-3 w-3 shrink-0" />
                 <span>{error}</span>
               </p>
@@ -192,15 +192,14 @@ export function RerouteModal({
               variant="outline"
               size="sm"
               onClick={onClose}
-              className="text-xs"
+              className="rounded-none border border-[#0A0A0A] text-[#0A0A0A] hover:bg-[#EAE8E3] font-mono text-xs uppercase tracking-wider"
             >
               Cancel
             </Button>
             <Button
               type="submit"
               size="sm"
-              variant="destructive"
-              className="text-xs font-semibold gap-1.5"
+              className="rounded-none bg-[#E61919] text-[#FAF9F5] hover:bg-[#0A0A0A] font-mono text-xs uppercase tracking-wider gap-1.5"
               data-testid="confirm-reroute-btn"
             >
               <RotateCcw className="h-3.5 w-3.5" />

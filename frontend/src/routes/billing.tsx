@@ -100,29 +100,32 @@ export default function BillingPage() {
   const archivedCount = invoiceCounts?.archived ?? 0;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6" data-testid="billing-page">
-      {/* 1. Page Header & Breadcrumbs */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="w-full space-y-6" data-testid="billing-page">
+      {/* 1. Blueprint Module Header */}
+      <div className="border-b-2 border-[#0A0A0A] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <div className="text-xs font-medium text-slate-500 flex items-center gap-1.5 pb-1">
+          <nav
+            aria-label="Breadcrumb"
+            className="font-mono text-xs uppercase tracking-wider text-[#4A4945] flex items-center gap-1.5 pb-1"
+          >
             <span>Modules</span>
-            <span>/</span>
-            <span className="text-slate-900 font-semibold">Billing</span>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
-            <Receipt className="w-6 h-6 text-blue-600" />
-            <span>Billing, Invoicing & Collections</span>
+            <span aria-hidden="true">/</span>
+            <span className="text-[#0A0A0A] font-semibold">Billing</span>
+          </nav>
+          <h1 className="text-2xl font-extrabold tracking-tight text-[#0A0A0A] flex items-center gap-2">
+            <Receipt className="w-6 h-6 text-[#0A0A0A]" />
+            <span>Billing, Invoicing &amp; Collections</span>
           </h1>
-          <p className="text-xs text-slate-500 pt-0.5">
+          <p className="text-xs sm:text-sm text-[#4A4945] pt-0.5">
             Manage invoice drafting, client statements of account, accounts receivable aging, and collections.
           </p>
         </div>
 
         {/* Header Controls: Entity Switcher & Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
           {/* Active Entity Toggle */}
           <div
-            className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200"
+            className="flex items-center bg-[#EAE8E3] p-0 rounded-none border border-[#0A0A0A] divide-x divide-[#0A0A0A]"
             data-testid="entity-switcher"
           >
             {(['ATA', 'LTA', 'ALL'] as const).map((ent) => (
@@ -130,10 +133,10 @@ export default function BillingPage() {
                 key={ent}
                 type="button"
                 onClick={() => setActiveEntity(ent)}
-                className={`px-3 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-none font-mono text-xs transition-colors cursor-pointer ${
                   activeEntity === ent
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-900'
+                    ? 'bg-[#0A0A0A] text-[#FAF9F5] font-semibold'
+                    : 'text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] font-medium'
                 }`}
                 data-testid={`entity-btn-${ent.toLowerCase()}`}
               >
@@ -146,7 +149,7 @@ export default function BillingPage() {
           {canCreate && (
             <Button
               onClick={() => setIsCreateModalOpen(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 gap-1.5 shadow-xs cursor-pointer"
+              className="bg-[#0A0A0A] hover:bg-[#222220] text-[#FAF9F5] text-xs font-mono font-semibold uppercase tracking-wider rounded-none border border-[#0A0A0A] h-9 gap-1.5 shadow-none cursor-pointer"
               data-testid="header-create-invoice-button"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -158,16 +161,16 @@ export default function BillingPage() {
 
       {/* 2. Main Module Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-        <TabsList className="bg-slate-100 p-1 border border-slate-200 rounded-xl">
+        <TabsList className="w-full justify-start rounded-none bg-[#EAE8E3] p-0 border border-[#0A0A0A] border-b-2 gap-0 h-auto overflow-x-auto scrollbar-none flex flex-nowrap">
           <TabsTrigger
             value="invoices"
-            className="text-xs gap-1.5 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-xs rounded-lg cursor-pointer"
+            className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-trigger-invoices"
           >
             <FileText className="w-3.5 h-3.5" />
             <span>Invoices</span>
             {activeCount > 0 && (
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+              <Badge variant="secondary" className="text-xs font-mono px-1.5 py-0 h-4 ml-1.5 rounded-none border border-[#C8C5BC] bg-[#EAE8E3] text-[#0A0A0A]">
                 {activeCount}
               </Badge>
             )}
@@ -175,7 +178,7 @@ export default function BillingPage() {
 
           <TabsTrigger
             value="aging"
-            className="text-xs gap-1.5 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-xs rounded-lg cursor-pointer"
+            className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-trigger-aging"
           >
             <TrendingUp className="w-3.5 h-3.5" />
@@ -184,13 +187,13 @@ export default function BillingPage() {
 
           <TabsTrigger
             value="archive"
-            className="text-xs gap-1.5 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-xs rounded-lg cursor-pointer"
+            className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-trigger-archive"
           >
             <Archive className="w-3.5 h-3.5" />
             <span>Archive</span>
             {archivedCount > 0 && (
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+              <Badge variant="secondary" className="text-xs font-mono px-1.5 py-0 h-4 ml-1.5 rounded-none border border-[#C8C5BC] bg-[#EAE8E3] text-[#0A0A0A]">
                 {archivedCount}
               </Badge>
             )}

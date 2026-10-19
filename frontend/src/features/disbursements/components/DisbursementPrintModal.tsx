@@ -128,19 +128,19 @@ export function DisbursementPrintModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
-        className="max-w-4xl max-h-[92vh] overflow-y-auto p-0 rounded-xl bg-slate-100"
+        className="max-w-4xl max-h-[92vh] overflow-y-auto p-0 rounded-none border-2 border-[#0A0A0A] bg-[#FAF9F5] shadow-[4px_4px_0px_#0A0A0A]"
         data-testid="disbursement-print-modal"
       >
-        <DialogHeader className="p-4 bg-white border-b border-slate-200 sticky top-0 z-10 flex flex-row items-center justify-between">
+        <DialogHeader className="p-4 bg-[#EAE8E3] border-b-2 border-[#0A0A0A] sticky top-0 z-10 flex flex-row items-center justify-between font-mono">
           <div>
-            <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Printer className="w-4 h-4 text-blue-600" />
+            <DialogTitle className="text-base font-bold text-[#0A0A0A] flex items-center gap-2">
+              <Printer className="w-4 h-4 text-[#0A0A0A]" />
               <span>Payment Voucher / Expense Report Preview</span>
-              <Badge variant="outline" className="text-xs">
+              <Badge variant="outline" className="text-xs rounded-none border-[#0A0A0A] font-mono">
                 {refNumber}
               </Badge>
             </DialogTitle>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-[#4A4945]">
               Official payment authorization sheet. Click &quot;Print Document&quot; to print.
             </p>
           </div>
@@ -148,7 +148,7 @@ export function DisbursementPrintModal({
           <div className="flex items-center gap-2 pr-8">
             <Button
               onClick={handlePrint}
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8 gap-1.5 shadow-xs cursor-pointer"
+              className="bg-[#0A0A0A] hover:bg-[#262626] text-[#FAF9F5] text-xs h-8 gap-1.5 shadow-none cursor-pointer rounded-none font-mono"
               data-testid="print-disbursement-button"
             >
               <Printer className="w-3.5 h-3.5" />
@@ -419,12 +419,12 @@ export function DisbursementPrintModal({
           </div>
         </div>
 
-        <DialogFooter className="p-3 border-t bg-slate-50 flex items-center justify-end">
+        <DialogFooter className="p-3 border-t-2 border-[#0A0A0A] bg-[#EAE8E3] flex items-center justify-end font-mono">
           <Button
             size="sm"
             variant="outline"
             onClick={onClose}
-            className="h-8 text-xs cursor-pointer"
+            className="h-8 text-xs cursor-pointer rounded-none border border-[#0A0A0A] bg-[#FAF9F5] hover:bg-[#E4E2DC] text-[#0A0A0A]"
             data-testid="close-disbursement-print-button"
           >
             Close
