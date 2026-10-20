@@ -91,6 +91,9 @@ it.each([
     if (hasLogo) expect(html).toContain('data:image/jpeg;base64,');
     expect(html).toContain('Expense Report');
     expect(html).toContain('Payment Voucher');
+    expect(html).not.toContain('THANK YOU');
+    expect(html).not.toContain('Official Internal Payment Authorization');
+    expect(html).not.toContain('voucher-footer');
     expect(html).toContain('2026-10-15');
     expect(html).toContain('CHK-123');
     expect(html).toContain('@page { size: A4; margin: 15mm 20mm; }');
