@@ -1,3 +1,5 @@
+import { PRINT_PAGE_CSS, wrapPrintPage } from './printPage';
+
 /** Canonical expense report used by preview, print, and the equivalent backend PDF renderer. */
 export interface DisbursementPrintDetails {
   requesterName?: string;
@@ -146,10 +148,7 @@ export function disbursementAmountInWords(amount: number): string {
   const whole = Math.floor(cents / 100);
   return `${convert(whole) || 'Zero'} Pesos${cents % 100 ? ' and ' + convert(cents % 100) + ' Centavos' : ''} Only`.toUpperCase();
 }
-export const DISBURSEMENT_PAGE_CSS = `@page { size: A4; margin: 15mm 20mm;
-  @top-left { content: ""; } @top-center { content: ""; } @top-right { content: ""; }
-  @bottom-left { content: ""; } @bottom-center { content: ""; } @bottom-right { content: ""; }
-}`;
+export const DISBURSEMENT_PAGE_CSS = `@page { size: A4; margin: 15mm 20mm; }`;
 export const DISBURSEMENT_DOCUMENT_CSS = `
 .disbursement-document { font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.5; color: #111; background: white; }
 .disbursement-document * { box-sizing: border-box; }
@@ -182,8 +181,6 @@ export const DISBURSEMENT_DOCUMENT_CSS = `
 .disbursement-document .voucher-signature { flex: 1; text-align: center; padding-top: 45px; min-width: 0; }
 .disbursement-document .voucher-signature-name { min-height: 24px; padding-top: 6px; border-top: 1px solid #111; font-weight: 700; text-transform: uppercase; overflow-wrap: anywhere; }
 .disbursement-document .voucher-signature-label { font-size: 9pt; }
-.disbursement-document .voucher-footer { margin-top: 35px; padding-top: 12px; border-top: 1px solid #bbb; text-align: center; font-size: 8pt; }
-.disbursement-document .voucher-footer strong { display: block; font-size: 11pt; margin-bottom: 4px; }
 .disbursement-document .voucher-meta, .disbursement-document .voucher-totals { break-inside: avoid; }
 `;
 export function buildDisbursementDocument(
@@ -211,8 +208,7 @@ export function buildDisbursementDocument(
   <div class="voucher-totals"><section class="voucher-box"><span class="voucher-label">Amount in Words</span><p data-testid="amount-in-words">${esc(disbursementAmountInWords(d.amount))}</p></section><section class="voucher-total"><strong>Total Amount:</strong><div>PHP <span class="voucher-total-amount" data-testid="disbursement-total-amount">${esc(formatAmount(d.amount))}</span></div></section></div>
   <section class="voucher-box voucher-payment"><h4 class="voucher-label">Payment Details</h4><div class="voucher-payment-fields">${payment('Date:', details.paymentDate)}${payment('Method:', details.paymentMethod)}${payment('Check/Ref No.:', details.paymentReference)}${payment('Bank/Branch:', details.paymentBank)}</div></section>
   ${d.notes ? `<section class="voucher-notes"><strong>Notes:</strong><p>${esc(d.notes)}</p></section>` : ''}
-  <div class="voucher-signatures" data-testid="signatures-section">${signature('Prepared By', details.preparedBy, 'sig-prepared-by')}${signature('Approved By', details.approvedBy, 'sig-approved-by')}${signature('Released By', details.releasedBy, 'sig-released-by')}</div>
-  <footer class="voucher-footer"><strong>THANK YOU !!!</strong>${includeCompany ? `${esc(company)} • ` : ''}Official Internal Payment Authorization</footer>`;
+  <div class="voucher-signatures" data-testid="signatures-section">${signature('Prepared By', details.preparedBy, 'sig-prepared-by')}${signature('Approved By', details.approvedBy, 'sig-approved-by')}${signature('Released By', details.releasedBy, 'sig-released-by')}</div>`;
 }
 export function printDisbursementDocument(
   d: DisbursementDocumentData,
@@ -222,7 +218,7 @@ export function printDisbursementDocument(
   if (!w) return;
   w.document.open();
   w.document.write(
-    `<!doctype html><html><head><meta charset="utf-8"><title>Expense Report ${esc(d.disbursement_number || d.id)}</title><style>${DISBURSEMENT_PAGE_CSS}${DISBURSEMENT_DOCUMENT_CSS}body { margin: 0; }</style></head><body><main class="disbursement-document">${buildDisbursementDocument(d, options)}</main></body></html>`
+    `<!doctype html><html><head><meta charset="utf-8"><title>Expense Report ${esc(d.disbursement_number || d.id)}</title><style>${DISBURSEMENT_PAGE_CSS}${DISBURSEMENT_DOCUMENT_CSS}${PRINT_PAGE_CSS}body { margin: 0; }</style></head><body>${wrapPrintPage(`<main class="disbursement-document">${buildDisbursementDocument(d, options)}</main>`)}</body></html>`
   );
   w.document.close();
   w.focus();

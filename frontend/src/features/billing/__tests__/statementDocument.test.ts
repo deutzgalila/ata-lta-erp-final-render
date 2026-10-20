@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { PRINT_PAGE_CSS, wrapPrintPage } from '@/lib/printPage';
 import {
   buildStatementDocument,
   printStatementDocument,
@@ -31,6 +32,10 @@ describe('Canonical statement rendering', () => {
         { ...invoice, entity_code: entity },
         { includeCompanyDetails: false }
       );
+      for (const html of [branded, plain]) {
+        expect(html).not.toMatch(/Should you have any (?:enquiries|inquiries)/i);
+        expect(html).toContain('THANK YOU !!!');
+      }
       expect(branded).toContain(`${entity}-LOGO.jpg`);
       expect(plain).not.toContain('<img');
       expect(plain).not.toContain('BUSINESS CONSULTANCY');
@@ -55,7 +60,7 @@ describe('Canonical statement rendering', () => {
     expect(html).not.toContain('HENRY WONG');
     expect(html).not.toContain('No address provided');
   });
-  it('prints the exact same document body with padding and blank page corner boxes', () => {
+  it('prints the same document with no browser header/footer space and padding on every page', () => {
     const write = vi.fn();
     vi.spyOn(window, 'open').mockReturnValue({
       document: { open: vi.fn(), write, close: vi.fn() },
@@ -67,10 +72,11 @@ describe('Canonical statement rendering', () => {
     );
     printStatementDocument(invoice, { includeCompanyDetails: false });
     expect(write.mock.calls[0]![0]).toContain(
-      buildStatementDocument(invoice, { includeCompanyDetails: false })
+      wrapPrintPage(buildStatementDocument(invoice, { includeCompanyDetails: false }))
     );
-    expect(STATEMENT_CSS).toContain('margin: 15mm 20mm');
-    for (const corner of ['top-left', 'top-right', 'bottom-left', 'bottom-right'])
-      expect(STATEMENT_CSS).toContain(`@${corner} { content: ""; }`);
+    expect(write.mock.calls[0]![0]).toContain(STATEMENT_CSS + PRINT_PAGE_CSS);
+    expect(PRINT_PAGE_CSS).toContain('@page { size: A4; margin: 0; }');
+    expect(PRINT_PAGE_CSS).toContain('height: 15mm');
+    expect(PRINT_PAGE_CSS).toContain('padding: 0 20mm');
   });
 });
