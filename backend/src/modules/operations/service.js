@@ -397,15 +397,25 @@ const loadTaskExtras = async (taskIds, knownPredIds = null) => {
       missingClAssigneeIds.add(c.assignee_id);
     }
   });
+  (taRows || []).forEach((r) => {
+    if (r.user_id && isValidUUID(r.user_id)) {
+      missingClAssigneeIds.add(r.user_id);
+    }
+  });
+  const extraUserNameMap = new Map();
+  const extraUserRoleMap = new Map();
   if (missingClAssigneeIds.size > 0) {
     const { data: userRows } = await supabaseAdmin
       .from('users')
-      .select('id, name')
+      .select('id, name, role')
       .in('id', Array.from(missingClAssigneeIds));
-    const userNameMap = new Map((userRows || []).map((u) => [u.id, u.name]));
+    (userRows || []).forEach((u) => {
+      extraUserNameMap.set(u.id, u.name);
+      if (u.role) extraUserRoleMap.set(u.id, u.role);
+    });
     checklistRows.forEach((c) => {
       if (c.assignee_id && (!c.assignee_name || isValidUUID(c.assignee_name))) {
-        const resolved = userNameMap.get(c.assignee_id);
+        const resolved = extraUserNameMap.get(c.assignee_id);
         if (resolved) {
           c.assignee_name = resolved;
         }
@@ -435,12 +445,18 @@ const loadTaskExtras = async (taskIds, knownPredIds = null) => {
     if (!assignees.has(r.task_id)) assignees.set(r.task_id, []);
     assignees.get(r.task_id).push(r.user_id);
     if (!taskAssignees.has(r.task_id)) taskAssignees.set(r.task_id, []);
+    const resolvedName = r.user_name || extraUserNameMap.get(r.user_id) || null;
+    const resolvedRole = r.user_role || extraUserRoleMap.get(r.user_id) || null;
     taskAssignees.get(r.task_id).push({
       id: r.id,
       taskId: r.task_id,
       task_id: r.task_id,
       userId: r.user_id,
       user_id: r.user_id,
+      userName: resolvedName,
+      user_name: resolvedName,
+      userRole: resolvedRole,
+      user_role: resolvedRole,
       assignedBy: r.assigned_by || null,
       assigned_by: r.assigned_by || null,
       assignedAt: r.assigned_at || null,
