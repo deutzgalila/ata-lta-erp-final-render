@@ -237,6 +237,8 @@ export interface RawNotificationListApiResponse {
 // 3. Assigned Task for Picker
 // ============================================================================
 
+import type { Task, WorkRequest } from '@/features/operations/api/types';
+
 export interface AssignableTaskOption {
   taskId: string;
   taskTitle: string;
@@ -246,4 +248,15 @@ export interface AssignableTaskOption {
   status: string;
   phase?: string | null;
   clientName?: string | null;
+  assigneeId?: string | null;
+  assigneeName?: string | null;
+  assigneeRole?: string | null;
+  coAssigneeCount?: number;
+  dueDate?: string | null;
+  updatedAt?: string | null;
+  completedAt?: string | null;
+  priority?: string | null;
+  assigneesList?: Array<{ id: string; name: string; role?: string }>;
+  rawTask?: Task;
+  rawWorkRequest?: WorkRequest;
 }

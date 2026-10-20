@@ -189,9 +189,11 @@ describe('Dashboard Widgets (LogTimeWidget & DashboardPage)', () => {
       const stopBtn = screen.getByTestId('stop-timer-btn');
       fireEvent.click(stopBtn);
 
-      // 65 seconds rounds up to 2 minutes
+      // 65 seconds records exact 1 minute and 5 seconds
       const durationInput = screen.getByTestId('duration-minutes-input') as HTMLInputElement;
-      expect(durationInput.value).toBe('2');
+      const secondsInput = screen.getByTestId('duration-seconds-input') as HTMLInputElement;
+      expect(durationInput.value).toBe('1');
+      expect(secondsInput.value).toBe('5');
 
       vi.useRealTimers();
     });
@@ -348,6 +350,81 @@ describe('Dashboard Widgets (LogTimeWidget & DashboardPage)', () => {
         expect(screen.getByTestId('pending-tasks-empty')).toBeInTheDocument();
       });
       expect(screen.getByText('All caught up!')).toBeInTheDocument();
+      // Completed task remains visible on the calendar
+      expect(screen.getByTestId('pending-task-task-completed-1')).toBeInTheDocument();
+    });
+
+    it('color-codes completed tasks green when completed on/before due date and red when completed beyond due date or overdue', async () => {
+      vi.spyOn(api, 'apiRequest').mockImplementation(async (path: string) => {
+        if (path.includes('/operations/work-requests')) {
+          return {
+            data: [
+              {
+                id: 'wr-colors',
+                title: 'Schedule Color Rules WR',
+                tasks: [
+                  {
+                    id: 'task-completed-ontime',
+                    title: 'Completed On Time Task',
+                    assignee_id: 'user-worker',
+                    status: 'Completed',
+                    due_date: '2026-10-25',
+                    updated_at: '2026-10-20T10:00:00.000Z',
+                  },
+                  {
+                    id: 'task-completed-late',
+                    title: 'Completed Late Task',
+                    assignee_id: 'user-worker',
+                    status: 'Completed',
+                    due_date: '2026-10-15',
+                    updated_at: '2026-10-20T10:00:00.000Z',
+                  },
+                  {
+                    id: 'task-overdue-incomplete',
+                    title: 'Overdue Incomplete Task',
+                    assignee_id: 'user-worker',
+                    status: 'In Progress',
+                    due_date: '2020-01-01',
+                  },
+                  {
+                    id: 'task-no-due-date',
+                    title: 'Unscheduled Task Without Due Date',
+                    assignee_id: 'user-worker',
+                    status: 'In Progress',
+                    due_date: null,
+                  },
+                ],
+                due_date: '2020-01-01',
+              },
+            ],
+          } as never;
+        }
+        return { data: [] } as never;
+      });
+
+      render(<PendingTasksCard />, { wrapper: createWrapper() });
+
+      const onTimeCard = await screen.findByTestId('pending-task-task-completed-ontime');
+      const lateCard = await screen.findByTestId('pending-task-task-completed-late');
+      const overdueCard = await screen.findByTestId('pending-task-task-overdue-incomplete');
+      const noDueCard = await screen.findByTestId('pending-task-task-no-due-date');
+
+      // Completed on/before due date -> Green
+      expect(onTimeCard.className).toContain('bg-[#ECFDF5]');
+      expect(onTimeCard.className).toContain('border-[#10B981]');
+
+      // Completed beyond specified due date -> Red
+      expect(lateCard.className).toContain('bg-[#FFF1F2]');
+      expect(lateCard.className).toContain('border-[#F43F5E]');
+
+      // Not marked completed before due date -> Red
+      expect(overdueCard.className).toContain('bg-[#FFF1F2]');
+      expect(overdueCard.className).toContain('border-[#F43F5E]');
+
+      // Task without due date -> Dedicated Violet theme (never Red)
+      expect(noDueCard.className).toContain('bg-[#F5F3FF]');
+      expect(noDueCard.className).toContain('border-[#8B5CF6]');
+      expect(noDueCard.className).not.toContain('bg-[#FFF1F2]');
     });
   });
 });
