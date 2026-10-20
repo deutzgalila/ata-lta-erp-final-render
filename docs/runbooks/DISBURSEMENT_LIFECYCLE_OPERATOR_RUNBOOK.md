@@ -29,4 +29,4 @@ Coordinate compatible backend and frontend releases and drain old writers. Back 
 
 The receipt reservation provider still needs RESERVATION_STORE_PATH set to an absolute path on a shared durable volume across backend instances. A prior database-provider draft is separate and unmerged. Verify hosted reservation storage and private bucket access before release; localhost uses an isolated local path.
 
-Migration 69 refuses automatic destructive rollback; migration 70 retains financial read/write restrictions on down. Use a reviewed forward repair or a verified backup if recovery is required. Clearing development data for a future deployment is a separate operation and must target the explicitly chosen environment. These changes do not clear records.
+Migration 70 refuses automatic destructive rollback; migration 71 retains financial read/write restrictions on down. Use a reviewed forward repair or a verified backup if recovery is required. Clearing development data for a future deployment is a separate operation and must target the explicitly chosen environment. These changes do not clear records.

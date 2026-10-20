@@ -822,7 +822,7 @@ exports.up = (pgm) => {
   `);
 };
 
-// Reverting these columns/RPCs would discard reconciliation and audit information.
+// Reverting these columns/RPCs would discard workflow and audit information.
 // Restore a verified backup or use a separately reviewed forward migration instead.
 exports.down = () => {
   throw new Error('Disbursement lifecycle rollback requires a reviewed recovery plan; automatic destructive rollback is disabled');

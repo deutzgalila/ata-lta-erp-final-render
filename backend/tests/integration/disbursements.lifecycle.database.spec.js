@@ -8,8 +8,8 @@
  */
 
 const { Client } = require('pg');
-const migration69 = require('../../migrations/000069_disbursement_lifecycle_v2.js');
-const migration70 = require('../../migrations/000070_disbursement_read_scope.js');
+const lifecycleMigration = require('../../migrations/000070_disbursement_lifecycle_v2.js');
+const readScopeMigration = require('../../migrations/000071_disbursement_read_scope.js');
 
 const testDbUrl = process.env.DISBURSEMENT_TEST_DATABASE_URL;
 const describeIfDb = testDbUrl ? describe : describe.skip;
@@ -51,7 +51,7 @@ describeIfDb('Disbursement Lifecycle PostgreSQL Database Acceptance Tests (v2)',
 
     // Guard: target database must be empty and disposable
     const checkEmpty = await db.query(`
-      SELECT table_name FROM information_schema.tables 
+      SELECT table_name FROM information_schema.tables
       WHERE table_schema = 'public' AND table_name IN ('disbursements', 'users', 'entities')
     `);
     if (checkEmpty.rows.length > 0) {
@@ -182,17 +182,17 @@ describeIfDb('Disbursement Lifecycle PostgreSQL Database Acceptance Tests (v2)',
       );
     `);
 
-    // 2. Apply migration 69
-    const sql69 = [];
-    migration69.up({ sql: (s) => sql69.push(s) });
-    for (const sql of sql69) {
+    // 2. Apply migration 70
+    const lifecycleSql = [];
+    lifecycleMigration.up({ sql: (s) => lifecycleSql.push(s) });
+    for (const sql of lifecycleSql) {
       await db.query(sql);
     }
 
-    // 3. Apply migration 70
-    const sql70 = [];
-    migration70.up({ sql: (s) => sql70.push(s) });
-    for (const sql of sql70) {
+    // 3. Apply migration 71
+    const readScopeSql = [];
+    readScopeMigration.up({ sql: (s) => readScopeSql.push(s) });
+    for (const sql of readScopeSql) {
       await db.query(sql);
     }
 
@@ -701,7 +701,7 @@ describeIfDb('Disbursement Lifecycle PostgreSQL Database Acceptance Tests (v2)',
         before.push(await createPreviousRecord({ status, receipt_filename: 'saved.pdf', receipt_s3_key: 'saved/receipt.pdf', payment_reference: 'SAVED-REF', amount: 125.25 }));
       }
       const queries = [];
-      migration69.up({ sql: (sql) => queries.push(sql) });
+      lifecycleMigration.up({ sql: (sql) => queries.push(sql) });
       for (const sql of queries) await db.query(sql);
       for (const row of before) {
         const stored = (await db.query('SELECT * FROM disbursements WHERE id=$1', [row.id])).rows[0];
@@ -728,22 +728,22 @@ describeIfDb('Disbursement Lifecycle PostgreSQL Database Acceptance Tests (v2)',
     });
   });
 
-  describe('Migration Down Safety Guards (Migrations 69 & 70)', () => {
-    it('migration 69 down refuses automatic destructive rollback', () => {
-      expect(() => migration69.down()).toThrow(
+  describe('Migration Down Safety Guards (Migrations 70 & 71)', () => {
+    it('migration 70 down refuses automatic destructive rollback', () => {
+      expect(() => lifecycleMigration.down()).toThrow(
         /Disbursement lifecycle rollback requires a reviewed recovery plan; automatic destructive rollback is disabled/
       );
     });
 
-    it('migration 70 down executes safely and preserves lifecycle read/write guards', () => {
+    it('migration 71 down executes safely and preserves lifecycle read/write guards', () => {
       const sqlList = [];
-      migration70.down({ sql: (s) => sqlList.push(s) });
+      readScopeMigration.down({ sql: (s) => sqlList.push(s) });
       expect(sqlList.length).toBe(1);
       expect(sqlList[0]).toMatch(/Security rollback intentionally preserves lifecycle read\/write guards/);
     });
   });
 
-  describe('PostgreSQL Authority Protection & RLS Privacy (Migrations 69 & 70)', () => {
+  describe('PostgreSQL Authority Protection & RLS Privacy (Migrations 70 & 71)', () => {
     it('revokes direct table writes from anon, authenticated, and PUBLIC', async () => {
       const tables = ['disbursements', 'status_history', 'users', 'entities'];
       for (const t of tables) {
