@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Wallet,
@@ -32,20 +32,52 @@ import type { EntityCode } from '@/features/disbursements/api/types';
 
 export default function DisbursementsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('tab') || 'all';
+  const rawActiveTab = searchParams.get('tab') || 'all';
 
   // Modal Visibility
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedDisbursementId, setSelectedDisbursementId] = useState<string | null>(null);
 
   // Session & RBAC
+  const user = useSessionStore((state) => state.user);
   const permissions = useSessionStore((state) => state.permissions);
   const activeEntity = useSessionStore((state) => state.activeEntity);
   const setActiveEntity = useSessionStore((state) => state.setActiveEntity);
 
+  const isAdmin = user?.role === 'Admin';
+  const isAccounting = Boolean(
+    user?.role === 'Accounting' || user?.departments?.includes('Accounting')
+  );
+  const isPrivilegedCreator = isAdmin || isAccounting;
+  const newBtnText = isPrivilegedCreator ? 'New Disbursement' : 'Request Disbursement';
+
   const canView = hasPermission(permissions, 'disbursement:view');
   const canCreate = hasPermission(permissions, 'disbursement:create');
-  const canApprove = hasPermission(permissions, 'disbursement:approve');
+
+  // Unsupported/retired tabs fall back to All; staff cannot open the action workspace.
+  const isAllowedPendingApprovals = isAdmin || isAccounting;
+  const availableTabs = [
+    'pending-approvals',
+    'all',
+    'drafts',
+    'approved',
+    'funded',
+    'released',
+    'rejected',
+    'archive',
+  ];
+  let activeTab = availableTabs.includes(rawActiveTab) ? rawActiveTab : 'all';
+  if (!isAllowedPendingApprovals && activeTab === 'pending-approvals') {
+    activeTab = 'all';
+  }
+
+  // Deep-link support from notifications or external references
+  const disbursementIdParam = searchParams.get('disbursementId');
+  useEffect(() => {
+    if (disbursementIdParam) {
+      setSelectedDisbursementId(disbursementIdParam);
+    }
+  }, [disbursementIdParam]);
 
   // Badge Counts Query
   const { data: counts } = useDisbursementCounts({ enabled: canView });
@@ -77,6 +109,10 @@ export default function DisbursementsPage() {
   const awaitingReleaseCount = counts?.awaitingRelease ?? 0;
   const rejectedCount = counts?.rejected ?? 0;
   const archivedCount = counts?.archived ?? 0;
+  const initialRequestsCount = counts?.initialRequests ?? 0;
+  const paymentReleasesCount = counts?.paymentReleases ?? 0;
+  const readyForFundingCount = counts?.readyForFunding ?? 0;
+  const needsCorrectionCount = counts?.needsCorrection ?? 0;
 
   return (
     <div className="w-full space-y-6" data-testid="disbursements-page">
@@ -96,7 +132,8 @@ export default function DisbursementsPage() {
             Disbursements &amp; Expenses
           </h1>
           <p className="text-xs sm:text-sm text-[#475569] pt-0.5">
-            Manage firm &amp; client expense vouchers, petty cash entries, approval workflows, and funds reconciliation.
+            Manage firm &amp; client expense vouchers from budget approval through payment
+            preparation and release.
           </p>
         </div>
 
@@ -133,7 +170,7 @@ export default function DisbursementsPage() {
               className="text-xs font-medium gap-1.5 bg-[#1D4ED8] hover:bg-[#1E40AF] text-[#FFFFFF] rounded-[6px] h-9 shadow-2xs cursor-pointer"
               data-testid="page-new-disbursement-btn"
             >
-              <Plus className="h-4 w-4" /> New Disbursement
+              <Plus className="h-4 w-4" /> {newBtnText}
             </Button>
           )}
         </div>
@@ -146,7 +183,10 @@ export default function DisbursementsPage() {
             <span>Active Vouchers</span>
             <Layers className="h-4 w-4 text-[#1D4ED8]" />
           </div>
-          <div className="text-2xl font-semibold tabular-nums text-[#1E293B]" data-testid="kpi-active-count">
+          <div
+            className="text-2xl font-semibold tabular-nums text-[#1E293B]"
+            data-testid="kpi-active-count"
+          >
             {activeCount}
           </div>
         </div>
@@ -156,7 +196,10 @@ export default function DisbursementsPage() {
             <span>Awaiting Release</span>
             <DollarSign className="h-4 w-4 text-[#1D4ED8]" />
           </div>
-          <div className="text-2xl font-semibold tabular-nums text-[#1E293B]" data-testid="kpi-awaiting-release-count">
+          <div
+            className="text-2xl font-semibold tabular-nums text-[#1E293B]"
+            data-testid="kpi-awaiting-release-count"
+          >
             {awaitingReleaseCount}
           </div>
         </div>
@@ -166,7 +209,10 @@ export default function DisbursementsPage() {
             <span>Rejected</span>
             <XCircle className="h-4 w-4 text-[#DC2626]" />
           </div>
-          <div className="text-2xl font-semibold tabular-nums text-[#991B1B]" data-testid="kpi-rejected-count">
+          <div
+            className="text-2xl font-semibold tabular-nums text-[#991B1B]"
+            data-testid="kpi-rejected-count"
+          >
             {rejectedCount}
           </div>
         </div>
@@ -176,7 +222,10 @@ export default function DisbursementsPage() {
             <span>Archived</span>
             <Archive className="h-4 w-4 text-[#475569]" />
           </div>
-          <div className="text-2xl font-semibold tabular-nums text-[#475569]" data-testid="kpi-archived-count">
+          <div
+            className="text-2xl font-semibold tabular-nums text-[#475569]"
+            data-testid="kpi-archived-count"
+          >
             {archivedCount}
           </div>
         </div>
@@ -185,32 +234,45 @@ export default function DisbursementsPage() {
       {/* 3. Navigation Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList className="w-full justify-start rounded-[8px] bg-[#F8FAFC] p-1 border border-[#E2E8F0] gap-1 h-auto overflow-x-auto scrollbar-none flex flex-nowrap">
+          {isAllowedPendingApprovals && (
+            <TabsTrigger
+              value="pending-approvals"
+              className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+              data-testid="tab-pending-approvals"
+            >
+              <Clock className="h-3.5 w-3.5 text-amber-600" />
+              <span>{isAdmin ? 'Pending Approvals' : 'Funding Tracking'}</span>
+              <Badge
+                variant="secondary"
+                className="text-xs px-1.5 py-0 bg-amber-100 text-amber-800"
+                data-testid="badge-pending-approvals"
+              >
+                {isAdmin ? initialRequestsCount + paymentReleasesCount : paymentReleasesCount}
+              </Badge>
+            </TabsTrigger>
+          )}
+
           <TabsTrigger
             value="all"
-            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0"
+            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-all"
           >
-            All Disbursements
+            All
           </TabsTrigger>
 
           <TabsTrigger
             value="drafts"
-            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0"
+            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-drafts"
           >
-            Drafts
-          </TabsTrigger>
-
-          <TabsTrigger
-            value="pending-approvals"
-            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
-            data-testid="tab-pending-approvals"
-          >
-            <Clock className="h-3.5 w-3.5" />
-            <span>{canApprove ? 'Pending Approvals' : 'Pending Submissions'}</span>
-            {canApprove && (
-              <Badge variant="secondary" className="text-xs px-1.5 py-0 rounded-[4px] border border-[#E2E8F0] bg-[#E2E8F0]/70 text-[#1E293B]">
-                Admin
+            <span>Drafts</span>
+            {needsCorrectionCount > 0 && (
+              <Badge
+                variant="secondary"
+                className="text-xs px-1.5 py-0 bg-orange-100 text-orange-800 ml-1.5"
+                data-testid="badge-needs-correction-count"
+              >
+                {needsCorrectionCount}
               </Badge>
             )}
           </TabsTrigger>
@@ -222,20 +284,15 @@ export default function DisbursementsPage() {
           >
             <FileCheck2 className="h-3.5 w-3.5" />
             <span>Approved</span>
-            {awaitingReleaseCount > 0 && (
-              <Badge variant="secondary" className="text-xs tabular-nums px-1.5 py-0 rounded-[4px] border border-[#E2E8F0] bg-[#E2E8F0]/70 text-[#1E293B]">
-                {awaitingReleaseCount}
+            {readyForFundingCount > 0 && (
+              <Badge
+                variant="secondary"
+                className="text-xs px-1.5 py-0 bg-[#DBEAFE] text-[#1E40AF]"
+                data-testid="badge-approved-count"
+              >
+                {readyForFundingCount}
               </Badge>
             )}
-          </TabsTrigger>
-
-          <TabsTrigger
-            value="released"
-            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
-            data-testid="tab-released"
-          >
-            <DollarSign className="h-3.5 w-3.5" />
-            <span>Released</span>
           </TabsTrigger>
 
           <TabsTrigger
@@ -245,6 +302,15 @@ export default function DisbursementsPage() {
           >
             <CheckCircle2 className="h-3.5 w-3.5" />
             <span>Funded</span>
+          </TabsTrigger>
+
+          <TabsTrigger
+            value="released"
+            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+            data-testid="tab-released"
+          >
+            <DollarSign className="h-3.5 w-3.5 text-purple-600" />
+            <span>Released</span>
           </TabsTrigger>
 
           <TabsTrigger
@@ -275,24 +341,22 @@ export default function DisbursementsPage() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Tab 1: All */}
+        {/* Tab 1: Pending Approvals (Dedicated Admin Queue / Accounting Tracking) */}
+        {isAllowedPendingApprovals && (
+          <TabsContent value="pending-approvals" className="space-y-4">
+            <AdminApprovalQueue onSelectDisbursement={(id) => setSelectedDisbursementId(id)} />
+          </TabsContent>
+        )}
+
+        {/* Tab 2: All */}
         <TabsContent value="all" className="space-y-4">
-          <DisbursementsTable
-            onSelectDisbursement={(id) => setSelectedDisbursementId(id)}
-          />
+          <DisbursementsTable onSelectDisbursement={(id) => setSelectedDisbursementId(id)} />
         </TabsContent>
 
-        {/* Tab 2: Drafts */}
+        {/* Tab 3: Drafts */}
         <TabsContent value="drafts" className="space-y-4">
           <DisbursementsTable
             statusFilter="Draft"
-            onSelectDisbursement={(id) => setSelectedDisbursementId(id)}
-          />
-        </TabsContent>
-
-        {/* Tab 3: Pending Approvals (Dedicated Admin Queue) */}
-        <TabsContent value="pending-approvals" className="space-y-4">
-          <AdminApprovalQueue
             onSelectDisbursement={(id) => setSelectedDisbursementId(id)}
           />
         </TabsContent>
@@ -305,18 +369,18 @@ export default function DisbursementsPage() {
           />
         </TabsContent>
 
-        {/* Tab 5: Released */}
-        <TabsContent value="released" className="space-y-4">
+        {/* Tab 5: Funded */}
+        <TabsContent value="funded" className="space-y-4">
           <DisbursementsTable
-            statusFilter="Released"
+            statusFilter="Funded"
             onSelectDisbursement={(id) => setSelectedDisbursementId(id)}
           />
         </TabsContent>
 
-        {/* Tab 6: Funded */}
-        <TabsContent value="funded" className="space-y-4">
+        {/* Tab 6: Released */}
+        <TabsContent value="released" className="space-y-4">
           <DisbursementsTable
-            statusFilter="Funded"
+            statusFilter="Released"
             onSelectDisbursement={(id) => setSelectedDisbursementId(id)}
           />
         </TabsContent>
@@ -331,9 +395,7 @@ export default function DisbursementsPage() {
 
         {/* Tab 8: Archive */}
         <TabsContent value="archive" className="space-y-4">
-          <DisbursementArchiveTab
-            onSelectDisbursement={(id) => setSelectedDisbursementId(id)}
-          />
+          <DisbursementArchiveTab onSelectDisbursement={(id) => setSelectedDisbursementId(id)} />
         </TabsContent>
       </Tabs>
 
@@ -346,7 +408,16 @@ export default function DisbursementsPage() {
       <DisbursementDetailDrawer
         id={selectedDisbursementId}
         isOpen={Boolean(selectedDisbursementId)}
-        onClose={() => setSelectedDisbursementId(null)}
+        onClose={() => {
+          setSelectedDisbursementId(null);
+          if (searchParams.has('disbursementId')) {
+            setSearchParams((prev) => {
+              const next = new URLSearchParams(prev);
+              next.delete('disbursementId');
+              return next;
+            });
+          }
+        }}
       />
 
       {/* Headless Blocking Action Modal for Zero Optimistic Updates */}

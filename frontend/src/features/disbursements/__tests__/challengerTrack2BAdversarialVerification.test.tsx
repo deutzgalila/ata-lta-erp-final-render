@@ -111,6 +111,8 @@ const mockDraftDisbursement: Disbursement = {
   amount: 450,
   fund_source: 'Firm Fund',
   status: 'Draft',
+  lifecycle_version: 2,
+  review_ready: true,
   linked_work_request_id: 'wr-101',
   version: 1,
   created_at: new Date().toISOString(),
@@ -600,19 +602,9 @@ describe('Empirical Challenger: Track 2B Adversarial Verification Harness', () =
       });
     });
 
-    it('Non-admin on Draft voucher gets drawer-submit-btn and NEVER drawer-direct-approve-btn', async () => {
-      let submittedCalled = false;
-      global.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+    it('Non-admin on Draft voucher NEVER gets drawer-direct-approve-btn nor dead submit button', async () => {
+      global.fetch = vi.fn().mockImplementation((url: string) => {
         const u = String(url);
-        if (init?.method === 'POST' && u.includes('/disbursements/disb-draft-101/submit')) {
-          submittedCalled = true;
-          return Promise.resolve({
-            ok: true,
-            status: 200,
-            headers: new Headers({ 'content-type': 'application/json' }),
-            json: async () => ({ data: { ...mockDraftDisbursement, status: 'Pending' } }),
-          });
-        }
         if (u.includes('/disbursements/disb-draft-101')) {
           return Promise.resolve({
             ok: true,
@@ -653,18 +645,11 @@ describe('Empirical Challenger: Track 2B Adversarial Verification Harness', () =
       );
 
       await waitFor(() => {
-        expect(screen.getByTestId('drawer-submit-btn')).toBeInTheDocument();
+        expect(screen.getByTestId('disbursement-detail-drawer')).toBeInTheDocument();
       });
 
       expect(screen.queryByTestId('drawer-direct-approve-btn')).toBeNull();
-      const submitBtn = screen.getByTestId('drawer-submit-btn');
-      expect(submitBtn).toBeInTheDocument();
-
-      fireEvent.click(submitBtn);
-
-      await waitFor(() => {
-        expect(submittedCalled).toBe(true);
-      });
+      expect(screen.queryByTestId('drawer-submit-btn')).toBeNull();
     });
   });
 
@@ -819,6 +804,9 @@ describe('Empirical Challenger: Track 2B Adversarial Verification Harness', () =
     it('form submission succeeds smoothly with receipt attached', async () => {
       let createdPayload: Record<string, unknown> | null = null;
       global.fetch = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+        if (_url.endsWith('/receipt-uploads')) return Promise.resolve({ ok: true, status: 201, json: async () => ({ data: { uploadId: 'receipt-1', uploadUrl: 'https://storage.test/put', objectKey: 'entities/ATA/receipts/court.pdf', expiresAt: '2026-10-20T12:00:00Z' } }) });
+        if (_url === 'https://storage.test/put') return Promise.resolve({ ok: true, status: 200 });
+        if (_url.endsWith('/receipt-uploads/receipt-1/complete')) return Promise.resolve({ ok: true, status: 200, json: async () => ({ data: { receiptS3Key: 'entities/ATA/receipts/court.pdf', receiptFilename: 'court_receipt.pdf' } }) });
         if (init?.method === 'POST') {
           createdPayload = JSON.parse(init.body as string);
           return Promise.resolve({

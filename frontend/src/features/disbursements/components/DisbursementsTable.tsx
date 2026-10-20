@@ -1,12 +1,5 @@
 import { useState, useMemo } from 'react';
-import {
-  Search,
-  Eye,
-  ChevronLeft,
-  ChevronRight,
-  Filter,
-  RefreshCw,
-} from 'lucide-react';
+import { Search, Eye, ChevronLeft, ChevronRight, Filter, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -17,37 +10,29 @@ import {
   TableHead,
   TableCell,
 } from '@/components/ui/table';
-import {
-  DISBURSEMENT_CATEGORIES,
-  DISBURSEMENT_STATUSES,
-  FUND_SOURCES,
-} from '../api/schemas';
+import { DISBURSEMENT_CATEGORIES, DISBURSEMENT_STATUSES, FUND_SOURCES } from '../api/schemas';
 import { useDisbursementsList } from '../api/useDisbursements';
 import { DisbursementStatusBadge } from './DisbursementStatusBadge';
 import { FundsReleaseActions } from './FundsReleaseActions';
 import { useEntityRealtimeSync } from '@/lib/realtime';
-import type {
-  Disbursement,
-  DisbursementStatus,
-  FundSource,
-} from '../api/types';
+import type { Disbursement, DisbursementStatus, FundSource, DisbursementQueue } from '../api/types';
 
 export interface DisbursementsTableProps {
   onSelectDisbursement: (id: string) => void;
   statusFilter?: DisbursementStatus;
+  queueFilter?: DisbursementQueue;
 }
 
 export function DisbursementsTable({
   onSelectDisbursement,
   statusFilter,
+  queueFilter,
 }: DisbursementsTableProps) {
   // Realtime CDC Subscriptions (Parcel E)
   useEntityRealtimeSync({ table: 'disbursements' });
 
   const [search, setSearch] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState<DisbursementStatus | ''>(
-    statusFilter || ''
-  );
+  const [selectedStatus, setSelectedStatus] = useState<DisbursementStatus | ''>(statusFilter || '');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedFundSource, setSelectedFundSource] = useState<FundSource | ''>('');
   const [page, setPage] = useState(1);
@@ -58,11 +43,13 @@ export function DisbursementsTable({
     const filters: {
       search?: string;
       status?: DisbursementStatus;
+      archived: false;
       category?: string;
       fundSource?: FundSource;
+      queue?: DisbursementQueue;
       page: number;
       limit: number;
-    } = { page, limit };
+    } = { page, limit, archived: false };
 
     if (search.trim()) filters.search = search.trim();
     if (statusFilter) {
@@ -72,9 +59,18 @@ export function DisbursementsTable({
     }
     if (selectedCategory) filters.category = selectedCategory;
     if (selectedFundSource) filters.fundSource = selectedFundSource;
+    if (queueFilter) filters.queue = queueFilter;
 
     return filters;
-  }, [search, statusFilter, selectedStatus, selectedCategory, selectedFundSource, page]);
+  }, [
+    search,
+    statusFilter,
+    selectedStatus,
+    selectedCategory,
+    selectedFundSource,
+    queueFilter,
+    page,
+  ]);
 
   const { data: response, isLoading, isFetching, refetch } = useDisbursementsList(queryFilters);
   const disbursements = useMemo(() => response?.data ?? [], [response]);
@@ -92,7 +88,7 @@ export function DisbursementsTable({
   return (
     <div className="space-y-3" data-testid="disbursements-table-container">
       {/* Filter and Search Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 bg-white p-3 rounded-[8px] border-[#E2E8F0]">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 bg-[#FFFFFF] p-3 rounded-[8px] border-[#E2E8F0]">
         <div className="flex flex-wrap items-center gap-2 flex-1">
           {/* Search */}
           <div className="relative w-full sm:w-60">
@@ -118,7 +114,7 @@ export function DisbursementsTable({
                 setSelectedStatus(e.target.value as DisbursementStatus | '');
                 setPage(1);
               }}
-              className="text-xs h-8 px-2.5 border rounded-[6px] bg-white border-[#E2E8F0] text-[#1E293B] focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="text-xs h-8 px-2.5 border rounded-[6px] bg-[#FFFFFF] border-[#E2E8F0] text-[#1E293B] focus:outline-none focus:ring-1 focus:ring-blue-500"
               data-testid="filter-status-select"
             >
               <option value="">All Statuses</option>
@@ -137,7 +133,7 @@ export function DisbursementsTable({
               setSelectedCategory(e.target.value);
               setPage(1);
             }}
-            className="text-xs h-8 px-2.5 border rounded-[6px] bg-white border-[#E2E8F0] text-[#1E293B] focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="text-xs h-8 px-2.5 border rounded-[6px] bg-[#FFFFFF] border-[#E2E8F0] text-[#1E293B] focus:outline-none focus:ring-1 focus:ring-blue-500"
             data-testid="filter-category-select"
           >
             <option value="">All Categories</option>
@@ -155,7 +151,7 @@ export function DisbursementsTable({
               setSelectedFundSource(e.target.value as FundSource | '');
               setPage(1);
             }}
-            className="text-xs h-8 px-2.5 border rounded-[6px] bg-white border-[#E2E8F0] text-[#1E293B] focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="text-xs h-8 px-2.5 border rounded-[6px] bg-[#FFFFFF] border-[#E2E8F0] text-[#1E293B] focus:outline-none focus:ring-1 focus:ring-blue-500"
             data-testid="filter-fund-source-select"
           >
             <option value="">All Fund Sources</option>
@@ -166,7 +162,10 @@ export function DisbursementsTable({
             ))}
           </select>
 
-          {(search || (!statusFilter && selectedStatus) || selectedCategory || selectedFundSource) && (
+          {(search ||
+            (!statusFilter && selectedStatus) ||
+            selectedCategory ||
+            selectedFundSource) && (
             <Button
               type="button"
               variant="ghost"
@@ -199,7 +198,7 @@ export function DisbursementsTable({
       </div>
 
       {/* Table Data */}
-      <div className="bg-white rounded-[8px] border-[#E2E8F0] overflow-hidden shadow-none">
+      <div className="bg-[#FFFFFF] rounded-[8px] border-[#E2E8F0] overflow-hidden shadow-none">
         <Table data-testid="disbursements-table">
           <TableHeader>
             <TableRow className="bg-[#F8FAFC]/80 text-[#1E293B] hover:bg-[#F8FAFC]/80">
@@ -215,13 +214,21 @@ export function DisbursementsTable({
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-32 text-center text-xs text-[#475569]" data-testid="table-loading">
+                <TableCell
+                  colSpan={7}
+                  className="h-32 text-center text-xs text-[#475569]"
+                  data-testid="table-loading"
+                >
                   Loading disbursements...
                 </TableCell>
               </TableRow>
             ) : disbursements.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-32 text-center text-xs text-[#475569]" data-testid="table-empty">
+                <TableCell
+                  colSpan={7}
+                  className="h-32 text-center text-xs text-[#475569]"
+                  data-testid="table-empty"
+                >
                   <div className="space-y-1">
                     <Filter className="h-6 w-6 text-[#94A3B8] mx-auto" />
                     <p className="font-medium text-[#1E293B]">No disbursements found</p>
@@ -245,7 +252,7 @@ export function DisbursementsTable({
                     onClick={() => onSelectDisbursement(item.id)}
                     data-testid={`disbursement-row-${item.id}`}
                   >
-                    <TableCell className="font-mono text-xs font-bold text-[#1E293B]">
+                    <TableCell className="tabular-nums text-xs font-bold text-[#1E293B]">
                       {disbNumber}
                     </TableCell>
                     <TableCell>
@@ -259,8 +266,8 @@ export function DisbursementsTable({
                           {item.linked_work_request_name
                             ? ` • ${item.linked_work_request_name}`
                             : item.linked_work_request_order_number
-                            ? ` • ${item.linked_work_request_order_number}`
-                            : ''}
+                              ? ` • ${item.linked_work_request_order_number}`
+                              : ''}
                         </p>
                       </div>
                     </TableCell>
@@ -274,7 +281,10 @@ export function DisbursementsTable({
                       ₱{item.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                     </TableCell>
                     <TableCell className="text-center">
-                      <DisbursementStatusBadge status={item.status} />
+                      <DisbursementStatusBadge
+                        status={item.status}
+                        reviewReady={item.review_ready}
+                      />
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">

@@ -55,50 +55,55 @@ describe('AdminApprovalQueue Governance & Reliability (F13 & F14 / R7 / V10)', (
     });
   };
 
-  describe('Requirement 1: Inclusion of Submitted status', () => {
-    it('queries Submitted, Pending, and Pending Admin Approval with limit 100 and displays all', async () => {
+  describe('Requirement 1: Server queue predicates and v2 governance', () => {
+    it('queries server queues initial_requests and payment_releases and displays actionable v2 vouchers', async () => {
       setAdminSession();
-      const queriedStatuses: string[] = [];
+      const queriedQueues: string[] = [];
 
-      const mockSubmitted: Disbursement = {
-        id: 'disb-sub-1',
-        disbursement_number: 'DISB-ATA-SUB-001',
+      const mockDraftActionable: Disbursement = {
+        id: 'disb-draft-1',
+        disbursement_number: 'DISB-ATA-DRAFT-001',
         entity_id: 'ent-1',
         category: 'Transportation',
-        description: 'Submitted courier expense',
+        description: 'Actionable draft courier expense',
         amount: 250,
         fund_source: 'Firm Fund',
-        status: 'Submitted',
+        status: 'Draft',
+        lifecycle_version: 2,
+        review_ready: true,
         linked_work_request_id: '11111111-1111-1111-1111-111111111111',
         version: 1,
         created_at: '2026-10-18T10:00:00Z',
         updated_at: '2026-10-18T10:00:00Z',
       };
 
-      const mockPending: Disbursement = {
-        id: 'disb-pen-1',
-        disbursement_number: 'DISB-ATA-PEN-001',
+      const mockReturnedDraft: Disbursement = {
+        id: 'disb-returned-1',
+        disbursement_number: 'DISB-ATA-RET-001',
         entity_id: 'ent-1',
         category: 'Supplies',
-        description: 'Pending office supplies',
+        description: 'Returned draft awaiting requester correction',
         amount: 1500,
         fund_source: 'Firm Fund',
-        status: 'Pending',
+        status: 'Draft',
+        lifecycle_version: 2,
+        review_ready: false, // Must NOT enter actionable queue
         linked_work_request_id: '11111111-1111-1111-1111-111111111111',
         version: 1,
         created_at: '2026-10-18T09:00:00Z',
         updated_at: '2026-10-18T09:00:00Z',
       };
 
-      const mockPendingAdmin: Disbursement = {
-        id: 'disb-pad-1',
-        disbursement_number: 'DISB-ATA-PAD-001',
+      const mockPaymentRelease: Disbursement = {
+        id: 'disb-release-1',
+        disbursement_number: 'DISB-ATA-REL-001',
         entity_id: 'ent-1',
         category: 'Government Fee',
-        description: 'Pending Admin SEC filing',
+        description: 'Funded voucher awaiting final release',
         amount: 3000,
         fund_source: 'Client Fund',
-        status: 'Pending Admin Approval',
+        status: 'Funded',
+        lifecycle_version: 2,
         linked_work_request_id: '11111111-1111-1111-1111-111111111111',
         version: 1,
         created_at: '2026-10-18T08:00:00Z',
@@ -107,31 +112,23 @@ describe('AdminApprovalQueue Governance & Reliability (F13 & F14 / R7 / V10)', (
 
       global.fetch = vi.fn().mockImplementation(async (url: string) => {
         const u = new URL(url, 'http://localhost');
-        const status = u.searchParams.get('status');
-        if (status) queriedStatuses.push(status);
+        const queue = u.searchParams.get('queue');
+        if (queue) queriedQueues.push(queue);
 
-        if (status === 'Submitted') {
+        if (queue === 'initial_requests') {
           return {
             ok: true,
             status: 200,
             headers: new Headers({ 'content-type': 'application/json' }),
-            json: async () => ({ data: [mockSubmitted], meta: { total: 1 } }),
+            json: async () => ({ data: [mockDraftActionable, mockReturnedDraft], meta: { total: 2 } }),
           };
         }
-        if (status === 'Pending') {
+        if (queue === 'payment_releases') {
           return {
             ok: true,
             status: 200,
             headers: new Headers({ 'content-type': 'application/json' }),
-            json: async () => ({ data: [mockPending], meta: { total: 1 } }),
-          };
-        }
-        if (status === 'Pending Admin Approval') {
-          return {
-            ok: true,
-            status: 200,
-            headers: new Headers({ 'content-type': 'application/json' }),
-            json: async () => ({ data: [mockPendingAdmin], meta: { total: 1 } }),
+            json: async () => ({ data: [mockPaymentRelease], meta: { total: 1 } }),
           };
         }
         return {
@@ -146,131 +143,78 @@ describe('AdminApprovalQueue Governance & Reliability (F13 & F14 / R7 / V10)', (
       render(<AdminApprovalQueue />, { wrapper });
 
       await waitFor(() => {
-        expect(screen.getByTestId('pending-item-disb-sub-1')).toBeInTheDocument();
-        expect(screen.getByTestId('pending-item-disb-pen-1')).toBeInTheDocument();
-        expect(screen.getByTestId('pending-item-disb-pad-1')).toBeInTheDocument();
+        expect(screen.getByTestId('pending-item-disb-draft-1')).toBeInTheDocument();
+        expect(screen.getByTestId('pending-item-disb-release-1')).toBeInTheDocument();
       });
 
-      expect(queriedStatuses).toContain('Submitted');
-      expect(queriedStatuses).toContain('Pending');
-      expect(queriedStatuses).toContain('Pending Admin Approval');
+      // Returned draft with review_ready=false must be excluded
+      expect(screen.queryByTestId('pending-item-disb-returned-1')).not.toBeInTheDocument();
+
+      expect(queriedQueues).toContain('initial_requests');
+      expect(queriedQueues).toContain('payment_releases');
     });
   });
 
-  describe('Requirement 2: Staff filtering by requested_by / created_by', () => {
-    it('filters staff view by requested_by or created_by and strictly ignores employee_id', async () => {
-      const staffId = 'u-staff-42';
-      setStaffSession(staffId);
+  it('lets the single Admin open approval for their own ready Draft', async () => {
+    setAdminSession();
+    const ownDraft: Disbursement = {
+      id: 'admin-own-draft', disbursement_number: 'DISB-SELF-001', entity_id: 'ent-1', linked_work_request_id: '11111111-1111-1111-1111-111111111111',
+      category: 'Supplies', description: 'Admin own expense', amount: 250, fund_source: 'Firm Fund',
+      status: 'Draft', lifecycle_version: 2, review_ready: true, version: 1,
+      created_by: 'u-admin-1', requested_by: 'u-admin-1',
+      created_at: '2026-10-20T08:00:00Z', updated_at: '2026-10-20T08:00:00Z',
+    };
+    global.fetch = vi.fn().mockImplementation(async (url: string) => {
+      const initial = String(url).includes('queue=initial_requests');
+      return { ok: true, status: 200, headers: new Headers({ 'content-type': 'application/json' }), json: async () => ({ data: initial ? [ownDraft] : [], meta: { total: initial ? 1 : 0 } }) };
+    });
+    const { wrapper } = createHarness();
+    render(<AdminApprovalQueue />, { wrapper });
+    const approve = await screen.findByTestId('approve-btn-admin-own-draft');
+    expect(approve).toBeEnabled();
+    expect(screen.queryByTestId('duty-sep-own-admin-own-draft')).not.toBeInTheDocument();
+    fireEvent.click(approve);
+    expect(await screen.findByTestId('admin-approval-modal')).toBeInTheDocument();
+    expect(screen.getByTestId('btn-confirm-approve')).toBeEnabled();
+  });
 
-      const items: Disbursement[] = [
-        {
-          id: 'disb-created',
-          disbursement_number: 'DISB-CREATOR',
-          entity_id: 'ent-1',
-          category: 'Meals',
-          description: 'Client luncheon created by staff',
-          amount: 800,
-          fund_source: 'Firm Fund',
-          status: 'Submitted',
-          created_by: staffId,
-          requested_by: 'someone-else',
-          employee_id: 'another-person',
-          linked_work_request_id: '11111111-1111-1111-1111-111111111111',
-          version: 1,
-          created_at: '2026-10-18T10:00:00Z',
-          updated_at: '2026-10-18T10:00:00Z',
-        },
-        {
-          id: 'disb-requested-snake',
-          disbursement_number: 'DISB-REQ-SNAKE',
-          entity_id: 'ent-1',
-          category: 'Transportation',
-          description: 'Grab taxi requested by staff (snake_case)',
-          amount: 450,
-          fund_source: 'Firm Fund',
-          status: 'Pending',
-          created_by: 'finance-admin',
-          requested_by: staffId,
-          employee_id: 'another-person',
-          linked_work_request_id: '11111111-1111-1111-1111-111111111111',
-          version: 1,
-          created_at: '2026-10-18T09:00:00Z',
-          updated_at: '2026-10-18T09:00:00Z',
-        },
-        {
-          id: 'disb-requested-camel',
-          disbursement_number: 'DISB-REQ-CAMEL',
-          entity_id: 'ent-1',
-          category: 'Supplies',
-          description: 'Archival binders requested by staff (camelCase)',
-          amount: 320,
-          fund_source: 'Firm Fund',
-          status: 'Pending Admin Approval',
-          createdBy: 'finance-admin',
-          requestedBy: staffId,
-          employeeId: 'another-person',
-          linked_work_request_id: '11111111-1111-1111-1111-111111111111',
-          version: 1,
-          created_at: '2026-10-18T08:30:00Z',
-          updated_at: '2026-10-18T08:30:00Z',
-        },
-        {
-          id: 'disb-employee-only',
-          disbursement_number: 'DISB-EMP-ONLY',
-          entity_id: 'ent-1',
-          category: 'Notarial',
-          description: 'Notary fee where staff is only employee_id not requester/creator',
-          amount: 500,
-          fund_source: 'Firm Fund',
-          status: 'Pending',
-          created_by: 'other-user',
-          requested_by: 'other-user',
-          employee_id: staffId, // Should NOT cause inclusion!
-          linked_work_request_id: '11111111-1111-1111-1111-111111111111',
-          version: 1,
-          created_at: '2026-10-18T08:00:00Z',
-          updated_at: '2026-10-18T08:00:00Z',
-        },
-        {
-          id: 'disb-unrelated',
-          disbursement_number: 'DISB-UNRELATED',
-          entity_id: 'ent-1',
-          category: 'Miscellaneous',
-          description: 'Completely unrelated voucher',
-          amount: 1000,
-          fund_source: 'Firm Fund',
-          status: 'Submitted',
-          created_by: 'other-user',
-          requested_by: 'other-user',
-          employee_id: 'other-user',
-          linked_work_request_id: '11111111-1111-1111-1111-111111111111',
-          version: 1,
-          created_at: '2026-10-18T07:00:00Z',
-          updated_at: '2026-10-18T07:00:00Z',
-        },
-      ];
+  describe('Requirement 2: Role gating and duty separation', () => {
+    it('strictly blocks staff from approval queue and allows accounting funds tracking', async () => {
+      // 1. Staff role access -> Unauthorized
+      setStaffSession('u-staff-42');
+      const { wrapper: staffWrapper } = createHarness();
+      const { unmount } = render(<AdminApprovalQueue />, { wrapper: staffWrapper });
 
-      global.fetch = vi.fn().mockImplementation(async () => {
-        return {
-          ok: true,
-          status: 200,
-          headers: new Headers({ 'content-type': 'application/json' }),
-          json: async () => ({ data: items, meta: { total: items.length } }),
-        };
+      expect(screen.getByTestId('admin-approval-queue-unauthorized')).toBeInTheDocument();
+      expect(screen.getByText(/Access Restricted/i)).toBeInTheDocument();
+      unmount();
+
+      // 2. Accounting role access -> Allowed funds tracking
+      useSessionStore.getState().setSession({
+        user: {
+          id: 'u-acct-1',
+          email: 'accounting@ata-lta.ph',
+          name: 'Accounting User',
+          role: 'Accounting',
+          departments: ['Accounting'],
+          entities: ['ATA'],
+        },
+        permissions: ['disbursement:view', 'disbursement:create'],
+        activeEntity: 'ATA',
       });
 
-      const { wrapper } = createHarness();
-      render(<AdminApprovalQueue />, { wrapper });
-
-      await waitFor(() => {
-        expect(screen.getByTestId('pending-item-disb-created')).toBeInTheDocument();
-        expect(screen.getByTestId('pending-item-disb-requested-snake')).toBeInTheDocument();
-        expect(screen.getByTestId('pending-item-disb-requested-camel')).toBeInTheDocument();
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({ data: [], meta: { total: 0 } }),
       });
 
-      // Employee-only and unrelated items MUST be excluded
-      expect(screen.queryByTestId('pending-item-disb-employee-only')).not.toBeInTheDocument();
-      expect(screen.queryByTestId('pending-item-disb-unrelated')).not.toBeInTheDocument();
+      const { wrapper: acctWrapper } = createHarness();
+      render(<AdminApprovalQueue />, { wrapper: acctWrapper });
+
+      expect(screen.getByTestId('admin-approval-queue')).toBeInTheDocument();
+      expect(screen.getByText(/Accounting Funds Tracking/i)).toBeInTheDocument();
     });
   });
 
@@ -286,19 +230,31 @@ describe('AdminApprovalQueue Governance & Reliability (F13 & F14 / R7 / V10)', (
         description: `Expense item number ${i + 1}`,
         amount: 100 * (i + 1),
         fund_source: 'Firm Fund',
-        status: 'Pending',
+        status: 'Draft',
+        lifecycle_version: 2,
+        review_ready: true,
         linked_work_request_id: '11111111-1111-1111-1111-111111111111',
         version: 1,
         created_at: new Date(Date.now() - i * 60000).toISOString(),
         updated_at: new Date(Date.now() - i * 60000).toISOString(),
       }));
 
-      global.fetch = vi.fn().mockImplementation(async () => {
+      global.fetch = vi.fn().mockImplementation(async (url: string) => {
+        const u = new URL(url, 'http://localhost');
+        const queue = u.searchParams.get('queue');
+        if (queue === 'initial_requests') {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({ data: fifteenItems, meta: { total: 15 } }),
+          };
+        }
         return {
           ok: true,
           status: 200,
           headers: new Headers({ 'content-type': 'application/json' }),
-          json: async () => ({ data: fifteenItems, meta: { total: 15 } }),
+          json: async () => ({ data: [], meta: { total: 0 } }),
         };
       });
 
@@ -360,8 +316,8 @@ describe('AdminApprovalQueue Governance & Reliability (F13 & F14 / R7 / V10)', (
     });
   });
 
-  describe('Requirement 4 (F4): Complete page traversal beyond 100 items per status', () => {
-    it('fetches all pages for status with >100 records and enables search and access for the 101st record', async () => {
+  describe('Requirement 4 (F4): Complete page traversal beyond 100 items per queue', () => {
+    it('fetches all pages for queue with >100 records and enables search and access for the 101st record', async () => {
       setAdminSession();
 
       const totalItems = 105;
@@ -373,7 +329,9 @@ describe('AdminApprovalQueue Governance & Reliability (F13 & F14 / R7 / V10)', (
         description: `High-volume item ${i + 1}`,
         amount: 200,
         fund_source: 'Firm Fund',
-        status: 'Submitted',
+        status: 'Draft',
+        lifecycle_version: 2,
+        review_ready: true,
         linked_work_request_id: '11111111-1111-1111-1111-111111111111',
         version: 1,
         created_at: new Date(Date.now() - i * 1000).toISOString(),
@@ -385,11 +343,11 @@ describe('AdminApprovalQueue Governance & Reliability (F13 & F14 / R7 / V10)', (
       global.fetch = vi.fn().mockImplementation(async (url: string) => {
         queriedUrls.push(url);
         const u = new URL(url, 'http://localhost');
-        const status = u.searchParams.get('status');
+        const queue = u.searchParams.get('queue');
         const page = parseInt(u.searchParams.get('page') || '1', 10);
         const limit = parseInt(u.searchParams.get('limit') || '100', 10);
 
-        if (status === 'Submitted') {
+        if (queue === 'initial_requests') {
           const start = (page - 1) * limit;
           const pageData = allItems.slice(start, start + limit);
           return {
@@ -425,9 +383,9 @@ describe('AdminApprovalQueue Governance & Reliability (F13 & F14 / R7 / V10)', (
       expect(screen.getByTestId('queue-page-info')).toHaveTextContent('Showing 1–10 of 105');
 
       // Verify page traversal occurred during fetch
-      const submittedUrls = queriedUrls.filter((u) => u.includes('status=Submitted'));
-      expect(submittedUrls.some((u) => u.includes('page=1'))).toBe(true);
-      expect(submittedUrls.some((u) => u.includes('page=2'))).toBe(true);
+      const initialUrls = queriedUrls.filter((u) => u.includes('queue=initial_requests'));
+      expect(initialUrls.some((u) => u.includes('page=1'))).toBe(true);
+      expect(initialUrls.some((u) => u.includes('page=2'))).toBe(true);
 
       // Search for item 101 which was returned on server page 2
       const searchInput = screen.getByTestId('pending-queue-search-input');

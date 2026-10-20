@@ -17,7 +17,8 @@ const voucher: Disbursement = {
   description: 'Site visit',
   amount: 1500,
   fund_source: 'Firm Fund',
-  status: 'Released',
+  status: 'Draft',
+  lifecycle_version: 2,
   linked_work_request_id: '33333333-3333-3333-3333-333333333333',
   version: 3,
   created_at: '2026-10-19',
@@ -172,7 +173,7 @@ describe('Voucher print and admin edit controls', () => {
     expect(screen.getByLabelText('Prepared by')).toHaveValue('Unsaved name');
     expect(screen.getByTestId('save-disbursement-edit')).toBeDisabled();
   });
-  it('provides both edit entry points from detail view and hides them for non-admins', () => {
+  it('provides Admin edit entry points and hides them for an unrelated requester', () => {
     const { wrapper } = harness();
     const { unmount } = render(
       <DisbursementDetailDrawer isOpen initialDisbursement={voucher} onClose={vi.fn()} />,
@@ -182,7 +183,7 @@ describe('Voucher print and admin edit controls', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Edit inline' }));
     expect(screen.getByTestId('disbursement-inline-editor')).toBeInTheDocument();
     unmount();
-    useSessionStore.setState((s) => ({ user: { ...s.user!, role: 'Accounting' } }));
+    useSessionStore.setState((s) => ({ user: { ...s.user!, role: 'Employee' } }));
     render(<DisbursementDetailDrawer isOpen initialDisbursement={voucher} onClose={vi.fn()} />, {
       wrapper,
     });

@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CreateDisbursementModal } from '../components/CreateDisbursementModal';
 import { DisbursementDetailDrawer } from '../components/DisbursementDetailDrawer';
-import { useSessionStore } from '@/lib/session';
+import { useSessionStore, type UserProfile } from '@/lib/session';
 import { useBlockingModalStore } from '@/features/operations/components/BlockingActionModal';
 import type { Disbursement } from '../api/types';
 
@@ -20,7 +20,7 @@ vi.mock('@/lib/session', async (importOriginal) => {
     isAuthenticated: true,
     isLoading: false,
 
-    setSession: ({ user, permissions, activeEntity, unreadCount }: any) => {
+    setSession: ({ user, permissions, activeEntity, unreadCount }: { user: UserProfile; permissions: Set<string> | string[]; activeEntity?: string; unreadCount?: number }) => {
       const permSet = permissions instanceof Set ? permissions : new Set(permissions);
       set({
         user,
@@ -31,8 +31,8 @@ vi.mock('@/lib/session', async (importOriginal) => {
         isLoading: false,
       });
     },
-    setActiveEntity: (entity: any) => set({ activeEntity: entity }),
-    setUnreadCount: (count: any) => set({ unreadCount: count }),
+    setActiveEntity: (entity: string) => set({ activeEntity: entity }),
+    setUnreadCount: (count: number) => set({ unreadCount: count }),
     clearSession: () =>
       set({
         user: null,
@@ -42,7 +42,7 @@ vi.mock('@/lib/session', async (importOriginal) => {
         isAuthenticated: false,
         isLoading: false,
       }),
-    setLoading: (isLoading: any) => set({ isLoading }),
+    setLoading: (isLoading: boolean) => set({ isLoading }),
   }));
 
   return {
@@ -78,18 +78,12 @@ const mockDraftDisbursement: Disbursement = {
   amount: 1200,
   fund_source: 'Firm Fund',
   status: 'Draft',
+  lifecycle_version: 2,
+  review_ready: true,
   linked_work_request_id: '11111111-1111-1111-1111-111111111111',
   version: 1,
   created_at: '2026-10-18T10:00:00Z',
   updated_at: '2026-10-18T10:00:00Z',
-};
-
-const mockSubmittedDisbursement: Disbursement = {
-  ...mockDraftDisbursement,
-  id: 'disb-sub-1',
-  disbursement_number: 'DISB-ATA-20261018-002',
-  status: 'Submitted',
-  version: 2,
 };
 
 const mockImageDisbursement: Disbursement = {
@@ -107,7 +101,7 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
   const originalFetch = global.fetch;
 
   const setAdminSession = () => {
-    (useSessionStore.getState() as any).setSession({
+    useSessionStore.getState().setSession({
       user: {
         id: 'u-admin-1',
         email: 'admin@ata-lta.ph',
@@ -139,6 +133,7 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
     });
     activeQueryClients = [];
     vi.restoreAllMocks();
+    sessionStorage.clear();
     useBlockingModalStore.getState().reset();
   });
 
@@ -147,7 +142,7 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
   });
 
   describe('Challenge 1: Upload Retry Preservation Across Cascade Failures (409, 500, Network Rejection)', () => {
-    it('empirically verifies exactly 1 upload reservation across 4 submission attempts with varied failure modes', async () => {
+    it('reuses a verified upload after a proven rejection but blocks retry after an ambiguous server failure', async () => {
       let uploadReservationCalls = 0;
       let uploadBinaryCalls = 0;
       let uploadCompleteCalls = 0;
@@ -301,28 +296,15 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
       expect(uploadCompleteCalls).toBe(1);
       expect(dispatchedPayloads[1]!.receiptS3Key).toBe('entities/ATA/receipts/cascade-key.pdf');
 
-      // Attempt 3: Retries after 500, hits network reject
+      await waitFor(() => expect(screen.getByTestId('create-outcome-uncertain')).toBeInTheDocument());
+      expect(submitBtn).toBeDisabled();
+      const replacement = new File(['replacement'], 'replacement.pdf', { type: 'application/pdf' });
+      fireEvent.drop(screen.getByTestId('receipt-dropzone'), { dataTransfer: { files: [replacement] } });
       fireEvent.click(submitBtn);
-      await waitFor(() => expect(dispatchedPayloads.length).toBe(3));
-      expect(uploadReservationCalls).toBe(1); // Still no new upload!
-      expect(uploadBinaryCalls).toBe(1);
-      expect(uploadCompleteCalls).toBe(1);
-      expect(dispatchedPayloads[2]!.receiptS3Key).toBe('entities/ATA/receipts/cascade-key.pdf');
-
-      // Attempt 4: Retries after network reject, succeeds with 201 Created
-      fireEvent.click(submitBtn);
-      await waitFor(() => expect(dispatchedPayloads.length).toBe(4));
-      expect(uploadReservationCalls).toBe(1); // CRITICAL: Still exactly 1!
-      expect(uploadBinaryCalls).toBe(1);
-      expect(uploadCompleteCalls).toBe(1);
-      expect(dispatchedPayloads[3]!.receiptS3Key).toBe('entities/ATA/receipts/cascade-key.pdf');
-      expect(dispatchedPayloads[3]!.receiptFilename).toBe('cascade_receipt.pdf');
-
-      // Modal finishes cleanly
-      await waitFor(() => {
-        expect(onSuccess).toHaveBeenCalled();
-        expect(onClose).toHaveBeenCalled();
-      });
+      expect(dispatchedPayloads).toHaveLength(2);
+      expect(submitBtn).toBeDisabled();
+      expect(onSuccess).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
     });
 
     it('preserves retained upload reservation even when user modifies other form fields between retries', async () => {
@@ -657,6 +639,12 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
   describe('Challenge 4: Drawer Receipt Signed URL Expiry, Refresh, and Error Recovery (F16 / R7 / V9)', () => {
     it('refetches signed URL when explicit refresh link button is clicked', async () => {
       let fetchCount = 0;
+      const disbWithReceipt: Disbursement = {
+        ...mockDraftDisbursement,
+        receipt_s3_key: 'entities/ATA/receipts/token.pdf',
+        receipt_filename: 'invoice_receipt.pdf',
+      };
+
       global.fetch = vi.fn().mockImplementation(async (url: string) => {
         const u = String(url);
         if (u.includes('/disbursements/disb-draft-1/receipt-url')) {
@@ -674,6 +662,14 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
             }),
           };
         }
+        if (u.includes('/disbursements/disb-draft-1')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({ data: disbWithReceipt }),
+          };
+        }
         return {
           ok: true,
           status: 200,
@@ -681,12 +677,6 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
           json: async () => ({ data: [] }),
         };
       });
-
-      const disbWithReceipt: Disbursement = {
-        ...mockDraftDisbursement,
-        receipt_s3_key: 'entities/ATA/receipts/token.pdf',
-        receipt_filename: 'invoice_receipt.pdf',
-      };
 
       const { wrapper } = createHarness();
       render(
@@ -722,6 +712,12 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
 
     it('renders error retry state and recovers when retry button is pressed', async () => {
       let fail = true;
+      const disbWithReceipt: Disbursement = {
+        ...mockDraftDisbursement,
+        receipt_s3_key: 'entities/ATA/receipts/token.pdf',
+        receipt_filename: 'invoice_receipt.pdf',
+      };
+
       global.fetch = vi.fn().mockImplementation(async (url: string) => {
         const u = String(url);
         if (u.includes('/disbursements/disb-draft-1/receipt-url')) {
@@ -746,6 +742,14 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
             }),
           };
         }
+        if (u.includes('/disbursements/disb-draft-1')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({ data: disbWithReceipt }),
+          };
+        }
         return {
           ok: true,
           status: 200,
@@ -753,12 +757,6 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
           json: async () => ({ data: [] }),
         };
       });
-
-      const disbWithReceipt: Disbursement = {
-        ...mockDraftDisbursement,
-        receipt_s3_key: 'entities/ATA/receipts/token.pdf',
-        receipt_filename: 'invoice_receipt.pdf',
-      };
 
       const { wrapper } = createHarness();
       render(
@@ -807,6 +805,14 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
                 contentType: 'image/png',
               },
             }),
+          };
+        }
+        if (u.includes('/disbursements/disb-img-1')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({ data: mockImageDisbursement }),
           };
         }
         return {
@@ -859,7 +865,7 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
   });
 
   describe('Challenge 5: Closure of Direct Approval Bypass & Mandatory Admin Approval Routing (R1 & R7)', () => {
-    it('verifies clicking Direct Approve from Draft opens AdminApprovalModal and submits payment method, date, and expectedVersion', async () => {
+    it('verifies clicking Direct Approve from Draft opens AdminApprovalModal and submits expectedVersion', async () => {
       let approvedPayload: Record<string, unknown> | null = null;
       let approveEndpointCalled = false;
 
@@ -875,11 +881,19 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
             json: async () => ({
               data: {
                 ...mockDraftDisbursement,
-                status: 'Released',
+                status: 'Approved',
                 version: 2,
                 ...approvedPayload,
               },
             }),
+          };
+        }
+        if (u.includes('/disbursements/disb-draft-1')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({ data: mockDraftDisbursement }),
           };
         }
         return {
@@ -913,8 +927,7 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
         expect(screen.getByTestId('admin-approval-modal')).toBeInTheDocument();
       });
 
-      // Confirm in modal
-      fireEvent.change(screen.getByTestId('select-payment-method'), { target: { value: 'Cash' } });
+      // Confirm in modal (v2 initial approval does not collect payment fields)
       fireEvent.click(screen.getByTestId('btn-confirm-approve'));
 
       await waitFor(() => {
@@ -922,17 +935,15 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
         expect(approvedPayload).not.toBeNull();
       });
 
-      // Strict validation contract compliance:
-      expect(approvedPayload!.method).toBe('Cash');
-      expect(approvedPayload!.date).toBeDefined();
-      expect(approvedPayload!.expectedVersion).toBe(1);
+      // Strict validation contract compliance: sends expectedVersion
+      expect(approvedPayload).toEqual({ expectedVersion: 1 });
     });
 
-    it('verifies Submitted / Pending status voucher approval routes through AdminApprovalModal with version and payment details', async () => {
+    it('verifies v2 initial draft approval submits expectedVersion without payment fields', async () => {
       let approvedPayload: Record<string, unknown> | null = null;
       global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
         const u = String(url);
-        if (u.includes('/disbursements/disb-sub-1/approve') && init?.method === 'POST') {
+        if (u.includes('/disbursements/disb-draft-1/approve') && init?.method === 'POST') {
           approvedPayload = JSON.parse(init.body as string);
           return {
             ok: true,
@@ -940,12 +951,20 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
             headers: new Headers({ 'content-type': 'application/json' }),
             json: async () => ({
               data: {
-                ...mockSubmittedDisbursement,
-                status: 'Released',
-                version: 3,
+                ...mockDraftDisbursement,
+                status: 'Approved',
+                version: 2,
                 ...approvedPayload,
               },
             }),
+          };
+        }
+        if (u.includes('/disbursements/disb-draft-1')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({ data: mockDraftDisbursement }),
           };
         }
         return {
@@ -961,12 +980,12 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
         <DisbursementDetailDrawer
           isOpen={true}
           onClose={vi.fn()}
-          initialDisbursement={mockSubmittedDisbursement}
+          initialDisbursement={mockDraftDisbursement}
         />,
         { wrapper }
       );
 
-      const approveBtn = screen.getByTestId('drawer-approve-btn');
+      const approveBtn = screen.getByTestId('drawer-direct-approve-btn');
       expect(approveBtn).toBeInTheDocument();
 
       fireEvent.click(approveBtn);
@@ -975,23 +994,20 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
         expect(screen.getByTestId('admin-approval-modal')).toBeInTheDocument();
       });
 
-      fireEvent.change(screen.getByTestId('select-payment-method'), { target: { value: 'Check' } });
-      fireEvent.change(screen.getByTestId('input-payment-reference'), { target: { value: 'CHK-202610-77' } });
+      expect(screen.queryByTestId('select-payment-method')).not.toBeInTheDocument();
       fireEvent.click(screen.getByTestId('btn-confirm-approve'));
 
       await waitFor(() => {
         expect(approvedPayload).not.toBeNull();
       });
 
-      expect(approvedPayload!.method).toBe('Check');
-      expect(approvedPayload!.reference).toBe('CHK-202610-77');
-      expect(approvedPayload!.expectedVersion).toBe(2);
+      expect(approvedPayload).toEqual({ expectedVersion: 1 });
     });
 
     it('propagates OCC 409 Conflict during AdminApprovalModal submission to ConflictResolutionModal', async () => {
       global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
         const u = String(url);
-        if (u.includes('/disbursements/disb-sub-1/approve') && init?.method === 'POST') {
+        if (u.includes('/disbursements/disb-draft-1/approve') && init?.method === 'POST') {
           return {
             ok: false,
             status: 409,
@@ -1005,6 +1021,14 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
             }),
           };
         }
+        if (u.includes('/disbursements/disb-draft-1')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({ data: mockDraftDisbursement }),
+          };
+        }
         return {
           ok: true,
           status: 200,
@@ -1018,12 +1042,12 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
         <DisbursementDetailDrawer
           isOpen={true}
           onClose={vi.fn()}
-          initialDisbursement={mockSubmittedDisbursement}
+          initialDisbursement={mockDraftDisbursement}
         />,
         { wrapper }
       );
 
-      fireEvent.click(screen.getByTestId('drawer-approve-btn'));
+      fireEvent.click(screen.getByTestId('drawer-direct-approve-btn'));
       await waitFor(() => expect(screen.getByTestId('admin-approval-modal')).toBeInTheDocument());
 
       fireEvent.click(screen.getByTestId('btn-confirm-approve'));

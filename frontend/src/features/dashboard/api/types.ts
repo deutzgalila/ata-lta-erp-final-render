@@ -92,7 +92,8 @@ export type NotificationType =
   | 'wr.transition_request.received'
   | 'wr.transition_request.resolved'
   | 'pending_request.resolved'
-  | 'wr.qa_reroute';
+  | 'wr.qa_reroute'
+  | 'disbursement.lifecycle';
 
 export interface TransitionRequestReceivedPayload {
   requestId?: string;
@@ -168,11 +169,25 @@ export interface QaReroutePayload {
   rerouted_by_name?: string;
 }
 
+export interface DisbursementLifecyclePayload {
+  action?: 'approved' | 'funded' | 'released' | 'rejected' | 'returned_for_correction' | string;
+  table_name?: 'disbursements' | string;
+  tableName?: string;
+  request_id?: string;
+  requestId?: string;
+  entity?: string;
+  disbursement_number?: string;
+  disbursementNumber?: string;
+  title?: string;
+  reason?: string | null;
+}
+
 export type NotificationPayload =
   | TransitionRequestReceivedPayload
   | TransitionRequestResolvedPayload
   | PendingRequestResolvedPayload
   | QaReroutePayload
+  | DisbursementLifecyclePayload
   | Record<string, unknown>;
 
 export interface NotificationItem {

@@ -90,6 +90,7 @@ export const rawNotificationItemApiSchema = z.object({
     'wr.transition_request.resolved',
     'pending_request.resolved',
     'wr.qa_reroute',
+    'disbursement.lifecycle',
   ]),
   payload: z.record(z.unknown()).default({}),
   read_at: z.string().nullable().optional(),

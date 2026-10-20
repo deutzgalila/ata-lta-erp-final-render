@@ -1,13 +1,5 @@
 import { useState } from 'react';
-import {
-  Archive,
-  RotateCcw,
-  Search,
-  ChevronLeft,
-  ChevronRight,
-  Eye,
-  Wallet,
-} from 'lucide-react';
+import { Archive, RotateCcw, Search, ChevronLeft, ChevronRight, Eye, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -29,9 +21,7 @@ export interface DisbursementArchiveTabProps {
   onSelectDisbursement?: (id: string) => void;
 }
 
-export function DisbursementArchiveTab({
-  onSelectDisbursement,
-}: DisbursementArchiveTabProps) {
+export function DisbursementArchiveTab({ onSelectDisbursement }: DisbursementArchiveTabProps) {
   const [searchInput, setSearchInput] = useState('');
   const debouncedSearch = useDebounce(searchInput, 300);
   const [page, setPage] = useState(1);
@@ -39,24 +29,40 @@ export function DisbursementArchiveTab({
 
   const permissions = useSessionStore((state) => state.permissions);
   const activeEntity = useSessionStore((state) => state.activeEntity);
-  const canEdit = hasPermission(permissions, 'disbursement:edit');
+  const user = useSessionStore((state) => state.user);
+  const canEdit = user?.role === 'Admin' && hasPermission(permissions, 'disbursement:edit');
+  const canRestore = (item: Disbursement) =>
+    canEdit &&
+    (item.lifecycle_version ?? item.lifecycleVersion) === 2 &&
+    item.status === 'Released' &&
+    item.archived === true &&
+    Number.isInteger(item.version) &&
+    item.version > 0;
 
-  const { data: response, isLoading, refetch } = useDisbursementsList({
+  const {
+    data: response,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useDisbursementsList({
     archived: true,
     search: debouncedSearch || undefined,
     page,
     limit: 25,
   });
 
+  const isFiltering = searchInput !== debouncedSearch || isFetching;
   const disbursements: Disbursement[] = response?.data || [];
   const totalCount = response?.meta?.total ?? disbursements.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / 25));
 
+  const restorable = disbursements.filter(canRestore);
+
   const toggleSelectAll = () => {
-    if (selectedIds.size === disbursements.length && disbursements.length > 0) {
+    if (restorable.length > 0 && restorable.every((d) => selectedIds.has(d.id))) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(disbursements.map((d) => d.id)));
+      setSelectedIds(new Set(restorable.map((d) => d.id)));
     }
   };
 
@@ -73,9 +79,11 @@ export function DisbursementArchiveTab({
   };
 
   const handleRestoreSingle = async (disb: Disbursement) => {
-    const refNum = disb.disbursement_number || disb.disbursementNumber || disb.id;
+    if (isFiltering || !canRestore(disb)) return;
+    const refNum =
+      disb.disbursement_number || disb.disbursementNumber || `DISB-${disb.id.slice(0, 8)}`;
     try {
-      await restoreDisbursementAction(disb.id, refNum, activeEntity);
+      await restoreDisbursementAction(disb.id, refNum, activeEntity, disb.version);
       setSelectedIds((prev) => {
         const next = new Set(prev);
         next.delete(disb.id);
@@ -88,11 +96,13 @@ export function DisbursementArchiveTab({
   };
 
   const handleBulkRestore = async () => {
-    const toRestore = disbursements.filter((d) => selectedIds.has(d.id));
+    if (isFiltering) return;
+    const toRestore = restorable.filter((d) => selectedIds.has(d.id));
     for (const disb of toRestore) {
-      const refNum = disb.disbursement_number || disb.disbursementNumber || disb.id;
+      const refNum =
+        disb.disbursement_number || disb.disbursementNumber || `DISB-${disb.id.slice(0, 8)}`;
       try {
-        await restoreDisbursementAction(disb.id, refNum, activeEntity);
+        await restoreDisbursementAction(disb.id, refNum, activeEntity, disb.version);
       } catch {
         break;
       }
@@ -104,7 +114,7 @@ export function DisbursementArchiveTab({
   return (
     <div className="space-y-4" data-testid="disbursement-archive-tab">
       {/* Search and Action Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-[8px] border-[#E2E8F0]">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#FFFFFF] p-3 rounded-[8px] border-[#E2E8F0]">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-[#475569]" />
           <Input
@@ -114,6 +124,7 @@ export function DisbursementArchiveTab({
             onChange={(e) => {
               setSearchInput(e.target.value);
               setPage(1);
+              setSelectedIds(new Set());
             }}
             className="pl-8 text-xs h-9"
             data-testid="search-archived-disbursements-input"
@@ -126,7 +137,8 @@ export function DisbursementArchiveTab({
               size="sm"
               variant="outline"
               onClick={handleBulkRestore}
-              className="text-xs h-9 gap-1.5 border-[#E2E8F0] text-[#1E293B] hover:bg-[#F8FAFC]"
+              disabled={isFiltering}
+              className="text-xs h-9 gap-1.5 border-[#93C5FD] text-[#1E40AF] hover:bg-[#EFF6FF]"
               data-testid="bulk-restore-btn"
             >
               <RotateCcw className="h-3.5 w-3.5" />
@@ -137,7 +149,7 @@ export function DisbursementArchiveTab({
       </div>
 
       {/* Archived Disbursements Table */}
-      <div className="border-[#E2E8F0] rounded-[6px] overflow-hidden bg-white shadow-none">
+      <div className="border-[#E2E8F0] rounded-[6px] overflow-hidden bg-[#FFFFFF] shadow-none">
         <Table>
           <TableHeader>
             <TableRow className="bg-[#F8FAFC]/80 text-[#1E293B] hover:bg-[#F8FAFC]/80">
@@ -145,7 +157,8 @@ export function DisbursementArchiveTab({
                 <input
                   type="checkbox"
                   aria-label="Select all archived disbursements"
-                  checked={disbursements.length > 0 && selectedIds.size === disbursements.length}
+                  checked={restorable.length > 0 && restorable.every((d) => selectedIds.has(d.id))}
+                  disabled={isFiltering || restorable.length === 0}
                   onChange={toggleSelectAll}
                   className="rounded border-[#E2E8F0] text-[#1E293B] focus:ring-blue-500"
                 />
@@ -162,13 +175,21 @@ export function DisbursementArchiveTab({
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-32 text-center text-xs text-[#475569]" data-testid="archive-loading">
+                <TableCell
+                  colSpan={8}
+                  className="h-32 text-center text-xs text-[#475569]"
+                  data-testid="archive-loading"
+                >
                   Loading archived disbursements...
                 </TableCell>
               </TableRow>
             ) : disbursements.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-32 text-center text-xs text-[#475569]" data-testid="archive-empty">
+                <TableCell
+                  colSpan={8}
+                  className="h-32 text-center text-xs text-[#475569]"
+                  data-testid="archive-empty"
+                >
                   <div className="space-y-1">
                     <Archive className="h-6 w-6 text-[#94A3B8] mx-auto" />
                     <p className="font-medium text-[#1E293B]">No archived disbursements</p>
@@ -200,6 +221,7 @@ export function DisbursementArchiveTab({
                         type="checkbox"
                         aria-label={`Select ${disbNumber}`}
                         checked={isSelected}
+                        disabled={isFiltering || !canRestore(item)}
                         onChange={() => toggleSelectOne(item.id)}
                         className="rounded border-[#E2E8F0] text-[#1E293B] focus:ring-blue-500"
                       />
@@ -228,7 +250,8 @@ export function DisbursementArchiveTab({
                       </span>
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-xs font-bold text-[#1E293B]">
-                      ₱{(typeof item.amount === 'number' ? item.amount : 0).toLocaleString('en-PH', {
+                      ₱
+                      {(typeof item.amount === 'number' ? item.amount : 0).toLocaleString('en-PH', {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
                       })}
@@ -238,13 +261,14 @@ export function DisbursementArchiveTab({
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
-                        {canEdit && (
+                        {canRestore(item) && (
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
                             onClick={() => handleRestoreSingle(item)}
-                            className="h-7 w-7 p-0 text-[#475569] hover:text-[#1E293B] hover:bg-[#F8FAFC]"
+                            disabled={isFiltering}
+                            className="h-7 w-7 p-0 text-[#475569] hover:text-[#1D4ED8] hover:bg-[#EFF6FF]"
                             title="Restore voucher"
                             data-testid={`restore-action-${item.id}`}
                           >
