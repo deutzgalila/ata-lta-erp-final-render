@@ -22,7 +22,7 @@ const Label = ({
   children,
   ...props
 }: React.LabelHTMLAttributes<HTMLLabelElement>) => (
-  <label className={`block text-xs font-semibold text-slate-700 ${className}`} {...props}>
+  <label className={`block text-xs font-semibold text-[#1E293B] ${className}`} {...props}>
     {children}
   </label>
 );
@@ -33,7 +33,7 @@ const Textarea = React.forwardRef<
 >(({ className = '', ...props }, ref) => (
   <textarea
     ref={ref}
-    className={`flex min-h-[60px] w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-xs shadow-xs placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+    className={`flex min-h-[60px] w-full rounded-[8px] border-[#E2E8F0] bg-transparent px-3 py-2 text-xs shadow-none placeholder:text-[#475569] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-slate-950 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
     {...props}
   />
 ));
@@ -343,13 +343,12 @@ export function TransmittalFormModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent
-        className="max-w-2xl max-h-[90vh] overflow-y-auto"
+      <DialogContent className="border-[#E2E8F0] max-w-2xl border max-h-[90vh] rounded-[12px] bg-[#FFFFFF] shadow-float overflow-y-auto"
         data-testid="transmittal-form-modal"
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg font-bold">
-            <FileText className="h-5 w-5 text-blue-600" />
+            <FileText className="h-5 w-5 text-[#1E293B]" />
             {isEditMode ? 'Edit Transmittal' : 'Create New Transmittal'}
           </DialogTitle>
         </DialogHeader>
@@ -361,9 +360,9 @@ export function TransmittalFormModal({
             <div className="space-y-1.5">
               <Label
                 htmlFor="trackingNumber"
-                className="text-xs font-semibold flex items-center gap-1 text-slate-700"
+                className="text-xs font-semibold flex items-center gap-1 text-[#1E293B]"
               >
-                <Lock className="h-3.5 w-3.5 text-slate-400" />
+                <Lock className="h-3.5 w-3.5 text-[#475569]" />
                 Tracking Number
               </Label>
               <Input
@@ -376,10 +375,10 @@ export function TransmittalFormModal({
                 disabled={true}
                 readOnly={true}
                 placeholder="Auto-generated on Save"
-                className="font-mono text-xs bg-slate-50 text-slate-500 cursor-not-allowed"
+                className="tabular-nums text-xs bg-[#F8FAFC] text-[#475569] cursor-not-allowed"
                 data-testid="tracking-number-input"
               />
-              <p className="text-[11px] text-slate-500 flex items-center gap-1">
+              <p className="text-xs text-[#475569] flex items-center gap-1">
                 {isEditMode
                   ? 'Tracking number cannot be modified once created.'
                   : 'Auto-generated on Save'}
@@ -390,7 +389,7 @@ export function TransmittalFormModal({
             <div className="space-y-1.5">
               <Label
                 htmlFor="client"
-                className="text-xs font-semibold flex items-center gap-1 text-slate-700"
+                className="text-xs font-semibold flex items-center gap-1 text-[#1E293B]"
               >
                 <Building className="h-3.5 w-3.5" />
                 Client *
@@ -408,7 +407,7 @@ export function TransmittalFormModal({
                 </SelectContent>
               </Select>
               {errors.clientId && (
-                <p className="text-[11px] text-rose-600 flex items-center gap-1">
+                <p className="text-xs text-rose-600 flex items-center gap-1">
                   <AlertCircle className="h-3 w-3" />
                   {errors.clientId}
                 </p>
@@ -419,7 +418,7 @@ export function TransmittalFormModal({
             <div className="space-y-1.5 md:col-span-2">
               <Label
                 htmlFor="workRequest"
-                className="text-xs font-semibold flex items-center gap-1 text-slate-700"
+                className="text-xs font-semibold flex items-center gap-1 text-[#1E293B]"
               >
                 <Briefcase className="h-3.5 w-3.5" />
                 Work Request {isEditMode ? '(Optional)' : '*'}
@@ -445,7 +444,7 @@ export function TransmittalFormModal({
                 </SelectContent>
               </Select>
               {errors.workRequestId && (
-                <p className="text-[11px] text-rose-600 flex items-center gap-1">
+                <p className="text-xs text-rose-600 flex items-center gap-1">
                   <AlertCircle className="h-3 w-3" />
                   {errors.workRequestId}
                 </p>
@@ -456,7 +455,7 @@ export function TransmittalFormModal({
             <div className="space-y-1.5 md:col-span-2">
               <Label
                 htmlFor="workRequestTask"
-                className="text-xs font-semibold flex items-center gap-1 text-slate-700"
+                className="text-xs font-semibold flex items-center gap-1 text-[#1E293B]"
               >
                 <Briefcase className="h-3.5 w-3.5" />
                 Linked Task {isDocUser ? '*' : '(Optional)'}
@@ -500,7 +499,7 @@ export function TransmittalFormModal({
                 </SelectContent>
               </Select>
               {errors.selectedTaskId && (
-                <p className="text-[11px] text-rose-600 flex items-center gap-1" data-testid="task-error-message">
+                <p className="text-xs text-rose-600 flex items-center gap-1" data-testid="task-error-message">
                   <AlertCircle className="h-3 w-3" />
                   {errors.selectedTaskId}
                 </p>
@@ -511,7 +510,7 @@ export function TransmittalFormModal({
             <div className="space-y-1.5">
               <Label
                 htmlFor="recipientName"
-                className="text-xs font-semibold flex items-center gap-1 text-slate-700"
+                className="text-xs font-semibold flex items-center gap-1 text-[#1E293B]"
               >
                 <User className="h-3.5 w-3.5" />
                 Recipient Name
@@ -528,7 +527,7 @@ export function TransmittalFormModal({
 
             {/* Recipient Details / Address */}
             <div className="space-y-1.5">
-              <Label htmlFor="recipientDetails" className="text-xs font-semibold text-slate-700">
+              <Label htmlFor="recipientDetails" className="text-xs font-semibold text-[#1E293B]">
                 Delivery Address / Contact
               </Label>
               <Input
@@ -543,13 +542,13 @@ export function TransmittalFormModal({
           </div>
 
           {/* Line Items Manager Section */}
-          <div className="space-y-3 pt-2 border-t border-slate-200">
+          <div className="space-y-3 pt-2 border-t border-[#E2E8F0]">
             <div className="flex items-center justify-between">
               <div>
-                <Label className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                <Label className="text-xs font-bold text-[#1E293B] tracking-normal">
                   Document Line Items *
                 </Label>
-                <p className="text-[11px] text-slate-500">
+                <p className="text-xs text-[#475569]">
                   Add documents to transmit (at least 1 line item required).
                 </p>
               </div>
@@ -558,7 +557,7 @@ export function TransmittalFormModal({
                 size="sm"
                 variant="outline"
                 onClick={handleAddItem}
-                className="h-7 text-xs gap-1 border-blue-200 text-blue-700 hover:bg-blue-50"
+                className="h-7 text-xs gap-1 border-[#E2E8F0] text-[#1E293B] hover:bg-[#F8FAFC]"
                 data-testid="add-item-row-btn"
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -568,7 +567,7 @@ export function TransmittalFormModal({
 
             {errors.items && (
               <div
-                className="p-2.5 bg-rose-50 border border-rose-200 rounded text-rose-700 text-xs flex items-center gap-2"
+                className="p-2.5 bg-rose-50 border-rose-200 rounded text-rose-700 text-xs flex items-center gap-2"
                 data-testid="items-error-message"
               >
                 <AlertCircle className="h-4 w-4 shrink-0" />
@@ -581,10 +580,10 @@ export function TransmittalFormModal({
               {items.map((item, index) => (
                 <div
                   key={item.id}
-                  className="flex items-center gap-2 p-2 bg-slate-50 rounded-lg border border-slate-200"
+                  className="flex items-center gap-2 p-2 bg-[#F8FAFC] rounded-[8px] border-[#E2E8F0]"
                   data-testid={`transmittal-form-item-row-${index}`}
                 >
-                  <span className="text-xs font-mono font-semibold text-slate-400 w-5 text-center shrink-0">
+                  <span className="text-xs font-semibold text-[#475569] w-5 text-center shrink-0">
                     #{index + 1}
                   </span>
 
@@ -646,7 +645,7 @@ export function TransmittalFormModal({
                     size="sm"
                     variant="ghost"
                     onClick={() => handleRemoveItem(item.id)}
-                    className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 shrink-0"
+                    className="h-8 w-8 p-0 text-[#475569] hover:text-rose-600 hover:bg-rose-50 shrink-0"
                     title="Remove item"
                     data-testid={`remove-item-row-btn-${index}`}
                   >
@@ -658,8 +657,8 @@ export function TransmittalFormModal({
           </div>
 
           {/* Notes */}
-          <div className="space-y-1.5 pt-2 border-t border-slate-200">
-            <Label htmlFor="notes" className="text-xs font-semibold text-slate-700">
+          <div className="space-y-1.5 pt-2 border-t border-[#E2E8F0]">
+            <Label htmlFor="notes" className="text-xs font-semibold text-[#1E293B]">
               Delivery Notes / Instructions
             </Label>
             <Textarea
@@ -674,7 +673,7 @@ export function TransmittalFormModal({
           </div>
 
           {/* Modal Footer */}
-          <DialogFooter className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
+          <DialogFooter className="pt-3 border-t border-[#E2E8F0] flex items-center justify-end gap-2">
             <Button
               type="button"
               variant="outline"
@@ -686,7 +685,7 @@ export function TransmittalFormModal({
             </Button>
             <Button
               type="submit"
-              className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white font-medium"
+              className="h-8 text-xs bg-[#1D4ED8] hover:bg-[#1E40AF] text-white shadow-2xs font-medium"
               data-testid="submit-transmittal-btn"
             >
               {isEditMode ? 'Save Changes' : 'Create Transmittal'}

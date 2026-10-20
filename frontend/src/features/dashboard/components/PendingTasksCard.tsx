@@ -44,21 +44,21 @@ export function PendingTasksCard() {
   };
 
   return (
-    <Card data-testid="pending-tasks-card" className="border-slate-200">
-      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 gap-2">
+    <Card data-testid="pending-tasks-card" className="border-[#E2E8F0] bg-[#FFFFFF] rounded-[8px] shadow-card">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 gap-2 border-b border-[#E2E8F0]">
         <div className="space-y-0.5">
-          <CardTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <ListTodo className="h-5 w-5 text-blue-600" />
+          <CardTitle className="text-base font-bold text-[#1E293B] flex items-center gap-2">
+            <ListTodo className="h-5 w-5 text-[#1E293B]" />
             Pending Tasks Assigned to Me
           </CardTitle>
-          <CardDescription className="text-xs text-slate-500">
+          <CardDescription className="text-xs text-[#475569]">
             Active work items requiring your attention across work requests.
           </CardDescription>
         </div>
         <div className="flex items-center gap-2">
           <Badge
             variant={pendingTasks.length > 0 ? 'warning' : 'success'}
-            className="text-xs"
+            className="text-xs tabular-nums rounded-[8px] border-[#E2E8F0]"
             data-testid="pending-tasks-count-badge"
           >
             {pendingTasks.length} {pendingTasks.length === 1 ? 'Task' : 'Tasks'} Incomplete
@@ -66,23 +66,23 @@ export function PendingTasksCard() {
         </div>
       </CardHeader>
 
-      <CardContent>
+      <CardContent className="pt-4">
         {isLoading ? (
           <div
-            className="p-8 text-center text-xs text-slate-500"
+            className="p-8 text-center text-xs text-[#475569]"
             data-testid="pending-tasks-loading"
           >
-            <div className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-solid border-blue-600 border-r-transparent mb-2 align-middle" />
+            <div className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-solid border-[#E2E8F0] border-r-transparent mb-2 align-middle" />
             <p>Loading assigned tasks...</p>
           </div>
         ) : pendingTasks.length === 0 ? (
           <div
-            className="p-8 text-center bg-slate-50 border border-slate-100 rounded-lg space-y-2"
+            className="p-8 text-center bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px] space-y-2"
             data-testid="pending-tasks-empty"
           >
-            <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto" />
-            <h4 className="text-sm font-semibold text-slate-800">All caught up!</h4>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            <CheckCircle2 className="h-8 w-8 text-[#166534] mx-auto" />
+            <h4 className="text-sm font-bold text-[#1E293B]">All caught up!</h4>
+            <p className="text-xs text-[#475569] max-w-sm mx-auto">
               You have no incomplete tasks assigned to you in active work requests.
             </p>
           </div>
@@ -91,39 +91,40 @@ export function PendingTasksCard() {
             {pendingTasks.map((task) => (
               <div
                 key={task.taskId}
-                className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 bg-white border border-slate-200 rounded-lg hover:border-slate-300 hover:shadow-xs transition-all gap-3"
+                className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 bg-[#FFFFFF] border-[#E2E8F0] hover:border-[#E2E8F0] rounded-[6px] transition-all gap-3"
                 data-testid={`pending-task-${task.taskId}`}
               >
                 <div className="space-y-1.5 flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold text-sm text-slate-900 truncate">
+                    <span className="font-semibold text-sm text-[#1E293B] truncate">
                       {task.taskTitle}
                     </span>
                     <Badge
                       variant={task.entity === 'LTA' ? 'lta' : 'ata'}
                       size="compact"
+                      className="rounded-[6px] text-xs"
                     >
                       {task.entity}
                     </Badge>
                     {task.phase && (
-                      <Badge variant="secondary" size="compact">
+                      <Badge variant="secondary" size="compact" className="rounded-[6px] text-xs border-[#E2E8F0] bg-[#F8FAFC] text-[#1E293B]">
                         {formatPhase(task.phase)}
                       </Badge>
                     )}
-                    <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200/60 flex items-center gap-1">
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-[6px] bg-[#FEFCE8] text-[#854D0E] border-[#FDE047] flex items-center gap-1">
                       <Clock className="h-3 w-3" />
                       {task.status}
                     </span>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                    <span className="flex items-center gap-1 font-medium text-slate-700">
-                      <FileText className="h-3.5 w-3.5 text-slate-400" />
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-[#475569]">
+                    <span className="flex items-center gap-1 font-medium text-[#1E293B]">
+                      <FileText className="h-3.5 w-3.5 text-[#475569]" />
                       {task.workRequestTitle}
                     </span>
                     {task.clientName && (
-                      <span className="flex items-center gap-1 text-slate-500">
-                        <Building className="h-3.5 w-3.5 text-slate-400" />
+                      <span className="flex items-center gap-1 text-[#475569]">
+                        <Building className="h-3.5 w-3.5 text-[#475569]" />
                         {task.clientName}
                       </span>
                     )}
@@ -136,7 +137,7 @@ export function PendingTasksCard() {
                     variant="outline"
                     size="sm"
                     onClick={() => handleNavigateToTask(task)}
-                    className="text-xs h-8 gap-1.5 text-slate-700 hover:text-blue-600 hover:border-blue-300"
+                    className="text-xs font-semibold h-8 gap-1.5 rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B] hover:bg-[#F8FAFC] cursor-pointer"
                     data-testid={`view-task-btn-${task.taskId}`}
                   >
                     View in Operations

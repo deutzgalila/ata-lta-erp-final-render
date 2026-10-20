@@ -68,47 +68,47 @@ export function TimeEntryDeleteModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[420px]" data-testid="time-entry-delete-modal">
-        <DialogHeader>
-          <div className="flex items-center gap-2 text-red-600 pb-1">
+      <DialogContent className="sm:max-w-[420px] rounded-[12px] border-[#E2E8F0] bg-[#FFFFFF] shadow-float p-6" data-testid="time-entry-delete-modal">
+        <DialogHeader className="border-b border-[#E2E8F0] pb-3">
+          <div className="flex items-center gap-2 text-[#DC2626] pb-1">
             <AlertTriangle className="h-5 w-5" />
-            <DialogTitle className="text-base font-semibold text-slate-900">
+            <DialogTitle className="text-base font-semibold uppercase tracking-tight text-[#1E293B]">
               Delete Time Entry
             </DialogTitle>
           </div>
-          <DialogDescription className="text-xs text-slate-500">
+          <DialogDescription className="text-xs text-[#475569]">
             Are you sure you want to remove this time entry? This action cannot be undone.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-1.5">
+        <div className="p-3 bg-[#F8FAFC] rounded-[8px] border-[#E2E8F0] text-xs space-y-1.5">
           <div className="flex justify-between">
-            <span className="text-slate-500">Task:</span>
-            <span className="font-semibold text-slate-800 line-clamp-1">{taskTitle || entry.taskId}</span>
+            <span className="text-[#475569]">Task:</span>
+            <span className="font-semibold text-[#1E293B] line-clamp-1">{taskTitle || entry.taskId}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-slate-500">Date:</span>
-            <span className="font-mono text-slate-800">{entry.entryDate}</span>
+            <span className="text-[#475569]">Date:</span>
+            <span className="text-[#1E293B] tabular-nums">{entry.entryDate}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-slate-500">Duration:</span>
-            <span className="font-mono font-bold text-slate-900">{entry.durationMinutes} mins ({Math.floor(entry.durationMinutes / 60)}h {entry.durationMinutes % 60}m)</span>
+            <span className="text-[#475569]">Duration:</span>
+            <span className="font-bold text-[#1E293B] tabular-nums">{entry.durationMinutes} mins ({Math.floor(entry.durationMinutes / 60)}h {entry.durationMinutes % 60}m)</span>
           </div>
           {entry.note && (
-            <div className="pt-1 border-t border-slate-200">
-              <span className="text-slate-500 block text-[11px]">Note:</span>
-              <p className="text-slate-700 italic text-[11px] mt-0.5 line-clamp-2">{entry.note}</p>
+            <div className="pt-1 border-t border-[#E2E8F0]">
+              <span className="text-[#475569] block text-xs">Note:</span>
+              <p className="text-[#1E293B] italic text-xs mt-0.5 line-clamp-2">{entry.note}</p>
             </div>
           )}
         </div>
 
-        <DialogFooter className="pt-2">
+        <DialogFooter className="pt-2 border-t border-[#E2E8F0] flex items-center justify-end gap-2">
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={onClose}
-            className="text-xs"
+            className="text-xs tracking-normal rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] text-[#1E293B]"
             data-testid="delete-cancel-btn"
           >
             Cancel
@@ -118,7 +118,7 @@ export function TimeEntryDeleteModal({
             variant="destructive"
             size="sm"
             onClick={handleDelete}
-            className="text-xs font-semibold gap-1.5"
+            className="text-xs tracking-normal font-bold gap-1.5 rounded-[6px] bg-[#DC2626] hover:bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs"
             disabled={deleteMutation.isPending}
             data-testid="delete-confirm-btn"
           >

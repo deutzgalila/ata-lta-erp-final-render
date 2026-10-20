@@ -64,14 +64,14 @@ export function DisbursementPrintModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
-        className="max-w-5xl max-h-[92vh] overflow-y-auto p-0 bg-slate-100"
+        className="max-w-5xl max-h-[92vh] overflow-y-auto p-0 bg-[#F1F5F9] rounded-[12px] border border-[#CBD5E1] shadow-float"
         data-testid="disbursement-print-modal"
       >
         <style>
           {DISBURSEMENT_DOCUMENT_CSS +
             '.disbursement-document { box-sizing:border-box; width:210mm; min-height:297mm; padding:15mm 20mm; }'}
         </style>
-        <DialogHeader className="p-5 bg-white border-b border-slate-200 space-y-3">
+        <DialogHeader className="p-5 bg-white border-b border-[#CBD5E1] space-y-3">
           <DialogTitle>Payment Voucher / Expense Report Preview</DialogTitle>
           <div className="flex flex-wrap items-center gap-3 pr-5">
             <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -141,7 +141,7 @@ export function DisbursementPrintModal({
             dangerouslySetInnerHTML={{ __html: buildDisbursementDocument(item, options) }}
           />
         </div>
-        <DialogFooter className="p-4 border-t border-slate-200 bg-white">
+        <DialogFooter className="p-4 border-t border-[#CBD5E1] bg-white">
           <Button
             variant="outline"
             size="sm"

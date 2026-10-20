@@ -33,19 +33,19 @@ export const ReportScopePrompt: React.FC<ReportScopePromptProps> = ({
     <div
       data-testid={dataTestId}
       className={cn(
-        'p-6 sm:p-8 bg-amber-50/70 border border-amber-200/90 rounded-xl text-center max-w-xl mx-auto my-8 shadow-2xs',
+        'p-6 sm:p-8 bg-[#FFFFFF] border border-[#E2E8F0] rounded-[8px] text-center max-w-xl mx-auto my-8 shadow-card',
         className
       )}
     >
-      <div className="w-11 h-11 rounded-full bg-amber-100 border border-amber-200/80 flex items-center justify-center mx-auto text-amber-700 mb-3.5">
+      <div className="w-10 h-10 rounded-[6px] bg-[#FEFCE8] border border-[#FDE047] flex items-center justify-center mx-auto text-[#854D0E] mb-3.5">
         <AlertTriangle className="w-5 h-5" />
       </div>
 
-      <h3 className="text-base sm:text-lg font-semibold text-slate-900 tracking-tight">
+      <h3 className="text-base sm:text-lg font-semibold tracking-tight text-[#1E293B]">
         {message}
       </h3>
 
-      <p className="text-xs sm:text-sm text-slate-600 mt-2 max-w-md mx-auto leading-relaxed">
+      <p className="text-xs sm:text-sm text-[#475569] mt-2 max-w-md mx-auto leading-relaxed">
         {description}
       </p>
 
@@ -53,23 +53,21 @@ export const ReportScopePrompt: React.FC<ReportScopePromptProps> = ({
         <Button
           type="button"
           size="sm"
-          variant="outline"
           onClick={() => handleSelect('ATA')}
-          className="text-xs font-medium h-8 px-3.5 bg-white border-amber-300 text-amber-900 hover:bg-amber-100 hover:text-amber-950 cursor-pointer shadow-2xs"
+          className="text-xs font-semibold h-8 px-3.5 bg-[#1D4ED8] hover:bg-[#1E40AF] text-[#FFFFFF] rounded-[6px] cursor-pointer shadow-2xs transition-colors"
           data-testid="scope-prompt-btn-ata"
         >
-          <Building2 className="w-3.5 h-3.5 mr-1.5 text-amber-700" />
+          <Building2 className="w-3.5 h-3.5 mr-1.5" />
           Switch to ATA
         </Button>
         <Button
           type="button"
           size="sm"
-          variant="outline"
           onClick={() => handleSelect('LTA')}
-          className="text-xs font-medium h-8 px-3.5 bg-white border-amber-300 text-amber-900 hover:bg-amber-100 hover:text-amber-950 cursor-pointer shadow-2xs"
+          className="text-xs font-semibold h-8 px-3.5 bg-[#1D4ED8] hover:bg-[#1E40AF] text-[#FFFFFF] rounded-[6px] cursor-pointer shadow-2xs transition-colors"
           data-testid="scope-prompt-btn-lta"
         >
-          <Building2 className="w-3.5 h-3.5 mr-1.5 text-amber-700" />
+          <Building2 className="w-3.5 h-3.5 mr-1.5" />
           Switch to LTA
         </Button>
       </div>

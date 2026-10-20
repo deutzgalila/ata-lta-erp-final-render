@@ -11,43 +11,43 @@ export interface DisbursementStatusBadgeProps {
 const statusStyles: Record<string, { label: string; className: string }> = {
   Draft: {
     label: 'Draft',
-    className: 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-100',
+    className: 'bg-[#F8FAFC] text-[#334155] border-[#E2E8F0] hover:bg-[#F8FAFC]',
   },
   Submitted: {
     label: 'Submitted',
-    className: 'bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-100',
+    className: 'bg-[#EFF6FF] text-[#1E40AF] border-[#93C5FD] hover:bg-[#EFF6FF]',
   },
   Pending: {
     label: 'Pending',
-    className: 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-100',
+    className: 'bg-[#FEFCE8] text-[#854D0E] border-[#FDE047] hover:bg-[#FEFCE8]',
   },
   'Pending Admin Approval': {
     label: 'Pending Admin Approval',
-    className: 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-100',
+    className: 'bg-[#FEFCE8] text-[#854D0E] border-[#FDE047] hover:bg-[#FEFCE8]',
   },
   Approved: {
     label: 'Approved',
-    className: 'bg-blue-100 text-blue-800 border-blue-300 hover:bg-blue-100',
+    className: 'bg-[#EFF6FF] text-[#1E40AF] border-[#93C5FD] hover:bg-[#EFF6FF]',
   },
   Released: {
     label: 'Released',
-    className: 'bg-purple-100 text-purple-800 border-purple-300 hover:bg-purple-100',
+    className: 'bg-[#F0F9FF] text-[#075985] border-[#7DD3FC] hover:bg-[#F0F9FF]',
   },
   Funded: {
     label: 'Funded',
-    className: 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-100',
+    className: 'bg-[#F0FDF4] text-[#166534] border-[#86EFAC] hover:bg-[#F0FDF4]',
   },
   Rejected: {
     label: 'Rejected',
-    className: 'bg-rose-100 text-rose-800 border-rose-300 hover:bg-rose-100',
+    className: 'bg-[#FEF2F2] text-[#991B1B] border-[#FCA5A5] hover:bg-[#FEF2F2]',
   },
   Archived: {
     label: 'Archived',
-    className: 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-100',
+    className: 'bg-[#F1F5F9] text-[#475569] border-[#CBD5E1] hover:bg-[#F1F5F9]',
   },
   Cancelled: {
     label: 'Cancelled',
-    className: 'bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-100',
+    className: 'bg-[#F8FAFC] text-[#475569] border-[#E2E8F0] hover:bg-[#F8FAFC]',
   },
 };
 
@@ -57,7 +57,7 @@ export const DisbursementStatusBadge: React.FC<DisbursementStatusBadgeProps> = (
 }) => {
   const config = statusStyles[status] || {
     label: status,
-    className: 'bg-slate-100 text-slate-700 border-slate-300',
+    className: 'bg-[#F8FAFC] text-[#334155] border-[#E2E8F0]',
   };
 
   return (
@@ -66,7 +66,7 @@ export const DisbursementStatusBadge: React.FC<DisbursementStatusBadgeProps> = (
       data-testid="disbursement-status-badge"
       data-test-status={status.toLowerCase()}
       className={cn(
-        'font-medium text-xs px-2.5 py-0.5 rounded-full border transition-none',
+        ' font-medium text-xs px-2.5 py-0.5 rounded-[6px] border transition-none',
         config.className,
         className
       )}

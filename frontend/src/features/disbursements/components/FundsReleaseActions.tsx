@@ -76,17 +76,16 @@ export function ReleaseFundsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent
-        className="max-w-md p-6 space-y-4"
+      <DialogContent className="space-y-4 border-[#E2E8F0] border p-6 shadow-float rounded-[12px] bg-[#FFFFFF] max-w-md"
         data-testid="release-funds-modal"
       >
         <DialogHeader>
-          <DialogTitle className="text-base font-bold text-slate-900">
+          <DialogTitle className="text-base font-bold text-[#1E293B]">
             Release Funds for Payment
           </DialogTitle>
-          <DialogDescription className="text-xs text-slate-600">
+          <DialogDescription className="text-xs text-[#475569]">
             Record payment details to transition disbursement{' '}
-            <span className="font-mono font-semibold text-slate-800">
+            <span className="font-semibold text-[#1E293B]">
               {disbursement.disbursement_number ||
                 disbursement.disbursementNumber ||
                 disbursement.id}
@@ -96,27 +95,27 @@ export function ReleaseFundsModal({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-3" data-testid="release-funds-form">
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-md text-xs space-y-1">
+          <div className="p-3 bg-[#F8FAFC] border-[#E2E8F0] rounded-[6px] text-xs space-y-1">
             <div className="flex justify-between">
-              <span className="text-slate-500">Amount to Release:</span>
-              <span className="font-bold text-slate-900">
+              <span className="text-[#475569]">Amount to Release:</span>
+              <span className="font-bold text-[#1E293B]">
                 ₱{disbursement.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-500">Fund Source:</span>
-              <span className="font-semibold text-blue-700">
+              <span className="text-[#475569]">Fund Source:</span>
+              <span className="font-semibold text-[#1E293B]">
                 {disbursement.fund_source || disbursement.fundSource}
               </span>
             </div>
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700">Payment Method</label>
+            <label className="text-xs font-semibold text-[#1E293B]">Payment Method</label>
             <select
               value={method}
               onChange={(e) => setMethod(e.target.value)}
-              className="w-full text-xs p-2 border rounded-md bg-white border-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full text-xs p-2 border rounded-[6px] bg-white border-[#E2E8F0] focus:outline-none focus:ring-1 focus:ring-blue-500"
               data-testid="select-release-method"
             >
               <option value="Bank Transfer">Bank Transfer</option>
@@ -128,7 +127,7 @@ export function ReleaseFundsModal({
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700">
+            <label className="text-xs font-semibold text-[#1E293B]">
               Payment Reference / Check Number
             </label>
             <Input
@@ -141,7 +140,7 @@ export function ReleaseFundsModal({
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700">Bank / Institution</label>
+            <label className="text-xs font-semibold text-[#1E293B]">Bank / Institution</label>
             <Input
               type="text"
               placeholder="e.g. BDO, BPI, Metrobank"
@@ -152,7 +151,7 @@ export function ReleaseFundsModal({
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700">Release Date</label>
+            <label className="text-xs font-semibold text-[#1E293B]">Release Date</label>
             <DateInput
               aria-label="Release date"
               type="date"

@@ -885,12 +885,12 @@ describe('Disbursements UI Components & Integration', () => {
 
     it('renders all lifecycle badges with corresponding styling', () => {
       const statusExpectations = [
-        { status: 'Submitted', expectedClasses: ['bg-blue-100', 'text-blue-800', 'border-blue-300'] },
-        { status: 'Pending Admin Approval', expectedClasses: ['bg-amber-100', 'text-amber-800', 'border-amber-300'] },
-        { status: 'Archived', expectedClasses: ['bg-slate-100', 'text-slate-700', 'border-slate-300'] },
-        { status: 'Released', expectedClasses: ['bg-purple-100', 'text-purple-800', 'border-purple-300'] },
-        { status: 'Funded', expectedClasses: ['bg-emerald-100', 'text-emerald-800', 'border-emerald-300'] },
-        { status: 'Rejected', expectedClasses: ['bg-rose-100', 'text-rose-800', 'border-rose-300'] },
+        { status: 'Submitted', expectedClasses: ['bg-[#EFF6FF]', 'text-[#1E40AF]', 'border-[#93C5FD]'] },
+        { status: 'Pending Admin Approval', expectedClasses: ['bg-[#FEFCE8]', 'text-[#854D0E]', 'border-[#FDE047]'] },
+        { status: 'Archived', expectedClasses: ['bg-[#F1F5F9]', 'text-[#475569]', 'border-[#CBD5E1]'] },
+        { status: 'Released', expectedClasses: ['bg-[#F0F9FF]', 'text-[#075985]', 'border-[#7DD3FC]'] },
+        { status: 'Funded', expectedClasses: ['bg-[#F0FDF4]', 'text-[#166534]', 'border-[#86EFAC]'] },
+        { status: 'Rejected', expectedClasses: ['bg-[#FEF2F2]', 'text-[#991B1B]', 'border-[#FCA5A5]'] },
       ] as const;
 
       statusExpectations.forEach(({ status, expectedClasses }) => {

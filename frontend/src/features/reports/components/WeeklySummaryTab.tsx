@@ -6,7 +6,6 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { DateInput } from '@/components/ui/date-input';
 import {
   Table,
@@ -98,7 +97,7 @@ export function WeeklySummaryTab() {
       {/* 1. Contextual Toolbar */}
       <ReportToolbar dataTestId="weekly-toolbar">
         <ReportToolbarGroup align="left">
-          <label htmlFor="weekly-date-picker" className="text-xs font-medium text-slate-600 shrink-0">
+          <label htmlFor="weekly-date-picker" className="text-xs font-medium text-[#475569] shrink-0">
             Week of
           </label>
           <DateInput
@@ -107,7 +106,7 @@ export function WeeklySummaryTab() {
             type="date"
             value={selectedDate}
             onValueChange={(value) => setSelectedDate(value || getTodayString())}
-            className="w-[176px]"
+            className="w-[176px] rounded-[6px] border border-[#E2E8F0] bg-white text-xs text-[#1E293B] focus:border-[#1D4ED8] focus:ring-1 focus:ring-[#1D4ED8]"
             data-testid="weekly-date-picker"
           />
           <div className="flex items-center gap-1">
@@ -118,7 +117,7 @@ export function WeeklySummaryTab() {
               onClick={handlePrevWeek}
               aria-label="Previous week"
               title="Previous week (-7 days)"
-              className="h-9 w-9 p-0 text-slate-600 hover:text-slate-900 cursor-pointer"
+              className="h-9 w-9 p-0 rounded-[6px] border border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] text-[#1E293B] cursor-pointer shadow-2xs transition-colors"
               data-testid="weekly-prev-week-btn"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -130,7 +129,7 @@ export function WeeklySummaryTab() {
               onClick={handleNextWeek}
               aria-label="Next week"
               title="Next week (+7 days)"
-              className="h-9 w-9 p-0 text-slate-600 hover:text-slate-900 cursor-pointer"
+              className="h-9 w-9 p-0 rounded-[6px] border border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] text-[#1E293B] cursor-pointer shadow-2xs transition-colors"
               data-testid="weekly-next-week-btn"
             >
               <ChevronRight className="w-4 h-4" />
@@ -141,7 +140,7 @@ export function WeeklySummaryTab() {
             variant="outline"
             size="sm"
             onClick={handleCurrentWeek}
-            className="h-9 px-3 text-xs font-medium text-slate-700 hover:text-slate-900 cursor-pointer"
+            className="h-9 px-3 rounded-[6px] border border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] text-[#1E293B] text-xs font-medium cursor-pointer shadow-2xs transition-colors"
             data-testid="weekly-current-week-btn"
           >
             Current week
@@ -155,7 +154,7 @@ export function WeeklySummaryTab() {
             size="sm"
             onClick={() => refetch()}
             disabled={isRefetching}
-            className="h-9 text-xs gap-1.5 cursor-pointer text-slate-700"
+            className="h-9 px-3 text-xs font-medium gap-1.5 cursor-pointer rounded-[6px] border border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] text-[#1E293B] shadow-2xs transition-colors"
             data-testid="weekly-refresh-button"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isRefetching ? 'animate-spin' : ''}`} />
@@ -164,18 +163,18 @@ export function WeeklySummaryTab() {
         </ReportToolbarGroup>
       </ReportToolbar>
 
-      {/* 2. Plain 7-day boundary header */}
+      {/* 2. Soft 7-Day Boundary Header */}
       <div
-        className="px-4 py-3 bg-slate-50 border border-slate-200/80 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs text-slate-700"
+        className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[8px] flex flex-wrap items-center justify-between gap-2 text-xs text-[#1E293B] shadow-2xs"
         data-testid="weekly-bounds-header"
       >
-        <div className="flex items-center gap-2 font-medium text-slate-800">
-          <CalendarRange className="w-4 h-4 text-slate-500" />
+        <div className="flex items-center gap-2 font-medium text-[#1E293B]">
+          <CalendarRange className="w-4 h-4 text-[#475569]" />
           <span>
             Week range: {formatManilaDate(weekBounds.start)} – {formatManilaDate(weekBounds.end)}
           </span>
         </div>
-        <span className="font-mono text-slate-500 tabular-nums">
+        <span className="text-[#475569] tabular-nums">
           {weekBounds.start} ~ {weekBounds.end}
         </span>
       </div>
@@ -265,12 +264,12 @@ export function WeeklySummaryTab() {
                 key={cat.id}
                 data-testid={cat.testId}
                 onClick={() => scrollToReportSection(cat.targetId)}
-                className="flex items-center justify-between gap-2 p-3 bg-white rounded-xl border border-slate-200/80 hover:border-slate-300 hover:bg-slate-50/75 transition-colors cursor-pointer text-left shadow-2xs"
+                className="flex items-center justify-between gap-2 p-3 bg-[#FFFFFF] rounded-[8px] border border-[#E2E8F0] hover:bg-[#F8FAFC] hover:border-[#94A3B8] shadow-card transition-colors cursor-pointer text-left"
               >
-                <span className="text-xs font-medium text-slate-600 leading-snug">
+                <span className="text-xs font-medium text-[#475569] leading-snug">
                   {cat.label}
                 </span>
-                <span className="text-sm font-semibold text-slate-900 tabular-nums font-sans px-2 py-0.5 rounded-md bg-slate-100">
+                <span className="text-xs font-bold text-[#1E40AF] tabular-nums px-2 py-0.5 rounded-[4px] border border-[#BFDBFE] bg-[#EFF6FF]">
                   {formatCount(cat.count)}
                 </span>
               </button>
@@ -288,7 +287,7 @@ export function WeeklySummaryTab() {
               collapsible
             >
               {details.workRequests.length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-400">
+                <div className="p-6 text-center text-xs text-[#475569]">
                   No work requests created in this week.
                 </div>
               ) : (
@@ -304,7 +303,7 @@ export function WeeklySummaryTab() {
                     <TableBody>
                       {details.workRequests.map((wr) => (
                         <TableRow key={wr.id}>
-                          <TableCell className="font-medium text-slate-900">
+                          <TableCell className="font-medium text-[#1E293B]">
                             <span
                               className="line-clamp-2 max-w-xl break-words"
                               title={wr.title}
@@ -313,11 +312,11 @@ export function WeeklySummaryTab() {
                             </span>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="secondary" className="text-xs font-normal">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#E2E8F0] text-xs font-medium bg-[#F8FAFC] text-[#1E293B]">
                               {wr.status}
-                            </Badge>
+                            </span>
                           </TableCell>
-                          <TableCell className="text-right text-slate-600 tabular-nums">
+                          <TableCell className="text-right text-xs text-[#475569] tabular-nums">
                             {formatManilaDate(wr.created_at)}
                           </TableCell>
                         </TableRow>
@@ -337,7 +336,7 @@ export function WeeklySummaryTab() {
               collapsible
             >
               {details.invoices.length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-400">
+                <div className="p-6 text-center text-xs text-[#475569]">
                   No invoices issued in this week.
                 </div>
               ) : (
@@ -354,18 +353,18 @@ export function WeeklySummaryTab() {
                     <TableBody>
                       {details.invoices.map((inv) => (
                         <TableRow key={inv.id}>
-                          <TableCell className="font-semibold text-slate-900 tabular-nums">
+                          <TableCell className="font-medium text-[#1E293B] tabular-nums">
                             {inv.invoice_number}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="secondary" className="text-xs font-normal">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#E2E8F0] text-xs font-medium bg-[#F8FAFC] text-[#1E293B]">
                               {inv.status}
-                            </Badge>
+                            </span>
                           </TableCell>
-                          <TableCell className="text-right font-medium text-slate-900 tabular-nums">
+                          <TableCell className="text-right font-bold text-[#1E293B] tabular-nums">
                             {formatCurrency(inv.total)}
                           </TableCell>
-                          <TableCell className="text-right text-slate-600 tabular-nums">
+                          <TableCell className="text-right text-xs text-[#475569] tabular-nums">
                             {formatManilaDate(inv.created_at)}
                           </TableCell>
                         </TableRow>
@@ -385,7 +384,7 @@ export function WeeklySummaryTab() {
               collapsible
             >
               {details.payments.length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-400">
+                <div className="p-6 text-center text-xs text-[#475569]">
                   No payments received in this week.
                 </div>
               ) : (
@@ -401,11 +400,11 @@ export function WeeklySummaryTab() {
                     <TableBody>
                       {details.payments.map((p) => (
                         <TableRow key={p.id}>
-                          <TableCell className="text-right font-semibold text-slate-900 tabular-nums">
+                          <TableCell className="text-right font-bold text-[#1E293B] tabular-nums">
                             {formatCurrency(p.amount)}
                           </TableCell>
-                          <TableCell className="text-slate-700">{p.method}</TableCell>
-                          <TableCell className="text-right text-slate-600 tabular-nums">
+                          <TableCell className="text-[#1E293B] tabular-nums text-xs">{p.method}</TableCell>
+                          <TableCell className="text-right text-xs text-[#475569] tabular-nums">
                             {formatManilaDate(p.created_at)}
                           </TableCell>
                         </TableRow>
@@ -425,7 +424,7 @@ export function WeeklySummaryTab() {
               collapsible
             >
               {details.disbursements.length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-400">
+                <div className="p-6 text-center text-xs text-[#475569]">
                   No disbursements filed in this week.
                 </div>
               ) : (
@@ -442,18 +441,18 @@ export function WeeklySummaryTab() {
                     <TableBody>
                       {details.disbursements.map((d) => (
                         <TableRow key={d.id}>
-                          <TableCell className="font-semibold text-slate-900 tabular-nums">
+                          <TableCell className="font-medium text-[#1E293B] tabular-nums">
                             {d.disbursement_number}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="secondary" className="text-xs font-normal">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#E2E8F0] text-xs font-medium bg-[#F8FAFC] text-[#1E293B]">
                               {d.status}
-                            </Badge>
+                            </span>
                           </TableCell>
-                          <TableCell className="text-right font-medium text-slate-900 tabular-nums">
+                          <TableCell className="text-right font-bold text-[#1E293B] tabular-nums">
                             {formatCurrency(d.amount)}
                           </TableCell>
-                          <TableCell className="text-right text-slate-600 tabular-nums">
+                          <TableCell className="text-right text-xs text-[#475569] tabular-nums">
                             {formatManilaDate(d.created_at)}
                           </TableCell>
                         </TableRow>
@@ -473,7 +472,7 @@ export function WeeklySummaryTab() {
               collapsible
             >
               {details.documents.length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-400">
+                <div className="p-6 text-center text-xs text-[#475569]">
                   No documents uploaded in this week.
                 </div>
               ) : (
@@ -488,7 +487,7 @@ export function WeeklySummaryTab() {
                     <TableBody>
                       {details.documents.map((doc) => (
                         <TableRow key={doc.id}>
-                          <TableCell className="font-medium text-slate-900">
+                          <TableCell className="font-medium text-[#1E293B]">
                             <span
                               className="line-clamp-2 max-w-xl break-words"
                               title={doc.original_name}
@@ -496,7 +495,7 @@ export function WeeklySummaryTab() {
                               {doc.original_name}
                             </span>
                           </TableCell>
-                          <TableCell className="text-right text-slate-600 tabular-nums">
+                          <TableCell className="text-right text-xs text-[#475569] tabular-nums">
                             {formatManilaDate(doc.created_at)}
                           </TableCell>
                         </TableRow>
@@ -516,7 +515,7 @@ export function WeeklySummaryTab() {
               collapsible
             >
               {details.transmittals.length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-400">
+                <div className="p-6 text-center text-xs text-[#475569]">
                   No transmittals created in this week.
                 </div>
               ) : (
@@ -532,15 +531,15 @@ export function WeeklySummaryTab() {
                     <TableBody>
                       {details.transmittals.map((t) => (
                         <TableRow key={t.id}>
-                          <TableCell className="font-semibold text-slate-900 tabular-nums">
+                          <TableCell className="font-mono font-medium text-[#1E293B] tabular-nums">
                             {t.tracking_number}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="secondary" className="text-xs font-normal">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#E2E8F0] text-xs font-medium bg-[#F8FAFC] text-[#1E293B]">
                               {t.status}
-                            </Badge>
+                            </span>
                           </TableCell>
-                          <TableCell className="text-right text-slate-600 tabular-nums">
+                          <TableCell className="text-right text-xs text-[#475569] tabular-nums">
                             {formatManilaDate(t.created_at)}
                           </TableCell>
                         </TableRow>
