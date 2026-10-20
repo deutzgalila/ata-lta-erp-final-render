@@ -5,7 +5,8 @@
  * Doctrine: Zero Optimistic Updates — non-dismissible blocking execution, verbatim RFC 7807 surfacing.
  */
 
-import { useQuery, useMutation, useQueryClient, keepPreviousData, type QueryClient } from '@tanstack/react-query';
+import { z } from 'zod';
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { apiRequest, ApiError } from '@/lib/api';
 import { useSessionStore } from '@/lib/session';
 import { broadcastEntityChange } from '@/lib/tabSync';
@@ -15,7 +16,7 @@ import {
   createDisbursementSchema,
   updateDisbursementSchema,
   rejectDisbursementSchema,
-  releasePaymentSchema,
+  fundDisbursementSchema,
   updatePaymentDetailsSchema,
   receiptUploadReservationSchema,
 } from './schemas';
@@ -26,6 +27,7 @@ import type {
   UpdateDisbursementInput,
   ReleasePaymentInput,
   ApproveDisbursementInput,
+  FundDisbursementInput,
   UpdatePaymentDetailsInput,
   CreateReceiptUploadReservationInput,
   ReceiptUploadReservation,
@@ -103,6 +105,10 @@ export function useDisbursementsList(
           awaitingRelease: 0,
           rejected: 0,
           archived: 0,
+          initialRequests: 0,
+          paymentReleases: 0,
+          readyForFunding: 0,
+          needsCorrection: 0,
         };
       }
       const params = new URLSearchParams();
@@ -113,6 +119,7 @@ export function useDisbursementsList(
       if (filters?.linkedTransmittalId) params.append('linkedTransmittalId', filters.linkedTransmittalId);
       if (filters?.search) params.append('search', filters.search);
       if (filters?.archived !== undefined) params.append('archived', String(filters.archived));
+      if (filters?.queue) params.append('queue', filters.queue);
       if (filters?.page) params.append('page', String(filters.page));
       if (filters?.limit) params.append('limit', String(filters.limit));
 
@@ -121,7 +128,7 @@ export function useDisbursementsList(
       const res = await apiRequest<DisbursementListResponse>(path);
       return res;
     },
-    placeholderData: keepPreviousData,
+    refetchInterval: 5000,
     enabled: options?.enabled ?? true,
   });
 }
@@ -185,7 +192,82 @@ export function useAllDisbursementsForStatus(
         meta: { total: data.length, page: 1, limit: data.length },
       };
     },
-    placeholderData: keepPreviousData,
+    refetchInterval: 5000,
+    enabled: options?.enabled ?? true,
+  });
+}
+
+/**
+ * 1c. Fetch all disbursements for a server queue predicate across all pages (Complete Traversal).
+ * Paginates server queue predicates (initial_requests, payment_releases, ready_for_funding,
+ * needs_correction) until all records are retrieved, with deduplication and no-progress checks.
+ */
+export async function fetchAllDisbursementsForQueue(
+  queue: 'initial_requests' | 'payment_releases' | 'ready_for_funding' | 'needs_correction',
+  limitPerPage = 100
+): Promise<Disbursement[]> {
+  if (isTestWithoutMock()) return [];
+  const all: Disbursement[] = [];
+  const seen = new Set<string>();
+  let page = 1;
+  const initialSession = useSessionStore.getState();
+  const requestUser = initialSession.user?.id;
+  const requestEntity = initialSession.activeEntity;
+
+  while (true) {
+    const params = new URLSearchParams();
+    params.append('queue', queue);
+    params.append('limit', String(limitPerPage));
+    params.append('page', String(page));
+
+    const session = useSessionStore.getState();
+    if (session.user?.id !== requestUser || session.activeEntity !== requestEntity) {
+      throw new Error('Queue context changed. Reload the current workspace.');
+    }
+    const path = `/disbursements?${params.toString()}`;
+    const res = await apiRequest<DisbursementListResponse>(path);
+    if (useSessionStore.getState().user?.id !== requestUser || useSessionStore.getState().activeEntity !== requestEntity) {
+      throw new Error('Queue context changed. Reload the current workspace.');
+    }
+    const items = res.data ?? [];
+    if (items.length === 0) break;
+
+    const unseen = items.filter((item) => !seen.has(item.id));
+    if (items.length > 0 && unseen.length === 0) {
+      throw new Error(`Queue ${queue} pagination made no progress. Refresh the queue.`);
+    }
+    for (const item of unseen) seen.add(item.id);
+    all.push(...unseen);
+
+    const total = res.meta?.total ?? res.count;
+    if (
+      items.length < limitPerPage ||
+      (typeof total === 'number' && all.length >= total)
+    ) {
+      break;
+    }
+    page++;
+  }
+
+  return all;
+}
+
+export function useAllDisbursementsForQueue(
+  queue: 'initial_requests' | 'payment_releases' | 'ready_for_funding' | 'needs_correction',
+  options?: { enabled?: boolean }
+) {
+  const activeEntity = useSessionStore((state) => state.activeEntity);
+
+  return useQuery({
+    queryKey: ['disbursements', 'all-for-queue', activeEntity, queue],
+    queryFn: async () => {
+      const data = await fetchAllDisbursementsForQueue(queue);
+      return {
+        data,
+        meta: { total: data.length, page: 1, limit: data.length },
+      };
+    },
+    refetchInterval: 5000,
     enabled: options?.enabled ?? true,
   });
 }
@@ -210,14 +292,17 @@ export function useDisbursementDetail(
       const res = await apiRequest<DisbursementDetailResponse>(`/disbursements/${id}`);
       return res.data;
     },
+    refetchInterval: 5000,
     enabled: Boolean(id) && (options?.enabled ?? true),
     // Instant feel: render from the matching list row (already fetched) while
-    // the detail fetch completes. Placeholder never persists into the cache.
+    // the detail fetch completes. Guarded against cross-entity placeholderData leakage.
     placeholderData: () => {
       if (!id || isTestWithoutMock()) return undefined;
-      for (const [, list] of queryClient.getQueriesData<DisbursementListResponse>({
+      const currentEntity = useSessionStore.getState().activeEntity;
+      for (const [key, list] of queryClient.getQueriesData<DisbursementListResponse>({
         queryKey: disbursementKeys.lists(),
       })) {
+        if (key[2] !== currentEntity) continue;
         const hit = list?.data?.find((d) => d.id === id);
         if (hit) return hit;
       }
@@ -237,11 +322,21 @@ export function useDisbursementCounts(options?: { enabled?: boolean }) {
     queryKey: disbursementKeys.counts(activeEntity),
     queryFn: async () => {
       if (isTestWithoutMock()) {
-        return { active: 0, awaitingRelease: 0, rejected: 0, archived: 0 };
+        return {
+          active: 0,
+          awaitingRelease: 0,
+          rejected: 0,
+          archived: 0,
+          initialRequests: 0,
+          paymentReleases: 0,
+          readyForFunding: 0,
+          needsCorrection: 0,
+        };
       }
       const res = await apiRequest<DisbursementCountsResponse>('/disbursements/counts');
       return res.data;
     },
+    refetchInterval: 5000,
     enabled: options?.enabled,
   });
 }
@@ -278,9 +373,6 @@ export function useCreateDisbursement() {
   });
 
   const createWithBlocking = async (input: CreateDisbursementInput): Promise<Disbursement> => {
-    const user = useSessionStore.getState().user;
-    const isAdmin = user?.role === 'Admin' || user?.email === 'lorein@ata-lta.ph';
-
     return runBlockingAction({
       title: 'Creating Disbursement',
       message: 'Submitting disbursement voucher to the server...',
@@ -290,10 +382,8 @@ export function useCreateDisbursement() {
         disbursementKeys.all,
         disbursementKeys.counts(activeEntity),
       ],
-      successTitle: isAdmin ? 'Disbursement Approved' : 'Disbursement Created',
-      successMessage: isAdmin
-        ? 'Disbursement voucher created and directly approved by Admin.'
-        : 'Disbursement voucher submitted for Admin approval.',
+      successTitle: 'Disbursement Created',
+      successMessage: 'Draft voucher created and queued for Admin budget approval.',
     });
   };
 
@@ -448,13 +538,6 @@ export function useApproveDisbursement() {
       const expectedVersion = typeof arg === 'object' ? arg.expectedVersion : undefined;
       const payload: Record<string, unknown> = {};
 
-      if (typeof arg === 'object' && arg.method) {
-        payload.method = arg.method;
-        payload.reference = arg.reference ?? null;
-        payload.bank = arg.bank ?? null;
-        payload.date = arg.date;
-      }
-
       if (typeof expectedVersion === 'number') {
         payload.expectedVersion = expectedVersion;
       }
@@ -514,14 +597,14 @@ export function useApproveDisbursement() {
 
     return runBlockingAction({
       title: 'Approving Disbursement',
-      message: 'Recording approval and transitioning voucher to Released...',
+      message: 'Recording budget approval for disbursement voucher...',
       actionName: 'Approve Disbursement',
       apiCall: async () => mutation.mutateAsync(mutationArg),
       invalidateQueries: [
         disbursementKeys.counts(activeEntity),
       ],
       successTitle: 'Disbursement Approved',
-      successMessage: 'Disbursement has been approved and transitioned to Released.',
+      successMessage: 'Disbursement authorized by Admin and ready for payment preparation.',
     });
   };
 
@@ -634,10 +717,8 @@ export function useReleaseDisbursement() {
   >({
     mutationFn: async (arg) => {
       const id = typeof arg === 'string' ? arg : arg.id;
-      const data = typeof arg === 'object' ? arg.data : undefined;
       const expectedVersion = typeof arg === 'object' ? arg.expectedVersion : undefined;
-      const validated = data ? releasePaymentSchema.parse(data) : {};
-      const payload: Record<string, unknown> = { ...validated };
+      const payload: Record<string, unknown> = {};
       if (typeof expectedVersion === 'number') {
         payload.expectedVersion = expectedVersion;
       }
@@ -645,7 +726,7 @@ export function useReleaseDisbursement() {
         `/disbursements/${id}/release`,
         {
           method: 'POST',
-          body: JSON.stringify(payload),
+          ...(Object.keys(payload).length > 0 ? { body: JSON.stringify(payload) } : {}),
         }
       );
       return res.data;
@@ -783,6 +864,17 @@ export function useUpdatePaymentDetails() {
  * 9c. Request pre-signed upload reservation for a disbursement receipt.
  * Endpoint: POST /v1/disbursements/receipt-uploads
  */
+const receiptReservationResponse = z.object({
+  uploadId: z.string().trim().min(1),
+  uploadUrl: z.string().url().refine((value) => ['http:', 'https:'].includes(new URL(value).protocol)),
+  objectKey: z.string().trim().min(1),
+  expiresAt: z.string().datetime({ offset: true }),
+});
+const completedReceiptResponse = z.object({
+  receiptS3Key: z.string().trim().min(1),
+  receiptFilename: z.string().trim().min(1),
+});
+
 export async function requestReceiptUploadReservation(
   input: CreateReceiptUploadReservationInput
 ): Promise<ReceiptUploadReservation> {
@@ -794,7 +886,7 @@ export async function requestReceiptUploadReservation(
       body: JSON.stringify(validated),
     }
   );
-  return res.data;
+  return receiptReservationResponse.parse(res.data);
 }
 
 /**
@@ -829,7 +921,7 @@ export async function completeReceiptUpload(
       method: 'POST',
     }
   );
-  return res.data;
+  return completedReceiptResponse.parse(res.data);
 }
 
 /**
@@ -840,7 +932,8 @@ export async function completeReceiptUpload(
  * 4. Verify & complete via POST /v1/disbursements/receipt-uploads/:uploadId/complete
  */
 export async function uploadReceiptFile(
-  file: File
+  file: File,
+  isCurrent: () => boolean = () => true
 ): Promise<{ receiptS3Key: string; receiptFilename: string }> {
   if (!['application/pdf', 'image/png', 'image/jpeg'].includes(file.type)) {
     throw new Error('Only PDF, PNG, and JPEG files are allowed');
@@ -855,16 +948,14 @@ export async function uploadReceiptFile(
     size: file.size,
   });
 
-  if (!reservation?.uploadUrl) {
-    return {
-      receiptS3Key: (reservation as unknown as { objectKey?: string })?.objectKey || '',
-      receiptFilename: file.name,
-    };
-  }
-
+  if (!isCurrent()) throw new Error('Receipt form changed. Select the receipt again.');
   await uploadReceiptBinary(reservation.uploadUrl, file);
-
+  if (!isCurrent()) throw new Error('Receipt form changed. Select the receipt again.');
   const completed = await completeReceiptUpload(reservation.uploadId);
+  if (!isCurrent()) throw new Error('Receipt form changed. Select the receipt again.');
+  if (completed.receiptS3Key !== reservation.objectKey) {
+    throw new Error('Receipt verification returned a different attachment. Please upload again.');
+  }
   return completed;
 }
 
@@ -895,11 +986,132 @@ export function useDisbursementReceiptUrl(
 }
 
 /**
- * 10. Mark released disbursement as funded / reconciled (Released → Funded).
+ * 10. Prepare payment instrument details and transition to Funded (Approved → Funded).
  * Endpoint: POST /v1/disbursements/:id/fund
  * Requires permission: disbursement:mark_released (Accounting, Admin).
+ * Forward payment payloads for fund all the way from UI → schema → controller → service → RPC.
  */
+export type FundDisbursementMutationArg =
+  | string
+  | {
+      id: string;
+      data?: Partial<FundDisbursementInput>;
+      method?: string;
+      bank?: string;
+      reference?: string;
+      date?: string;
+      expectedVersion?: number;
+    };
+
 export function useFundDisbursement() {
+  const queryClient = useQueryClient();
+  const activeEntity = useSessionStore((state) => state.activeEntity);
+
+  const mutation = useMutation<
+    Disbursement,
+    ApiError,
+    FundDisbursementMutationArg
+  >({
+    mutationFn: async (arg) => {
+      const id = typeof arg === 'string' ? arg : arg.id;
+      let payload: Record<string, unknown> = {};
+
+      if (typeof arg === 'object') {
+        const method = arg.data?.method ?? arg.method;
+        const bank = arg.data?.bank ?? arg.bank;
+        const reference = arg.data?.reference ?? arg.reference;
+        const date = arg.data?.date ?? arg.date;
+        const expectedVersion = arg.data?.expectedVersion ?? arg.expectedVersion;
+
+        if (method && bank && reference && date && typeof expectedVersion === 'number') {
+          payload = fundDisbursementSchema.parse({
+            method,
+            bank,
+            reference,
+            date,
+            expectedVersion,
+          });
+        } else {
+          if (method) payload.method = method;
+          if (bank) payload.bank = bank;
+          if (reference) payload.reference = reference;
+          if (date) payload.date = date;
+          if (typeof expectedVersion === 'number') payload.expectedVersion = expectedVersion;
+        }
+      }
+
+      const res = await apiRequest<DisbursementDetailResponse>(
+        `/disbursements/${id}/fund`,
+        {
+          method: 'POST',
+          ...(Object.keys(payload).length > 0 ? { body: JSON.stringify(payload) } : {}),
+        }
+      );
+      return res.data;
+    },
+    onSuccess: (updated) => {
+      pinAndBroadcastDisbursement(queryClient, updated);
+      queryClient.invalidateQueries({
+        queryKey: disbursementKeys.detail(updated.id),
+      });
+      queryClient.invalidateQueries({ queryKey: disbursementKeys.lists() });
+      queryClient.invalidateQueries({
+        queryKey: disbursementKeys.counts(activeEntity),
+      });
+    },
+  });
+
+  const fundWithBlocking = async (
+    idOrParams: FundDisbursementMutationArg,
+    maybeExpectedVersion?: number
+  ): Promise<Disbursement> => {
+    let mutationArg: FundDisbursementMutationArg;
+    if (typeof idOrParams === 'string') {
+      mutationArg =
+        maybeExpectedVersion !== undefined
+          ? { id: idOrParams, expectedVersion: maybeExpectedVersion }
+          : idOrParams;
+    } else {
+      mutationArg = {
+        ...idOrParams,
+        expectedVersion:
+          idOrParams.expectedVersion !== undefined
+            ? idOrParams.expectedVersion
+            : maybeExpectedVersion,
+      };
+    }
+
+    const id = typeof mutationArg === 'string' ? mutationArg : mutationArg.id;
+
+    return runBlockingAction({
+      title: 'Preparing Payment Instrument',
+      message: 'Recording payment instrument details and transitioning to Funded...',
+      actionName: 'Fund Disbursement',
+      apiCall: async () => mutation.mutateAsync(mutationArg),
+      invalidateQueries: [
+        disbursementKeys.detail(id),
+        disbursementKeys.lists(),
+        disbursementKeys.counts(activeEntity),
+      ],
+      successTitle: 'Payment Instrument Prepared',
+      successMessage: 'Payment instrument details recorded and verified. Awaiting Admin release.',
+    });
+  };
+
+  return {
+    ...mutation,
+    fundDisbursement: mutation.mutateAsync,
+    fundWithBlocking,
+  };
+}
+
+/**
+ * 10b. Return a rejected disbursement to Draft for correction (Rejected → Draft).
+ * Endpoint: POST /v1/disbursements/:id/resend_draft
+ * Requires permission: disbursement:approve (Admin only).
+ * Invalidate current approval/preparation/release attribution; sets review_ready = false.
+ */
+export function useResendDraft() {
   const queryClient = useQueryClient();
   const activeEntity = useSessionStore((state) => state.activeEntity);
 
@@ -915,9 +1127,8 @@ export function useFundDisbursement() {
       if (typeof expectedVersion === 'number') {
         payload.expectedVersion = expectedVersion;
       }
-
       const res = await apiRequest<DisbursementDetailResponse>(
-        `/disbursements/${id}/fund`,
+        `/disbursements/${id}/resend_draft`,
         {
           method: 'POST',
           ...(Object.keys(payload).length > 0 ? { body: JSON.stringify(payload) } : {}),
@@ -926,17 +1137,17 @@ export function useFundDisbursement() {
       return res.data;
     },
     onSuccess: (updated) => {
-      queryClient.invalidateQueries({
-        queryKey: disbursementKeys.detail(updated.id),
-      });
-      queryClient.invalidateQueries({ queryKey: disbursementKeys.lists() });
+      pinAndBroadcastDisbursement(queryClient, updated);
+      queryClient.invalidateQueries({ queryKey: disbursementKeys.all });
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: disbursementKeys.counts(activeEntity),
       });
     },
   });
 
-  const fundWithBlocking = async (
+  const resendDraftWithBlocking = async (
     idOrParams: string | { id: string; expectedVersion?: number },
     maybeExpectedVersion?: number
   ): Promise<Disbursement> => {
@@ -946,28 +1157,27 @@ export function useFundDisbursement() {
         ? idOrParams.expectedVersion
         : maybeExpectedVersion;
 
-    const mutationArg =
-      expectedVersion !== undefined ? { id, expectedVersion } : id;
+    const mutationArg = expectedVersion !== undefined ? { id, expectedVersion } : id;
 
     return runBlockingAction({
-      title: 'Reconciling Funding',
-      message: 'Marking disbursement as funded and reconciled...',
-      actionName: 'Fund Disbursement',
+      title: 'Returning to Draft',
+      message: 'Returning rejected voucher to Draft for requester revision...',
+      actionName: 'Return to Draft',
       apiCall: async () => mutation.mutateAsync(mutationArg),
       invalidateQueries: [
         disbursementKeys.detail(id),
         disbursementKeys.lists(),
         disbursementKeys.counts(activeEntity),
       ],
-      successTitle: 'Disbursement Funded',
-      successMessage: 'Disbursement marked as funded and reconciled.',
+      successTitle: 'Returned to Draft',
+      successMessage: 'Voucher returned to Draft awaiting requester correction.',
     });
   };
 
   return {
     ...mutation,
-    fundDisbursement: mutation.mutateAsync,
-    fundWithBlocking,
+    resendDraft: mutation.mutateAsync,
+    resendDraftWithBlocking,
   };
 }
 
@@ -979,15 +1189,21 @@ export function useFundDisbursement() {
 export async function archiveDisbursementAction(
   id: string,
   reference?: string,
-  activeEntity?: string | null
+  activeEntity?: string | null,
+  expectedVersion?: number
 ): Promise<Disbursement> {
   return runBlockingAction<Disbursement>({
     title: 'Archiving Disbursement',
     message: `Archiving disbursement voucher ${reference || id}...`,
     actionName: 'Archive Disbursement',
     apiCall: async () => {
+      const payload: Record<string, unknown> = {};
+      if (typeof expectedVersion === 'number') {
+        payload.expectedVersion = expectedVersion;
+      }
       const res = await apiRequest<{ data: Disbursement }>(`/disbursements/${id}/archive`, {
         method: 'POST',
+        ...(Object.keys(payload).length > 0 ? { body: JSON.stringify(payload) } : {}),
       });
       return res.data;
     },
@@ -1006,10 +1222,19 @@ export function useArchiveDisbursement() {
   const queryClient = useQueryClient();
   const activeEntity = useSessionStore((state) => state.activeEntity);
 
-  const mutation = useMutation<Disbursement, ApiError, { id: string; reference?: string }>({
-    mutationFn: async ({ id }) => {
+  const mutation = useMutation<
+    Disbursement,
+    ApiError,
+    { id: string; reference?: string; expectedVersion?: number }
+  >({
+    mutationFn: async ({ id, expectedVersion }) => {
+      const payload: Record<string, unknown> = {};
+      if (typeof expectedVersion === 'number') {
+        payload.expectedVersion = expectedVersion;
+      }
       const res = await apiRequest<{ data: Disbursement }>(`/disbursements/${id}/archive`, {
         method: 'POST',
+        ...(Object.keys(payload).length > 0 ? { body: JSON.stringify(payload) } : {}),
       });
       return res.data;
     },
@@ -1027,8 +1252,12 @@ export function useArchiveDisbursement() {
     },
   });
 
-  const archiveWithBlocking = async (params: { id: string; reference?: string }): Promise<Disbursement> => {
-    return archiveDisbursementAction(params.id, params.reference, activeEntity);
+  const archiveWithBlocking = async (params: {
+    id: string;
+    reference?: string;
+    expectedVersion?: number;
+  }): Promise<Disbursement> => {
+    return archiveDisbursementAction(params.id, params.reference, activeEntity, params.expectedVersion);
   };
 
   return {
@@ -1046,15 +1275,21 @@ export function useArchiveDisbursement() {
 export async function restoreDisbursementAction(
   id: string,
   reference?: string,
-  activeEntity?: string | null
+  activeEntity?: string | null,
+  expectedVersion?: number
 ): Promise<Disbursement> {
   return runBlockingAction<Disbursement>({
     title: 'Restoring Disbursement',
     message: `Restoring disbursement voucher ${reference || id} from archive...`,
     actionName: 'Restore Disbursement',
     apiCall: async () => {
+      const payload: Record<string, unknown> = {};
+      if (typeof expectedVersion === 'number') {
+        payload.expectedVersion = expectedVersion;
+      }
       const res = await apiRequest<{ data: Disbursement }>(`/disbursements/${id}/unarchive`, {
         method: 'POST',
+        ...(Object.keys(payload).length > 0 ? { body: JSON.stringify(payload) } : {}),
       });
       return res.data;
     },
@@ -1073,10 +1308,19 @@ export function useRestoreDisbursement() {
   const queryClient = useQueryClient();
   const activeEntity = useSessionStore((state) => state.activeEntity);
 
-  const mutation = useMutation<Disbursement, ApiError, { id: string; reference?: string }>({
-    mutationFn: async ({ id }) => {
+  const mutation = useMutation<
+    Disbursement,
+    ApiError,
+    { id: string; reference?: string; expectedVersion?: number }
+  >({
+    mutationFn: async ({ id, expectedVersion }) => {
+      const payload: Record<string, unknown> = {};
+      if (typeof expectedVersion === 'number') {
+        payload.expectedVersion = expectedVersion;
+      }
       const res = await apiRequest<{ data: Disbursement }>(`/disbursements/${id}/unarchive`, {
         method: 'POST',
+        ...(Object.keys(payload).length > 0 ? { body: JSON.stringify(payload) } : {}),
       });
       return res.data;
     },
@@ -1094,8 +1338,12 @@ export function useRestoreDisbursement() {
     },
   });
 
-  const restoreWithBlocking = async (params: { id: string; reference?: string }): Promise<Disbursement> => {
-    return restoreDisbursementAction(params.id, params.reference, activeEntity);
+  const restoreWithBlocking = async (params: {
+    id: string;
+    reference?: string;
+    expectedVersion?: number;
+  }): Promise<Disbursement> => {
+    return restoreDisbursementAction(params.id, params.reference, activeEntity, params.expectedVersion);
   };
 
   return {

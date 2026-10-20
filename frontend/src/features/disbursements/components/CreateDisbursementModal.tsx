@@ -15,13 +15,14 @@ import { Upload, FileText, X, AlertCircle } from 'lucide-react';
 import { useSessionStore } from '@/lib/session';
 import { DISBURSEMENT_CATEGORIES, FUND_SOURCES } from '../api/schemas';
 import { useCreateDisbursement, uploadReceiptFile } from '../api/useDisbursements';
-import { apiRequest } from '@/lib/api';
+import { apiRequest, ApiError } from '@/lib/api';
 import { useWorkRequests } from '@/features/operations/api/useWorkRequests';
 import { useWorkRequestTasks } from '@/features/operations/api/useTasks';
 import { useTeam } from '@/features/operations/api/useTeam';
 import type { ClientSummary } from '@/features/operations/api/useClients';
 import type { WorkRequest } from '@/features/operations/api/types';
 import type { CreateDisbursementInput, FundSource } from '../api/types';
+import { useLiveModalContext } from '../lib/useLiveModalContext';
 
 /**
  * Frozen Financial Prefill Contract (UAT2-7-contract-side)
@@ -41,6 +42,27 @@ export interface CreateDisbursementModalProps {
   prefill?: FinancialPrefill;
   defaultWorkRequestId?: string;
   defaultClientId?: string;
+}
+
+// Keep an uncertain submission blocked across attachment replacement, modal reopen and page refresh.
+// Only the requester can clear this after inspecting their persisted vouchers.
+const pendingCreates = new Set<string>();
+function hasPendingCreate(key: string): boolean {
+  try {
+    return sessionStorage.getItem(key) === 'pending';
+  } catch {
+    return pendingCreates.has(key);
+  }
+}
+function markPendingCreate(key: string, pending: boolean): void {
+  if (pending) pendingCreates.add(key);
+  else pendingCreates.delete(key);
+  try {
+    if (pending) sessionStorage.setItem(key, 'pending');
+    else sessionStorage.removeItem(key);
+  } catch {
+    /* In-memory protection remains if browser storage is unavailable. */
+  }
 }
 
 export function CreateDisbursementModal({
@@ -79,6 +101,11 @@ export function CreateDisbursementModal({
     receiptS3Key: string;
     receiptFilename: string;
   } | null>(null);
+  const isSubmittingRef = React.useRef(false);
+  const [needsCreateReview, setNeedsCreateReview] = useState(false);
+  const { captureContext, contextKey } = useLiveModalContext({
+    isOpen,
+  });
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -138,6 +165,16 @@ export function CreateDisbursementModal({
   const activeEntity = useSessionStore((state) => state.activeEntity);
   const currentUser = useSessionStore((state) => state.user);
   const effectiveEntity = activeEntity !== 'ALL' ? activeEntity : undefined;
+  const pendingCreateKey = `erp_disbursement_creation_pending:${currentUser?.id}:${activeEntity}`;
+  useEffect(() => {
+    isSubmittingRef.current = false;
+    setIsUploadingReceipt(false);
+    setIsNoReceiptConfirmOpen(false);
+    setNeedsCreateReview(hasPendingCreate(pendingCreateKey));
+    setUploadedReceipt(null);
+    setReceiptFile(null);
+    setReceiptFilename('');
+  }, [contextKey, pendingCreateKey]);
 
   const { data: clientsData = [] } = useQuery<ClientSummary[]>({
     queryKey: ['clients', 'list', effectiveEntity, undefined, undefined],
@@ -160,7 +197,10 @@ export function CreateDisbursementModal({
     return (clientsData as { data?: ClientSummary[] }).data ?? [];
   }, [clientsData]);
 
-  const { data: workRequestsData } = useWorkRequests({ archived: false, limit: 200 }, { enabled: canFetch });
+  const { data: workRequestsData } = useWorkRequests(
+    { archived: false, limit: 200 },
+    { enabled: canFetch }
+  );
   const workRequests: WorkRequest[] = React.useMemo(() => {
     if (!workRequestsData) return [];
     if (Array.isArray(workRequestsData)) return workRequestsData;
@@ -313,6 +353,7 @@ export function CreateDisbursementModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRef.current || hasPendingCreate(pendingCreateKey)) return;
     if (!validate()) return;
 
     // Distinguish absent file selection from failed upload
@@ -326,82 +367,120 @@ export function CreateDisbursementModal({
   };
 
   const doSubmit = async (bypassReceipt: boolean) => {
+    if (isSubmittingRef.current || hasPendingCreate(pendingCreateKey)) return;
+    isSubmittingRef.current = true;
+    const { isStale } = captureContext();
+    let creationStarted = false;
+
     let resultingS3Key: string | null = null;
     let resultingFilename: string | null = null;
 
-    if (!bypassReceipt && uploadedReceipt && receiptFile && uploadedReceipt.file === receiptFile) {
-      // Reuse already uploaded and completed receipt reservation without re-uploading
-      resultingS3Key = uploadedReceipt.receiptS3Key;
-      resultingFilename = uploadedReceipt.receiptFilename;
-    } else if (!bypassReceipt && receiptFile) {
-      // Validate MIME and size before upload
-      if (!['application/pdf', 'image/png', 'image/jpeg'].includes(receiptFile.type)) {
-        setErrors((prev) => ({ ...prev, receipt: 'Only PDF, PNG, and JPEG files are allowed' }));
-        return;
-      }
-      if (receiptFile.size > 10 * 1024 * 1024) {
-        setErrors((prev) => ({ ...prev, receipt: 'File size cannot exceed 10 MiB' }));
-        return;
-      }
-
-      setIsUploadingReceipt(true);
-      try {
-        const uploadResult = await uploadReceiptFile(receiptFile);
-        setUploadedReceipt({
-          file: receiptFile,
-          receiptS3Key: uploadResult.receiptS3Key,
-          receiptFilename: uploadResult.receiptFilename,
-        });
-        resultingS3Key = uploadResult.receiptS3Key;
-        resultingFilename = uploadResult.receiptFilename;
-      } catch (err: unknown) {
-        setIsUploadingReceipt(false);
-        const msg = err instanceof Error ? err.message : 'Receipt upload failed';
-        setErrors((prev) => ({ ...prev, receipt: `Receipt upload failed: ${msg}. Please retry.` }));
-        return; // ABORT creation!
-      } finally {
-        setIsUploadingReceipt(false);
-      }
-    }
-
-    const effectiveCategory = category === 'Other' && customCategory.trim() ? customCategory.trim() : category;
-    const payload: CreateDisbursementInput = {
-      category: effectiveCategory,
-      description: description.trim(),
-      amount: parseFloat(amount),
-      fundSource,
-      linkedWorkRequestId: linkedWorkRequestId.trim(),
-      clientId: clientId ? clientId.trim() : null,
-      linkedTaskId: selectedTaskId ? selectedTaskId.trim() : null,
-      employeeId: currentUser?.id || null, // Locked to session user
-      dueDate: dueDate ? dueDate : null,
-      notes: notes.trim() ? notes.trim() : null,
-      receiptS3Key: resultingS3Key,
-      receiptFilename: resultingS3Key !== null ? resultingFilename : null,
-    };
-
     try {
+      if (
+        !bypassReceipt &&
+        uploadedReceipt &&
+        receiptFile &&
+        uploadedReceipt.file === receiptFile
+      ) {
+        // Reuse already uploaded and completed receipt reservation without re-uploading
+        resultingS3Key = uploadedReceipt.receiptS3Key;
+        resultingFilename = uploadedReceipt.receiptFilename;
+      } else if (!bypassReceipt && receiptFile) {
+        // Validate MIME and size before upload
+        if (!['application/pdf', 'image/png', 'image/jpeg'].includes(receiptFile.type)) {
+          setErrors((prev) => ({ ...prev, receipt: 'Only PDF, PNG, and JPEG files are allowed' }));
+          return;
+        }
+        if (receiptFile.size > 10 * 1024 * 1024) {
+          setErrors((prev) => ({ ...prev, receipt: 'File size cannot exceed 10 MiB' }));
+          return;
+        }
+
+        setIsUploadingReceipt(true);
+        try {
+          const uploadResult = await uploadReceiptFile(receiptFile, () => !isStale());
+          if (isStale()) return;
+          setUploadedReceipt({
+            file: receiptFile,
+            receiptS3Key: uploadResult.receiptS3Key,
+            receiptFilename: uploadResult.receiptFilename,
+          });
+          resultingS3Key = uploadResult.receiptS3Key;
+          resultingFilename = uploadResult.receiptFilename;
+        } catch (err: unknown) {
+          if (isStale()) return;
+          setIsUploadingReceipt(false);
+          const msg = err instanceof Error ? err.message : 'Receipt upload failed';
+          setErrors((prev) => ({
+            ...prev,
+            receipt: `Receipt upload failed: ${msg}. Please retry.`,
+          }));
+          return; // ABORT creation!
+        } finally {
+          if (!isStale()) setIsUploadingReceipt(false);
+        }
+      }
+
+      if (isStale()) return;
+
+      const effectiveCategory =
+        category === 'Other' && customCategory.trim() ? customCategory.trim() : category;
+      const payload: CreateDisbursementInput = {
+        category: effectiveCategory,
+        description: description.trim(),
+        amount: parseFloat(amount),
+        fundSource,
+        linkedWorkRequestId: linkedWorkRequestId.trim(),
+        clientId: clientId ? clientId.trim() : null,
+        linkedTaskId: selectedTaskId ? selectedTaskId.trim() : null,
+        employeeId: currentUser?.id || null, // Locked to session user
+        dueDate: dueDate ? dueDate : null,
+        notes: notes.trim() ? notes.trim() : null,
+        receiptS3Key: resultingS3Key,
+        receiptFilename: resultingS3Key !== null ? resultingFilename : null,
+      };
+
+      creationStarted = true;
+      markPendingCreate(pendingCreateKey, true);
       await createWithBlocking(payload);
+      markPendingCreate(pendingCreateKey, false);
+      if (isStale()) return;
       resetForm();
       onClose();
       if (onSuccess) onSuccess();
-    } catch {
-      // Errors handled via BlockingActionModal
+    } catch (error) {
+      if (creationStarted) {
+        // A validation/permission conflict is a proven rejection. A network/5xx/timeout
+        // may follow persistence; do not create again just because the response was lost.
+        const rejected = error instanceof ApiError && error.status >= 400 && error.status < 500;
+        if (rejected) markPendingCreate(pendingCreateKey, false);
+        if (!isStale()) setNeedsCreateReview(!rejected);
+      }
+    } finally {
+      if (!isStale()) {
+        isSubmittingRef.current = false;
+      }
     }
   };
 
+  const isPrivilegedUser = Boolean(
+    currentUser?.role === 'Admin' ||
+    currentUser?.role === 'Accounting' ||
+    currentUser?.departments?.includes('Accounting')
+  );
+  const modalTitle = isPrivilegedUser ? 'New Disbursement Voucher' : 'Request Disbursement Voucher';
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90vh] space-y-4 overflow-y-auto border p-6 border-[#E2E8F0] shadow-float rounded-[12px] bg-[#FFFFFF] max-w-lg"
+      <DialogContent
+        className="max-h-[90vh] space-y-4 overflow-y-auto border p-6 border-[#E2E8F0] shadow-float rounded-[12px] bg-[#FFFFFF] max-w-lg"
         data-testid="create-disbursement-modal"
       >
         <DialogHeader>
-          <DialogTitle className="text-lg font-bold text-[#1E293B]">
-            New Disbursement Voucher
-          </DialogTitle>
+          <DialogTitle className="text-lg font-bold text-[#1E293B]">{modalTitle}</DialogTitle>
           <DialogDescription className="text-xs text-[#475569]">
-            Submit a new expense or reimbursement voucher. Initial status is assigned automatically
-            by the system.
+            Submit a new expense or reimbursement voucher. New vouchers enter Draft status awaiting
+            administrative budget authorization.
           </DialogDescription>
         </DialogHeader>
 
@@ -411,6 +490,32 @@ export function CreateDisbursementModal({
           className="space-y-4"
           data-testid="create-disbursement-form"
         >
+          {needsCreateReview && (
+            <div
+              className="rounded-[6px] border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900"
+              role="alert"
+              data-testid="create-outcome-uncertain"
+            >
+              The previous request may already have created a voucher. Close this form and inspect
+              your vouchers before submitting again. Changing the receipt does not make retrying
+              safe.
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                data-testid="confirm-creation-inspected"
+                onClick={() => {
+                  markPendingCreate(pendingCreateKey, false);
+                  setNeedsCreateReview(false);
+                  setUploadedReceipt(null);
+                }}
+              >
+                I checked my vouchers
+              </Button>
+            </div>
+          )}
+
           {/* Work Request Dropdown (UAT2-12: eliminates manual WR-id input) */}
           <div className="space-y-1">
             <label className="text-xs font-semibold text-[#1E293B]">
@@ -425,7 +530,7 @@ export function CreateDisbursementModal({
                 }
                 onChange={(e) => handleSelectWorkRequest(e.target.value)}
                 disabled={isWrLocked}
-                className="w-full text-xs p-2 border rounded-[6px] bg-white border-[#E2E8F0] focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-[#F8FAFC] disabled:cursor-not-allowed"
+                className="w-full text-xs p-2 border rounded-[6px] bg-[#FFFFFF] border-[#E2E8F0] focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-[#F8FAFC] disabled:cursor-not-allowed"
                 data-testid="select-work-request"
               >
                 <option value="">Select Work Request...</option>
@@ -469,7 +574,7 @@ export function CreateDisbursementModal({
                 value={selectedTaskId}
                 onChange={(e) => setSelectedTaskId(e.target.value)}
                 disabled={isTaskLocked || !linkedWorkRequestId}
-                className="w-full text-xs p-2 border rounded-[6px] bg-white border-[#E2E8F0] focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-[#F8FAFC] disabled:cursor-not-allowed"
+                className="w-full text-xs p-2 border rounded-[6px] bg-[#FFFFFF] border-[#E2E8F0] focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-[#F8FAFC] disabled:cursor-not-allowed"
                 data-testid="select-work-request-task"
               >
                 <option value="">
@@ -495,7 +600,7 @@ export function CreateDisbursementModal({
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full text-xs p-2 border rounded-[6px] bg-white border-[#E2E8F0] focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full text-xs p-2 border rounded-[6px] bg-[#FFFFFF] border-[#E2E8F0] focus:outline-none focus:ring-1 focus:ring-blue-500"
                 data-testid="select-category"
               >
                 {DISBURSEMENT_CATEGORIES.map((cat) => (
@@ -526,7 +631,7 @@ export function CreateDisbursementModal({
               <select
                 value={fundSource}
                 onChange={(e) => setFundSource(e.target.value as FundSource)}
-                className="w-full text-xs p-2 border rounded-[6px] bg-white border-[#E2E8F0] focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full text-xs p-2 border rounded-[6px] bg-[#FFFFFF] border-[#E2E8F0] focus:outline-none focus:ring-1 focus:ring-blue-500"
                 data-testid="select-fund-source"
               >
                 {FUND_SOURCES.map((src) => (
@@ -558,7 +663,10 @@ export function CreateDisbursementModal({
                 data-testid="input-amount"
               />
               {errors.amount && (
-                <span className="text-xs tabular-nums text-red-600 block" data-testid="error-amount">
+                <span
+                  className="text-xs tabular-nums text-red-600 block"
+                  data-testid="error-amount"
+                >
                   {errors.amount}
                 </span>
               )}
@@ -627,7 +735,7 @@ export function CreateDisbursementModal({
                 if (errors.description) setErrors((prev) => ({ ...prev, description: '' }));
               }}
               placeholder="e.g. BIR filing documentary stamp tax and notarization fees"
-              className={`w-full text-xs p-2.5 border rounded-[6px] bg-white text-[#1E293B] resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+              className={`w-full text-xs p-2.5 border rounded-[6px] bg-[#FFFFFF] text-[#1E293B] resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 ${
                 errors.description ? 'border-red-500' : 'border-[#E2E8F0]'
               }`}
               data-testid="textarea-description"
@@ -649,16 +757,14 @@ export function CreateDisbursementModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Additional internal remarks or references..."
-              className="w-full text-xs p-2 border rounded-[6px] bg-white border-[#E2E8F0] resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full text-xs p-2 border rounded-[6px] bg-[#FFFFFF] border-[#E2E8F0] resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
               data-testid="textarea-notes"
             />
           </div>
 
           {/* Receipt Attachment */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#1E293B]">
-              Receipt Attachment
-            </label>
+            <label className="text-xs font-semibold text-[#1E293B]">Receipt Attachment</label>
             <input
               ref={fileInputRef}
               type="file"
@@ -692,7 +798,10 @@ export function CreateDisbursementModal({
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 truncate">
                     <FileText className="h-4 w-4 text-[#1E293B] shrink-0" />
-                    <span className="text-xs font-medium text-[#1E293B] truncate" data-testid="receipt-attached-filename">
+                    <span
+                      className="text-xs font-medium text-[#1E293B] truncate"
+                      data-testid="receipt-attached-filename"
+                    >
                       {receiptFile?.name || receiptFilename}
                     </span>
                   </div>
@@ -719,9 +828,7 @@ export function CreateDisbursementModal({
                   <p className="text-xs font-medium text-[#1E293B]">
                     Drag and drop receipt here, or browse
                   </p>
-                  <p className="text-xs text-[#475569] mt-0.5">
-                    PDF, PNG, JPG up to 10MB
-                  </p>
+                  <p className="text-xs text-[#475569] mt-0.5">PDF, PNG, JPG up to 10MB</p>
                 </div>
               )}
             </div>
@@ -738,7 +845,7 @@ export function CreateDisbursementModal({
               variant="ghost"
               size="sm"
               onClick={onClose}
-              disabled={isPending || isUploadingReceipt}
+              disabled={isPending || isUploadingReceipt || needsCreateReview}
               className="text-xs"
             >
               Cancel
@@ -747,11 +854,15 @@ export function CreateDisbursementModal({
               type="submit"
               variant="default"
               size="sm"
-              disabled={isPending || isUploadingReceipt}
+              disabled={isPending || isUploadingReceipt || needsCreateReview}
               data-testid="submit-create-disbursement-btn"
               className="text-xs font-semibold bg-[#1D4ED8] hover:bg-[#1E40AF] text-white shadow-2xs"
             >
-              {isUploadingReceipt ? 'Uploading Receipt...' : isPending ? 'Creating...' : 'Create Disbursement'}
+              {isUploadingReceipt
+                ? 'Uploading Receipt...'
+                : isPending
+                  ? 'Creating...'
+                  : 'Create Disbursement'}
             </Button>
           </DialogFooter>
         </form>
@@ -759,7 +870,10 @@ export function CreateDisbursementModal({
 
       {/* In-App Non-Blocking Confirmation for Missing Supporting Document */}
       <Dialog open={isNoReceiptConfirmOpen} onOpenChange={setIsNoReceiptConfirmOpen}>
-        <DialogContent className="border-[#E2E8F0] border p-6 shadow-float rounded-[12px] bg-[#FFFFFF] space-y-3 max-w-md" data-testid="no-receipt-confirm-dialog">
+        <DialogContent
+          className="border-[#E2E8F0] border p-6 shadow-float rounded-[12px] bg-[#FFFFFF] space-y-3 max-w-md"
+          data-testid="no-receipt-confirm-dialog"
+        >
           <DialogHeader>
             <DialogTitle className="text-base font-bold text-[#1E293B] flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-amber-500" />

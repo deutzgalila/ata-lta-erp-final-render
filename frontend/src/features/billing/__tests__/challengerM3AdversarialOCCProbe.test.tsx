@@ -194,7 +194,7 @@ describe('Challenger M3.2 Adversarial OCC Probe: Unconditional expectedVersion P
         await updateInvoiceAction(
           'inv-adv-probe-1',
           { terms: 'Net 90 days', expectedVersion: 99 },
-          'ATA' as any
+          'ATA'
         );
 
         expect(capturedBody?.expectedVersion).toBe(99);
@@ -251,7 +251,7 @@ describe('Challenger M3.2 Adversarial OCC Probe: Unconditional expectedVersion P
 
   describe('3. Disbursements: useApproveDisbursement payload preservation across all flag variations', () => {
     FLAG_CASES.forEach(({ label, value }) => {
-      it(`preserves expectedVersion in approveDisbursement object syntax when ${label}`, async () => {
+      it(`preserves approval version and excludes payment fields when ${label}`, async () => {
         setFlag(value);
         const { wrapper } = createHarness();
         const { result } = renderHook(() => useApproveDisbursement(), { wrapper });
@@ -268,13 +268,7 @@ describe('Challenger M3.2 Adversarial OCC Probe: Unconditional expectedVersion P
         expect(capturedUrl).toContain('/disbursements/disb-adv-probe-1/approve');
         expect(capturedMethod).toBe('POST');
         expect(capturedBody?.expectedVersion).toBe(50);
-        expect(capturedBody).toEqual({
-          method: 'Bank Transfer',
-          reference: 'REF-7788',
-          bank: 'BPI',
-          date: '2026-10-18',
-          expectedVersion: 50,
-        });
+        expect(capturedBody).toEqual({ expectedVersion: 50 });
       });
 
       it(`preserves expectedVersion in approveWithBlocking positional syntax when ${label}`, async () => {
@@ -351,7 +345,7 @@ describe('Challenger M3.2 Adversarial OCC Probe: Unconditional expectedVersion P
 
   describe('5. Disbursements: useReleaseDisbursement payload preservation across all flag variations', () => {
     FLAG_CASES.forEach(({ label, value }) => {
-      it(`preserves expectedVersion in releaseDisbursement object syntax when ${label}`, async () => {
+      it(`preserves release version without replacing the instrument when ${label}`, async () => {
         setFlag(value);
         const { wrapper } = createHarness();
         const { result } = renderHook(() => useReleaseDisbursement(), { wrapper });
@@ -367,10 +361,7 @@ describe('Challenger M3.2 Adversarial OCC Probe: Unconditional expectedVersion P
         expect(capturedUrl).toContain('/disbursements/disb-adv-probe-1/release');
         expect(capturedMethod).toBe('POST');
         expect(capturedBody?.expectedVersion).toBe(70);
-        expect(capturedBody).toEqual({
-          method: 'Cash',
-          expectedVersion: 70,
-        });
+        expect(capturedBody).toEqual({ expectedVersion: 70 });
       });
 
       it(`preserves expectedVersion in releaseWithBlocking positional syntax when ${label}`, async () => {
@@ -441,8 +432,8 @@ describe('Challenger M3.2 Adversarial OCC Probe: Unconditional expectedVersion P
     it('updateInvoiceAction ignores non-numeric expectedVersion without crashing', async () => {
       await updateInvoiceAction(
         'inv-adv-probe-1',
-        { notes: 'Invalid string version' } as any,
-        'not_a_number' as any,
+        { notes: 'Invalid string version' },
+        'not_a_number' as unknown as number,
         'ATA'
       );
 

@@ -81,6 +81,7 @@ export function NotificationBellPanel() {
   };
 
   const handleNotificationClick = async (item: NotificationItem) => {
+    const originalUserId = useSessionStore.getState().user?.id;
     // 1. Mark as read if not already read
     if (!item.readAt) {
       try {
@@ -89,6 +90,8 @@ export function NotificationBellPanel() {
         console.warn('[NotificationBellPanel] Mark read failed:', err);
       }
     }
+
+    if (useSessionStore.getState().user?.id !== originalUserId) return;
 
     // 2. Perform deep-link navigation based on payload ids
     setIsOpen(false);
@@ -128,6 +131,19 @@ export function NotificationBellPanel() {
           navigate(`/operations?tab=work-requests&view=board&wrId=${String(wrId)}`);
         } else {
           navigate('/operations');
+        }
+        break;
+      }
+
+      case 'disbursement.lifecycle': {
+        const session = useSessionStore.getState();
+        const entity = String(p.entity || '').toUpperCase();
+        if (session.user?.entities?.includes(entity)) session.setActiveEntity(entity);
+        const reqId = p.request_id || p.requestId;
+        if (reqId) {
+          navigate(`/disbursements?disbursementId=${encodeURIComponent(String(reqId))}`);
+        } else {
+          navigate('/disbursements');
         }
         break;
       }
@@ -179,6 +195,35 @@ export function NotificationBellPanel() {
             <AlertTriangle className="h-4 w-4" />
           </div>
         );
+      case 'disbursement.lifecycle': {
+        const action = String(payload.action || '').toLowerCase();
+        if (['approve', 'approved', 'release', 'released'].includes(action)) {
+          return (
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+              <CheckCircle2 className="h-4 w-4" />
+            </div>
+          );
+        }
+        if (action === 'fund' || action === 'funded') {
+          return (
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+              <Wallet className="h-4 w-4" />
+            </div>
+          );
+        }
+        if (['reject', 'rejected', 'resend_draft', 'returned_for_correction'].includes(action)) {
+          return (
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+              <XCircle className="h-4 w-4" />
+            </div>
+          );
+        }
+        return (
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-purple-100 text-purple-600">
+            <Wallet className="h-4 w-4" />
+          </div>
+        );
+      }
       default:
         return (
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border-[#E2E8F0] bg-[#F8FAFC] text-[#475569]">
@@ -206,6 +251,12 @@ export function NotificationBellPanel() {
       }
       case 'wr.qa_reroute':
         return `QA Reroute Rework: ${String(wrTitle)}`;
+      case 'disbursement.lifecycle': {
+        const action = String(p.action || 'updated');
+        const disbNum = p.disbursement_number || p.disbursementNumber || 'Voucher';
+        const label: Record<string, string> = { create: 'New request', corrected: 'Corrected request', approve: 'Budget approved', fund: 'Payment prepared', release: 'Payment released', reject: 'Rejected', resend_draft: 'Returned for correction' };
+        return `${String(disbNum)} — ${label[action] || action.replace(/_/g, ' ')}`;
+      }
       default:
         return 'Notification';
     }
@@ -232,6 +283,16 @@ export function NotificationBellPanel() {
       }
       case 'wr.qa_reroute':
         return `Reason: ${String(p.reason || 'QA failed tasks reopened')}`;
+      case 'disbursement.lifecycle': {
+        const reason = p.reason;
+        if (reason) {
+          return `Reason: ${String(reason)}`;
+        }
+        const action = String(p.action || 'updated').replace(/_/g, ' ');
+        const entity = p.entity ? `[${String(p.entity)}] ` : '';
+        const disbNum = p.disbursement_number || p.disbursementNumber || '';
+        return `${entity}${disbNum ? `${disbNum}: ` : ''}${action}.`;
+      }
       default:
         return '';
     }

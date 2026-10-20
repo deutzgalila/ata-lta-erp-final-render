@@ -28,7 +28,9 @@ function mockDisbursement(partial: Partial<Disbursement> & { id: string }): Disb
     description: 'Test expense description',
     amount: 100,
     fund_source: 'Firm Fund',
-    status: 'Submitted',
+    status: 'Draft',
+    lifecycle_version: 2,
+    review_ready: true,
     linked_work_request_id: '11111111-1111-1111-1111-111111111111',
     version: 1,
     created_at: new Date().toISOString(),
@@ -75,13 +77,13 @@ describe('Challenger M4 Adversarial Verification — AdminApprovalQueue (F13 & F
   describe('Dimension 1: Status Querying, Limit 100, Deduplication, and Chronological Sorting', () => {
     it('queries Submitted, Pending, and Pending Admin Approval with limit 100', async () => {
       setAdminSession();
-      const queriesRecorded: { status: string; limit: string }[] = [];
+      const queriesRecorded: { queue: string; limit: string }[] = [];
 
       global.fetch = vi.fn().mockImplementation(async (url: string) => {
         const u = new URL(url, 'http://localhost');
-        const status = u.searchParams.get('status') || '';
+        const queue = u.searchParams.get('queue') || '';
         const limit = u.searchParams.get('limit') || '';
-        queriesRecorded.push({ status, limit });
+        queriesRecorded.push({ queue, limit });
 
         return {
           ok: true,
@@ -98,42 +100,41 @@ describe('Challenger M4 Adversarial Verification — AdminApprovalQueue (F13 & F
         expect(screen.getByTestId('pending-queue-empty')).toBeInTheDocument();
       });
 
-      const submittedQuery = queriesRecorded.find((q) => q.status === 'Submitted');
-      const pendingQuery = queriesRecorded.find((q) => q.status === 'Pending');
-      const pendingAdminQuery = queriesRecorded.find((q) => q.status === 'Pending Admin Approval');
+      const initialQuery = queriesRecorded.find((q) => q.queue === 'initial_requests');
+      const releaseQuery = queriesRecorded.find((q) => q.queue === 'payment_releases');
 
-      expect(submittedQuery).toBeDefined();
-      expect(submittedQuery?.limit).toBe('100');
+      expect(initialQuery).toBeDefined();
+      expect(initialQuery?.limit).toBe('100');
 
-      expect(pendingQuery).toBeDefined();
-      expect(pendingQuery?.limit).toBe('100');
-
-      expect(pendingAdminQuery).toBeDefined();
-      expect(pendingAdminQuery?.limit).toBe('100');
+      expect(releaseQuery).toBeDefined();
+      expect(releaseQuery?.limit).toBe('100');
     });
 
     it('deduplicates items appearing across multiple status responses by id', async () => {
       setAdminSession();
 
-      const duplicateSubmitted = mockDisbursement({
+      const duplicateInitial = mockDisbursement({
         id: 'disb-dup-42',
         disbursement_number: 'DISB-DUP-001',
         category: 'Supplies',
-        description: 'Overlapping duplicate voucher from submitted',
+        description: 'Overlapping duplicate voucher from initial',
         amount: 500,
-        status: 'Submitted',
+        status: 'Draft',
+        lifecycle_version: 2,
+        review_ready: true,
         version: 1,
         created_at: '2026-10-18T12:00:00Z',
         updated_at: '2026-10-18T12:00:00Z',
       });
 
-      const duplicatePending = mockDisbursement({
+      const duplicateRelease = mockDisbursement({
         id: 'disb-dup-42',
         disbursement_number: 'DISB-DUP-001',
         category: 'Supplies',
-        description: 'Overlapping duplicate voucher from pending',
+        description: 'Overlapping duplicate voucher from release',
         amount: 500,
-        status: 'Pending',
+        status: 'Funded',
+        lifecycle_version: 2,
         version: 2,
         created_at: '2026-10-18T12:00:00Z',
         updated_at: '2026-10-18T12:05:00Z',
@@ -145,7 +146,9 @@ describe('Challenger M4 Adversarial Verification — AdminApprovalQueue (F13 & F
         category: 'Transportation',
         description: 'Unique item',
         amount: 150,
-        status: 'Pending Admin Approval',
+        status: 'Draft',
+        lifecycle_version: 2,
+        review_ready: true,
         version: 1,
         created_at: '2026-10-18T11:00:00Z',
         updated_at: '2026-10-18T11:00:00Z',
@@ -153,30 +156,22 @@ describe('Challenger M4 Adversarial Verification — AdminApprovalQueue (F13 & F
 
       global.fetch = vi.fn().mockImplementation(async (url: string) => {
         const u = new URL(url, 'http://localhost');
-        const status = u.searchParams.get('status');
+        const queue = u.searchParams.get('queue');
 
-        if (status === 'Submitted') {
+        if (queue === 'initial_requests') {
           return {
             ok: true,
             status: 200,
             headers: new Headers({ 'content-type': 'application/json' }),
-            json: async () => ({ data: [duplicateSubmitted], meta: { total: 1 } }),
+            json: async () => ({ data: [duplicateInitial, uniqueItem], meta: { total: 2 } }),
           };
         }
-        if (status === 'Pending') {
+        if (queue === 'payment_releases') {
           return {
             ok: true,
             status: 200,
             headers: new Headers({ 'content-type': 'application/json' }),
-            json: async () => ({ data: [duplicatePending], meta: { total: 1 } }),
-          };
-        }
-        if (status === 'Pending Admin Approval') {
-          return {
-            ok: true,
-            status: 200,
-            headers: new Headers({ 'content-type': 'application/json' }),
-            json: async () => ({ data: [uniqueItem], meta: { total: 1 } }),
+            json: async () => ({ data: [duplicateRelease], meta: { total: 1 } }),
           };
         }
         return {
@@ -210,7 +205,9 @@ describe('Challenger M4 Adversarial Verification — AdminApprovalQueue (F13 & F
           category: 'Meals',
           description: 'Oldest item',
           amount: 100,
-          status: 'Submitted',
+          status: 'Draft',
+          lifecycle_version: 2,
+          review_ready: true,
           created_at: '2026-10-18T01:00:00Z',
         }),
         mockDisbursement({
@@ -219,7 +216,9 @@ describe('Challenger M4 Adversarial Verification — AdminApprovalQueue (F13 & F
           category: 'Transportation',
           description: 'Newest item',
           amount: 200,
-          status: 'Pending',
+          status: 'Draft',
+          lifecycle_version: 2,
+          review_ready: true,
           createdAt: '2026-10-18T15:00:00Z', // camelCase
         }),
         mockDisbursement({
@@ -228,36 +227,22 @@ describe('Challenger M4 Adversarial Verification — AdminApprovalQueue (F13 & F
           category: 'Supplies',
           description: 'Middle item',
           amount: 300,
-          status: 'Pending Admin Approval',
+          status: 'Draft',
+          lifecycle_version: 2,
+          review_ready: true,
           created_at: '2026-10-18T08:00:00Z', // snake_case
         }),
       ];
 
       global.fetch = vi.fn().mockImplementation(async (url: string) => {
         const u = new URL(url, 'http://localhost');
-        const status = u.searchParams.get('status');
-        if (status === 'Submitted') {
+        const queue = u.searchParams.get('queue');
+        if (queue === 'initial_requests') {
           return {
             ok: true,
             status: 200,
             headers: new Headers({ 'content-type': 'application/json' }),
-            json: async () => ({ data: [items[0]], meta: { total: 1 } }),
-          };
-        }
-        if (status === 'Pending') {
-          return {
-            ok: true,
-            status: 200,
-            headers: new Headers({ 'content-type': 'application/json' }),
-            json: async () => ({ data: [items[1]], meta: { total: 1 } }),
-          };
-        }
-        if (status === 'Pending Admin Approval') {
-          return {
-            ok: true,
-            status: 200,
-            headers: new Headers({ 'content-type': 'application/json' }),
-            json: async () => ({ data: [items[2]], meta: { total: 1 } }),
+            json: async () => ({ data: items, meta: { total: items.length } }),
           };
         }
         return {
@@ -286,12 +271,11 @@ describe('Challenger M4 Adversarial Verification — AdminApprovalQueue (F13 & F
     it('renders loading state when any status query is pending', async () => {
       setAdminSession();
 
-      // Return a promise that does not resolve immediately for Pending Admin Approval
       global.fetch = vi.fn().mockImplementation(async (url: string) => {
         const u = new URL(url, 'http://localhost');
-        const status = u.searchParams.get('status');
+        const queue = u.searchParams.get('queue');
 
-        if (status === 'Pending Admin Approval') {
+        if (queue === 'initial_requests') {
           return new Promise(() => {}); // never resolves during test
         }
         return {
@@ -316,98 +300,12 @@ describe('Challenger M4 Adversarial Verification — AdminApprovalQueue (F13 & F
       const staffUserId = 'usr-ops-specialist-77';
       setStaffSession(staffUserId);
 
-      const items: Disbursement[] = [
-        // Case 1: Creator matches staff -> MUST be included
-        mockDisbursement({
-          id: 'v-creator-match',
-          disbursement_number: 'DISB-MATCH-CREATOR',
-          category: 'Meals',
-          description: 'Client dinner organized by staff',
-          amount: 1200,
-          status: 'Submitted',
-          created_by: staffUserId,
-          requested_by: 'foreign-user-1',
-          employee_id: 'foreign-employee-1',
-          created_at: '2026-10-18T10:00:00Z',
-        }),
-        // Case 2: Requester matches staff -> MUST be included
-        mockDisbursement({
-          id: 'v-requester-match',
-          disbursement_number: 'DISB-MATCH-REQUESTER',
-          category: 'Transportation',
-          description: 'Field trip requested by staff',
-          amount: 600,
-          status: 'Pending',
-          created_by: 'foreign-user-2',
-          requested_by: staffUserId,
-          employee_id: 'foreign-employee-2',
-          created_at: '2026-10-18T09:00:00Z',
-        }),
-        // Case 3: Employee ID matches staff, but creator & requester are foreign -> MUST BE EXCLUDED!
-        mockDisbursement({
-          id: 'v-employee-match-only',
-          disbursement_number: 'DISB-EMPLOYEE-ONLY',
-          category: 'Supplies',
-          description: 'Voucher where staff is beneficiary/employee_id only',
-          amount: 2500,
-          status: 'Submitted',
-          created_by: 'admin-creator',
-          requested_by: 'manager-requester',
-          employee_id: staffUserId, // Adversarial probe: should NOT be included!
-          created_at: '2026-10-18T08:00:00Z',
-        }),
-        // Case 4: CamelCase employeeId matches staff, but createdBy & requestedBy foreign -> MUST BE EXCLUDED!
-        mockDisbursement({
-          id: 'v-camel-employee-only',
-          disbursement_number: 'DISB-CAMEL-EMP-ONLY',
-          category: 'Legal Fee',
-          description: 'CamelCase voucher with foreign owners',
-          amount: 4000,
-          status: 'Pending Admin Approval',
-          createdBy: 'foreign-admin',
-          requestedBy: 'foreign-manager',
-          employeeId: staffUserId, // Adversarial probe!
-          created_at: '2026-10-18T07:00:00Z',
-        }),
-        // Case 5: Completely foreign voucher -> MUST BE EXCLUDED!
-        mockDisbursement({
-          id: 'v-completely-foreign',
-          disbursement_number: 'DISB-FOREIGN-ALL',
-          category: 'Notarial',
-          description: 'Completely foreign voucher',
-          amount: 500,
-          status: 'Submitted',
-          created_by: 'other-user',
-          requested_by: 'other-user',
-          employee_id: 'other-user',
-          created_at: '2026-10-18T06:00:00Z',
-        }),
-      ];
-
-      global.fetch = vi.fn().mockImplementation(async () => {
-        return {
-          ok: true,
-          status: 200,
-          headers: new Headers({ 'content-type': 'application/json' }),
-          json: async () => ({ data: items, meta: { total: items.length } }),
-        };
-      });
-
       const { wrapper } = createHarness();
       render(<AdminApprovalQueue />, { wrapper });
 
-      await waitFor(() => {
-        expect(screen.getByTestId('pending-item-v-creator-match')).toBeInTheDocument();
-        expect(screen.getByTestId('pending-item-v-requester-match')).toBeInTheDocument();
-      });
-
-      // Assert that employee-only items and foreign items are strictly not rendered
-      expect(screen.queryByTestId('pending-item-v-employee-match-only')).not.toBeInTheDocument();
-      expect(screen.queryByTestId('pending-item-v-camel-employee-only')).not.toBeInTheDocument();
-      expect(screen.queryByTestId('pending-item-v-completely-foreign')).not.toBeInTheDocument();
-
-      const listContainer = screen.getByTestId('pending-queue-items-list');
-      expect(listContainer.children).toHaveLength(2);
+      expect(screen.getByTestId('admin-approval-queue-unauthorized')).toBeInTheDocument();
+      expect(screen.getByText(/Access Restricted/i)).toBeInTheDocument();
+      expect(screen.queryByTestId('pending-queue-items-list')).not.toBeInTheDocument();
     });
 
     it('grants admin unrestricted visibility over all vouchers regardless of creator or employee', async () => {
@@ -420,7 +318,9 @@ describe('Challenger M4 Adversarial Verification — AdminApprovalQueue (F13 & F
           category: 'Meals',
           description: 'Foreign 1',
           amount: 100,
-          status: 'Submitted',
+          status: 'Draft',
+          lifecycle_version: 2,
+          review_ready: true,
           created_by: 'foreign-user-1',
           requested_by: 'foreign-user-2',
           employee_id: 'foreign-employee-3',
@@ -432,7 +332,9 @@ describe('Challenger M4 Adversarial Verification — AdminApprovalQueue (F13 & F
           category: 'Supplies',
           description: 'Foreign 2',
           amount: 200,
-          status: 'Pending',
+          status: 'Draft',
+          lifecycle_version: 2,
+          review_ready: true,
           created_by: 'foreign-user-4',
           requested_by: 'foreign-user-5',
           employee_id: 'foreign-employee-6',
@@ -440,12 +342,22 @@ describe('Challenger M4 Adversarial Verification — AdminApprovalQueue (F13 & F
         }),
       ];
 
-      global.fetch = vi.fn().mockImplementation(async () => {
+      global.fetch = vi.fn().mockImplementation(async (url: string) => {
+        const u = new URL(url, 'http://localhost');
+        const queue = u.searchParams.get('queue');
+        if (queue === 'initial_requests') {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({ data: items, meta: { total: items.length } }),
+          };
+        }
         return {
           ok: true,
           status: 200,
           headers: new Headers({ 'content-type': 'application/json' }),
-          json: async () => ({ data: items, meta: { total: items.length } }),
+          json: async () => ({ data: [], meta: { total: 0 } }),
         };
       });
 
@@ -475,7 +387,7 @@ describe('Challenger M4 Adversarial Verification — AdminApprovalQueue (F13 & F
           category: 'Supplies',
           description: `Ten items exact ${i + 1}`,
           amount: 100,
-          status: 'Submitted',
+          status: 'Draft',
           created_at: new Date(Date.now() - i * 1000).toISOString(),
         })
       );
@@ -511,7 +423,7 @@ describe('Challenger M4 Adversarial Verification — AdminApprovalQueue (F13 & F
           category: 'Transportation',
           description: `Eleven items ${i + 1}`,
           amount: 100,
-          status: 'Submitted',
+          status: 'Draft',
           created_at: new Date(Date.now() - i * 1000).toISOString(),
         })
       );
@@ -583,7 +495,7 @@ describe('Challenger M4 Adversarial Verification — AdminApprovalQueue (F13 & F
             category: 'Supplies',
             description: `Item for shrink test ${i + 1}`,
             amount: 50,
-            status: 'Submitted',
+            status: 'Draft',
             created_at: new Date(Date.now() - i * 1000).toISOString(),
           })
         );
@@ -653,7 +565,7 @@ describe('Challenger M4 Adversarial Verification — AdminApprovalQueue (F13 & F
           description: 'Special lunch banquet',
           client_name: 'Acme Corp',
           amount: 500,
-          status: 'Submitted',
+          status: 'Draft',
           created_at: '2026-10-19T12:00:00Z',
         }),
         mockDisbursement({
@@ -663,7 +575,7 @@ describe('Challenger M4 Adversarial Verification — AdminApprovalQueue (F13 & F
           description: 'Airport ride express',
           clientName: 'Baker Industries', // camelCase clientName
           amount: 600,
-          status: 'Pending',
+          status: 'Draft',
           created_at: '2026-10-19T11:00:00Z',
         }),
         mockDisbursement({
@@ -673,7 +585,7 @@ describe('Challenger M4 Adversarial Verification — AdminApprovalQueue (F13 & F
           description: 'Certification fee',
           clients: { id: 'c-3', name: 'Charlie Ventures' } as unknown as { id: string; name: string },
           amount: 700,
-          status: 'Pending Admin Approval',
+          status: 'Draft',
           created_at: '2026-10-19T10:00:00Z',
         }),
         ...Array.from({ length: 12 }, (_, i) =>
@@ -683,7 +595,7 @@ describe('Challenger M4 Adversarial Verification — AdminApprovalQueue (F13 & F
             category: 'Supplies',
             description: `Standard supplies fill ${i + 1}`,
             amount: 100,
-            status: 'Submitted',
+            status: 'Draft',
             created_at: new Date(Date.parse('2026-10-19T10:00:00Z') - (i + 1) * 1000).toISOString(),
           })
         ),

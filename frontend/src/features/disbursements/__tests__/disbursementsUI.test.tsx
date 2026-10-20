@@ -82,7 +82,9 @@ const mockDisbursements: Disbursement[] = [
     description: 'Messenger delivery to SEC office',
     amount: 350,
     fund_source: 'Firm Fund',
-    status: 'Pending',
+    status: 'Draft',
+    lifecycle_version: 2,
+    review_ready: true,
     linked_work_request_id: '11111111-1111-1111-1111-111111111111',
     version: 1,
     created_at: new Date().toISOString(),
@@ -97,6 +99,8 @@ const mockDisbursements: Disbursement[] = [
     amount: 500,
     fund_source: 'Client Fund',
     status: 'Approved',
+    lifecycle_version: 2,
+    review_ready: true,
     linked_work_request_id: '11111111-1111-1111-1111-111111111111',
     version: 1,
     created_at: new Date().toISOString(),
@@ -110,7 +114,9 @@ const mockDisbursements: Disbursement[] = [
     description: 'Notary commission',
     amount: 2500,
     fund_source: 'Firm Fund',
-    status: 'Released',
+    status: 'Funded',
+    lifecycle_version: 2,
+    review_ready: true,
     linked_work_request_id: '11111111-1111-1111-1111-111111111111',
     version: 1,
     created_at: new Date().toISOString(),
@@ -652,8 +658,8 @@ describe('Disbursements UI Components & Integration', () => {
   });
 
   describe('AdminApprovalQueue', () => {
-    it('displays My Submitted Approvals view for non-Admin user', () => {
-      // Set session to staff without disbursement:approve
+    it('displays unauthorized notice for non-Admin staff user', () => {
+      // Set session to staff without Admin or Accounting role
       useSessionStore.getState().setSession({
         user: {
           id: 'u-staff-1',
@@ -670,8 +676,8 @@ describe('Disbursements UI Components & Integration', () => {
       const { wrapper } = createHarness();
       render(<AdminApprovalQueue />, { wrapper });
 
-      expect(screen.getByText(/My Submitted Approvals/i)).toBeInTheDocument();
-      expect(screen.queryByTestId('admin-approval-queue-unauthorized')).not.toBeInTheDocument();
+      expect(screen.getByTestId('admin-approval-queue-unauthorized')).toBeInTheDocument();
+      expect(screen.getByText(/Access Restricted/i)).toBeInTheDocument();
     });
 
     it('renders pending items for Admin and executes approve workflow via AdminApprovalModal', async () => {
@@ -787,27 +793,27 @@ describe('Disbursements UI Components & Integration', () => {
   });
 
   describe('FundsReleaseActions', () => {
-    it('renders release action for Approved status and fund action for Released status (gated by disbursement:mark_released)', async () => {
+    it('renders fund action for Approved status and release action for Funded status', async () => {
       const { wrapper } = createHarness();
 
-      // Approved item -> Release button visible
+      // Approved item -> Prepare Payment button visible
       const approvedItem = mockDisbursements[1]!;
       const { unmount } = render(
         <FundsReleaseActions disbursement={approvedItem} />,
         { wrapper }
       );
 
-      expect(screen.getByTestId('release-btn-disb-102')).toBeInTheDocument();
+      expect(screen.getByTestId('action-fund-btn')).toBeInTheDocument();
       unmount();
 
-      // Released item -> Mark Funded button visible
-      const releasedItem = mockDisbursements[2]!;
+      // Funded item -> Sanction Release button visible
+      const fundedItem = mockDisbursements[2]!;
       render(
-        <FundsReleaseActions disbursement={releasedItem} />,
+        <FundsReleaseActions disbursement={fundedItem} />,
         { wrapper }
       );
 
-      expect(screen.getByTestId('fund-btn-disb-103')).toBeInTheDocument();
+      expect(screen.getByTestId('action-release-btn')).toBeInTheDocument();
     });
 
     it('hides release actions when user lacks disbursement:mark_released permission', () => {
