@@ -368,6 +368,7 @@ describe('Challenger M2 — Suite 2: High-Concurrency Race Conditions & Atomic C
       authSend('put', `/v1/disbursements/${id}`, {
         receiptS3Key: objectKey,
         receiptFilename: 'update_race.pdf',
+        expectedVersion: 1,
       })
     );
 
@@ -429,6 +430,7 @@ describe('Challenger M2 — Suite 2: High-Concurrency Race Conditions & Atomic C
       authSend('put', `/v1/disbursements/${id}`, {
         receiptS3Key: objectKey,
         receiptFilename: 'mixed_race.pdf',
+        expectedVersion: 1,
       })
     );
 

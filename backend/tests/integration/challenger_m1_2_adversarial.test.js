@@ -130,13 +130,16 @@ describe('Challenger M1-2: Independent Adversarial Verification (R1, R2, R5)', (
       description: `Test voucher ${id}`,
       amount: 1000,
       fund_source: 'Firm Fund',
-      status: 'Pending',
+      status: 'Draft',
+      lifecycle_version: 2,
+      review_ready: true,
       version: 1,
       created_by: STAFF_ALICE_ID,
       requested_by: STAFF_ALICE_ID,
       employee_id: STAFF_ALICE_ID,
       linked_work_request_id: WR_ATA,
       archived: false,
+      deleted_at: null,
       payment_method: null,
       payment_reference: null,
       payment_bank: null,
@@ -258,7 +261,7 @@ describe('Challenger M1-2: Independent Adversarial Verification (R1, R2, R5)', (
 
     test('R1.5: Calendar Date Boundaries: impossible calendar dates are strictly rejected', async () => {
       const voucherId = 'voucher-r1-dates';
-      seedVoucher(voucherId, { status: 'Pending' });
+      seedVoucher(voucherId, { status: 'Approved' });
 
       const impossibleDates = [
         '2026-99-99',
@@ -281,11 +284,13 @@ describe('Challenger M1-2: Independent Adversarial Verification (R1, R2, R5)', (
 
       for (const date of impossibleDates) {
         const res = await request(app)
-          .post(`/v1/disbursements/${voucherId}/approve`)
+          .post(`/v1/disbursements/${voucherId}/fund`)
           .set('Authorization', `Bearer ${adminToken}`)
           .set('X-Active-Entity', 'ATA')
           .send({
             method: 'Bank Transfer',
+            bank: 'BDO',
+            reference: 'REF-1',
             date,
             expectedVersion: 1,
           });
@@ -295,38 +300,42 @@ describe('Challenger M1-2: Independent Adversarial Verification (R1, R2, R5)', (
 
       // Valid leap year 2024-02-29 MUST be accepted
       const leapRes = await request(app)
-        .post(`/v1/disbursements/${voucherId}/approve`)
+        .post(`/v1/disbursements/${voucherId}/fund`)
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
         .send({
           method: 'Bank Transfer',
+          bank: 'BDO',
+          reference: 'REF-1',
           date: '2024-02-29',
           expectedVersion: 1,
         });
 
       expect(leapRes.status).toBe(200);
       const voucher = mockTables.disbursements.get(voucherId);
-      expect(voucher.status).toBe('Released');
+      expect(voucher.status).toBe('Funded');
       expect(voucher.payment_date).toBe('2024-02-29');
     });
 
     test('R1.6: Century leap year 2000-02-29 is accepted', async () => {
       const voucherId = 'voucher-r1-century-leap';
-      seedVoucher(voucherId, { status: 'Pending' });
+      seedVoucher(voucherId, { status: 'Approved' });
 
       const res = await request(app)
-        .post(`/v1/disbursements/${voucherId}/approve`)
+        .post(`/v1/disbursements/${voucherId}/fund`)
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
         .send({
           method: 'Bank Transfer',
+          bank: 'BDO',
+          reference: 'REF-1',
           date: '2000-02-29',
           expectedVersion: 1,
         });
 
       expect(res.status).toBe(200);
       const voucher = mockTables.disbursements.get(voucherId);
-      expect(voucher.status).toBe('Released');
+      expect(voucher.status).toBe('Funded');
       expect(voucher.payment_date).toBe('2000-02-29');
     });
   });
@@ -350,31 +359,28 @@ describe('Challenger M1-2: Independent Adversarial Verification (R1, R2, R5)', (
         { departments: { name: 'Operations' } },
       ];
 
-      // Charlie has 1 rejected disbursement change in ATA
-      mockTables.pending_changes.set('pc-charlie-rej-ata', {
-        id: 'pc-charlie-rej-ata',
+      // Charlie has 1 rejected disbursement in ATA
+      seedVoucher('disb-charlie-rej-ata', {
+        status: 'Rejected',
+        created_by: STAFF_CHARLIE_ID,
+        requested_by: STAFF_CHARLIE_ID,
         entity_id: ENT_ATA,
-        table_name: 'disbursements',
-        status: 'rejected',
-        submitted_by: STAFF_CHARLIE_ID,
       });
 
-      // Bob has 1 rejected disbursement change in ATA
-      mockTables.pending_changes.set('pc-bob-rej-ata', {
-        id: 'pc-bob-rej-ata',
+      // Bob has 1 rejected disbursement in ATA
+      seedVoucher('disb-bob-rej-ata', {
+        status: 'Rejected',
+        created_by: STAFF_BOB_ID,
+        requested_by: STAFF_BOB_ID,
         entity_id: ENT_ATA,
-        table_name: 'disbursements',
-        status: 'rejected',
-        submitted_by: STAFF_BOB_ID,
       });
 
-      // Charlie has 1 pending change in ATA (not rejected)
-      mockTables.pending_changes.set('pc-charlie-pend-ata', {
-        id: 'pc-charlie-pend-ata',
+      // Charlie has 1 draft disbursement in ATA (not rejected)
+      seedVoucher('disb-charlie-pend-ata', {
+        status: 'Draft',
+        created_by: STAFF_CHARLIE_ID,
+        requested_by: STAFF_CHARLIE_ID,
         entity_id: ENT_ATA,
-        table_name: 'disbursements',
-        status: 'pending',
-        submitted_by: STAFF_CHARLIE_ID,
       });
 
       // Charlie has 1 rejected change for invoices (different table)
@@ -386,13 +392,12 @@ describe('Challenger M1-2: Independent Adversarial Verification (R1, R2, R5)', (
         submitted_by: STAFF_CHARLIE_ID,
       });
 
-      // Charlie has 1 rejected change in LTA (different entity)
-      mockTables.pending_changes.set('pc-charlie-rej-lta', {
-        id: 'pc-charlie-rej-lta',
+      // Charlie has 1 rejected disbursement in LTA (different entity)
+      seedVoucher('disb-charlie-rej-lta', {
+        status: 'Rejected',
+        created_by: STAFF_CHARLIE_ID,
+        requested_by: STAFF_CHARLIE_ID,
         entity_id: ENT_LTA,
-        table_name: 'disbursements',
-        status: 'rejected',
-        submitted_by: STAFF_CHARLIE_ID,
       });
 
       // Charlie (pure staff: Operations only) requests counts for ATA
@@ -760,7 +765,7 @@ describe('Challenger M1-2: Independent Adversarial Verification (R1, R2, R5)', (
 
     test('C2: Two concurrent disbursement approvals on the same voucher: only one succeeds', async () => {
       const voucherId = 'voucher-concurrent-approval';
-      seedVoucher(voucherId, { status: 'Pending Admin Approval', version: 1 });
+      seedVoucher(voucherId, { status: 'Draft', version: 1 });
 
       const [res1, res2] = await Promise.all([
         request(app)
@@ -768,8 +773,6 @@ describe('Challenger M1-2: Independent Adversarial Verification (R1, R2, R5)', (
           .set('Authorization', `Bearer ${adminToken}`)
           .set('X-Active-Entity', 'ATA')
           .send({
-            method: 'Bank Transfer',
-            date: '2026-10-18',
             expectedVersion: 1,
           }),
         request(app)
@@ -777,8 +780,6 @@ describe('Challenger M1-2: Independent Adversarial Verification (R1, R2, R5)', (
           .set('Authorization', `Bearer ${adminToken}`)
           .set('X-Active-Entity', 'ATA')
           .send({
-            method: 'Bank Transfer',
-            date: '2026-10-18',
             expectedVersion: 1,
           }),
       ]);
@@ -787,7 +788,7 @@ describe('Challenger M1-2: Independent Adversarial Verification (R1, R2, R5)', (
       expect(statuses).toEqual([200, 409]);
 
       const voucher = mockTables.disbursements.get(voucherId);
-      expect(voucher.status).toBe('Released');
+      expect(voucher.status).toBe('Approved');
       expect(voucher.version).toBe(2);
     });
   });

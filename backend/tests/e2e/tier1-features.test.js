@@ -32,7 +32,7 @@ const TASK_ID_UNASSIGNED = '33333333-3333-3333-3333-333333333332';
 const TASK_ID_COASSIGNED = '33333333-3333-3333-3333-333333333333';
 
 describe('Tier 1: Feature Coverage (F01 - F17)', () => {
-  let adminToken, accountingToken, docToken, docUser, otherToken, otherUser, managerToken, managerUser;
+  let adminToken, accountingToken, docToken, docUser, otherToken, otherUser, managerToken;
 
   beforeEach(() => {
     resetMock();
@@ -88,7 +88,6 @@ describe('Tier 1: Feature Coverage (F01 - F17)', () => {
       entities: ['ATA', 'LTA'],
       departments: ['Management'],
     });
-    managerUser = { id: managerId, role: 'Manager', departments: ['Management'], name: 'Manager' };
 
     // Seed mock data
     mockTables.clients.set(CLIENT_ID, {
@@ -327,12 +326,17 @@ describe('Tier 1: Feature Coverage (F01 - F17)', () => {
         .set('X-Active-Entity', 'ATA')
         .expect(200);
 
-      expect(res.body.data).toEqual({
+      expect(res.body.data).toEqual(expect.objectContaining({
         active: 0,
         archived: 0,
         rejected: 0,
         awaitingRelease: 0,
-      });
+        initialRequests: 0,
+        paymentReleases: 0,
+        readyForFunding: 0,
+        needsCorrection: 0,
+        rejectedRequests: 0,
+      }));
     });
   });
 

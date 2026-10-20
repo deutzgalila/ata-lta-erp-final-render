@@ -587,7 +587,16 @@ describe('Disbursements Service - Strict Creator-Only Authorization & Scoping', 
         entityId: ENTITY_ID,
         user: null,
       });
-      expect(counts).toEqual({ active: 0, archived: 0, rejected: 0, awaitingRelease: 0 });
+      expect(counts).toEqual({
+        active: 0,
+        archived: 0,
+        rejected: 0,
+        awaitingRelease: 0,
+        initialRequests: 0,
+        readyForFunding: 0,
+        paymentReleases: 0,
+        needsCorrection: 0,
+      });
     });
   });
 
