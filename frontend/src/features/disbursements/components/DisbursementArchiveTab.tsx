@@ -15,6 +15,7 @@ import { DisbursementStatusBadge } from './DisbursementStatusBadge';
 import { useDebounce } from '@/features/billing/hooks/useDebounce';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
+import { useEntityRealtimeSync } from '@/lib/realtime';
 import type { Disbursement } from '../api/types';
 
 export interface DisbursementArchiveTabProps {
@@ -22,6 +23,7 @@ export interface DisbursementArchiveTabProps {
 }
 
 export function DisbursementArchiveTab({ onSelectDisbursement }: DisbursementArchiveTabProps) {
+  useEntityRealtimeSync({ table: 'disbursements' });
   const [searchInput, setSearchInput] = useState('');
   const debouncedSearch = useDebounce(searchInput, 300);
   const [page, setPage] = useState(1);
@@ -114,7 +116,7 @@ export function DisbursementArchiveTab({ onSelectDisbursement }: DisbursementArc
   return (
     <div className="space-y-4" data-testid="disbursement-archive-tab">
       {/* Search and Action Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#FFFFFF] p-3 rounded-[8px] border-[#E2E8F0]">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#FFFFFF] p-3 rounded-[8px] border border-[#E2E8F0]">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-[#475569]" />
           <Input
@@ -149,7 +151,7 @@ export function DisbursementArchiveTab({ onSelectDisbursement }: DisbursementArc
       </div>
 
       {/* Archived Disbursements Table */}
-      <div className="border-[#E2E8F0] rounded-[6px] overflow-hidden bg-[#FFFFFF] shadow-none">
+      <div className="border border-[#E2E8F0] rounded-[8px] overflow-hidden bg-[#FFFFFF] shadow-none">
         <Table>
           <TableHeader>
             <TableRow className="bg-[#F8FAFC]/80 text-[#1E293B] hover:bg-[#F8FAFC]/80">

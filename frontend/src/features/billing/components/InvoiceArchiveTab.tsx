@@ -23,6 +23,7 @@ import { useInvoices } from '../api/useInvoices';
 import { restoreInvoiceAction } from '../api/useBillingMutations';
 import { useDebounce } from '../hooks/useDebounce';
 import { usePermission } from '@/lib/permissions';
+import { useEntityRealtimeSync } from '@/lib/realtime';
 import { formatCurrency, getStatusBadgeVariant } from '../utils/formatters';
 import type { Invoice } from '../api/types';
 
@@ -31,6 +32,7 @@ export interface InvoiceArchiveTabProps {
 }
 
 export function InvoiceArchiveTab({ onSelectInvoice }: InvoiceArchiveTabProps) {
+  useEntityRealtimeSync({ table: 'invoices' });
   const [searchInput, setSearchInput] = useState('');
   const debouncedSearch = useDebounce(searchInput, 300);
   const [page, setPage] = useState(1);

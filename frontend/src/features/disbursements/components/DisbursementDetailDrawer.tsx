@@ -267,7 +267,9 @@ export function DisbursementDetailDrawer({
                     {item.entity_code}
                   </span>
                 )}
-                {id && <PresenceAvatars domain="disbursement" roomId={id} maxAvatars={4} />}
+                {effectiveId && (
+                  <PresenceAvatars domain="disbursement" roomId={effectiveId} maxAvatars={4} />
+                )}
               </div>
               <DialogDescription className="text-xs text-[#475569]">
                 Created on{' '}
@@ -350,7 +352,7 @@ export function DisbursementDetailDrawer({
             {/* Rejection Alert Banner */}
             {item.status === 'Rejected' && (
               <div
-                className="p-3 bg-rose-50 border-rose-200 rounded-[6px] text-rose-900 space-y-1"
+                className="p-3 bg-rose-50 border border-rose-200 rounded-[6px] text-rose-900 space-y-1"
                 data-testid="drawer-rejection-banner"
               >
                 <div className="flex items-center gap-1.5 font-bold text-xs">
@@ -381,7 +383,7 @@ export function DisbursementDetailDrawer({
             {/* Modified by Accounting Alert Banner */}
             {(item.edited_by_accounting || item.notes?.includes('Edited by Accounting')) && (
               <div
-                className="p-3 bg-amber-50 border-amber-200 rounded-[6px] flex items-center gap-2 text-xs text-amber-900"
+                className="p-3 bg-amber-50 border border-amber-200 rounded-[6px] flex items-center gap-2 text-xs text-amber-900"
                 data-testid="modified-by-accounting-banner"
               >
                 <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
@@ -395,7 +397,7 @@ export function DisbursementDetailDrawer({
             )}
 
             {/* General Information Grid */}
-            <div className="grid grid-cols-2 gap-4 p-3 bg-[#F8FAFC] rounded-[8px] border-[#E2E8F0]">
+            <div className="grid grid-cols-2 gap-4 p-3 bg-[#F8FAFC] rounded-[8px] border border-[#E2E8F0]">
               <div className="space-y-1">
                 <span className="text-[#475569] block text-xs">Category</span>
                 <span className="font-semibold text-[#1E293B]">{item.category}</span>
@@ -433,7 +435,7 @@ export function DisbursementDetailDrawer({
             {/* Description */}
             <div className="space-y-1">
               <h4 className="font-semibold text-[#1E293B] text-xs">Expense Description</h4>
-              <p className="text-xs text-[#1E293B] bg-[#FFFFFF] p-3 rounded-[8px] border-[#E2E8F0] whitespace-pre-wrap">
+              <p className="text-xs text-[#1E293B] bg-[#FFFFFF] p-3 rounded-[8px] border border-[#E2E8F0] whitespace-pre-wrap">
                 {item.description}
               </p>
             </div>
@@ -442,7 +444,7 @@ export function DisbursementDetailDrawer({
             {item.notes && (
               <div className="space-y-1">
                 <h4 className="font-semibold text-[#1E293B] text-xs">Internal Notes</h4>
-                <p className="text-xs text-[#475569] bg-[#FFFFFF] p-3 rounded-[8px] border-[#E2E8F0] whitespace-pre-wrap">
+                <p className="text-xs text-[#475569] bg-[#FFFFFF] p-3 rounded-[8px] border border-[#E2E8F0] whitespace-pre-wrap">
                   {item.notes}
                 </p>
               </div>
@@ -453,7 +455,7 @@ export function DisbursementDetailDrawer({
               item.receiptFilename ||
               item.receipt_s3_key ||
               item.receiptS3Key) && (
-              <div className="p-3 bg-[#F8FAFC]/60 border-[#E2E8F0]/80 rounded-[6px] space-y-2">
+              <div className="p-3 bg-[#F8FAFC]/60 border border-[#E2E8F0]/80 rounded-[6px] space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Receipt className="h-4 w-4 text-[#1E293B]" />
@@ -495,7 +497,7 @@ export function DisbursementDetailDrawer({
                     </div>
                   ) : receiptData?.status === 'unavailable' ? (
                     <span
-                      className="text-xs font-medium px-2 py-0.5 rounded bg-amber-100 text-amber-800 border-amber-200"
+                      className="text-xs font-medium px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200"
                       data-testid="receipt-legacy-unavailable"
                     >
                       Supporting document unavailable
@@ -543,7 +545,7 @@ export function DisbursementDetailDrawer({
                   <div className="pt-2 border-t border-[#BFDBFE]">
                     {imageLoadError ? (
                       <div
-                        className="p-3 bg-amber-50/80 border-amber-200 rounded-[6px] text-center space-y-1.5"
+                        className="p-3 bg-amber-50/80 border border-amber-200 rounded-[6px] text-center space-y-1.5"
                         data-testid="receipt-image-error"
                       >
                         <div className="flex items-center justify-center gap-1.5 text-xs font-medium text-amber-800">
@@ -575,7 +577,7 @@ export function DisbursementDetailDrawer({
                       <img
                         src={receiptData.url}
                         alt={item.receipt_filename || item.receiptFilename || 'Receipt Preview'}
-                        className="max-h-48 rounded border-[#E2E8F0] object-contain mx-auto"
+                        className="max-h-48 rounded border border-[#E2E8F0] object-contain mx-auto"
                         onError={() => setImageLoadError(true)}
                         data-testid="receipt-preview-image"
                       />
@@ -590,7 +592,7 @@ export function DisbursementDetailDrawer({
               item.status === 'Funded' ||
               item.payment_method ||
               item.paymentMethod) && (
-              <div className="p-3 bg-purple-50/50 border-purple-200/70 rounded-[6px] space-y-2">
+              <div className="p-3 bg-purple-50/50 border border-purple-200/70 rounded-[6px] space-y-2">
                 <div className="flex items-center justify-between">
                   <h4 className="font-semibold text-purple-900 text-xs flex items-center gap-1.5">
                     <DollarSign className="h-3.5 w-3.5 text-purple-600" />
@@ -1007,14 +1009,14 @@ export function DisbursementDetailDrawer({
           isOpen={conflictModalState.isOpen}
           onClose={() => setConflictModalState({ isOpen: false })}
           error={conflictModalState.error as ApiError | Error | null}
-          entityTitle={voucher?.disbursement_number || id || undefined}
+          entityTitle={voucher?.disbursement_number || effectiveId || undefined}
           entityType="Disbursement"
           expectedVersion={voucher?.version}
           attemptedStatus={conflictModalState.attemptedStatus ?? undefined}
           currentStatus={voucher?.status}
           onRefreshAndKeepLatest={async () => {
-            if (id) {
-              await queryClient.invalidateQueries({ queryKey: disbursementKeys.detail(id) });
+            if (effectiveId) {
+              await queryClient.invalidateQueries({ queryKey: disbursementKeys.detail(effectiveId) });
             }
             await queryClient.invalidateQueries({ queryKey: disbursementKeys.lists() });
           }}

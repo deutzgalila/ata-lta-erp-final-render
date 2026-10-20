@@ -22,9 +22,11 @@ import { InvoiceArchiveTab } from '@/features/billing/components/InvoiceArchiveT
 import { useInvoiceCounts, useInvoiceDetail } from '@/features/billing/api/useInvoices';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
+import { useEntityRealtimeSync } from '@/lib/realtime';
 import type { Invoice } from '@/features/billing/api/types';
 
 export default function BillingPage() {
+  useEntityRealtimeSync({ table: 'invoices' });
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'invoices';
 
