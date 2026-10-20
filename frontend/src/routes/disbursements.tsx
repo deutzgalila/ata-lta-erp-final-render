@@ -28,9 +28,12 @@ import {
   DisbursementArchiveTab,
 } from '@/features/disbursements/components';
 import { useDisbursementCounts } from '@/features/disbursements/api/useDisbursements';
+import { useEntityRealtimeSync } from '@/lib/realtime';
 import type { EntityCode } from '@/features/disbursements/api/types';
 
 export default function DisbursementsPage() {
+  // Realtime CDC Subscriptions (Parcel E) — kept active across all tabs
+  useEntityRealtimeSync({ table: 'disbursements' });
   const [searchParams, setSearchParams] = useSearchParams();
   const rawActiveTab = searchParams.get('tab') || 'all';
 

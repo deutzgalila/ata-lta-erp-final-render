@@ -1024,6 +1024,16 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
       const matchingQueries = queryClient.getQueriesData<GenericListResponse | GenericEntityRecord[]>({
         queryKey: listRootKey,
       });
+      if (options.table === 'disbursements') {
+        matchingQueries.push(
+          ...queryClient.getQueriesData<GenericListResponse | GenericEntityRecord[]>({
+            queryKey: ['disbursements', 'all-for-queue'],
+          }),
+          ...queryClient.getQueriesData<GenericListResponse | GenericEntityRecord[]>({
+            queryKey: ['disbursements', 'all-for-status'],
+          })
+        );
+      }
       let deletedUnreadNotification = false;
       for (const [qKey, listData] of matchingQueries) {
         if (!listData) continue;
@@ -1173,6 +1183,16 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
       const matchingQueries = queryClient.getQueriesData<GenericListResponse | GenericEntityRecord[]>({
         queryKey: listRootKey,
       });
+      if (options.table === 'disbursements') {
+        matchingQueries.push(
+          ...queryClient.getQueriesData<GenericListResponse | GenericEntityRecord[]>({
+            queryKey: ['disbursements', 'all-for-queue'],
+          }),
+          ...queryClient.getQueriesData<GenericListResponse | GenericEntityRecord[]>({
+            queryKey: ['disbursements', 'all-for-status'],
+          })
+        );
+      }
 
       // Deduplication check: for notifications, verify whether notification ID already exists in query list
       let alreadyExistsInList = false;
@@ -1291,6 +1311,16 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
       const matchingQueries = queryClient.getQueriesData<GenericListResponse | GenericEntityRecord[]>({
         queryKey: listRootKey,
       });
+      if (options.table === 'disbursements') {
+        matchingQueries.push(
+          ...queryClient.getQueriesData<GenericListResponse | GenericEntityRecord[]>({
+            queryKey: ['disbursements', 'all-for-queue'],
+          }),
+          ...queryClient.getQueriesData<GenericListResponse | GenericEntityRecord[]>({
+            queryKey: ['disbursements', 'all-for-status'],
+          })
+        );
+      }
       let transitionedToRead = false;
       for (const [qKey, listData] of matchingQueries) {
         if (!listData) continue;

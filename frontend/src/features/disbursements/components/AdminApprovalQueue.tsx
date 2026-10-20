@@ -25,6 +25,7 @@ import {
 } from '../api/useDisbursements';
 import { DisbursementStatusBadge } from './DisbursementStatusBadge';
 import { useSessionStore } from '@/lib/session';
+import { useEntityRealtimeSync } from '@/lib/realtime';
 import { disbursementKeys } from '../api/queryKeys';
 import type { Disbursement } from '../api/types';
 
@@ -35,6 +36,7 @@ export interface AdminApprovalQueueProps {
 export type QueueSegment = 'all' | 'initial_requests' | 'payment_releases' | 'ready_for_funding';
 
 export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueProps) {
+  useEntityRealtimeSync({ table: 'disbursements' });
   const [search, setSearch] = useState('');
   const [rejectingItem, setRejectingItem] = useState<Disbursement | null>(null);
   const [approvingItem, setApprovingItem] = useState<Disbursement | null>(null);
@@ -315,7 +317,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
       ) : filteredItems.length === 0 ? (
         /* Empty state */
         <div
-          className="p-10 text-center bg-[#F8FAFC] border-[#E2E8F0] rounded-[6px]"
+          className="p-10 text-center bg-[#F8FAFC] border border-[#E2E8F0] rounded-[8px]"
           data-testid="pending-queue-empty"
         >
           <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto mb-3" />

@@ -1,6 +1,7 @@
 import { QueryClient } from '@tanstack/react-query';
 import { useSessionStore, type UserProfile } from './session';
 import { setupTabSyncListener } from './tabSync';
+import { syncSupabaseRealtimeAuth } from './supabase';
 
 export const API_BASE_URL =
   (import.meta.env.ERP_API_BASE_URL as string | undefined) ||
@@ -45,6 +46,7 @@ export const setTokens = (accessToken: string, refreshToken?: string): void => {
   } catch {
     // ignore
   }
+  syncSupabaseRealtimeAuth(accessToken);
 };
 
 export const clearTokens = (): void => {
@@ -54,6 +56,7 @@ export const clearTokens = (): void => {
   } catch {
     // ignore
   }
+  syncSupabaseRealtimeAuth(null);
 };
 
 /**
