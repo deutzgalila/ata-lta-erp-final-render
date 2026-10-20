@@ -322,7 +322,7 @@ export function DocumentUploadModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="max-w-lg" data-testid="document-upload-modal">
+      <DialogContent className="bg-[#FAF9F5] shadow-[4px_4px_0px_#0A0A0A] border-[#0A0A0A] rounded-none max-w-lg border-2" data-testid="document-upload-modal">
         <DialogHeader>
           <DialogTitle>Upload Document</DialogTitle>
           <DialogDescription>
@@ -331,7 +331,7 @@ export function DocumentUploadModal({
         </DialogHeader>
 
         {/* Mode Selector */}
-        <div className="flex border-b border-[#f0f0f5] -mx-6 px-6 pb-3 gap-4 text-sm font-medium">
+        <div className="flex border-b border-[#0A0A0A] -mx-6 px-6 pb-3 gap-4 text-sm font-medium">
           <button
             type="button"
             onClick={() => {
@@ -340,8 +340,8 @@ export function DocumentUploadModal({
             }}
             className={`flex items-center gap-2 pb-1 border-b-2 transition-colors ${
               mode === 'file'
-                ? 'border-[#2563eb] text-[#2563eb]'
-                : 'border-transparent text-[#9494a0] hover:text-[#1e293b]'
+                ? 'border-[#0A0A0A] text-[#0A0A0A]'
+                : 'border-transparent text-[#4A4945] hover:text-[#0A0A0A]'
             }`}
             data-testid="mode-tab-file"
           >
@@ -356,8 +356,8 @@ export function DocumentUploadModal({
             }}
             className={`flex items-center gap-2 pb-1 border-b-2 transition-colors ${
               mode === 'external'
-                ? 'border-[#2563eb] text-[#2563eb]'
-                : 'border-transparent text-[#9494a0] hover:text-[#1e293b]'
+                ? 'border-[#0A0A0A] text-[#0A0A0A]'
+                : 'border-transparent text-[#4A4945] hover:text-[#0A0A0A]'
             }`}
             data-testid="mode-tab-external"
           >
@@ -381,26 +381,26 @@ export function DocumentUploadModal({
               {!selectedFile ? (
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-[#f0f0f5] hover:border-[#2563eb] rounded-lg p-6 text-center cursor-pointer transition-colors bg-[#f8fafc]"
+                  className="border-2 border-dashed border-[#0A0A0A] hover:border-[#0A0A0A] rounded-none p-6 text-center cursor-pointer transition-colors bg-[#FAF9F5]"
                   data-testid="file-dropzone"
                 >
-                  <Upload className="h-8 w-8 mx-auto text-[#9494a0] mb-2" />
-                  <p className="text-sm font-medium text-[#1e293b]">
+                  <Upload className="h-8 w-8 mx-auto text-[#4A4945] mb-2" />
+                  <p className="text-sm font-medium text-[#0A0A0A]">
                     Click to select a document file
                   </p>
-                  <p className="text-xs text-[#9494a0] mt-1">
+                  <p className="text-xs text-[#4A4945] mt-1">
                     PDF, Word, Excel, images, or text documents up to 50 MB
                   </p>
                 </div>
               ) : (
-                <div className="flex items-center justify-between p-3 rounded-lg border border-[#f0f0f5] bg-[#f8fafc]">
+                <div className="flex items-center justify-between p-3 rounded-none border border-[#0A0A0A] bg-[#FAF9F5]">
                   <div className="flex items-center gap-3 truncate">
-                    <FileText className="h-6 w-6 text-[#2563eb] shrink-0" />
+                    <FileText className="h-6 w-6 text-[#0A0A0A] shrink-0" />
                     <div className="truncate">
-                      <p className="text-sm font-medium text-[#1e293b] truncate">
+                      <p className="text-sm font-medium text-[#0A0A0A] truncate">
                         {selectedFile.name}
                       </p>
-                      <p className="text-xs text-[#9494a0]">
+                      <p className="text-xs text-[#4A4945]">
                         {formatFileSize(selectedFile.size)} • {selectedFile.type || 'binary'}
                       </p>
                     </div>
@@ -414,7 +414,7 @@ export function DocumentUploadModal({
                       setFileName('');
                       if (fileInputRef.current) fileInputRef.current.value = '';
                     }}
-                    className="h-8 w-8 p-0 text-[#9494a0] hover:text-[#1e293b]"
+                    className="h-8 w-8 p-0 text-[#4A4945] hover:text-[#0A0A0A]"
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -424,7 +424,7 @@ export function DocumentUploadModal({
               {/* 50 MB Limit Guard Error */}
               {sizeError && (
                 <div
-                  className="flex items-start gap-2 p-3 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg"
+                  className="flex items-start gap-2 p-3 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-none"
                   data-testid="file-size-error-banner"
                 >
                   <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
@@ -435,7 +435,7 @@ export function DocumentUploadModal({
           ) : (
             /* External URL Input */
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-[#1e293b]">
+              <label className="text-xs font-medium text-[#0A0A0A]">
                 External URL <span className="text-rose-500">*</span>
               </label>
               <Input
@@ -446,7 +446,7 @@ export function DocumentUploadModal({
                 required
                 data-testid="external-url-input"
               />
-              <p className="text-xs text-[#64748b] mt-1" data-testid="external-url-gdrive-hint">
+              <p className="text-xs text-[#4A4945] mt-1" data-testid="external-url-gdrive-hint">
                 Tip for Google Drive: Ensure the link is shared as &quot;Anyone with the link can view&quot; so team members can preview it without authentication prompts.
               </p>
             </div>
@@ -454,7 +454,7 @@ export function DocumentUploadModal({
 
           {/* Document / File Name */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-[#1e293b]">
+            <label className="text-xs font-medium text-[#0A0A0A]">
               Document Display Name <span className="text-rose-500">*</span>
             </label>
             <Input
@@ -469,7 +469,7 @@ export function DocumentUploadModal({
           {/* Category & Document Type */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-[#1e293b]">
+              <label className="text-xs font-medium text-[#0A0A0A]">
                 Category <span className="text-rose-500">*</span>
               </label>
               <Select
@@ -490,7 +490,7 @@ export function DocumentUploadModal({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-[#1e293b]">
+              <label className="text-xs font-medium text-[#0A0A0A]">
                 Document Type
               </label>
               <Input
@@ -504,13 +504,13 @@ export function DocumentUploadModal({
 
           {/* Work Request & Task Link (for allowed users) */}
           {isAllowedUser && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-lg border border-[#f0f0f5] bg-[#f8fafc]/50">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-none border border-[#0A0A0A] bg-[#FAF9F5]/50">
               <div className="space-y-1.5">
                 <label
                   htmlFor="workRequest"
-                  className="text-xs font-medium text-[#1e293b] flex items-center gap-1"
+                  className="text-xs font-medium text-[#0A0A0A] flex items-center gap-1"
                 >
-                  <Briefcase className="h-3.5 w-3.5 text-[#9494a0]" />
+                  <Briefcase className="h-3.5 w-3.5 text-[#4A4945]" />
                   Work Request (Optional)
                 </label>
                 <Select
@@ -540,9 +540,9 @@ export function DocumentUploadModal({
               <div className="space-y-1.5">
                 <label
                   htmlFor="workRequestTask"
-                  className="text-xs font-medium text-[#1e293b] flex items-center gap-1"
+                  className="text-xs font-medium text-[#0A0A0A] flex items-center gap-1"
                 >
-                  <Briefcase className="h-3.5 w-3.5 text-[#9494a0]" />
+                  <Briefcase className="h-3.5 w-3.5 text-[#4A4945]" />
                   Work Request Task (Optional)
                 </label>
                 <Select
@@ -572,7 +572,7 @@ export function DocumentUploadModal({
 
           {/* Description */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-[#1e293b]">
+            <label className="text-xs font-medium text-[#0A0A0A]">
               Description (Optional)
             </label>
             <textarea
@@ -580,7 +580,7 @@ export function DocumentUploadModal({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Notes, compliance references, or custody notes..."
               rows={2}
-              className="w-full text-sm rounded-md border border-[#f0f0f5] bg-transparent p-2 focus:outline-none focus:ring-1 focus:ring-[#2563eb]"
+              className="w-full text-sm rounded-none border border-[#0A0A0A] bg-transparent p-2 focus:outline-none focus:ring-1 focus:ring-[#0A0A0A]"
               data-testid="document-description-input"
             />
           </div>
@@ -597,7 +597,7 @@ export function DocumentUploadModal({
             <Button
               type="submit"
               disabled={isSubmitDisabled}
-              className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white"
+              className="bg-[#0A0A0A] hover:bg-[#262626] text-white"
               data-testid="upload-submit-button"
             >
               {uploadMutation.isPending ? 'Uploading...' : 'Confirm Upload'}

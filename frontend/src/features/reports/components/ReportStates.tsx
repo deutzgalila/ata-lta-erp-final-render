@@ -29,7 +29,7 @@ export const ReportLoadingState: React.FC<ReportLoadingStateProps> = ({
       {(type === 'full' || type === 'summary') && (
         <div
           className={cn(
-            'grid gap-3 sm:gap-4',
+            'grid gap-px bg-[#0A0A0A] border border-[#0A0A0A] rounded-none',
             columns === 1 && 'grid-cols-1',
             columns === 2 && 'grid-cols-1 sm:grid-cols-2',
             columns === 3 && 'grid-cols-1 sm:grid-cols-3',
@@ -39,31 +39,31 @@ export const ReportLoadingState: React.FC<ReportLoadingStateProps> = ({
           {Array.from({ length: columns }).map((_, idx) => (
             <div
               key={idx}
-              className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-2xs"
+              className="bg-[#FAF9F5] rounded-none p-4 shadow-none"
             >
-              <div className="h-4 w-24 bg-slate-200 rounded mb-3" />
-              <div className="h-7 w-32 bg-slate-200 rounded" />
+              <div className="h-4 w-24 bg-[#EAE8E3] rounded-none mb-3" />
+              <div className="h-7 w-32 bg-[#EAE8E3] rounded-none" />
             </div>
           ))}
         </div>
       )}
 
       {(type === 'full' || type === 'table') && (
-        <div className="bg-white rounded-xl border border-slate-200/80 shadow-2xs overflow-hidden">
-          <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-            <div className="h-5 w-36 bg-slate-200 rounded" />
-            <div className="h-4 w-16 bg-slate-200 rounded" />
+        <div className="bg-[#FAF9F5] rounded-none border border-[#0A0A0A] shadow-none overflow-hidden">
+          <div className="p-4 bg-[#EAE8E3] border-b border-[#0A0A0A] flex items-center justify-between">
+            <div className="h-5 w-36 bg-[#C8C5BC] rounded-none" />
+            <div className="h-4 w-16 bg-[#C8C5BC] rounded-none" />
           </div>
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-[#C8C5BC]">
             {Array.from({ length: rows }).map((_, rIdx) => (
               <div
                 key={rIdx}
-                className="h-12 px-4 flex items-center justify-between gap-4"
+                className="h-11 px-4 flex items-center justify-between gap-4"
               >
-                <div className="h-4 w-1/4 bg-slate-200/80 rounded" />
-                <div className="h-4 w-1/4 bg-slate-200/80 rounded" />
-                <div className="h-4 w-1/6 bg-slate-200/80 rounded" />
-                <div className="h-4 w-1/6 bg-slate-200/80 rounded" />
+                <div className="h-4 w-1/4 bg-[#EAE8E3] rounded-none" />
+                <div className="h-4 w-1/4 bg-[#EAE8E3] rounded-none" />
+                <div className="h-4 w-1/6 bg-[#EAE8E3] rounded-none" />
+                <div className="h-4 w-1/6 bg-[#EAE8E3] rounded-none" />
               </div>
             ))}
           </div>
@@ -97,25 +97,25 @@ export const ReportErrorState: React.FC<ReportErrorStateProps> = ({
     <div
       data-testid={dataTestId}
       className={cn(
-        'p-5 sm:p-6 bg-red-50/70 border border-red-200/90 rounded-xl shadow-2xs text-slate-800 space-y-3',
+        'p-5 sm:p-6 bg-[#FAF9F5] border-2 border-[#E61919] rounded-none shadow-none text-[#0A0A0A] space-y-3',
         className
       )}
     >
       <div className="flex items-start gap-3">
-        <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+        <AlertCircle className="w-5 h-5 text-[#E61919] shrink-0 mt-0.5" />
         <div className="space-y-1 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-sm font-semibold text-red-900 leading-snug">
+            <h3 className="text-sm font-bold uppercase tracking-tight text-[#E61919] leading-snug">
               {title}
             </h3>
             {staleDataNotice && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200">
-                <AlertTriangle className="w-3 h-3 text-amber-700" />
+              <span className="inline-flex items-center gap-1 text-xs font-mono font-medium px-2 py-0.5 rounded-none bg-[#FDF3D7] text-[#734800] border border-[#B87500]">
+                <AlertTriangle className="w-3 h-3 text-[#734800]" />
                 Showing previously loaded data
               </span>
             )}
           </div>
-          <p className="text-xs text-red-700 leading-relaxed">{message}</p>
+          <p className="text-xs text-[#4A4945] leading-relaxed">{message}</p>
         </div>
 
         {onRetry && (
@@ -124,7 +124,7 @@ export const ReportErrorState: React.FC<ReportErrorStateProps> = ({
             size="sm"
             variant="outline"
             onClick={onRetry}
-            className="text-xs font-medium h-8 px-3 bg-white border-red-300 text-red-800 hover:bg-red-100 hover:text-red-950 cursor-pointer shadow-2xs shrink-0"
+            className="text-xs font-mono font-semibold h-8 px-3 bg-[#FAF9F5] border border-[#0A0A0A] text-[#0A0A0A] hover:bg-[#0A0A0A] hover:text-[#FAF9F5] rounded-none cursor-pointer shadow-none shrink-0 transition-colors"
             data-testid="report-error-retry-btn"
           >
             <RefreshCw className="w-3 h-3 mr-1.5" />
@@ -162,16 +162,16 @@ export const ReportEmptyState: React.FC<ReportEmptyStateProps> = ({
     <div
       data-testid={dataTestId}
       className={cn(
-        'p-8 sm:p-10 bg-white rounded-xl border border-dashed border-slate-200 text-center shadow-2xs my-4',
+        'p-8 sm:p-10 bg-[#FAF9F5] rounded-none border-2 border-dashed border-[#0A0A0A] text-center shadow-none my-4',
         className
       )}
     >
-      <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center mx-auto mb-3">
-        {icon || <Inbox className="w-5 h-5 text-slate-400" />}
+      <div className="w-10 h-10 rounded-none bg-[#EAE8E3] border border-[#0A0A0A] text-[#4A4945] flex items-center justify-center mx-auto mb-3">
+        {icon || <Inbox className="w-5 h-5 text-[#4A4945]" />}
       </div>
-      <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
+      <h3 className="text-sm font-bold uppercase tracking-tight text-[#0A0A0A]">{title}</h3>
       {description && (
-        <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto leading-relaxed">
+        <p className="text-xs text-[#4A4945] mt-1 max-w-sm mx-auto leading-relaxed">
           {description}
         </p>
       )}
@@ -181,7 +181,7 @@ export const ReportEmptyState: React.FC<ReportEmptyStateProps> = ({
           size="sm"
           variant="outline"
           onClick={onReset}
-          className="mt-4 text-xs font-medium h-8 px-3 text-slate-700 border-slate-300 hover:bg-slate-50 cursor-pointer"
+          className="mt-4 text-xs font-mono font-semibold h-8 px-3.5 text-[#0A0A0A] border border-[#0A0A0A] bg-[#FAF9F5] hover:bg-[#0A0A0A] hover:text-[#FAF9F5] rounded-none cursor-pointer shadow-none transition-colors"
           data-testid="report-empty-reset-btn"
         >
           {resetLabel}

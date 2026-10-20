@@ -119,18 +119,17 @@ export function EditPaymentDetailsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent
-        className="max-w-md p-6 space-y-4"
+      <DialogContent className="space-y-4 border-[#0A0A0A] border-2 p-6 shadow-[4px_4px_0px_#0A0A0A] rounded-none bg-[#FAF9F5] max-w-md"
         data-testid="edit-payment-details-modal"
       >
         <DialogHeader>
-          <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+          <DialogTitle className="text-base font-bold text-[#0A0A0A] flex items-center gap-2">
             <Pencil className="h-4 w-4 text-purple-600" />
             <span>Correct Payment Details</span>
           </DialogTitle>
-          <DialogDescription className="text-xs text-slate-600">
+          <DialogDescription className="text-xs text-[#4A4945]">
             Update release payment information for voucher{' '}
-            <span className="font-mono font-semibold text-slate-800">
+            <span className="font-mono font-semibold text-[#0A0A0A]">
               {disbNumber}
             </span>
             . Lifecycle status, authorization timestamps, and audit history remain unchanged.
@@ -140,7 +139,7 @@ export function EditPaymentDetailsModal({
         <form onSubmit={handleSubmit} className="space-y-3" data-testid="edit-payment-details-form">
           {/* Payment Method */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700">
+            <label className="text-xs font-semibold text-[#0A0A0A]">
               Payment Method <span className="text-red-500">*</span>
             </label>
             <select
@@ -149,7 +148,7 @@ export function EditPaymentDetailsModal({
                 setMethod(e.target.value);
                 if (errors.method) setErrors((prev) => ({ ...prev, method: '' }));
               }}
-              className={`w-full text-xs p-2 border rounded-md bg-white border-slate-200 focus:outline-none focus:ring-1 focus:ring-purple-500 ${
+              className={`w-full text-xs p-2 border rounded-none bg-white border-[#0A0A0A] focus:outline-none focus:ring-1 focus:ring-purple-500 ${
                 errors.method ? 'border-red-500' : ''
               }`}
               data-testid="select-edit-payment-method"
@@ -161,13 +160,13 @@ export function EditPaymentDetailsModal({
               <option value="Other">Other</option>
             </select>
             {errors.method && (
-              <span className="text-[11px] text-red-600 block">{errors.method}</span>
+              <span className="text-xs font-mono text-red-600 block">{errors.method}</span>
             )}
           </div>
 
           {/* Reference */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700">
+            <label className="text-xs font-semibold text-[#0A0A0A]">
               Payment Reference / Check Number (Optional)
             </label>
             <Input
@@ -182,7 +181,7 @@ export function EditPaymentDetailsModal({
 
           {/* Bank */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700">
+            <label className="text-xs font-semibold text-[#0A0A0A]">
               Bank / Institution (Optional)
             </label>
             <Input
@@ -197,7 +196,7 @@ export function EditPaymentDetailsModal({
 
           {/* Date */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700">
+            <label className="text-xs font-semibold text-[#0A0A0A]">
               Payment Date <span className="text-red-500">*</span>
             </label>
             <DateInput
@@ -212,7 +211,7 @@ export function EditPaymentDetailsModal({
               data-testid="input-edit-payment-date"
             />
             {errors.date && (
-              <span className="text-[11px] text-red-600 block">{errors.date}</span>
+              <span className="text-xs font-mono text-red-600 block">{errors.date}</span>
             )}
           </div>
 

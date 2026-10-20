@@ -100,7 +100,7 @@ export function TransmittalCard({
 
   return (
     <div
-      className="bg-white border rounded-lg p-3.5 shadow-sm hover:shadow transition-all space-y-3 cursor-grab active:cursor-grabbing border-slate-200"
+      className="bg-white border rounded-none p-3.5 shadow-none hover:shadow transition-all space-y-3 cursor-grab active:cursor-grabbing border-[#0A0A0A]"
       data-testid={`transmittal-card-${transmittal.id}`}
       draggable={draggable}
       onDragStart={(e) => onDragStart?.(e, transmittal)}
@@ -111,10 +111,10 @@ export function TransmittalCard({
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
           {draggable && (
-            <GripVertical className="h-4 w-4 text-slate-400 shrink-0 cursor-grab hover:text-slate-600" />
+            <GripVertical className="h-4 w-4 text-[#4A4945] shrink-0 cursor-grab hover:text-[#4A4945]" />
           )}
           <span
-            className="font-mono text-xs font-bold text-slate-900 truncate"
+            className="font-mono text-xs font-bold text-[#0A0A0A] truncate"
             data-testid="transmittal-card-tracking"
             title={transmittal.tracking_number}
           >
@@ -123,18 +123,18 @@ export function TransmittalCard({
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {transmittal.entity_code && (
-            <Badge variant="secondary" className="text-[10px] py-0 px-1.5 font-semibold">
+            <Badge variant="secondary" className="text-xs font-mono py-0 px-1.5 font-semibold">
               {transmittal.entity_code}
             </Badge>
           )}
-          <TransmittalStatusBadge status={transmittal.status} className="text-[10px] py-0 px-1.5" />
+          <TransmittalStatusBadge status={transmittal.status} className="text-xs font-mono py-0 px-1.5" />
         </div>
       </div>
 
       {/* Client Name & Approval Badge */}
       <div className="space-y-1">
         <div
-          className="text-sm font-semibold text-slate-900 line-clamp-1"
+          className="text-sm font-semibold text-[#0A0A0A] line-clamp-1"
           data-testid="transmittal-card-client"
           title={clientName}
         >
@@ -148,23 +148,23 @@ export function TransmittalCard({
       </div>
 
       {/* Metadata items: item count, recipient, date */}
-      <div className="text-xs text-slate-600 space-y-1 pt-1 border-t border-slate-100">
-        <div className="flex items-center gap-1.5 text-slate-500">
-          <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+      <div className="text-xs text-[#4A4945] space-y-1 pt-1 border-t border-[#C8C5BC]">
+        <div className="flex items-center gap-1.5 text-[#4A4945]">
+          <FileText className="h-3.5 w-3.5 shrink-0 text-[#4A4945]" />
           <span>
             {itemCount} {itemCount === 1 ? 'document' : 'documents'}
           </span>
         </div>
 
         {transmittal.recipient_name && (
-          <div className="flex items-center gap-1.5 text-slate-500 truncate" title={transmittal.recipient_name}>
-            <User className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+          <div className="flex items-center gap-1.5 text-[#4A4945] truncate" title={transmittal.recipient_name}>
+            <User className="h-3.5 w-3.5 shrink-0 text-[#4A4945]" />
             <span className="truncate">To: {transmittal.recipient_name}</span>
           </div>
         )}
 
         {displayDate && (
-          <div className="flex items-center gap-1.5 text-slate-400 text-[11px]">
+          <div className="flex items-center gap-1.5 text-[#4A4945] text-xs font-mono">
             <Calendar className="h-3 w-3 shrink-0" />
             <span>{displayDate}</span>
           </div>
@@ -172,12 +172,12 @@ export function TransmittalCard({
       </div>
 
       {/* Card Footer Actions */}
-      <div className="flex items-center justify-between pt-2 border-t border-slate-100 gap-1">
+      <div className="flex items-center justify-between pt-2 border-t border-[#C8C5BC] gap-1">
         <div className="flex items-center gap-1">
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 w-7 p-0 text-slate-600 hover:text-slate-900"
+            className="h-7 w-7 p-0 text-[#4A4945] hover:text-[#0A0A0A]"
             title="View Details"
             onClick={() => onView(transmittal.id)}
             data-testid="view-transmittal-btn"
@@ -189,7 +189,7 @@ export function TransmittalCard({
             <Button
               size="sm"
               variant="ghost"
-              className="h-7 w-7 p-0 text-slate-600 hover:text-slate-900"
+              className="h-7 w-7 p-0 text-[#4A4945] hover:text-[#0A0A0A]"
               title="Edit Transmittal"
               onClick={() => onEdit(transmittal)}
               data-testid="edit-transmittal-btn"
@@ -201,7 +201,7 @@ export function TransmittalCard({
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 w-7 p-0 text-slate-600 hover:text-slate-900"
+            className="h-7 w-7 p-0 text-[#4A4945] hover:text-[#0A0A0A]"
             title="Print Transmittal Letter"
             onClick={() => onPrint(transmittal)}
             data-testid="print-transmittal-btn"
@@ -248,7 +248,7 @@ export function TransmittalCard({
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 text-xs px-2 text-blue-700 border-blue-200 hover:bg-blue-50 gap-1 disabled:opacity-50 disabled:pointer-events-none"
+                      className="h-7 text-xs px-2 text-[#0A0A0A] border-[#0A0A0A] hover:bg-[#EAE8E3] gap-1 disabled:opacity-50 disabled:pointer-events-none"
                       disabled={isSendDisabled}
                       onClick={() => onSend(transmittal)}
                       data-testid="send-transmittal-btn"

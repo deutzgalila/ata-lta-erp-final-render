@@ -132,33 +132,43 @@ export default function ClientsPage() {
   });
 
   return (
-    <div className="space-y-6" data-testid="clients-page">
-      {/* Header bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="w-full space-y-6" data-testid="clients-page">
+      {/* 1. Blueprint Module Header */}
+      <div className="border-b-2 border-[#0A0A0A] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Building2 className="h-6 w-6 text-blue-600" />
-            Clients & Master Records
+          <nav
+            aria-label="Breadcrumb"
+            className="font-mono text-xs uppercase tracking-wider text-[#4A4945] flex items-center gap-1.5 pb-1"
+          >
+            <span>Modules</span>
+            <span aria-hidden="true">/</span>
+            <span className="text-[#0A0A0A] font-semibold">Clients</span>
+          </nav>
+          <h1 className="text-2xl font-extrabold tracking-tight text-[#0A0A0A] flex items-center gap-2">
+            <Building2 className="h-6 w-6 text-[#0A0A0A]" />
+            Clients &amp; Master Records
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs sm:text-sm text-[#4A4945] pt-0.5">
             Maintain registered entities, tax identification numbers, and contact channels.
           </p>
         </div>
 
         {/* Action Button: Gated on clients:edit */}
-        {canEditClients && (
-          <Button
-            type="button"
-            variant="default"
-            size="sm"
-            onClick={handleCreate}
-            className="text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white gap-1.5 shadow-sm"
-            data-testid="new-client-btn"
-          >
-            <Plus className="h-4 w-4" />
-            New Client
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+          {canEditClients && (
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              onClick={handleCreate}
+              className="text-xs font-mono font-semibold uppercase tracking-wider bg-[#0A0A0A] hover:bg-[#222220] text-[#FAF9F5] rounded-none border border-[#0A0A0A] h-9 gap-1.5 shadow-none cursor-pointer"
+              data-testid="new-client-btn"
+            >
+              <Plus className="h-4 w-4" />
+              New Client
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Filter and Tab Bar */}

@@ -79,29 +79,32 @@ export default function DisbursementsPage() {
   const archivedCount = counts?.archived ?? 0;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6" data-testid="disbursements-page">
-      {/* 1. Page Header & Breadcrumbs */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="w-full space-y-6" data-testid="disbursements-page">
+      {/* 1. Blueprint Module Header */}
+      <div className="border-b-2 border-[#0A0A0A] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <div className="text-xs font-medium text-slate-500 flex items-center gap-1.5 pb-1">
+          <nav
+            aria-label="Breadcrumb"
+            className="font-mono text-xs uppercase tracking-wider text-[#4A4945] flex items-center gap-1.5 pb-1"
+          >
             <span>Modules</span>
-            <span>/</span>
-            <span className="text-slate-900 font-semibold">Disbursements</span>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
-            <Wallet className="h-6 w-6 text-blue-600" />
-            Disbursements & Expenses
+            <span aria-hidden="true">/</span>
+            <span className="text-[#0A0A0A] font-semibold">Disbursements</span>
+          </nav>
+          <h1 className="text-2xl font-extrabold tracking-tight text-[#0A0A0A] flex items-center gap-2">
+            <Wallet className="h-6 w-6 text-[#0A0A0A]" />
+            Disbursements &amp; Expenses
           </h1>
-          <p className="text-xs text-slate-500 pt-0.5">
-            Manage firm & client expense vouchers, petty cash entries, approval workflows, and funds reconciliation.
+          <p className="text-xs sm:text-sm text-[#4A4945] pt-0.5">
+            Manage firm &amp; client expense vouchers, petty cash entries, approval workflows, and funds reconciliation.
           </p>
         </div>
 
         {/* Header Controls: Entity Switcher & Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
           {/* Active Entity Toggle */}
           <div
-            className="flex items-center p-0.5 bg-slate-100 rounded-lg border border-slate-200"
+            className="flex items-center bg-[#EAE8E3] p-0 rounded-none border border-[#0A0A0A] divide-x divide-[#0A0A0A]"
             data-testid="disbursements-entity-toggle"
           >
             {(['ATA', 'LTA', 'ALL'] as const).map((ent) => (
@@ -109,14 +112,10 @@ export default function DisbursementsPage() {
                 key={ent}
                 type="button"
                 onClick={() => setActiveEntity(ent as EntityCode)}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                className={`px-3 py-1.5 rounded-none font-mono text-xs transition-colors cursor-pointer ${
                   activeEntity === ent
-                    ? ent === 'ATA'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : ent === 'LTA'
-                        ? 'bg-slate-700 text-white shadow-xs'
-                        : 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-[#0A0A0A] text-[#FAF9F5] font-semibold'
+                    : 'text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] font-medium'
                 }`}
                 data-testid={`entity-btn-${ent.toLowerCase()}`}
               >
@@ -125,13 +124,13 @@ export default function DisbursementsPage() {
             ))}
           </div>
 
-          {/* New Disbursement Action (accessible to all authenticated users) */}
+          {/* New Disbursement Action */}
           {canCreate && (
             <Button
               type="button"
               size="sm"
               onClick={() => setIsCreateModalOpen(true)}
-              className="text-xs font-semibold gap-1.5 bg-blue-600 hover:bg-blue-700 text-white"
+              className="text-xs font-mono font-semibold uppercase tracking-wider gap-1.5 bg-[#0A0A0A] hover:bg-[#222220] text-[#FAF9F5] rounded-none border border-[#0A0A0A] h-9 shadow-none cursor-pointer"
               data-testid="page-new-disbursement-btn"
             >
               <Plus className="h-4 w-4" /> New Disbursement
@@ -140,44 +139,44 @@ export default function DisbursementsPage() {
         </div>
       </div>
 
-      {/* 2. Metric Summary KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="p-3.5 bg-white rounded-lg border border-slate-200 shadow-2xs space-y-1">
-          <div className="flex items-center justify-between text-xs text-slate-500">
+      {/* 2. Metric Summary KPI Cards (Blueprint Telemetry Matrix) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-[#0A0A0A] border border-[#0A0A0A]">
+        <div className="p-3.5 bg-[#FAF9F5] space-y-1">
+          <div className="flex items-center justify-between text-xs font-mono uppercase tracking-wider text-[#4A4945]">
             <span>Active Vouchers</span>
-            <Layers className="h-4 w-4 text-slate-400" />
+            <Layers className="h-4 w-4 text-[#4A4945]" />
           </div>
-          <div className="text-xl font-bold text-slate-900" data-testid="kpi-active-count">
+          <div className="text-xl font-bold font-mono tabular-nums text-[#0A0A0A]" data-testid="kpi-active-count">
             {activeCount}
           </div>
         </div>
 
-        <div className="p-3.5 bg-white rounded-lg border border-slate-200 shadow-2xs space-y-1">
-          <div className="flex items-center justify-between text-xs text-slate-500">
+        <div className="p-3.5 bg-[#FAF9F5] space-y-1">
+          <div className="flex items-center justify-between text-xs font-mono uppercase tracking-wider text-[#4A4945]">
             <span>Awaiting Release</span>
-            <DollarSign className="h-4 w-4 text-purple-500" />
+            <DollarSign className="h-4 w-4 text-[#4A4945]" />
           </div>
-          <div className="text-xl font-bold text-purple-700" data-testid="kpi-awaiting-release-count">
+          <div className="text-xl font-bold font-mono tabular-nums text-[#0A0A0A]" data-testid="kpi-awaiting-release-count">
             {awaitingReleaseCount}
           </div>
         </div>
 
-        <div className="p-3.5 bg-white rounded-lg border border-slate-200 shadow-2xs space-y-1">
-          <div className="flex items-center justify-between text-xs text-slate-500">
+        <div className="p-3.5 bg-[#FAF9F5] space-y-1 border-t-2 border-t-[#E61919]">
+          <div className="flex items-center justify-between text-xs font-mono uppercase tracking-wider text-[#A81212]">
             <span>Rejected</span>
-            <XCircle className="h-4 w-4 text-rose-500" />
+            <XCircle className="h-4 w-4 text-[#E61919]" />
           </div>
-          <div className="text-xl font-bold text-rose-600" data-testid="kpi-rejected-count">
+          <div className="text-xl font-bold font-mono tabular-nums text-[#A81212]" data-testid="kpi-rejected-count">
             {rejectedCount}
           </div>
         </div>
 
-        <div className="p-3.5 bg-white rounded-lg border border-slate-200 shadow-2xs space-y-1">
-          <div className="flex items-center justify-between text-xs text-slate-500">
+        <div className="p-3.5 bg-[#FAF9F5] space-y-1">
+          <div className="flex items-center justify-between text-xs font-mono uppercase tracking-wider text-[#4A4945]">
             <span>Archived</span>
-            <Archive className="h-4 w-4 text-slate-400" />
+            <Archive className="h-4 w-4 text-[#4A4945]" />
           </div>
-          <div className="text-xl font-bold text-slate-600" data-testid="kpi-archived-count">
+          <div className="text-xl font-bold font-mono tabular-nums text-[#4A4945]" data-testid="kpi-archived-count">
             {archivedCount}
           </div>
         </div>
@@ -185,10 +184,10 @@ export default function DisbursementsPage() {
 
       {/* 3. Navigation Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-        <TabsList className="bg-slate-100 p-1 rounded-lg border border-slate-200 flex flex-wrap h-auto gap-1">
+        <TabsList className="w-full justify-start rounded-none bg-[#EAE8E3] p-0 border border-[#0A0A0A] border-b-2 gap-0 h-auto overflow-x-auto scrollbar-none flex flex-nowrap">
           <TabsTrigger
             value="all"
-            className="text-xs px-3 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-xs"
+            className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0"
             data-testid="tab-all"
           >
             All Disbursements
@@ -196,7 +195,7 @@ export default function DisbursementsPage() {
 
           <TabsTrigger
             value="drafts"
-            className="text-xs px-3 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-xs"
+            className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0"
             data-testid="tab-drafts"
           >
             Drafts
@@ -204,13 +203,13 @@ export default function DisbursementsPage() {
 
           <TabsTrigger
             value="pending-approvals"
-            className="text-xs px-3 py-1.5 gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-xs"
+            className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-pending-approvals"
           >
-            <Clock className="h-3.5 w-3.5 text-amber-600" />
+            <Clock className="h-3.5 w-3.5" />
             <span>{canApprove ? 'Pending Approvals' : 'Pending Submissions'}</span>
             {canApprove && (
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-800">
+              <Badge variant="secondary" className="text-xs font-mono px-1.5 py-0 rounded-none border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A]">
                 Admin
               </Badge>
             )}
@@ -218,13 +217,13 @@ export default function DisbursementsPage() {
 
           <TabsTrigger
             value="approved"
-            className="text-xs px-3 py-1.5 gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-xs"
+            className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-approved"
           >
-            <FileCheck2 className="h-3.5 w-3.5 text-blue-600" />
+            <FileCheck2 className="h-3.5 w-3.5" />
             <span>Approved</span>
             {awaitingReleaseCount > 0 && (
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-purple-100 text-purple-800">
+              <Badge variant="secondary" className="text-xs font-mono px-1.5 py-0 rounded-none border border-[#C8C5BC] bg-[#EAE8E3] text-[#0A0A0A]">
                 {awaitingReleaseCount}
               </Badge>
             )}
@@ -232,42 +231,42 @@ export default function DisbursementsPage() {
 
           <TabsTrigger
             value="released"
-            className="text-xs px-3 py-1.5 gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-xs"
+            className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-released"
           >
-            <DollarSign className="h-3.5 w-3.5 text-purple-600" />
+            <DollarSign className="h-3.5 w-3.5" />
             <span>Released</span>
           </TabsTrigger>
 
           <TabsTrigger
             value="funded"
-            className="text-xs px-3 py-1.5 gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-xs"
+            className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-funded"
           >
-            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+            <CheckCircle2 className="h-3.5 w-3.5" />
             <span>Funded</span>
           </TabsTrigger>
 
           <TabsTrigger
             value="rejected"
-            className="text-xs px-3 py-1.5 gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-xs"
+            className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-rejected"
           >
-            <XCircle className="h-3.5 w-3.5 text-rose-500" />
+            <XCircle className="h-3.5 w-3.5 text-[#E61919]" />
             <span>Rejected</span>
           </TabsTrigger>
 
           <TabsTrigger
             value="archive"
-            className="text-xs px-3 py-1.5 gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-xs"
+            className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
             data-testid="tab-archive"
           >
-            <Archive className="h-3.5 w-3.5 text-slate-500" />
+            <Archive className="h-3.5 w-3.5" />
             <span>Archive</span>
             {archivedCount > 0 && (
               <Badge
                 variant="secondary"
-                className="text-[10px] px-1.5 py-0 bg-slate-200 text-slate-700 font-bold"
+                className="text-xs font-mono px-1.5 py-0 rounded-none border border-[#C8C5BC] bg-[#EAE8E3] text-[#0A0A0A] font-bold"
                 data-testid="badge-archived-count"
               >
                 {archivedCount}

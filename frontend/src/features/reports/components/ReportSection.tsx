@@ -32,17 +32,17 @@ export const ReportSection: React.FC<ReportSectionProps> = ({
       id={id}
       data-testid={dataTestId}
       className={cn(
-        'bg-white rounded-xl border border-slate-200/80 shadow-2xs overflow-hidden transition-all',
+        'bg-[#FAF9F5] rounded-none border border-[#0A0A0A] shadow-none overflow-hidden transition-all',
         className
       )}
     >
-      <div className="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100/80 gap-3">
+      <div className="flex items-center justify-between px-4 py-3 bg-[#EAE8E3] border-b border-[#0A0A0A] gap-3">
         <div className="flex items-center gap-2.5">
           {collapsible && (
             <button
               type="button"
               onClick={() => setIsOpen(!isOpen)}
-              className="p-1 -ml-1 text-slate-400 hover:text-slate-700 rounded-md transition-colors cursor-pointer"
+              className="p-1 -ml-1 text-[#4A4945] hover:text-[#0A0A0A] rounded-none transition-colors cursor-pointer"
               aria-expanded={isOpen}
               aria-label={isOpen ? `Collapse ${title}` : `Expand ${title}`}
             >
@@ -54,12 +54,12 @@ export const ReportSection: React.FC<ReportSectionProps> = ({
               />
             </button>
           )}
-          <h2 className="text-base font-semibold text-slate-900 leading-none">
+          <h2 className="text-sm sm:text-base font-bold uppercase tracking-tight text-[#0A0A0A] leading-none">
             {title}
           </h2>
           {badgeCount !== undefined && (
             <span
-              className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 tabular-nums"
+              className="inline-flex items-center px-2 py-0.5 rounded-none border border-[#0A0A0A] font-mono text-xs font-semibold bg-[#FAF9F5] text-[#0A0A0A] tabular-nums"
               data-testid={`${dataTestId || 'section'}-badge`}
             >
               {badgeCount}

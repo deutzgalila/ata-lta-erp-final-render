@@ -82,7 +82,7 @@ describe('Shared Presentation Components', () => {
       const outstanding = screen.getByTestId('metric-outstanding');
       expect(outstanding).toHaveTextContent('5 overdue');
       // Attention styling
-      expect(outstanding.className).toContain('border-amber-300');
+      expect(outstanding.className).toContain('border-t-[#E61919]');
     });
 
     it('renders ReportSummaryCard directly with custom subtext and attention indicator', () => {
@@ -317,7 +317,7 @@ describe('ReportsPage Redesigned Shell Integration', () => {
     expect(overviewTrigger).toHaveAttribute('data-state', 'active');
   });
 
-  it('renders blue active underline styling on active tab triggers', async () => {
+  it('renders brutalist active underline styling on active tab triggers', async () => {
     const { wrapper } = createHarness(['/reports?tab=daily']);
     render(
       <Routes>
@@ -333,8 +333,8 @@ describe('ReportsPage Redesigned Shell Integration', () => {
     const dailyTrigger = screen.getByTestId('tab-trigger-daily');
     expect(dailyTrigger).toHaveAttribute('data-state', 'active');
     expect(dailyTrigger.className).toContain('data-[state=active]:border-b-2');
-    expect(dailyTrigger.className).toContain('data-[state=active]:border-blue-600');
-    expect(dailyTrigger.className).toContain('data-[state=active]:text-blue-600');
+    expect(dailyTrigger.className).toContain('data-[state=active]:border-[#E61919]');
+    expect(dailyTrigger.className).toContain('data-[state=active]:text-[#FAF9F5]');
   });
 
   it('renders ReportScopePrompt instead of detail tab when activeEntity is ALL on daily tab', async () => {

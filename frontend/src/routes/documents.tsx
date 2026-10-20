@@ -169,70 +169,76 @@ export default function DocumentsPage() {
   const total = listResponse?.meta?.total ?? 0;
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Page Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="w-full space-y-6" data-testid="documents-page">
+      {/* 1. Blueprint Module Header */}
+      <div className="border-b-2 border-[#0A0A0A] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <FolderOpen className="h-6 w-6 text-[#2563eb]" />
-            <h1 className="text-2xl font-bold tracking-tight text-[#1e293b]">
-              Document Management System
-            </h1>
-          </div>
-          <p className="text-sm text-[#9494a0] mt-1">
+          <nav
+            aria-label="Breadcrumb"
+            className="font-mono text-xs uppercase tracking-wider text-[#4A4945] flex items-center gap-1.5 pb-1"
+          >
+            <span>Modules</span>
+            <span aria-hidden="true">/</span>
+            <span className="text-[#0A0A0A] font-semibold">Documents</span>
+          </nav>
+          <h1 className="text-2xl font-extrabold tracking-tight text-[#0A0A0A] flex items-center gap-2">
+            <FolderOpen className="h-6 w-6 text-[#0A0A0A]" />
+            <span>Document Management System</span>
+          </h1>
+          <p className="text-xs sm:text-sm text-[#4A4945] pt-0.5">
             Secure digital records, compliance classifications, and physical lifecycle tracking.
           </p>
         </div>
 
-        {canEdit && (
-          <Button
-            onClick={() => setIsUploadModalOpen(true)}
-            className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white"
-            data-testid="header-upload-button"
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            Upload Document
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+          {canEdit && (
+            <Button
+              onClick={() => setIsUploadModalOpen(true)}
+              className="bg-[#0A0A0A] hover:bg-[#222220] text-[#FAF9F5] text-xs font-mono font-semibold uppercase tracking-wider rounded-none border border-[#0A0A0A] h-9 gap-1.5 shadow-none cursor-pointer"
+              data-testid="header-upload-button"
+            >
+              <Upload className="h-4 w-4 mr-1.5" />
+              Upload Document
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* Tabs: Active vs. Archived */}
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <div className="flex items-center justify-between border-b border-[#f0f0f5] pb-2">
-          <TabsList className="bg-[#f0f1f3] p-1 border border-[#f0f0f5] rounded-lg">
-            <TabsTrigger
-              value="active"
-              className="gap-2 data-[state=active]:bg-white data-[state=active]:text-[#1e293b] data-[state=active]:shadow-xs text-[#9494a0] cursor-pointer"
-              data-testid="tab-active-documents"
+      {/* 2. Tabs: Active vs. Archived */}
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full space-y-4">
+        <TabsList className="w-full justify-start rounded-none bg-[#EAE8E3] p-0 border border-[#0A0A0A] border-b-2 gap-0 h-auto overflow-x-auto scrollbar-none flex flex-nowrap">
+          <TabsTrigger
+            value="active"
+            className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+            data-testid="tab-active-documents"
+          >
+            <FolderOpen className="h-4 w-4" />
+            <span>Active Documents</span>
+            <Badge
+              variant="secondary"
+              className="ml-1.5 text-xs font-mono px-1.5 py-0 rounded-none border border-[#C8C5BC] bg-[#EAE8E3] text-[#0A0A0A]"
+              data-testid="badge-active-count"
             >
-              <FolderOpen className="h-4 w-4" />
-              <span>Active Documents</span>
-              <Badge
-                variant="secondary"
-                className="ml-1 text-xs px-1.5 py-0 bg-white text-[#1e293b] border border-[#f0f0f5]"
-                data-testid="badge-active-count"
-              >
-                {countsData?.active ?? 0}
-              </Badge>
-            </TabsTrigger>
+              {countsData?.active ?? 0}
+            </Badge>
+          </TabsTrigger>
 
-            <TabsTrigger
-              value="archived"
-              className="gap-2 data-[state=active]:bg-white data-[state=active]:text-[#1e293b] data-[state=active]:shadow-xs text-[#9494a0] cursor-pointer"
-              data-testid="tab-archived-documents"
+          <TabsTrigger
+            value="archived"
+            className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+            data-testid="tab-archived-documents"
+          >
+            <Archive className="h-4 w-4" />
+            <span>Archived</span>
+            <Badge
+              variant="secondary"
+              className="ml-1.5 text-xs font-mono px-1.5 py-0 rounded-none border border-[#C8C5BC] bg-[#EAE8E3] text-[#0A0A0A]"
+              data-testid="badge-archived-count"
             >
-              <Archive className="h-4 w-4" />
-              <span>Archived</span>
-              <Badge
-                variant="secondary"
-                className="ml-1 text-xs px-1.5 py-0 bg-white text-[#1e293b] border border-[#f0f0f5]"
-                data-testid="badge-archived-count"
-              >
-                {countsData?.archived ?? 0}
-              </Badge>
-            </TabsTrigger>
-          </TabsList>
-        </div>
+              {countsData?.archived ?? 0}
+            </Badge>
+          </TabsTrigger>
+        </TabsList>
       </Tabs>
 
       {/* Filter Bar */}

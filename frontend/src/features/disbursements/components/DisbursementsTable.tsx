@@ -92,11 +92,11 @@ export function DisbursementsTable({
   return (
     <div className="space-y-3" data-testid="disbursements-table-container">
       {/* Filter and Search Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 bg-white p-3 rounded-lg border border-slate-200">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 bg-white p-3 rounded-none border border-[#0A0A0A]">
         <div className="flex flex-wrap items-center gap-2 flex-1">
           {/* Search */}
           <div className="relative w-full sm:w-60">
-            <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-slate-400" />
+            <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-[#4A4945]" />
             <Input
               type="text"
               placeholder="Search description, number..."
@@ -118,7 +118,7 @@ export function DisbursementsTable({
                 setSelectedStatus(e.target.value as DisbursementStatus | '');
                 setPage(1);
               }}
-              className="text-xs h-8 px-2.5 border rounded-md bg-white border-slate-200 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="text-xs h-8 px-2.5 border rounded-none bg-white border-[#0A0A0A] text-[#0A0A0A] focus:outline-none focus:ring-1 focus:ring-blue-500"
               data-testid="filter-status-select"
             >
               <option value="">All Statuses</option>
@@ -137,7 +137,7 @@ export function DisbursementsTable({
               setSelectedCategory(e.target.value);
               setPage(1);
             }}
-            className="text-xs h-8 px-2.5 border rounded-md bg-white border-slate-200 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="text-xs h-8 px-2.5 border rounded-none bg-white border-[#0A0A0A] text-[#0A0A0A] focus:outline-none focus:ring-1 focus:ring-blue-500"
             data-testid="filter-category-select"
           >
             <option value="">All Categories</option>
@@ -155,7 +155,7 @@ export function DisbursementsTable({
               setSelectedFundSource(e.target.value as FundSource | '');
               setPage(1);
             }}
-            className="text-xs h-8 px-2.5 border rounded-md bg-white border-slate-200 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="text-xs h-8 px-2.5 border rounded-none bg-white border-[#0A0A0A] text-[#0A0A0A] focus:outline-none focus:ring-1 focus:ring-blue-500"
             data-testid="filter-fund-source-select"
           >
             <option value="">All Fund Sources</option>
@@ -172,7 +172,7 @@ export function DisbursementsTable({
               variant="ghost"
               size="sm"
               onClick={resetFilters}
-              className="text-xs h-8 text-slate-500 hover:text-slate-800"
+              className="text-xs h-8 text-[#4A4945] hover:text-[#0A0A0A]"
               data-testid="reset-filters-btn"
             >
               Reset
@@ -186,23 +186,23 @@ export function DisbursementsTable({
             variant="ghost"
             size="sm"
             onClick={() => refetch()}
-            className="text-xs h-8 px-2 text-slate-500 hover:text-slate-800"
+            className="text-xs h-8 px-2 text-[#4A4945] hover:text-[#0A0A0A]"
             title="Refresh"
             data-testid="refresh-table-btn"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
           </Button>
-          <span className="text-xs text-slate-500">
-            Total: <span className="font-semibold text-slate-800">{total}</span>
+          <span className="text-xs text-[#4A4945]">
+            Total: <span className="font-semibold text-[#0A0A0A]">{total}</span>
           </span>
         </div>
       </div>
 
       {/* Table Data */}
-      <div className="bg-white rounded-lg border border-slate-200 overflow-hidden shadow-2xs">
+      <div className="bg-white rounded-none border border-[#0A0A0A] overflow-hidden shadow-none">
         <Table data-testid="disbursements-table">
           <TableHeader>
-            <TableRow className="bg-slate-50/80 text-slate-700 hover:bg-slate-50/80">
+            <TableRow className="bg-[#EAE8E3]/80 text-[#0A0A0A] hover:bg-[#EAE8E3]/80">
               <TableHead className="w-40 text-xs font-bold">Voucher #</TableHead>
               <TableHead className="text-xs font-bold">Description</TableHead>
               <TableHead className="w-32 text-xs font-bold">Category</TableHead>
@@ -215,17 +215,17 @@ export function DisbursementsTable({
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-32 text-center text-xs text-slate-500" data-testid="table-loading">
+                <TableCell colSpan={7} className="h-32 text-center text-xs text-[#4A4945]" data-testid="table-loading">
                   Loading disbursements...
                 </TableCell>
               </TableRow>
             ) : disbursements.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-32 text-center text-xs text-slate-500" data-testid="table-empty">
+                <TableCell colSpan={7} className="h-32 text-center text-xs text-[#4A4945]" data-testid="table-empty">
                   <div className="space-y-1">
-                    <Filter className="h-6 w-6 text-slate-300 mx-auto" />
-                    <p className="font-medium text-slate-700">No disbursements found</p>
-                    <p className="text-[11px] text-slate-400">
+                    <Filter className="h-6 w-6 text-[#C8C5BC] mx-auto" />
+                    <p className="font-medium text-[#0A0A0A]">No disbursements found</p>
+                    <p className="text-xs font-mono text-[#4A4945]">
                       Try adjusting your search criteria or create a new voucher.
                     </p>
                   </div>
@@ -241,19 +241,19 @@ export function DisbursementsTable({
                 return (
                   <TableRow
                     key={item.id}
-                    className="hover:bg-slate-50/60 cursor-pointer transition-colors"
+                    className="hover:bg-[#EAE8E3]/60 cursor-pointer transition-colors"
                     onClick={() => onSelectDisbursement(item.id)}
                     data-testid={`disbursement-row-${item.id}`}
                   >
-                    <TableCell className="font-mono text-xs font-bold text-blue-700">
+                    <TableCell className="font-mono text-xs font-bold text-[#0A0A0A]">
                       {disbNumber}
                     </TableCell>
                     <TableCell>
                       <div className="space-y-0.5">
-                        <p className="text-xs font-medium text-slate-900 line-clamp-1">
+                        <p className="text-xs font-medium text-[#0A0A0A] line-clamp-1">
                           {item.description}
                         </p>
-                        <p className="text-[11px] text-slate-400">
+                        <p className="text-xs font-mono text-[#4A4945]">
                           {new Date(item.created_at || item.createdAt || '').toLocaleDateString()}
                           {item.client_name ? ` • ${item.client_name}` : ''}
                           {item.linked_work_request_name
@@ -264,13 +264,13 @@ export function DisbursementsTable({
                         </p>
                       </div>
                     </TableCell>
-                    <TableCell className="text-xs text-slate-700">{item.category}</TableCell>
+                    <TableCell className="text-xs text-[#0A0A0A]">{item.category}</TableCell>
                     <TableCell>
-                      <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                      <span className="text-xs font-mono font-medium px-2 py-0.5 rounded-none bg-[#EAE8E3] text-[#0A0A0A]">
                         {item.fund_source || item.fundSource}
                       </span>
                     </TableCell>
-                    <TableCell className="text-xs font-bold text-slate-900 text-right">
+                    <TableCell className="text-xs font-bold text-[#0A0A0A] text-right">
                       ₱{item.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                     </TableCell>
                     <TableCell className="text-center">
@@ -284,7 +284,7 @@ export function DisbursementsTable({
                           variant="ghost"
                           size="sm"
                           onClick={() => onSelectDisbursement(item.id)}
-                          className="h-7 w-7 p-0 text-slate-500 hover:text-slate-900"
+                          className="h-7 w-7 p-0 text-[#4A4945] hover:text-[#0A0A0A]"
                           title="View Details"
                           data-testid={`view-action-${item.id}`}
                         >
@@ -301,10 +301,10 @@ export function DisbursementsTable({
 
         {/* Pagination Bar */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-2.5 border-t border-slate-100 bg-slate-50/50 text-xs text-slate-600">
+          <div className="flex items-center justify-between px-4 py-2.5 border-t border-[#C8C5BC] bg-[#EAE8E3]/50 text-xs text-[#4A4945]">
             <span>
-              Page <span className="font-semibold text-slate-800">{page}</span> of{' '}
-              <span className="font-semibold text-slate-800">{totalPages}</span>
+              Page <span className="font-semibold text-[#0A0A0A]">{page}</span> of{' '}
+              <span className="font-semibold text-[#0A0A0A]">{totalPages}</span>
             </span>
             <div className="flex items-center gap-1">
               <Button

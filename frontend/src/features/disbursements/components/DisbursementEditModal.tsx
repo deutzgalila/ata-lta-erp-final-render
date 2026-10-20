@@ -162,7 +162,7 @@ export function DisbursementEditModal({
             Description
             <textarea
               aria-label="Description"
-              className="w-full border border-slate-200 rounded-md p-2"
+              className="w-full border border-[#0A0A0A] rounded-none p-2"
               rows={3}
               maxLength={2000}
               value={description}
@@ -173,7 +173,7 @@ export function DisbursementEditModal({
             Fund source
             <select
               aria-label="Fund source"
-              className="w-full border border-slate-200 rounded-md p-2"
+              className="w-full border border-[#0A0A0A] rounded-none p-2"
               value={fundSource}
               onChange={(e) => setFundSource(e.target.value as FundSource)}
             >
@@ -189,7 +189,7 @@ export function DisbursementEditModal({
             Notes
             <textarea
               aria-label="Notes"
-              className="w-full border border-slate-200 rounded-md p-2"
+              className="w-full border border-[#0A0A0A] rounded-none p-2"
               rows={2}
               maxLength={2000}
               value={notes}
@@ -197,9 +197,9 @@ export function DisbursementEditModal({
             />
           </label>
         </div>
-        <fieldset className="border-t border-slate-200 pt-3 space-y-3">
+        <fieldset className="border-t border-[#0A0A0A] pt-3 space-y-3">
           <legend className="text-sm font-semibold">Printed voucher details</legend>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-[#4A4945]">
             These values appear on the document. Use Edit Payment Details to correct the recorded
             payment.
           </p>
@@ -230,7 +230,7 @@ export function DisbursementEditModal({
   );
   return inline ? (
     <section
-      className="bg-white border border-slate-200 rounded-md p-4 space-y-3"
+      className="bg-white border border-[#0A0A0A] rounded-none p-4 space-y-3"
       data-testid="disbursement-inline-editor"
     >
       {content}

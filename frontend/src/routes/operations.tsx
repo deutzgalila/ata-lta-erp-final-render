@@ -34,6 +34,7 @@ import { hasPermission } from '@/lib/permissions';
 import { useEntityRealtimeSync, resolveEntityCodeFromUUID } from '@/lib/realtime';
 import type { WorkRequest, EntityCode, RetainerTemplate } from '@/features/operations/api/types';
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const allowedTabs = ['work-requests', 'templates', 'other-templates', 'pending-approvals', 'archive'];
 export const ALLOWED_TABS = allowedTabs;
 
@@ -232,28 +233,31 @@ export default function OperationsPage() {
   const archivedCount = wrCounts?.archived ?? 0;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6" data-testid="operations-page">
-      {/* 1. Page Header & Breadcrumbs */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="w-full space-y-6" data-testid="operations-page">
+      {/* 1. Blueprint Module Header */}
+      <div className="border-b-2 border-[#0A0A0A] pb-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <div className="text-xs font-medium text-slate-500 flex items-center gap-1.5 pb-1">
+          <nav
+            aria-label="Breadcrumb"
+            className="font-mono text-xs uppercase tracking-wider text-[#4A4945] flex items-center gap-1.5 pb-1"
+          >
             <span>Modules</span>
-            <span>/</span>
-            <span className="text-slate-900 font-semibold">Operations</span>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Operations & Engagements
+            <span aria-hidden="true">/</span>
+            <span className="text-[#0A0A0A] font-semibold">Operations</span>
+          </nav>
+          <h1 className="text-2xl font-extrabold tracking-tight text-[#0A0A0A]">
+            Operations &amp; Engagements
           </h1>
-          <p className="text-xs text-slate-500 pt-0.5">
+          <p className="text-xs sm:text-sm text-[#4A4945] pt-0.5">
             Manage client deliverables, 4-phase lifecycle transitions, staff governance, and compliance.
           </p>
         </div>
 
-        {/* Header Controls: Entity Switcher & Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Header Controls: Mechanical Entity Switcher & Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
           {/* Active Entity Toggle */}
           <div
-            className="flex items-center p-0.5 bg-slate-100 rounded-lg border border-slate-200"
+            className="flex items-center bg-[#EAE8E3] p-0 rounded-none border border-[#0A0A0A] divide-x divide-[#0A0A0A]"
             data-testid="operations-entity-toggle"
           >
             {(['ATA', 'LTA', 'ALL'] as const).map((ent) => (
@@ -261,14 +265,10 @@ export default function OperationsPage() {
                 key={ent}
                 type="button"
                 onClick={() => setActiveEntity(ent as EntityCode)}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                className={`px-3 py-1.5 rounded-none font-mono text-xs transition-colors cursor-pointer ${
                   activeEntity === ent
-                    ? ent === 'ATA'
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : ent === 'LTA'
-                        ? 'bg-slate-700 text-white shadow-xs'
-                        : 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-[#0A0A0A] text-[#FAF9F5] font-semibold'
+                    : 'text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] font-medium'
                 }`}
                 data-testid={`entity-btn-${ent.toLowerCase()}`}
               >
@@ -287,10 +287,10 @@ export default function OperationsPage() {
                 setEditingTemplate(null);
                 setIsTemplateModalOpen(true);
               }}
-              className="text-xs font-semibold gap-1.5"
+              className="text-xs font-mono font-semibold uppercase tracking-wider rounded-none border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A] hover:bg-[#EAE8E3] gap-1.5 shadow-none cursor-pointer"
               data-testid="page-new-template-btn"
             >
-              <Plus className="h-4 w-4 text-slate-500" /> New Template
+              <Plus className="h-4 w-4 text-[#4A4945]" /> New Template
             </Button>
           )}
 
@@ -300,10 +300,10 @@ export default function OperationsPage() {
               variant="outline"
               size="sm"
               onClick={() => setIsGenerateModalOpen(true)}
-              className="text-xs gap-1.5"
+              className="text-xs font-mono font-semibold uppercase tracking-wider rounded-none border border-[#0A0A0A] bg-[#FAF9F5] text-[#0A0A0A] hover:bg-[#EAE8E3] gap-1.5 shadow-none cursor-pointer"
               data-testid="generate-retainer-btn"
             >
-              <Zap className="h-3.5 w-3.5 text-amber-500" /> Generate Retainer
+              <Zap className="h-3.5 w-3.5 text-[#E61919]" /> Generate Retainer
             </Button>
           )}
 
@@ -315,7 +315,7 @@ export default function OperationsPage() {
                 setEditingWr(null);
                 setIsCreateModalOpen(true);
               }}
-              className="text-xs font-semibold gap-1.5"
+              className="text-xs font-mono font-semibold uppercase tracking-wider rounded-none border border-[#0A0A0A] bg-[#0A0A0A] text-[#FAF9F5] hover:bg-[#222220] gap-1.5 shadow-none cursor-pointer"
               data-testid="page-new-wr-btn"
             >
               <Plus className="h-4 w-4" /> New Work Request
@@ -326,12 +326,12 @@ export default function OperationsPage() {
 
       {/* 2. Module Navigation Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-200 pb-px">
-          <TabsList className="bg-transparent h-10 p-0 gap-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#0A0A0A] pb-0">
+          <TabsList className="w-full sm:w-auto justify-start rounded-none bg-[#EAE8E3] p-0 border-0 gap-0 h-auto overflow-x-auto scrollbar-none flex flex-nowrap">
             {/* Tab 1: Work Requests */}
             <TabsTrigger
               value="work-requests"
-              className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 rounded-none px-1 pb-2 text-xs font-semibold flex items-center gap-1.5 bg-transparent shadow-none"
+              className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
               data-testid="tab-work-requests"
             >
               <FileText className="h-4 w-4" />
@@ -342,7 +342,7 @@ export default function OperationsPage() {
             {canAccessRetainerTemplates && (
               <TabsTrigger
                 value="retainer-templates"
-                className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 rounded-none px-1 pb-2 text-xs font-semibold flex items-center gap-1.5 bg-transparent shadow-none"
+                className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
                 data-testid="tab-retainer-templates"
               >
                 <Layers className="h-4 w-4" />
@@ -354,7 +354,7 @@ export default function OperationsPage() {
             {canUseRetainers && (
               <TabsTrigger
                 value="other-templates"
-                className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 rounded-none px-1 pb-2 text-xs font-semibold flex items-center gap-1.5 bg-transparent shadow-none"
+                className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
                 data-testid="tab-other-templates"
               >
                 <Layers className="h-4 w-4" />
@@ -366,7 +366,7 @@ export default function OperationsPage() {
             {hasApprovalAuthority && (
               <TabsTrigger
                 value="pending-approvals"
-                className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 rounded-none px-1 pb-2 text-xs font-semibold flex items-center gap-1.5 bg-transparent shadow-none"
+                className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
                 data-testid="tab-pending-approvals"
               >
                 <Clock className="h-4 w-4" />
@@ -375,7 +375,7 @@ export default function OperationsPage() {
                   <Badge
                     variant="warning"
                     size="compact"
-                    className="font-bold px-1.5"
+                    className="font-mono font-bold px-1.5 rounded-none border border-[#0A0A0A]"
                     data-testid="tab-pending-badge"
                   >
                     {pendingApprovalsCount}
@@ -387,13 +387,13 @@ export default function OperationsPage() {
             {/* Tab 4: Archive */}
             <TabsTrigger
               value="archive"
-              className="data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 rounded-none px-1 pb-2 text-xs font-semibold flex items-center gap-1.5 bg-transparent shadow-none"
+              className="rounded-none border-r border-[#C8C5BC] font-mono text-xs font-semibold px-4 py-2.5 text-[#4A4945] hover:bg-[#E4E2DC] hover:text-[#0A0A0A] data-[state=active]:bg-[#0A0A0A] data-[state=active]:text-[#FAF9F5] data-[state=active]:shadow-[inset_0_-3px_0_0_#E61919] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
               data-testid="tab-archive"
             >
               <ArchiveIcon className="h-4 w-4" />
               <span>Archive</span>
               {archivedCount > 0 && (
-                <Badge variant="secondary" size="compact" className="text-[10px]">
+                <Badge variant="secondary" size="compact" className="text-xs font-mono rounded-none border border-[#C8C5BC] bg-[#EAE8E3] text-[#0A0A0A]">
                   {archivedCount}
                 </Badge>
               )}
@@ -402,13 +402,17 @@ export default function OperationsPage() {
 
           {/* View Switcher (when on Work Requests tab) */}
           {activeTab === 'work-requests' && (
-            <div className="flex items-center gap-1 pb-1">
+            <div className="flex items-center gap-1 pb-1 self-end sm:self-auto">
               <Button
                 type="button"
                 variant={activeView === 'list' ? 'secondary' : 'ghost'}
                 size="xs"
                 onClick={() => handleViewChange('list')}
-                className="text-xs gap-1 h-7"
+                className={`text-xs font-mono font-semibold rounded-none border border-[#0A0A0A] h-7 gap-1 px-2.5 transition-colors cursor-pointer ${
+                  activeView === 'list'
+                    ? 'bg-[#0A0A0A] text-[#FAF9F5]'
+                    : 'bg-[#FAF9F5] text-[#4A4945] hover:text-[#0A0A0A] hover:bg-[#E4E2DC]'
+                }`}
                 data-testid="view-switcher-list"
               >
                 <LayoutList className="h-3.5 w-3.5" /> List
@@ -418,7 +422,11 @@ export default function OperationsPage() {
                 variant={activeView === 'board' ? 'secondary' : 'ghost'}
                 size="xs"
                 onClick={() => handleViewChange('board')}
-                className="text-xs gap-1 h-7"
+                className={`text-xs font-mono font-semibold rounded-none border border-[#0A0A0A] h-7 gap-1 px-2.5 transition-colors cursor-pointer ${
+                  activeView === 'board'
+                    ? 'bg-[#0A0A0A] text-[#FAF9F5]'
+                    : 'bg-[#FAF9F5] text-[#4A4945] hover:text-[#0A0A0A] hover:bg-[#E4E2DC]'
+                }`}
                 data-testid="view-switcher-board"
               >
                 <Columns className="h-3.5 w-3.5" /> Board
@@ -526,7 +534,7 @@ export default function OperationsPage() {
                               setEditingTemplate(tpl);
                               setIsTemplateModalOpen(true);
                             }}
-                            className="text-[11px] font-medium text-blue-600 hover:text-blue-800 hover:underline px-1"
+                            className="text-xs font-mono font-semibold uppercase hover:underline px-1 text-[#0A0A0A]"
                             data-testid={`edit-template-btn-${tpl.id}`}
                           >
                             Edit
@@ -664,7 +672,7 @@ export default function OperationsPage() {
                                   setEditingOtherTemplate(tpl);
                                   setIsOtherTemplateModalOpen(true);
                                 }}
-                                className="text-[11px] font-medium text-blue-600 hover:text-blue-800 hover:underline px-1"
+                                className="text-xs font-mono font-semibold uppercase hover:underline px-1 text-[#0A0A0A]"
                                 data-testid={`edit-other-template-btn-${tpl.id}`}
                               >
                                 Edit
@@ -676,7 +684,7 @@ export default function OperationsPage() {
                                     await deleteTemplate(tpl.id);
                                   }
                                 }}
-                                className="text-[11px] font-medium text-rose-600 hover:text-rose-800 hover:underline px-1"
+                                className="text-xs font-mono font-semibold uppercase hover:underline px-1 text-[#E61919]"
                                 data-testid={`delete-other-template-btn-${tpl.id}`}
                               >
                                 Delete
@@ -690,7 +698,7 @@ export default function OperationsPage() {
                                 setGenerateOtherTemplateId(tpl.id);
                                 setIsOtherGenerateModalOpen(true);
                               }}
-                              className="text-[11px] font-semibold text-amber-600 hover:text-amber-800 hover:underline flex items-center gap-0.5 px-1"
+                              className="text-xs font-mono font-bold uppercase hover:underline flex items-center gap-0.5 px-1 text-[#0A0A0A]"
                               data-testid={`generate-card-other-template-btn-${tpl.id}`}
                             >
                               <Zap className="h-3 w-3" /> Generate

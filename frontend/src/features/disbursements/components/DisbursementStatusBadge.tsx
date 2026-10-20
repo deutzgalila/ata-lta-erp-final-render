@@ -57,7 +57,7 @@ export const DisbursementStatusBadge: React.FC<DisbursementStatusBadgeProps> = (
 }) => {
   const config = statusStyles[status] || {
     label: status,
-    className: 'bg-slate-100 text-slate-700 border-slate-300',
+    className: 'bg-[#FAF9F5] text-[#0A0A0A] border-[#0A0A0A]',
   };
 
   return (
@@ -66,7 +66,7 @@ export const DisbursementStatusBadge: React.FC<DisbursementStatusBadgeProps> = (
       data-testid="disbursement-status-badge"
       data-test-status={status.toLowerCase()}
       className={cn(
-        'font-medium text-xs px-2.5 py-0.5 rounded-full border transition-none',
+        'font-mono font-bold text-xs px-2.5 py-0.5 rounded-none border transition-none',
         config.className,
         className
       )}

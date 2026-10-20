@@ -66,18 +66,18 @@ export function DocumentLifecycleModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-lg" data-testid="lifecycle-modal">
+      <DialogContent className="bg-[#FAF9F5] shadow-[4px_4px_0px_#0A0A0A] border-[#0A0A0A] rounded-none max-w-lg border-2" data-testid="lifecycle-modal">
         <DialogHeader>
           <DialogTitle>Update Physical Lifecycle</DialogTitle>
           <DialogDescription>
-            Update custody tracking for <span className="font-semibold text-[#1e293b]">{document.original_name || document.file_name}</span>.
+            Update custody tracking for <span className="font-semibold text-[#0A0A0A]">{document.original_name || document.file_name}</span>.
           </DialogDescription>
         </DialogHeader>
 
         <div className="py-3 space-y-4">
           {/* Current Status Pill */}
-          <div className="flex items-center justify-between p-3 rounded-md bg-[#f8fafc] border border-[#f0f0f5]">
-            <span className="text-sm text-[#9494a0]">Current Stage:</span>
+          <div className="flex items-center justify-between p-3 rounded-none bg-[#FAF9F5] border border-[#0A0A0A]">
+            <span className="text-sm text-[#4A4945]">Current Stage:</span>
             <Badge
               variant="outline"
               className={LIFECYCLE_BADGE_STYLES[currentStage]}
@@ -89,7 +89,7 @@ export function DocumentLifecycleModal({
 
           {/* Sequential Timeline Indicator */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-[#9494a0] uppercase tracking-wider">
+            <label className="text-xs font-medium text-[#4A4945] uppercase tracking-wider">
               Custody Pipeline
             </label>
             <div className="grid grid-cols-5 gap-1.5 text-center text-xs">
@@ -99,12 +99,12 @@ export function DocumentLifecycleModal({
                 return (
                   <div
                     key={stage}
-                    className={`p-2 rounded border transition-colors cursor-pointer ${
+                    className={`p-2 rounded-none border transition-colors cursor-pointer ${
                       isSelected
-                        ? 'border-[#2563eb] bg-[#eef1ff]'
+                        ? 'border-[#0A0A0A] bg-[#FAF9F5] font-bold shadow-[2px_2px_0px_#0A0A0A]'
                         : isCurrent
-                        ? 'border-[#f0f0f5] bg-[#f8fafc]'
-                        : 'border-[#f0f0f5] text-[#9494a0] hover:bg-[#f0f1f3]'
+                        ? 'border-[#0A0A0A] bg-[#EAE8E3]'
+                        : 'border-[#0A0A0A] text-[#4A4945] hover:bg-[#EAE8E3]'
                     }`}
                     onClick={() => setSelectedStage(stage)}
                     data-testid={`lifecycle-step-${stage}`}
@@ -118,7 +118,7 @@ export function DocumentLifecycleModal({
 
           {/* Selection List */}
           <div className="space-y-2">
-            <label className="text-xs font-medium text-[#9494a0] uppercase tracking-wider">
+            <label className="text-xs font-medium text-[#4A4945] uppercase tracking-wider">
               Select Target Stage
             </label>
             <div className="space-y-2 max-h-56 overflow-y-auto">
@@ -128,31 +128,31 @@ export function DocumentLifecycleModal({
                   <div
                     key={stage}
                     onClick={() => setSelectedStage(stage)}
-                    className={`flex items-start justify-between p-3 rounded-lg border cursor-pointer transition-all ${
+                    className={`flex items-start justify-between p-3 rounded-none border cursor-pointer transition-all ${
                       isSelected
-                        ? 'border-[#2563eb] bg-[#eef1ff]'
-                        : 'border-[#f0f0f5] hover:border-[#2563eb]'
+                        ? 'border-[#0A0A0A] bg-[#FAF9F5] shadow-[2px_2px_0px_#0A0A0A]'
+                        : 'border-[#0A0A0A] hover:bg-[#EAE8E3]'
                     }`}
                     data-testid={`lifecycle-option-${stage}`}
                   >
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm text-[#1e293b]">
+                        <span className="font-medium text-sm text-[#0A0A0A]">
                           {LIFECYCLE_LABELS[stage]}
                         </span>
                         <Badge
                           variant="outline"
-                          className={`text-[10px] px-1.5 py-0 ${LIFECYCLE_BADGE_STYLES[stage]}`}
+                          className={`text-xs font-mono px-1.5 py-0 ${LIFECYCLE_BADGE_STYLES[stage]}`}
                         >
                           {stage}
                         </Badge>
                       </div>
-                      <p className="text-xs text-[#9494a0]">
+                      <p className="text-xs text-[#4A4945]">
                         {STAGE_DESCRIPTIONS[stage]}
                       </p>
                     </div>
                     {isSelected && (
-                      <CheckCircle2 className="h-4 w-4 text-[#2563eb] shrink-0 mt-0.5" />
+                      <CheckCircle2 className="h-4 w-4 text-[#0A0A0A] shrink-0 mt-0.5" />
                     )}
                   </div>
                 );
@@ -168,7 +168,7 @@ export function DocumentLifecycleModal({
           <Button
             onClick={handleConfirm}
             disabled={!isChanged || isLoading}
-            className="bg-[#2563eb] hover:bg-[#1d4ed8] text-white"
+            className="bg-[#0A0A0A] hover:bg-[#262626] text-white"
             data-testid="confirm-lifecycle-button"
           >
             Update Lifecycle

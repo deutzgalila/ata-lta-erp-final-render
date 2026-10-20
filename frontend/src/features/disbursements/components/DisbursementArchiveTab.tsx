@@ -104,9 +104,9 @@ export function DisbursementArchiveTab({
   return (
     <div className="space-y-4" data-testid="disbursement-archive-tab">
       {/* Search and Action Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-lg border border-slate-200">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-none border border-[#0A0A0A]">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-[#4A4945]" />
           <Input
             type="text"
             placeholder="Search archived disbursements..."
@@ -126,7 +126,7 @@ export function DisbursementArchiveTab({
               size="sm"
               variant="outline"
               onClick={handleBulkRestore}
-              className="text-xs h-9 gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50"
+              className="text-xs h-9 gap-1.5 border-[#0A0A0A] text-[#0A0A0A] hover:bg-[#EAE8E3]"
               data-testid="bulk-restore-btn"
             >
               <RotateCcw className="h-3.5 w-3.5" />
@@ -137,17 +137,17 @@ export function DisbursementArchiveTab({
       </div>
 
       {/* Archived Disbursements Table */}
-      <div className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-2xs">
+      <div className="border border-[#0A0A0A] rounded-none overflow-hidden bg-white shadow-none">
         <Table>
           <TableHeader>
-            <TableRow className="bg-slate-50/80 text-slate-700 hover:bg-slate-50/80">
+            <TableRow className="bg-[#EAE8E3]/80 text-[#0A0A0A] hover:bg-[#EAE8E3]/80">
               <TableHead className="w-10">
                 <input
                   type="checkbox"
                   aria-label="Select all archived disbursements"
                   checked={disbursements.length > 0 && selectedIds.size === disbursements.length}
                   onChange={toggleSelectAll}
-                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  className="rounded border-[#0A0A0A] text-[#0A0A0A] focus:ring-blue-500"
                 />
               </TableHead>
               <TableHead className="w-40 text-xs font-bold">Voucher #</TableHead>
@@ -162,17 +162,17 @@ export function DisbursementArchiveTab({
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-32 text-center text-xs text-slate-500" data-testid="archive-loading">
+                <TableCell colSpan={8} className="h-32 text-center text-xs text-[#4A4945]" data-testid="archive-loading">
                   Loading archived disbursements...
                 </TableCell>
               </TableRow>
             ) : disbursements.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-32 text-center text-xs text-slate-500" data-testid="archive-empty">
+                <TableCell colSpan={8} className="h-32 text-center text-xs text-[#4A4945]" data-testid="archive-empty">
                   <div className="space-y-1">
-                    <Archive className="h-6 w-6 text-slate-300 mx-auto" />
-                    <p className="font-medium text-slate-700">No archived disbursements</p>
-                    <p className="text-[11px] text-slate-400">
+                    <Archive className="h-6 w-6 text-[#C8C5BC] mx-auto" />
+                    <p className="font-medium text-[#0A0A0A]">No archived disbursements</p>
+                    <p className="text-xs font-mono text-[#4A4945]">
                       Archived expense and payment vouchers will appear here.
                     </p>
                   </div>
@@ -189,8 +189,8 @@ export function DisbursementArchiveTab({
                 return (
                   <TableRow
                     key={item.id}
-                    className={`hover:bg-slate-50/60 cursor-pointer transition-colors ${
-                      isSelected ? 'bg-blue-50/40' : ''
+                    className={`hover:bg-[#EAE8E3]/60 cursor-pointer transition-colors ${
+                      isSelected ? 'bg-[#EAE8E3]/40' : ''
                     }`}
                     onClick={() => onSelectDisbursement?.(item.id)}
                     data-testid={`archived-disbursement-row-${item.id}`}
@@ -201,33 +201,33 @@ export function DisbursementArchiveTab({
                         aria-label={`Select ${disbNumber}`}
                         checked={isSelected}
                         onChange={() => toggleSelectOne(item.id)}
-                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        className="rounded border-[#0A0A0A] text-[#0A0A0A] focus:ring-blue-500"
                       />
                     </TableCell>
-                    <TableCell className="font-mono text-xs font-bold text-slate-700">
+                    <TableCell className="font-mono text-xs font-bold text-[#0A0A0A]">
                       <div className="flex items-center gap-1.5">
-                        <Wallet className="h-3.5 w-3.5 text-slate-400" />
+                        <Wallet className="h-3.5 w-3.5 text-[#4A4945]" />
                         <span>{disbNumber}</span>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="space-y-0.5">
-                        <p className="text-xs font-medium text-slate-900 line-clamp-1">
+                        <p className="text-xs font-medium text-[#0A0A0A] line-clamp-1">
                           {item.description}
                         </p>
-                        <p className="text-[11px] text-slate-400">
+                        <p className="text-xs font-mono text-[#4A4945]">
                           {new Date(item.created_at || item.createdAt || '').toLocaleDateString()}
                           {item.client_name ? ` • ${item.client_name}` : ''}
                         </p>
                       </div>
                     </TableCell>
-                    <TableCell className="text-xs text-slate-700">{item.category}</TableCell>
+                    <TableCell className="text-xs text-[#0A0A0A]">{item.category}</TableCell>
                     <TableCell>
-                      <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                      <span className="text-xs font-mono font-medium px-2 py-0.5 rounded-none bg-[#EAE8E3] text-[#0A0A0A]">
                         {item.fund_source || item.fundSource}
                       </span>
                     </TableCell>
-                    <TableCell className="text-right font-mono text-xs font-bold text-slate-900">
+                    <TableCell className="text-right font-mono text-xs font-bold text-[#0A0A0A]">
                       ₱{(typeof item.amount === 'number' ? item.amount : 0).toLocaleString('en-PH', {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
@@ -244,7 +244,7 @@ export function DisbursementArchiveTab({
                             variant="ghost"
                             size="sm"
                             onClick={() => handleRestoreSingle(item)}
-                            className="h-7 w-7 p-0 text-slate-600 hover:text-blue-600 hover:bg-blue-50"
+                            className="h-7 w-7 p-0 text-[#4A4945] hover:text-[#0A0A0A] hover:bg-[#EAE8E3]"
                             title="Restore voucher"
                             data-testid={`restore-action-${item.id}`}
                           >
@@ -256,7 +256,7 @@ export function DisbursementArchiveTab({
                           variant="ghost"
                           size="sm"
                           onClick={() => onSelectDisbursement?.(item.id)}
-                          className="h-7 w-7 p-0 text-slate-500 hover:text-slate-900"
+                          className="h-7 w-7 p-0 text-[#4A4945] hover:text-[#0A0A0A]"
                           title="View Details"
                           data-testid={`view-action-${item.id}`}
                         >
@@ -273,10 +273,10 @@ export function DisbursementArchiveTab({
 
         {/* Pagination Bar */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-2.5 border-t border-slate-100 bg-slate-50/50 text-xs text-slate-600">
+          <div className="flex items-center justify-between px-4 py-2.5 border-t border-[#C8C5BC] bg-[#EAE8E3]/50 text-xs text-[#4A4945]">
             <span>
-              Page <span className="font-semibold text-slate-800">{page}</span> of{' '}
-              <span className="font-semibold text-slate-800">{totalPages}</span>
+              Page <span className="font-semibold text-[#0A0A0A]">{page}</span> of{' '}
+              <span className="font-semibold text-[#0A0A0A]">{totalPages}</span>
             </span>
             <div className="flex items-center gap-1">
               <Button

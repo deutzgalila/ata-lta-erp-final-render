@@ -99,13 +99,13 @@ export function InvoiceArchiveTab({ onSelectInvoice }: InvoiceArchiveTabProps) {
   return (
     <div className="space-y-4" data-testid="invoice-archive-tab">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 font-mono">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <Archive className="w-5 h-5 text-slate-600" />
+          <h2 className="text-lg font-bold text-[#0A0A0A] flex items-center gap-2">
+            <Archive className="w-5 h-5 text-[#0A0A0A]" />
             <span>Archived & Cancelled Invoices</span>
           </h2>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-[#4A4945]">
             View historical invoices and restore them back to active billing records.
           </p>
         </div>
@@ -113,16 +113,16 @@ export function InvoiceArchiveTab({ onSelectInvoice }: InvoiceArchiveTabProps) {
         {/* Bulk Action Controls */}
         {selectedIds.size > 0 && canEdit && (
           <div
-            className="flex items-center gap-2 bg-slate-900 text-white px-3 py-1.5 rounded-lg shadow-sm"
+            className="flex items-center gap-2 bg-[#0A0A0A] text-[#FAF9F5] px-3 py-1.5 rounded-none border border-[#0A0A0A]"
             data-testid="bulk-action-bar"
           >
-            <span className="text-xs font-medium">
+            <span className="text-xs font-mono font-medium">
               {selectedIds.size} invoice(s) selected
             </span>
             <Button
               size="sm"
               onClick={handleBulkRestore}
-              className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white gap-1 cursor-pointer"
+              className="h-7 text-xs bg-[#FAF9F5] hover:bg-[#EAE8E3] text-[#0A0A0A] gap-1 cursor-pointer rounded-none font-mono font-bold"
               data-testid="btn-bulk-restore"
             >
               <RotateCcw className="w-3 h-3" />
@@ -133,8 +133,8 @@ export function InvoiceArchiveTab({ onSelectInvoice }: InvoiceArchiveTabProps) {
       </div>
 
       {/* Search Bar */}
-      <div className="relative max-w-sm">
-        <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+      <div className="relative max-w-sm font-mono">
+        <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#4A4945]" />
         <Input
           value={searchInput}
           onChange={(e) => {
@@ -142,32 +142,32 @@ export function InvoiceArchiveTab({ onSelectInvoice }: InvoiceArchiveTabProps) {
             setPage(1);
           }}
           placeholder="Search archived invoices..."
-          className="pl-9 h-9 text-xs"
+          className="pl-9 h-9 text-xs bg-[#FAF9F5] border border-[#0A0A0A] rounded-none font-mono"
           data-testid="archive-search-input"
         />
       </div>
 
       {/* Table */}
       {isLoading ? (
-        <div className="p-12 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+        <div className="p-12 text-center text-[#4A4945] bg-[#FAF9F5] rounded-none border border-[#0A0A0A] font-mono">
+          <div className="inline-block animate-spin rounded-none h-8 w-8 border-2 border-[#0A0A0A] border-t-transparent mb-2"></div>
           <p className="text-xs">Loading archived invoices...</p>
         </div>
       ) : invoices.length === 0 ? (
         <div
-          className="p-12 text-center bg-white rounded-xl border border-slate-200 space-y-2"
+          className="p-12 text-center bg-[#FAF9F5] rounded-none border border-[#0A0A0A] space-y-2 font-mono"
           data-testid="empty-archive"
         >
-          <FileText className="w-10 h-10 text-slate-300 mx-auto" />
-          <h3 className="text-sm font-semibold text-slate-800">Archive is empty</h3>
-          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+          <FileText className="w-10 h-10 text-[#4A4945] mx-auto" />
+          <h3 className="text-sm font-bold text-[#0A0A0A]">Archive is empty</h3>
+          <p className="text-xs text-[#4A4945] max-w-sm mx-auto">
             No archived or cancelled invoices found in the system.
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+        <div className="bg-[#FAF9F5] rounded-none border border-[#0A0A0A] shadow-none overflow-hidden font-mono">
           <Table>
-            <TableHeader className="bg-slate-50">
+            <TableHeader className="bg-[#EAE8E3] border-b-2 border-[#0A0A0A]">
               <TableRow>
                 {canEdit && (
                   <TableHead className="w-10">
@@ -176,19 +176,19 @@ export function InvoiceArchiveTab({ onSelectInvoice }: InvoiceArchiveTabProps) {
                       aria-label="Select all archived invoices"
                       checked={selectedIds.size === invoices.length && invoices.length > 0}
                       onChange={toggleSelectAll}
-                      className="rounded border-slate-300 text-blue-600 cursor-pointer"
+                      className="rounded-none accent-[#0A0A0A] text-[#0A0A0A] cursor-pointer"
                       data-testid="select-all-checkbox"
                     />
                   </TableHead>
                 )}
-                <TableHead className="text-xs font-semibold text-slate-700">Invoice #</TableHead>
-                <TableHead className="text-xs font-semibold text-slate-700">Client</TableHead>
-                <TableHead className="text-xs font-semibold text-slate-700">Issue Date</TableHead>
-                <TableHead className="text-xs font-semibold text-slate-700">Status</TableHead>
-                <TableHead className="text-xs font-semibold text-slate-700 text-right">
+                <TableHead className="text-xs font-bold text-[#0A0A0A] uppercase tracking-wider font-mono">Invoice #</TableHead>
+                <TableHead className="text-xs font-bold text-[#0A0A0A] uppercase tracking-wider font-mono">Client</TableHead>
+                <TableHead className="text-xs font-bold text-[#0A0A0A] uppercase tracking-wider font-mono">Issue Date</TableHead>
+                <TableHead className="text-xs font-bold text-[#0A0A0A] uppercase tracking-wider font-mono">Status</TableHead>
+                <TableHead className="text-xs font-bold text-[#0A0A0A] uppercase tracking-wider font-mono text-right">
                   Total
                 </TableHead>
-                <TableHead className="text-xs font-semibold text-slate-700 text-right">
+                <TableHead className="text-xs font-bold text-[#0A0A0A] uppercase tracking-wider font-mono text-right">
                   Actions
                 </TableHead>
               </TableRow>
@@ -197,7 +197,7 @@ export function InvoiceArchiveTab({ onSelectInvoice }: InvoiceArchiveTabProps) {
               {invoices.map((inv) => (
                 <TableRow
                   key={inv.id}
-                  className="hover:bg-slate-50/80 transition-colors"
+                  className="hover:bg-[#EAE8E3] transition-colors border-b border-[#C8C5BC]"
                   data-testid={`archive-row-${inv.id}`}
                 >
                   {canEdit && (
@@ -207,37 +207,37 @@ export function InvoiceArchiveTab({ onSelectInvoice }: InvoiceArchiveTabProps) {
                         aria-label={`Select invoice ${inv.invoice_number}`}
                         checked={selectedIds.has(inv.id)}
                         onChange={() => toggleSelectOne(inv.id)}
-                        className="rounded border-slate-300 text-blue-600 cursor-pointer"
+                        className="rounded-none accent-[#0A0A0A] text-[#0A0A0A] cursor-pointer"
                         data-testid={`select-invoice-${inv.id}`}
                       />
                     </TableCell>
                   )}
-                  <TableCell className="font-semibold text-slate-900 text-xs py-3 font-mono">
+                  <TableCell className="font-bold text-[#0A0A0A] text-xs py-3 font-mono">
                     <div className="flex items-center gap-1.5">
                       {inv.entity_code && (
-                        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
+                        <Badge variant="outline" className="text-xs px-1 py-0 h-4 rounded-none border-[#0A0A0A] font-mono">
                           {inv.entity_code}
                         </Badge>
                       )}
                       <span>{inv.invoice_number}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-xs text-slate-700 py-3">
+                  <TableCell className="text-xs text-[#0A0A0A] py-3">
                     {inv.clients?.name || '—'}
                   </TableCell>
-                  <TableCell className="text-xs text-slate-500 py-3 font-mono">
+                  <TableCell className="text-xs text-[#4A4945] py-3 font-mono">
                     {inv.issue_date?.slice(0, 10) || '—'}
                   </TableCell>
                   <TableCell className="py-3">
                     <span
-                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${getStatusBadgeVariant(
+                      className={`inline-flex items-center px-2 py-0.5 rounded-none text-xs font-mono font-bold border border-[#0A0A0A] ${getStatusBadgeVariant(
                         inv.status
                       )}`}
                     >
                       {inv.status}
                     </span>
                   </TableCell>
-                  <TableCell className="text-xs font-mono text-slate-800 text-right py-3">
+                  <TableCell className="text-xs font-mono font-bold text-[#0A0A0A] text-right py-3">
                     {formatCurrency(inv.total)}
                   </TableCell>
                   <TableCell className="text-right py-3">
@@ -247,7 +247,7 @@ export function InvoiceArchiveTab({ onSelectInvoice }: InvoiceArchiveTabProps) {
                           variant="ghost"
                           size="icon"
                           onClick={() => onSelectInvoice(inv)}
-                          className="h-7 w-7 text-slate-500 hover:text-slate-900 cursor-pointer"
+                          className="h-7 w-7 text-[#4A4945] hover:text-[#0A0A0A] rounded-none cursor-pointer"
                           title="View Details"
                           data-testid={`archive-view-btn-${inv.id}`}
                         >
@@ -259,7 +259,7 @@ export function InvoiceArchiveTab({ onSelectInvoice }: InvoiceArchiveTabProps) {
                           variant="outline"
                           size="sm"
                           onClick={() => handleRestoreSingle(inv)}
-                          className="h-7 text-xs text-blue-600 hover:text-blue-700 border-blue-200 gap-1 cursor-pointer"
+                          className="h-7 text-xs text-[#0A0A0A] hover:bg-[#EAE8E3] border-[#0A0A0A] rounded-none gap-1 cursor-pointer font-mono"
                           data-testid={`restore-invoice-btn-${inv.id}`}
                         >
                           <RotateCcw className="w-3 h-3" />
@@ -277,8 +277,8 @@ export function InvoiceArchiveTab({ onSelectInvoice }: InvoiceArchiveTabProps) {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between border-t border-slate-200 pt-3">
-          <span className="text-xs text-slate-500">
+        <div className="flex items-center justify-between border-t border-[#0A0A0A] pt-3 font-mono">
+          <span className="text-xs text-[#4A4945]">
             Page {page} of {totalPages}
           </span>
           <div className="flex items-center gap-1">
@@ -287,7 +287,7 @@ export function InvoiceArchiveTab({ onSelectInvoice }: InvoiceArchiveTabProps) {
               size="icon"
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="h-7 w-7 cursor-pointer"
+              className="h-7 w-7 cursor-pointer rounded-none border-[#0A0A0A] bg-[#FAF9F5] hover:bg-[#EAE8E3]"
             >
               <ChevronLeft className="w-3.5 h-3.5" />
             </Button>
@@ -296,7 +296,7 @@ export function InvoiceArchiveTab({ onSelectInvoice }: InvoiceArchiveTabProps) {
               size="icon"
               disabled={page >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className="h-7 w-7 cursor-pointer"
+              className="h-7 w-7 cursor-pointer rounded-none border-[#0A0A0A] bg-[#FAF9F5] hover:bg-[#EAE8E3]"
             >
               <ChevronRight className="w-3.5 h-3.5" />
             </Button>

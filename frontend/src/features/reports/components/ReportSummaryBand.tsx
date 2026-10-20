@@ -32,18 +32,20 @@ export const ReportSummaryCard: React.FC<ReportSummaryCardProps> = ({
     <div
       data-testid={dataTestId}
       className={cn(
-        'bg-white rounded-xl border p-4 shadow-2xs transition-shadow',
+        'bg-[#FAF9F5] rounded-none border-0 p-4 shadow-none transition-colors',
         attention
-          ? 'border-amber-300 bg-amber-50/20'
-          : 'border-slate-200/80 hover:border-slate-300/80',
+          ? 'border-t-4 border-t-[#E61919] bg-[#FCE8E8]/40'
+          : 'hover:bg-[#E4E2DC]/50',
         className
       )}
     >
-      <div className="text-xs sm:text-sm font-medium text-slate-500">{label}</div>
-      <div className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight tabular-nums mt-1 font-sans">
+      <div className="font-mono text-xs font-semibold uppercase tracking-wider text-[#4A4945]">
+        {label}
+      </div>
+      <div className="font-mono text-xl sm:text-2xl font-bold text-[#0A0A0A] tracking-tight tabular-nums mt-1">
         {value}
       </div>
-      {subtext && <div className="text-xs text-slate-500 mt-1">{subtext}</div>}
+      {subtext && <div className="text-xs text-[#4A4945] mt-1">{subtext}</div>}
       {children}
     </div>
   );
@@ -90,16 +92,20 @@ export const ReportSummaryBand: React.FC<ReportSummaryBandProps> = ({
     const skeletonCount = metrics?.length || columns || 3;
     return (
       <div
-        className={cn('grid gap-3 sm:gap-4', getGridColsClass(colCount), className)}
+        className={cn(
+          'grid gap-px bg-[#0A0A0A] border border-[#0A0A0A] rounded-none',
+          getGridColsClass(colCount),
+          className
+        )}
         data-testid="report-summary-band-loading"
       >
         {Array.from({ length: skeletonCount }).map((_, idx) => (
           <div
             key={idx}
-            className="bg-white rounded-xl border border-slate-200/80 p-4 shadow-2xs animate-pulse motion-reduce:animate-none"
+            className="bg-[#FAF9F5] rounded-none p-4 shadow-none animate-pulse motion-reduce:animate-none"
           >
-            <div className="h-4 w-24 bg-slate-200 rounded mb-3" />
-            <div className="h-7 w-32 bg-slate-200 rounded" />
+            <div className="h-4 w-24 bg-[#EAE8E3] rounded-none mb-3" />
+            <div className="h-7 w-32 bg-[#EAE8E3] rounded-none" />
           </div>
         ))}
       </div>
@@ -108,7 +114,11 @@ export const ReportSummaryBand: React.FC<ReportSummaryBandProps> = ({
 
   return (
     <div
-      className={cn('grid gap-3 sm:gap-4', getGridColsClass(colCount), className)}
+      className={cn(
+        'grid gap-px bg-[#0A0A0A] border border-[#0A0A0A] rounded-none',
+        getGridColsClass(colCount),
+        className
+      )}
       data-testid="report-summary-band"
     >
       {metrics?.map((metric, idx) => (
