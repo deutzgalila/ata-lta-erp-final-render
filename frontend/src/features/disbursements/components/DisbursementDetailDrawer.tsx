@@ -1,5 +1,6 @@
 import { DisbursementEditModal } from './DisbursementEditModal';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useLiveModalContext } from '../lib/useLiveModalContext';
 import {
   Dialog,
   DialogContent,
@@ -18,28 +19,28 @@ import {
   AlertTriangle,
   Clock,
   CheckCircle2,
-  Send,
   XCircle,
   Printer,
   Pencil,
   RefreshCw,
+  Archive,
+  ArchiveRestore,
 } from 'lucide-react';
 import {
   useDisbursementDetail,
-  useSubmitDisbursement,
   useRejectDisbursement,
-  useFundDisbursement,
+  useResendDraft,
+  useArchiveDisbursement,
+  useRestoreDisbursement,
   useDisbursementReceiptUrl,
 } from '../api/useDisbursements';
 import { DisbursementStatusBadge } from './DisbursementStatusBadge';
 import { ReleaseFundsModal } from './FundsReleaseActions';
+import { FundDisbursementModal } from './FundDisbursementModal';
 import { RejectReasonModal } from '@/features/operations/components/RejectReasonModal';
 import { DisbursementPrintModal } from './DisbursementPrintModal';
 import { AdminApprovalModal } from './AdminApprovalModal';
-import { EditPaymentDetailsModal } from './EditPaymentDetailsModal';
 import { useSessionStore } from '@/lib/session';
-import { hasPermission } from '@/lib/permissions';
-import { isUserAdmin } from '@/features/operations/lib/taskScope';
 import { disbursementKeys } from '../api/queryKeys';
 import { PresenceAvatars } from '@/components/common/PresenceAvatars';
 import {
@@ -67,30 +68,32 @@ export function DisbursementDetailDrawer({
 }: DisbursementDetailDrawerProps) {
   const queryClient = useQueryClient();
   const user = useSessionStore((state) => state.user);
-  const permissions = useSessionStore((state) => state.permissions);
-  const isAdmin = isUserAdmin(user);
-  const canApprove = hasPermission(permissions, 'disbursement:approve') || isAdmin;
-  const canRelease = hasPermission(permissions, 'disbursement:mark_released');
+  const activeEntity = useSessionStore((state) => state.activeEntity);
+  const isAdmin = user?.role === 'Admin';
+  const canFund = isAdmin || user?.role === 'Accounting' || Boolean(user?.departments?.includes('Accounting'));
 
   const effectiveId = id || initialDisbursement?.id;
   const { data: fetchedItem, isLoading: isFetching } = useDisbursementDetail(effectiveId ?? undefined, {
-    enabled: isOpen && Boolean(effectiveId) && !initialDisbursement,
+    enabled: isOpen && Boolean(effectiveId),
   });
   const item = fetchedItem || initialDisbursement;
   const isLoading = !item && isFetching;
   const voucher = item;
+  const { captureContext } = useLiveModalContext({ isOpen, disbursementId: effectiveId, version: item?.version });
+  const actionPending = useRef(false);
 
-  const { submitWithBlocking } = useSubmitDisbursement();
   const { rejectDisbursement } = useRejectDisbursement();
-  const { fundWithBlocking } = useFundDisbursement();
+  const { resendDraft } = useResendDraft();
+  const { archiveWithBlocking } = useArchiveDisbursement();
+  const { restoreWithBlocking } = useRestoreDisbursement();
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isInlineEditing, setIsInlineEditing] = useState(false);
   const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false);
+  const [isFundModalOpen, setIsFundModalOpen] = useState(false);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isApprovalModalOpen, setIsApprovalModalOpen] = useState(false);
-  const [isEditPaymentModalOpen, setIsEditPaymentModalOpen] = useState(false);
   const [imageLoadError, setImageLoadError] = useState(false);
   const [conflictModalState, setConflictModalState] = useState<{
     isOpen: boolean;
@@ -124,44 +127,104 @@ export function DisbursementDetailDrawer({
     setImageLoadError(false);
   }, [receiptData?.url]);
 
-  useEffect(() => { setIsEditModalOpen(false); setIsInlineEditing(false); }, [effectiveId, isOpen]);
+  useEffect(() => {
+    setIsEditModalOpen(false);
+    setIsInlineEditing(false);
+    setIsReleaseModalOpen(false);
+    setIsFundModalOpen(false);
+    setIsRejectModalOpen(false);
+    setIsApprovalModalOpen(false);
+    setIsPrintModalOpen(false);
+    setConflictModalState({ isOpen: false });
+  }, [effectiveId, isOpen, user?.id, activeEntity]);
   if (!isOpen) return null;
 
-  const handleSubmit = async () => {
-    if (!item) return;
+  const handleResendDraft = async () => {
+    if (!item || actionPending.current) return;
+    actionPending.current = true;
+    const context = captureContext();
     try {
-      await submitWithBlocking(item.id);
+      await resendDraft({ id: item.id, expectedVersion: item.version });
     } catch (err: unknown) {
+      if (context.isStale()) return;
       if (isConcurrencyConflictError(err)) {
         useBlockingModalStore.getState().close();
         setConflictModalState({
           isOpen: true,
           error: err,
-          attemptedStatus: 'Pending',
+          attemptedStatus: 'Draft',
         });
-        return;
       }
-      // Handled via BlockingActionModal
+    } finally {
+      actionPending.current = false;
     }
   };
 
-  const handleFund = async () => {
-    if (!item) return;
+  const handleArchive = async () => {
+    if (!item || actionPending.current) return;
+    actionPending.current = true;
+    const context = captureContext();
     try {
-      await fundWithBlocking(item.id, item.version);
+      await archiveWithBlocking({
+        id: item.id,
+        reference: item.disbursement_number || item.disbursementNumber || `DISB-${item.id.slice(0, 8)}`,
+        expectedVersion: item.version,
+      });
+      if (!context.isStale()) onClose();
     } catch (err: unknown) {
+      if (context.isStale()) return;
       if (isConcurrencyConflictError(err)) {
         useBlockingModalStore.getState().close();
         setConflictModalState({
           isOpen: true,
           error: err,
-          attemptedStatus: 'Funded',
+          attemptedStatus: 'Archived',
         });
-        return;
       }
-      // Handled via BlockingActionModal
+    } finally {
+      actionPending.current = false;
     }
   };
+
+  const handleRestore = async () => {
+    if (!item || actionPending.current) return;
+    actionPending.current = true;
+    const context = captureContext();
+    try {
+      await restoreWithBlocking({
+        id: item.id,
+        reference: item.disbursement_number || item.disbursementNumber || `DISB-${item.id.slice(0, 8)}`,
+        expectedVersion: item.version,
+      });
+      if (!context.isStale()) onClose();
+    } catch (err: unknown) {
+      if (context.isStale()) return;
+      if (isConcurrencyConflictError(err)) {
+        useBlockingModalStore.getState().close();
+        setConflictModalState({
+          isOpen: true,
+          error: err,
+          attemptedStatus: 'Released',
+        });
+      }
+    } finally {
+      actionPending.current = false;
+    }
+  };
+
+  const isOwnRequest = Boolean(
+    user?.id &&
+      item &&
+      ((item.created_by && item.created_by === user.id) ||
+        (item.createdBy && item.createdBy === user.id) ||
+        (item.requested_by && item.requested_by === user.id) ||
+        (item.requestedBy && item.requestedBy === user.id))
+  );
+
+  const hasVersion = Number.isInteger(item?.version) && (item?.version ?? 0) > 0;
+  const isV2 = item?.lifecycle_version === 2 && hasVersion;
+  const canEditVoucher = hasVersion && !item?.archived && (isAdmin || (canFund && isV2 && item?.status === 'Draft') || (isV2 && isOwnRequest && item?.status === 'Draft' && !item?.archived));
+  const isNeedsCorrection = item?.status === 'Draft' && item?.review_ready === false;
 
   const disbNumber =
     item?.disbursement_number || item?.disbursementNumber || (item ? `DISB-${item.id.slice(0, 8)}` : '');
@@ -182,7 +245,12 @@ export function DisbursementDetailDrawer({
                 <DialogTitle className="font-mono text-base font-bold text-slate-900">
                   {disbNumber || 'Disbursement Details'}
                 </DialogTitle>
-                {item && <DisbursementStatusBadge status={item.status} />}
+                {item && (
+                  <DisbursementStatusBadge
+                    status={item.status}
+                    reviewReady={item.review_ready}
+                  />
+                )}
                 {item?.entity_code && (
                   <span className="text-[10px] font-semibold px-2 py-0.5 rounded-sm bg-slate-100 text-slate-600">
                     {item.entity_code}
@@ -218,13 +286,31 @@ export function DisbursementDetailDrawer({
           </div>
         ) : (
           <div className="space-y-5 text-xs text-slate-700">
-            {user?.role === 'Admin' && <div className="space-y-3">
+            {canEditVoucher && <div className="space-y-3">
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setIsEditModalOpen(true)} data-testid="edit-disbursement-button"><Pencil className="w-4 h-4" />Edit Voucher</Button>
+                <Button variant="outline" size="sm" onClick={() => setIsEditModalOpen(true)} data-testid="edit-disbursement-button"><Pencil className="w-4 h-4" />{isV2 && item.status === 'Draft' ? 'Edit Voucher' : 'Edit Printed Details'}</Button>
                 <Button variant="outline" size="sm" onClick={() => setIsInlineEditing(!isInlineEditing)}>{isInlineEditing ? 'Close inline editor' : 'Edit inline'}</Button>
               </div>
               {isInlineEditing && <DisbursementEditModal inline isOpen disbursement={item} onClose={() => setIsInlineEditing(false)} />}
             </div>}
+
+            {/* Needs Correction Alert Banner */}
+            {isNeedsCorrection && (
+              <div
+                className="p-3 bg-orange-50 border border-orange-200 rounded-lg text-orange-900 space-y-1"
+                data-testid="drawer-needs-correction-banner"
+              >
+                <div className="flex items-center gap-1.5 font-bold text-xs">
+                  <AlertCircle className="h-4 w-4 text-orange-600 shrink-0" />
+                  Returned for Requester Correction
+                </div>
+                <p className="text-xs text-orange-800">
+                  This voucher was returned to Draft. Requester must edit and correct this request before it can be reviewed or approved.
+                </p>
+              </div>
+            )}
+
+            {/* Duty Separation Warnings */}
             {/* Rejection Alert Banner */}
             {item.status === 'Rejected' && (
               <div
@@ -359,7 +445,7 @@ export function DisbursementDetailDrawer({
                       className="text-[11px] font-medium px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200"
                       data-testid="receipt-legacy-unavailable"
                     >
-                      Supporting document unavailable (legacy record)
+                      Supporting document unavailable
                     </span>
                   ) : receiptData?.url ? (
                     <div className="flex items-center gap-1.5">
@@ -449,19 +535,7 @@ export function DisbursementDetailDrawer({
                     <DollarSign className="h-3.5 w-3.5 text-purple-600" />
                     Payment Release Information
                   </h4>
-                  {(item.status === 'Released' || item.status === 'Funded') && (canRelease || isAdmin) && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsEditPaymentModalOpen(true)}
-                      className="text-[11px] h-6 px-2 text-purple-700 border-purple-200 hover:bg-purple-100 cursor-pointer"
-                      data-testid="btn-edit-payment-details"
-                    >
-                      <Pencil className="h-3 w-3 mr-1" />
-                      Edit Payment Details
-                    </Button>
-                  )}
+
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                   <div>
@@ -498,179 +572,271 @@ export function DisbursementDetailDrawer({
                 <Clock className="h-3.5 w-3.5 text-slate-400" />
                 Lifecycle Audit Timeline
               </h4>
-              <div className="space-y-1.5 text-[11px] text-slate-600 pl-2">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0" />
-                  <span>
-                    Created by{' '}
-                    <span className="font-medium text-slate-800">
-                      {item.created_by_name ||
-                        item.createdByName ||
-                        item.requested_by_name ||
-                        item.requestedByName ||
-                        item.employee_name ||
-                        item.employeeName ||
-                        item.requested_by ||
-                        item.requestedBy ||
-                        item.created_by ||
-                        item.createdBy ||
-                        'User'}
-                    </span>{' '}
-                    on {new Date(item.created_at || item.createdAt || '').toLocaleString()}
-                  </span>
+              {item.lifecycle_history && item.lifecycle_history.length > 0 ? (
+                <div className="space-y-2 text-[11px] text-slate-600 pl-2" data-testid="lifecycle-history-timeline">
+                  {item.lifecycle_history.map((evt, idx) => (
+                    <div key={idx} className="flex items-start gap-2 border-l-2 border-blue-200 pl-2 py-0.5">
+                      <span className="w-2 h-2 rounded-full bg-blue-500 mt-1 shrink-0" />
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-semibold text-slate-800">{evt.action || evt.new_status}</span>
+                          {evt.old_status && evt.new_status && (
+                            <span className="text-[10px] text-slate-400">
+                              ({evt.old_status} → {evt.new_status})
+                            </span>
+                          )}
+                          <span className="text-[10px] text-slate-400">
+                            {new Date(evt.created_at || evt.timestamp || '').toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="text-slate-600">
+                          By <span className="font-medium text-slate-700">{evt.actor_name || evt.actor_id || 'System'}</span>
+                        </div>
+                        {evt.reason && (
+                          <div className="text-rose-700 bg-rose-50 px-2 py-0.5 rounded text-[10px]">
+                            Reason: {evt.reason}
+                          </div>
+                        )}
+                        {evt.notes && (
+                          <div className="text-slate-500 text-[10px]">
+                            {evt.notes}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                {(item.approved_at || item.approvedAt) && (
+              ) : (
+                <div className="space-y-1.5 text-[11px] text-slate-600 pl-2">
                   <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                    <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0" />
                     <span>
-                      Approved by{' '}
+                      Created by{' '}
                       <span className="font-medium text-slate-800">
-                        {item.approved_by_name ||
-                          item.approvedByName ||
-                          item.approved_by ||
-                          item.approvedBy ||
-                          'Admin'}
+                        {item.created_by_name ||
+                          item.createdByName ||
+                          item.requested_by_name ||
+                          item.requestedByName ||
+                          item.employee_name ||
+                          item.employeeName ||
+                          item.requested_by ||
+                          item.requestedBy ||
+                          item.created_by ||
+                          item.createdBy ||
+                          'User'}
                       </span>{' '}
-                      on {new Date(item.approved_at || item.approvedAt || '').toLocaleString()}
+                      on {new Date(item.created_at || item.createdAt || '').toLocaleString()}
                     </span>
                   </div>
-                )}
-                {(item.released_at || item.releasedAt) && (
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
-                    <span>
-                      Released by{' '}
-                      <span className="font-medium text-slate-800">
-                        {item.released_by_name ||
-                          item.releasedByName ||
-                          item.released_by ||
-                          item.releasedBy ||
-                          'Accounting'}
-                      </span>{' '}
-                      on {new Date(item.released_at || item.releasedAt || '').toLocaleString()}
-                    </span>
-                  </div>
-                )}
-                {(item.funded_at || item.fundedAt) && (
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                    <span>
-                      Funded and reconciled on{' '}
-                      {new Date(item.funded_at || item.fundedAt || '').toLocaleString()}
-                    </span>
-                  </div>
-                )}
-                {(item.status === 'Rejected' || item.rejected_at || item.rejectedAt) && (
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
-                    <span>
-                      Rejected by{' '}
-                      <span className="font-medium text-slate-800">
-                        {item.rejected_by_name ||
-                          item.rejectedByName ||
-                          item.rejected_by ||
-                          item.rejectedBy ||
-                          'Admin'}
-                      </span>{' '}
-                      {item.rejected_at || item.rejectedAt
-                        ? `on ${new Date(item.rejected_at || item.rejectedAt || '').toLocaleString()}`
-                        : ''}
-                    </span>
-                  </div>
-                )}
-              </div>
+                  {(item.approved_at || item.approvedAt) && (
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                      <span>
+                        Approved by{' '}
+                        <span className="font-medium text-slate-800">
+                          {item.approved_by_name ||
+                            item.approvedByName ||
+                            item.approved_by ||
+                            item.approvedBy ||
+                            'Admin'}
+                        </span>{' '}
+                        on {new Date(item.approved_at || item.approvedAt || '').toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                  {(item.funded_at || item.fundedAt || item.payment_date || item.paymentDate) && (
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0" />
+                      <span>
+                        Payment prepared / funded by{' '}
+                        <span className="font-medium text-slate-800">
+                          {item.funded_by_name ||
+                            item.funded_by ||
+                            item.fundedBy ||
+                            item.payment_processed_by ||
+                            item.paymentProcessedBy ||
+                            'Accounting'}
+                        </span>{' '}
+                        {item.funded_at || item.fundedAt
+                          ? `on ${new Date(item.funded_at || item.fundedAt || '').toLocaleString()}`
+                          : ''}
+                      </span>
+                    </div>
+                  )}
+                  {(item.released_at || item.releasedAt) && (
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
+                      <span>
+                        Released by{' '}
+                        <span className="font-medium text-slate-800">
+                          {item.released_by_name ||
+                            item.releasedByName ||
+                            item.released_by ||
+                            item.releasedBy ||
+                            'Admin'}
+                        </span>{' '}
+                        on {new Date(item.released_at || item.releasedAt || '').toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                  {(item.status === 'Rejected' || item.rejected_at || item.rejectedAt) && (
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                      <span>
+                        Rejected by{' '}
+                        <span className="font-medium text-slate-800">
+                          {item.rejected_by_name ||
+                            item.rejectedByName ||
+                            item.rejected_by ||
+                            item.rejectedBy ||
+                            'Admin'}
+                        </span>{' '}
+                        {item.rejected_at || item.rejectedAt
+                          ? `on ${new Date(item.rejected_at || item.rejectedAt || '').toLocaleString()}`
+                          : ''}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Contextual Action Bar */}
-            <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
-              {/* Draft -> Direct Approve (Admin) vs Submit for Approval (Non-Admin) */}
-              {item.status === 'Draft' && (
-                isAdmin ? (
-                  <Button
-                    type="button"
-                    variant="default"
-                    size="sm"
-                    onClick={() => setIsApprovalModalOpen(true)}
-                    className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
-                    data-testid="drawer-direct-approve-btn"
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                    Direct Approve
-                  </Button>
-                ) : (
-                  <Button
-                    type="button"
-                    variant="default"
-                    size="sm"
-                    onClick={handleSubmit}
-                    className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-medium"
-                    data-testid="drawer-submit-btn"
-                  >
-                    <Send className="h-3.5 w-3.5 mr-1" />
-                    Submit for Approval
-                  </Button>
-                )
-              )}
-
-              {/* Pending / Pending Admin Approval / Submitted -> Approve / Reject */}
-              {(item.status === 'Pending' || item.status === 'Pending Admin Approval' || item.status === 'Submitted') && canApprove && (
+            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-3">
+              {isV2 ? (
                 <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsRejectModalOpen(true)}
-                    className="text-xs text-rose-600 border-rose-200 hover:bg-rose-50"
-                    data-testid="drawer-reject-btn"
-                  >
-                    <XCircle className="h-3.5 w-3.5 mr-1 text-rose-600" />
-                    Reject
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="default"
-                    size="sm"
-                    onClick={() => setIsApprovalModalOpen(true)}
-                    className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
-                    data-testid="drawer-approve-btn"
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                    Approve Voucher
-                  </Button>
+                  {/* New Draft is already queued; Admin can approve or reject. */}
+                  {item.status === 'Draft' && isAdmin && (
+                      <>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setIsRejectModalOpen(true)}
+                          className="text-xs text-rose-600 border-rose-200 hover:bg-rose-50"
+                          data-testid="drawer-reject-btn"
+                        >
+                          <XCircle className="h-3.5 w-3.5 mr-1 text-rose-600" />
+                          Reject
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="default"
+                          size="sm"
+                          disabled={isNeedsCorrection}
+                          title={
+                            isNeedsCorrection
+                              ? 'Returned draft awaiting requester correction'
+                              : 'Direct Approve'
+                          }
+                          onClick={() => setIsApprovalModalOpen(true)}
+                          className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                          data-testid="drawer-direct-approve-btn"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                          Direct Approve
+                        </Button>
+                      </>
+                  )}
+
+
+                  {/* Approved -> Prepare Payment (Accounting / Admin) */}
+                  {item.status === 'Approved' && canFund && (
+                    <>
+                      <Button
+                        type="button"
+                        variant="default"
+                        size="sm"
+                        onClick={() => setIsFundModalOpen(true)}
+                        className="text-xs bg-purple-600 hover:bg-purple-700 text-white font-medium"
+                        data-testid="drawer-fund-btn"
+                      >
+                        <DollarSign className="h-3.5 w-3.5 mr-1" />
+                        Prepare Payment
+                      </Button>
+                    </>
+                  )}
+
+                  {/* Funded -> Sanction Payment Release (Admin including preparer) */}
+                  {item.status === 'Funded' && isAdmin && (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsRejectModalOpen(true)}
+                        className="text-xs text-rose-600 border-rose-200 hover:bg-rose-50"
+                        data-testid="drawer-reject-btn"
+                      >
+                        <XCircle className="h-3.5 w-3.5 mr-1 text-rose-600" />
+                        Reject
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="default"
+                        size="sm"
+                        title="Sanction payment release"
+                        onClick={() => setIsReleaseModalOpen(true)}
+                        className="text-xs bg-purple-600 hover:bg-purple-700 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        data-testid="drawer-release-btn"
+                      >
+                        <DollarSign className="h-3.5 w-3.5 mr-1" />
+                        Sanction Release
+                      </Button>
+                    </>
+                  )}
+
+                  {/* Rejected -> Return to Draft (Admin) */}
+                  {item.status === 'Rejected' && isAdmin && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleResendDraft}
+                      className="text-xs text-blue-700 border-blue-200 hover:bg-blue-50"
+                      data-testid="drawer-resend-draft-btn"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                      Return to Draft for Correction
+                    </Button>
+                  )}
+
+                  {/* Released -> Archive/Restore */}
+                  {item.status === 'Released' && (
+                    <>
+                      {isAdmin && (
+                        (item.archived || item.archived_at || item.archivedAt) ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleRestore}
+                            className="text-xs border-slate-300 text-slate-700 hover:bg-slate-50"
+                            data-testid="drawer-unarchive-btn"
+                          >
+                            <ArchiveRestore className="h-3.5 w-3.5 mr-1 text-slate-500" />
+                            Restore Voucher
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleArchive}
+                            className="text-xs border-slate-300 text-slate-700 hover:bg-slate-50"
+                            data-testid="drawer-archive-btn"
+                          >
+                            <Archive className="h-3.5 w-3.5 mr-1 text-slate-500" />
+                            Archive Voucher
+                          </Button>
+                        )
+                      )}
+                    </>
+                  )}
                 </>
-              )}
+              ) : null}
 
-              {/* Approved -> Release */}
-              {item.status === 'Approved' && canRelease && (
-                <Button
-                  type="button"
-                  variant="default"
-                  size="sm"
-                  onClick={() => setIsReleaseModalOpen(true)}
-                  className="text-xs bg-purple-600 hover:bg-purple-700 text-white font-medium"
-                  data-testid="drawer-release-btn"
-                >
-                  <DollarSign className="h-3.5 w-3.5 mr-1" />
-                  Release Funds
-                </Button>
-              )}
-
-              {/* Released -> Fund */}
-              {item.status === 'Released' && canRelease && (
-                <Button
-                  type="button"
-                  variant="default"
-                  size="sm"
-                  onClick={handleFund}
-                  className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
-                  data-testid="drawer-fund-btn"
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                  Mark as Funded
-                </Button>
-              )}
-
-              {/* Print Voucher Action */}
+              {/* Print Voucher Action (available even on legacy records) */}
               <Button
                 type="button"
                 variant="outline"
@@ -696,7 +862,7 @@ export function DisbursementDetailDrawer({
           </div>
         )}
 
-        {item && user?.role === 'Admin' && isEditModalOpen && <DisbursementEditModal isOpen disbursement={item} onClose={() => setIsEditModalOpen(false)} />}
+        {item && canEditVoucher && isEditModalOpen && <DisbursementEditModal isOpen disbursement={item} onClose={() => setIsEditModalOpen(false)} />}
         {/* Print Modal */}
         {item && (
           <DisbursementPrintModal
@@ -706,7 +872,16 @@ export function DisbursementDetailDrawer({
           />
         )}
 
-        {/* Release Modal */}
+        {/* Fund Modal (Approved -> Funded payment preparation) */}
+        {item && (
+          <FundDisbursementModal
+            isOpen={isFundModalOpen}
+            disbursement={item}
+            onClose={() => setIsFundModalOpen(false)}
+          />
+        )}
+
+        {/* Release Modal (Funded -> Released payment sanction) */}
         {item && (
           <ReleaseFundsModal
             isOpen={isReleaseModalOpen}
@@ -726,9 +901,11 @@ export function DisbursementDetailDrawer({
             submitLabel="Reject Voucher"
             maxLength={500}
             onReject={async (reqId, reason) => {
+              const context = captureContext();
               try {
                 await rejectDisbursement({ id: reqId, reason, expectedVersion: item.version });
               } catch (err: unknown) {
+                if (context.isStale()) return;
                 if (isConcurrencyConflictError(err)) {
                   useBlockingModalStore.getState().close();
                   setIsRejectModalOpen(false);
@@ -784,15 +961,7 @@ export function DisbursementDetailDrawer({
           />
         )}
 
-        {/* Payment Details Correction Modal */}
-        {item && isEditPaymentModalOpen && (
-          <EditPaymentDetailsModal
-            isOpen={isEditPaymentModalOpen}
-            disbursement={item}
-            onClose={() => setIsEditPaymentModalOpen(false)}
-            onSuccess={() => setIsEditPaymentModalOpen(false)}
-          />
-        )}
+
       </DialogContent>
     </Dialog>
   );

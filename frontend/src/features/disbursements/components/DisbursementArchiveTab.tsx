@@ -39,24 +39,31 @@ export function DisbursementArchiveTab({
 
   const permissions = useSessionStore((state) => state.permissions);
   const activeEntity = useSessionStore((state) => state.activeEntity);
-  const canEdit = hasPermission(permissions, 'disbursement:edit');
+  const user = useSessionStore((state) => state.user);
+  const canEdit = user?.role === 'Admin' && hasPermission(permissions, 'disbursement:edit');
+  const canRestore = (item: Disbursement) => canEdit &&
+    (item.lifecycle_version ?? item.lifecycleVersion) === 2 && item.status === 'Released' &&
+    item.archived === true && Number.isInteger(item.version) && item.version > 0;
 
-  const { data: response, isLoading, refetch } = useDisbursementsList({
+  const { data: response, isLoading, isFetching, refetch } = useDisbursementsList({
     archived: true,
     search: debouncedSearch || undefined,
     page,
     limit: 25,
   });
 
+  const isFiltering = searchInput !== debouncedSearch || isFetching;
   const disbursements: Disbursement[] = response?.data || [];
   const totalCount = response?.meta?.total ?? disbursements.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / 25));
 
+  const restorable = disbursements.filter(canRestore);
+
   const toggleSelectAll = () => {
-    if (selectedIds.size === disbursements.length && disbursements.length > 0) {
+    if (restorable.length > 0 && restorable.every((d) => selectedIds.has(d.id))) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(disbursements.map((d) => d.id)));
+      setSelectedIds(new Set(restorable.map((d) => d.id)));
     }
   };
 
@@ -73,9 +80,10 @@ export function DisbursementArchiveTab({
   };
 
   const handleRestoreSingle = async (disb: Disbursement) => {
-    const refNum = disb.disbursement_number || disb.disbursementNumber || disb.id;
+    if (isFiltering || !canRestore(disb)) return;
+    const refNum = disb.disbursement_number || disb.disbursementNumber || `DISB-${disb.id.slice(0, 8)}`;
     try {
-      await restoreDisbursementAction(disb.id, refNum, activeEntity);
+      await restoreDisbursementAction(disb.id, refNum, activeEntity, disb.version);
       setSelectedIds((prev) => {
         const next = new Set(prev);
         next.delete(disb.id);
@@ -88,11 +96,12 @@ export function DisbursementArchiveTab({
   };
 
   const handleBulkRestore = async () => {
-    const toRestore = disbursements.filter((d) => selectedIds.has(d.id));
+    if (isFiltering) return;
+    const toRestore = restorable.filter((d) => selectedIds.has(d.id));
     for (const disb of toRestore) {
-      const refNum = disb.disbursement_number || disb.disbursementNumber || disb.id;
+      const refNum = disb.disbursement_number || disb.disbursementNumber || `DISB-${disb.id.slice(0, 8)}`;
       try {
-        await restoreDisbursementAction(disb.id, refNum, activeEntity);
+        await restoreDisbursementAction(disb.id, refNum, activeEntity, disb.version);
       } catch {
         break;
       }
@@ -114,6 +123,7 @@ export function DisbursementArchiveTab({
             onChange={(e) => {
               setSearchInput(e.target.value);
               setPage(1);
+              setSelectedIds(new Set());
             }}
             className="pl-8 text-xs h-9"
             data-testid="search-archived-disbursements-input"
@@ -126,6 +136,7 @@ export function DisbursementArchiveTab({
               size="sm"
               variant="outline"
               onClick={handleBulkRestore}
+              disabled={isFiltering}
               className="text-xs h-9 gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50"
               data-testid="bulk-restore-btn"
             >
@@ -145,7 +156,8 @@ export function DisbursementArchiveTab({
                 <input
                   type="checkbox"
                   aria-label="Select all archived disbursements"
-                  checked={disbursements.length > 0 && selectedIds.size === disbursements.length}
+                  checked={restorable.length > 0 && restorable.every((d) => selectedIds.has(d.id))}
+                  disabled={isFiltering || restorable.length === 0}
                   onChange={toggleSelectAll}
                   className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                 />
@@ -200,6 +212,7 @@ export function DisbursementArchiveTab({
                         type="checkbox"
                         aria-label={`Select ${disbNumber}`}
                         checked={isSelected}
+                        disabled={isFiltering || !canRestore(item)}
                         onChange={() => toggleSelectOne(item.id)}
                         className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                       />
@@ -238,12 +251,13 @@ export function DisbursementArchiveTab({
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
-                        {canEdit && (
+                        {canRestore(item) && (
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
                             onClick={() => handleRestoreSingle(item)}
+                            disabled={isFiltering}
                             className="h-7 w-7 p-0 text-slate-600 hover:text-blue-600 hover:bg-blue-50"
                             title="Restore voucher"
                             data-testid={`restore-action-${item.id}`}

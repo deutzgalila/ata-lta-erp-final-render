@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Wallet,
@@ -32,20 +32,44 @@ import type { EntityCode } from '@/features/disbursements/api/types';
 
 export default function DisbursementsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('tab') || 'all';
+  const rawActiveTab = searchParams.get('tab') || 'all';
 
   // Modal Visibility
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedDisbursementId, setSelectedDisbursementId] = useState<string | null>(null);
 
   // Session & RBAC
+  const user = useSessionStore((state) => state.user);
   const permissions = useSessionStore((state) => state.permissions);
   const activeEntity = useSessionStore((state) => state.activeEntity);
   const setActiveEntity = useSessionStore((state) => state.setActiveEntity);
 
+  const isAdmin = user?.role === 'Admin';
+  const isAccounting = Boolean(
+    user?.role === 'Accounting' ||
+    user?.departments?.includes('Accounting')
+  );
+  const isPrivilegedCreator = isAdmin || isAccounting;
+  const newBtnText = isPrivilegedCreator ? 'New Disbursement' : 'Request Disbursement';
+
   const canView = hasPermission(permissions, 'disbursement:view');
   const canCreate = hasPermission(permissions, 'disbursement:create');
-  const canApprove = hasPermission(permissions, 'disbursement:approve');
+
+  // Unsupported/retired tabs fall back to All; staff cannot open the action workspace.
+  const isAllowedPendingApprovals = isAdmin || isAccounting;
+  const availableTabs = ['pending-approvals', 'all', 'drafts', 'approved', 'funded', 'released', 'rejected', 'archive'];
+  let activeTab = availableTabs.includes(rawActiveTab) ? rawActiveTab : 'all';
+  if (!isAllowedPendingApprovals && activeTab === 'pending-approvals') {
+    activeTab = 'all';
+  }
+
+  // Deep-link support from notifications or external references
+  const disbursementIdParam = searchParams.get('disbursementId');
+  useEffect(() => {
+    if (disbursementIdParam) {
+      setSelectedDisbursementId(disbursementIdParam);
+    }
+  }, [disbursementIdParam]);
 
   // Badge Counts Query
   const { data: counts } = useDisbursementCounts({ enabled: canView });
@@ -77,6 +101,10 @@ export default function DisbursementsPage() {
   const awaitingReleaseCount = counts?.awaitingRelease ?? 0;
   const rejectedCount = counts?.rejected ?? 0;
   const archivedCount = counts?.archived ?? 0;
+  const initialRequestsCount = counts?.initialRequests ?? 0;
+  const paymentReleasesCount = counts?.paymentReleases ?? 0;
+  const readyForFundingCount = counts?.readyForFunding ?? 0;
+  const needsCorrectionCount = counts?.needsCorrection ?? 0;
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6" data-testid="disbursements-page">
@@ -134,7 +162,7 @@ export default function DisbursementsPage() {
               className="text-xs font-semibold gap-1.5 bg-blue-600 hover:bg-blue-700 text-white"
               data-testid="page-new-disbursement-btn"
             >
-              <Plus className="h-4 w-4" /> New Disbursement
+              <Plus className="h-4 w-4" /> {newBtnText}
             </Button>
           )}
         </div>
@@ -186,12 +214,26 @@ export default function DisbursementsPage() {
       {/* 3. Navigation Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList className="bg-slate-100 p-1 rounded-lg border border-slate-200 flex flex-wrap h-auto gap-1">
+          {isAllowedPendingApprovals && (
+            <TabsTrigger
+              value="pending-approvals"
+              className="text-xs px-3 py-1.5 gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-xs"
+              data-testid="tab-pending-approvals"
+            >
+              <Clock className="h-3.5 w-3.5 text-amber-600" />
+              <span>{isAdmin ? 'Pending Approvals' : 'Funding Tracking'}</span>
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-800" data-testid="badge-pending-approvals">
+                {isAdmin ? (initialRequestsCount + paymentReleasesCount) : paymentReleasesCount}
+              </Badge>
+            </TabsTrigger>
+          )}
+
           <TabsTrigger
             value="all"
             className="text-xs px-3 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-xs"
             data-testid="tab-all"
           >
-            All Disbursements
+            All
           </TabsTrigger>
 
           <TabsTrigger
@@ -199,19 +241,14 @@ export default function DisbursementsPage() {
             className="text-xs px-3 py-1.5 data-[state=active]:bg-white data-[state=active]:shadow-xs"
             data-testid="tab-drafts"
           >
-            Drafts
-          </TabsTrigger>
-
-          <TabsTrigger
-            value="pending-approvals"
-            className="text-xs px-3 py-1.5 gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-xs"
-            data-testid="tab-pending-approvals"
-          >
-            <Clock className="h-3.5 w-3.5 text-amber-600" />
-            <span>{canApprove ? 'Pending Approvals' : 'Pending Submissions'}</span>
-            {canApprove && (
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-800">
-                Admin
+            <span>Drafts</span>
+            {needsCorrectionCount > 0 && (
+              <Badge
+                variant="secondary"
+                className="text-[10px] px-1.5 py-0 bg-orange-100 text-orange-800 ml-1.5"
+                data-testid="badge-needs-correction-count"
+              >
+                {needsCorrectionCount}
               </Badge>
             )}
           </TabsTrigger>
@@ -223,20 +260,11 @@ export default function DisbursementsPage() {
           >
             <FileCheck2 className="h-3.5 w-3.5 text-blue-600" />
             <span>Approved</span>
-            {awaitingReleaseCount > 0 && (
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-purple-100 text-purple-800">
-                {awaitingReleaseCount}
+            {readyForFundingCount > 0 && (
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-blue-100 text-blue-800" data-testid="badge-approved-count">
+                {readyForFundingCount}
               </Badge>
             )}
-          </TabsTrigger>
-
-          <TabsTrigger
-            value="released"
-            className="text-xs px-3 py-1.5 gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-xs"
-            data-testid="tab-released"
-          >
-            <DollarSign className="h-3.5 w-3.5 text-purple-600" />
-            <span>Released</span>
           </TabsTrigger>
 
           <TabsTrigger
@@ -246,6 +274,15 @@ export default function DisbursementsPage() {
           >
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
             <span>Funded</span>
+          </TabsTrigger>
+
+          <TabsTrigger
+            value="released"
+            className="text-xs px-3 py-1.5 gap-1.5 data-[state=active]:bg-white data-[state=active]:shadow-xs"
+            data-testid="tab-released"
+          >
+            <DollarSign className="h-3.5 w-3.5 text-purple-600" />
+            <span>Released</span>
           </TabsTrigger>
 
           <TabsTrigger
@@ -274,26 +311,29 @@ export default function DisbursementsPage() {
               </Badge>
             )}
           </TabsTrigger>
+
         </TabsList>
 
-        {/* Tab 1: All */}
+        {/* Tab 1: Pending Approvals (Dedicated Admin Queue / Accounting Tracking) */}
+        {isAllowedPendingApprovals && (
+          <TabsContent value="pending-approvals" className="space-y-4">
+            <AdminApprovalQueue
+              onSelectDisbursement={(id) => setSelectedDisbursementId(id)}
+            />
+          </TabsContent>
+        )}
+
+        {/* Tab 2: All */}
         <TabsContent value="all" className="space-y-4">
           <DisbursementsTable
             onSelectDisbursement={(id) => setSelectedDisbursementId(id)}
           />
         </TabsContent>
 
-        {/* Tab 2: Drafts */}
+        {/* Tab 3: Drafts */}
         <TabsContent value="drafts" className="space-y-4">
           <DisbursementsTable
             statusFilter="Draft"
-            onSelectDisbursement={(id) => setSelectedDisbursementId(id)}
-          />
-        </TabsContent>
-
-        {/* Tab 3: Pending Approvals (Dedicated Admin Queue) */}
-        <TabsContent value="pending-approvals" className="space-y-4">
-          <AdminApprovalQueue
             onSelectDisbursement={(id) => setSelectedDisbursementId(id)}
           />
         </TabsContent>
@@ -306,18 +346,18 @@ export default function DisbursementsPage() {
           />
         </TabsContent>
 
-        {/* Tab 5: Released */}
-        <TabsContent value="released" className="space-y-4">
+        {/* Tab 5: Funded */}
+        <TabsContent value="funded" className="space-y-4">
           <DisbursementsTable
-            statusFilter="Released"
+            statusFilter="Funded"
             onSelectDisbursement={(id) => setSelectedDisbursementId(id)}
           />
         </TabsContent>
 
-        {/* Tab 6: Funded */}
-        <TabsContent value="funded" className="space-y-4">
+        {/* Tab 6: Released */}
+        <TabsContent value="released" className="space-y-4">
           <DisbursementsTable
-            statusFilter="Funded"
+            statusFilter="Released"
             onSelectDisbursement={(id) => setSelectedDisbursementId(id)}
           />
         </TabsContent>
@@ -336,6 +376,7 @@ export default function DisbursementsPage() {
             onSelectDisbursement={(id) => setSelectedDisbursementId(id)}
           />
         </TabsContent>
+
       </Tabs>
 
       {/* 4. Modals and Drawers Mounted at Root */}
@@ -347,7 +388,16 @@ export default function DisbursementsPage() {
       <DisbursementDetailDrawer
         id={selectedDisbursementId}
         isOpen={Boolean(selectedDisbursementId)}
-        onClose={() => setSelectedDisbursementId(null)}
+        onClose={() => {
+          setSelectedDisbursementId(null);
+          if (searchParams.has('disbursementId')) {
+            setSearchParams((prev) => {
+              const next = new URLSearchParams(prev);
+              next.delete('disbursementId');
+              return next;
+            });
+          }
+        }}
       />
 
       {/* Headless Blocking Action Modal for Zero Optimistic Updates */}

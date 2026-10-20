@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -8,14 +8,14 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { DateInput } from '@/components/ui/date-input';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, AlertCircle } from 'lucide-react';
 import { useApproveDisbursement } from '../api/useDisbursements';
 import { approveDisbursementSchema } from '../api/schemas';
 import { isConcurrencyConflictError } from '@/components/common/ConflictResolutionModal';
 import { useBlockingModalStore } from '@/features/operations/components/BlockingActionModal';
 import type { Disbursement } from '../api/types';
+
+import { useLiveModalContext } from '../lib/useLiveModalContext';
 
 export interface AdminApprovalModalProps {
   isOpen: boolean;
@@ -33,67 +33,76 @@ export function AdminApprovalModal({
   onConflict,
 }: AdminApprovalModalProps) {
   const { approveWithBlocking } = useApproveDisbursement();
+  const [error, setError] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
 
-  const [method, setMethod] = useState('Bank Transfer');
-  const [reference, setReference] = useState('');
-  const [bank, setBank] = useState('');
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0] ?? '');
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const { captureContext, contextKey } = useLiveModalContext({
+    isOpen,
+    disbursementId: disbursement?.id,
+    version: disbursement?.version,
+  });
 
-  useEffect(() => {
-    if (isOpen) {
-      setMethod('Bank Transfer');
-      setReference('');
-      setBank('');
-      setDate(new Date().toISOString().split('T')[0] ?? '');
-      setErrors({});
-    }
-  }, [isOpen, disbursement]);
+  useEffect(() => { isSubmittingRef.current = false; setIsSubmitting(false); }, [contextKey]);
 
   if (!isOpen || !disbursement) return null;
 
-  const validate = (): boolean => {
-    const payload = {
-      method: method.trim(),
-      reference: reference.trim() || null,
-      bank: bank.trim() || null,
-      date,
-      expectedVersion: disbursement.version ?? 1,
-    };
+  const isInvalidLifecycle = disbursement.lifecycle_version !== 2;
+  const isMissingVersion = typeof disbursement.version !== 'number' || disbursement.version < 1;
+  const isReturnedDraft = disbursement.status === 'Draft' && disbursement.review_ready === false;
 
-    const result = approveDisbursementSchema.safeParse(payload);
-    if (!result.success) {
-      const fieldErrors: Record<string, string> = {};
-      for (const issue of result.error.issues) {
-        const field = issue.path[0];
-        if (field) {
-          fieldErrors[String(field)] = issue.message;
-        }
-      }
-      setErrors(fieldErrors);
+  const canSubmit = !isSubmitting && !isInvalidLifecycle && !isMissingVersion && !isReturnedDraft;
+
+  const validate = (): boolean => {
+    if (isInvalidLifecycle) {
+      setError('This saved voucher is view-only. Create a new request to use the current workflow.');
+      return false;
+    }
+    if (isMissingVersion) {
+      setError('Voucher version metadata is missing or invalid.');
+      return false;
+    }
+    if (isReturnedDraft) {
+      setError('Voucher is returned awaiting requester correction.');
       return false;
     }
 
-    setErrors({});
+    const result = approveDisbursementSchema.safeParse({
+      expectedVersion: disbursement.version,
+    });
+
+    if (!result.success) {
+      setError(result.error.issues[0]?.message || 'Validation failed');
+      return false;
+    }
+
+    setError('');
     return true;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
     if (!validate()) return;
+
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+
+    const { startId, startVersion, isStale } = captureContext();
 
     try {
       await approveWithBlocking({
-        id: disbursement.id,
-        method: method.trim(),
-        reference: reference.trim() || null,
-        bank: bank.trim() || null,
-        date,
-        expectedVersion: disbursement.version,
+        id: startId!,
+        expectedVersion: startVersion!,
       });
+
+      if (isStale()) return;
+
       onClose();
       if (onSuccess) onSuccess();
     } catch (err: unknown) {
+      if (isStale()) return;
+
       if (isConcurrencyConflictError(err)) {
         useBlockingModalStore.getState().close();
         onClose();
@@ -102,7 +111,12 @@ export function AdminApprovalModal({
           return;
         }
       }
-      // Errors handled via BlockingActionModal / OCC modal
+      setError(err instanceof Error ? err.message : 'Approval failed. Please retry.');
+    } finally {
+      if (!isStale()) {
+        isSubmittingRef.current = false;
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -112,7 +126,7 @@ export function AdminApprovalModal({
     `DISB-${disbursement.id.slice(0, 8)}`;
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && !isSubmitting && onClose()}>
       <DialogContent
         className="max-w-md p-6 space-y-4"
         data-testid="admin-approval-modal"
@@ -120,22 +134,22 @@ export function AdminApprovalModal({
         <DialogHeader>
           <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-            <span>Admin Direct Approval & Release</span>
+            <span>Admin Budget Approval</span>
           </DialogTitle>
           <DialogDescription className="text-xs text-slate-600">
-            Adjudicate and authorize disbursement{' '}
+            Authorize budget for disbursement{' '}
             <span className="font-mono font-semibold text-slate-800">
               {disbNumber}
             </span>
-            . Saving payment details will directly transition this voucher to{' '}
-            <strong className="text-purple-700">Released</strong> status.
+            . Budget authorization advances this request to{' '}
+            <strong className="text-blue-700">Approved</strong> status for payment instrument preparation by Accounting.
           </DialogDescription>
         </DialogHeader>
 
         {/* Financial Summary Card */}
         <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1.5">
           <div className="flex justify-between items-center">
-            <span className="text-slate-500">Amount to Release:</span>
+            <span className="text-slate-500">Authorized Amount:</span>
             <span className="font-bold text-slate-900 text-sm" data-testid="approval-amount">
               ₱{disbursement.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
             </span>
@@ -157,89 +171,36 @@ export function AdminApprovalModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3" data-testid="admin-approval-form">
-          {/* Payment Method */}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700">
-              Payment Method <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={method}
-              onChange={(e) => {
-                setMethod(e.target.value);
-                if (errors.method) setErrors((prev) => ({ ...prev, method: '' }));
-              }}
-              className={`w-full text-xs p-2 border rounded-md bg-white border-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 ${
-                errors.method ? 'border-red-500' : ''
-              }`}
-              data-testid="select-payment-method"
+          <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-md text-xs text-blue-900 space-y-1">
+            <span className="font-semibold block text-blue-800">Budget Authorization Notice:</span>
+            <p className="text-[11px] text-blue-700">
+              Authorizing this expense confirms budget availability. In compliance with separation of duties, payment instruments are recorded separately during the subsequent Funding stage.
+            </p>
+          </div>
+
+          {error && (
+            <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-md text-xs text-rose-800 flex items-center gap-1.5" role="alert">
+              <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {isReturnedDraft && (
+            <div
+              className="p-2.5 bg-orange-50 border border-orange-200 rounded-md text-xs text-orange-800 flex items-center gap-1.5"
+              data-testid="returned-draft-warning"
             >
-              <option value="Bank Transfer">Bank Transfer</option>
-              <option value="Check">Check</option>
-              <option value="Cash">Cash</option>
-              <option value="GCash / Maya">GCash / Maya</option>
-              <option value="Other">Other</option>
-            </select>
-            {errors.method && (
-              <span className="text-[11px] text-red-600 block">{errors.method}</span>
-            )}
-          </div>
-
-          {/* Reference Number */}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700">
-              Payment Reference / Check Number (Optional)
-            </label>
-            <Input
-              type="text"
-              placeholder="e.g. TXN-884920 or CHK-00129"
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
-              className="text-xs h-8"
-              data-testid="input-payment-reference"
-            />
-          </div>
-
-          {/* Bank */}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700">
-              Bank / Institution (Optional)
-            </label>
-            <Input
-              type="text"
-              placeholder="e.g. BDO Unibank, BPI, Metrobank"
-              value={bank}
-              onChange={(e) => setBank(e.target.value)}
-              className="text-xs h-8"
-              data-testid="input-payment-bank"
-            />
-          </div>
-
-          {/* Date */}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700">
-              Payment Date <span className="text-red-500">*</span>
-            </label>
-            <DateInput
-              aria-label="Payment date"
-              type="date"
-              value={date}
-              onValueChange={(val) => {
-                setDate(val);
-                if (errors.date) setErrors((prev) => ({ ...prev, date: '' }));
-              }}
-              className="text-xs h-8"
-              data-testid="input-payment-date"
-            />
-            {errors.date && (
-              <span className="text-[11px] text-red-600 block">{errors.date}</span>
-            )}
-          </div>
+              <AlertCircle className="h-4 w-4 text-orange-600 shrink-0" />
+              <span>Voucher was returned for correction. Requester must edit and resubmit before budget authorization.</span>
+            </div>
+          )}
 
           <DialogFooter className="pt-2 gap-2 flex items-center justify-end">
             <Button
               type="button"
               variant="outline"
               size="sm"
+              disabled={isSubmitting}
               onClick={onClose}
               className="text-xs"
               data-testid="btn-cancel-approve"
@@ -249,11 +210,12 @@ export function AdminApprovalModal({
             <Button
               type="submit"
               size="sm"
-              className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+              disabled={!canSubmit}
+              className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               data-testid="btn-confirm-approve"
             >
               <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-              Authorize & Release
+              {isSubmitting ? 'Authorizing...' : 'Authorize Budget'}
             </Button>
           </DialogFooter>
         </form>

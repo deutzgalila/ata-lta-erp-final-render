@@ -38,7 +38,9 @@ const mockDisbursementDetail: Disbursement = {
   description: 'Urgent messenger dispatch to Court of Appeals',
   amount: 850,
   fund_source: 'Firm Fund',
-  status: 'Pending',
+  status: 'Draft',
+  lifecycle_version: 2,
+  review_ready: true,
   linked_work_request_id: 'wr-101',
   version: 2,
   created_at: '2026-10-09T08:00:00Z',
@@ -60,11 +62,11 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
     useBlockingModalStore.getState().reset();
     useSessionStore.getState().setSession({
       user: {
-        id: 'u-staff-1',
-        email: 'staff@ata-lta.ph',
-        name: 'Staff User',
-        role: 'Staff',
-        departments: ['Operations'],
+        id: 'u-admin-1',
+        email: 'admin@ata-lta.ph',
+        name: 'Admin User',
+        role: 'Admin',
+        departments: ['Administration'],
         entities: ['ATA', 'LTA'],
       },
       permissions: [
@@ -226,7 +228,7 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
     it('useApproveDisbursement passes expectedVersion when strict_occ is enabled', async () => {
       localStorage.setItem('erp_feature_override_strict_occ', 'true');
 
-      let capturedBody: any = null;
+      let capturedBody: unknown = null;
       global.fetch = vi.fn().mockImplementation((_url: string, opts?: RequestInit) => {
         capturedBody = opts?.body ? JSON.parse(String(opts.body)) : null;
         return Promise.resolve({
@@ -253,7 +255,7 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
     it('useApproveDisbursement unconditionally passes expectedVersion even when strict_occ is disabled', async () => {
       localStorage.setItem('erp_feature_override_strict_occ', 'false');
 
-      let capturedBody: any = null;
+      let capturedBody: unknown = null;
       global.fetch = vi.fn().mockImplementation((_url: string, opts?: RequestInit) => {
         capturedBody = opts?.body ? JSON.parse(String(opts.body)) : null;
         return Promise.resolve({
@@ -275,7 +277,7 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
     it('useRejectDisbursement passes expectedVersion when strict_occ is enabled', async () => {
       localStorage.setItem('erp_feature_override_strict_occ', 'true');
 
-      let capturedBody: any = null;
+      let capturedBody: unknown = null;
       global.fetch = vi.fn().mockImplementation((_url: string, opts?: RequestInit) => {
         capturedBody = opts?.body ? JSON.parse(String(opts.body)) : null;
         return Promise.resolve({
@@ -305,7 +307,7 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
     it('useRejectDisbursement unconditionally passes expectedVersion even when strict_occ is disabled', async () => {
       localStorage.setItem('erp_feature_override_strict_occ', 'false');
 
-      let capturedBody: any = null;
+      let capturedBody: unknown = null;
       global.fetch = vi.fn().mockImplementation((_url: string, opts?: RequestInit) => {
         capturedBody = opts?.body ? JSON.parse(String(opts.body)) : null;
         return Promise.resolve({
@@ -330,13 +332,13 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
         reason: 'Missing official receipt',
         expectedVersion: 2,
       });
-      expect(capturedBody.expectedVersion).toBe(2);
+      expect((capturedBody as { expectedVersion: number }).expectedVersion).toBe(2);
     });
 
     it('useFundDisbursement passes expectedVersion when strict_occ is enabled', async () => {
       localStorage.setItem('erp_feature_override_strict_occ', 'true');
 
-      let capturedBody: any = null;
+      let capturedBody: unknown = null;
       global.fetch = vi.fn().mockImplementation((_url: string, opts?: RequestInit) => {
         capturedBody = opts?.body ? JSON.parse(String(opts.body)) : null;
         return Promise.resolve({
@@ -361,7 +363,7 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
     it('useReleaseDisbursement passes expectedVersion when strict_occ is enabled', async () => {
       localStorage.setItem('erp_feature_override_strict_occ', 'true');
 
-      let capturedBody: any = null;
+      let capturedBody: unknown = null;
       global.fetch = vi.fn().mockImplementation((_url: string, opts?: RequestInit) => {
         capturedBody = opts?.body ? JSON.parse(String(opts.body)) : null;
         return Promise.resolve({
@@ -378,18 +380,10 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
 
       await result.current.releaseDisbursement({
         id: 'disb-201',
-        data: {
-          method: 'Check',
-          reference: 'CHK-12345',
-          bank: 'BDO',
-        },
         expectedVersion: 3,
       });
 
       expect(capturedBody).toEqual({
-        method: 'Check',
-        reference: 'CHK-12345',
-        bank: 'BDO',
         expectedVersion: 3,
       });
     });
@@ -443,11 +437,11 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
       );
 
       await waitFor(() => {
-        expect(screen.getByTestId('drawer-approve-btn')).toBeInTheDocument();
+        expect(screen.getByTestId('drawer-direct-approve-btn')).toBeInTheDocument();
       });
 
       // Click Approve Voucher button
-      const approveBtn = screen.getByTestId('drawer-approve-btn');
+      const approveBtn = screen.getByTestId('drawer-direct-approve-btn');
       fireEvent.click(approveBtn);
 
       await waitFor(() => {
@@ -467,7 +461,7 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
       expect(screen.getByTestId('error-code-badge')).toHaveTextContent('ERR_CONCURRENCY_CONFLICT');
     });
 
-    it('intercepts HTTP 409 on fund action, closes BlockingActionModal, and mounts ConflictResolutionModal', async () => {
+    it('intercepts HTTP 409 on archive action, closes BlockingActionModal, and mounts ConflictResolutionModal', async () => {
       const releasedDisb = {
         ...mockDisbursementDetail,
         status: 'Released',
@@ -485,15 +479,15 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
           } as Response);
         }
 
-        if (u.includes('/disbursements/disb-201/fund') && method === 'POST') {
+        if (u.includes('/disbursements/disb-201/archive') && method === 'POST') {
           return Promise.resolve({
             ok: false,
             status: 409,
             statusText: 'Conflict',
             json: async () => ({
               status: 409,
-              code: 'CONCURRENCY_CONFLICT',
-              detail: 'Voucher already updated to Funded by finance officer.',
+              code: 'ERR_CONCURRENCY_CONFLICT',
+              detail: 'Voucher was modified concurrently by another user.',
             }),
           } as Response);
         }
@@ -516,11 +510,11 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
       );
 
       await waitFor(() => {
-        expect(screen.getByTestId('drawer-fund-btn')).toBeInTheDocument();
+        expect(screen.getByTestId('drawer-archive-btn')).toBeInTheDocument();
       });
 
-      const fundBtn = screen.getByTestId('drawer-fund-btn');
-      fireEvent.click(fundBtn);
+      const archiveBtn = screen.getByTestId('drawer-archive-btn');
+      fireEvent.click(archiveBtn);
 
       await waitFor(() => {
         expect(screen.getByTestId('conflict-resolution-modal')).toBeInTheDocument();
@@ -530,10 +524,10 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
       expect(screen.getByText('Record Out of Sync')).toBeInTheDocument();
     });
 
-    it('intercepts HTTP 409 on submit action from Draft status', async () => {
-      const draftDisb = {
+    it('intercepts HTTP 409 on resend draft action from Rejected status', async () => {
+      const rejectedDisb = {
         ...mockDisbursementDetail,
-        status: 'Draft',
+        status: 'Rejected',
       };
 
       global.fetch = vi.fn().mockImplementation((url: string, opts?: RequestInit) => {
@@ -544,11 +538,11 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
           return Promise.resolve({
             ok: true,
             status: 200,
-            json: async () => ({ data: draftDisb }),
+            json: async () => ({ data: rejectedDisb }),
           } as Response);
         }
 
-        if (u.includes('/disbursements/disb-201/submit') && method === 'POST') {
+        if (u.includes('/disbursements/disb-201/resend_draft') && method === 'POST') {
           return Promise.resolve({
             ok: false,
             status: 409,
@@ -556,7 +550,7 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
             json: async () => ({
               status: 409,
               code: 'ERR_CONCURRENCY_CONFLICT',
-              detail: 'Draft already submitted by another staff.',
+              detail: 'Voucher was already updated.',
             }),
           } as Response);
         }
@@ -579,11 +573,11 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
       );
 
       await waitFor(() => {
-        expect(screen.getByTestId('drawer-submit-btn')).toBeInTheDocument();
+        expect(screen.getByTestId('drawer-resend-draft-btn')).toBeInTheDocument();
       });
 
-      const submitBtn = screen.getByTestId('drawer-submit-btn');
-      fireEvent.click(submitBtn);
+      const resendBtn = screen.getByTestId('drawer-resend-draft-btn');
+      fireEvent.click(resendBtn);
 
       await waitFor(() => {
         expect(screen.getByTestId('conflict-resolution-modal')).toBeInTheDocument();
@@ -713,10 +707,10 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
       );
 
       await waitFor(() => {
-        expect(screen.getByTestId('drawer-approve-btn')).toBeInTheDocument();
+        expect(screen.getByTestId('drawer-direct-approve-btn')).toBeInTheDocument();
       });
 
-      const approveBtn = screen.getByTestId('drawer-approve-btn');
+      const approveBtn = screen.getByTestId('drawer-direct-approve-btn');
       fireEvent.click(approveBtn);
 
       await waitFor(() => {
@@ -793,10 +787,10 @@ describe('Disbursements Presence & Optimistic Concurrency Control (Milestone 4 /
       );
 
       await waitFor(() => {
-        expect(screen.getByTestId('drawer-approve-btn')).toBeInTheDocument();
+        expect(screen.getByTestId('drawer-direct-approve-btn')).toBeInTheDocument();
       });
 
-      const approveBtn = screen.getByTestId('drawer-approve-btn');
+      const approveBtn = screen.getByTestId('drawer-direct-approve-btn');
       fireEvent.click(approveBtn);
 
       await waitFor(() => {

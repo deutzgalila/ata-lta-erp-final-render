@@ -14,3 +14,4 @@ export * from './DisbursementPrintModal';
 export * from './DisbursementArchiveTab';
 export * from './AdminApprovalModal';
 export * from './EditPaymentDetailsModal';
+export * from './FundDisbursementModal';

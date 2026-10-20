@@ -30,16 +30,19 @@ import type {
   Disbursement,
   DisbursementStatus,
   FundSource,
+  DisbursementQueue,
 } from '../api/types';
 
 export interface DisbursementsTableProps {
   onSelectDisbursement: (id: string) => void;
   statusFilter?: DisbursementStatus;
+  queueFilter?: DisbursementQueue;
 }
 
 export function DisbursementsTable({
   onSelectDisbursement,
   statusFilter,
+  queueFilter,
 }: DisbursementsTableProps) {
   // Realtime CDC Subscriptions (Parcel E)
   useEntityRealtimeSync({ table: 'disbursements' });
@@ -58,11 +61,13 @@ export function DisbursementsTable({
     const filters: {
       search?: string;
       status?: DisbursementStatus;
+      archived: false;
       category?: string;
       fundSource?: FundSource;
+      queue?: DisbursementQueue;
       page: number;
       limit: number;
-    } = { page, limit };
+    } = { page, limit, archived: false };
 
     if (search.trim()) filters.search = search.trim();
     if (statusFilter) {
@@ -72,9 +77,10 @@ export function DisbursementsTable({
     }
     if (selectedCategory) filters.category = selectedCategory;
     if (selectedFundSource) filters.fundSource = selectedFundSource;
+    if (queueFilter) filters.queue = queueFilter;
 
     return filters;
-  }, [search, statusFilter, selectedStatus, selectedCategory, selectedFundSource, page]);
+  }, [search, statusFilter, selectedStatus, selectedCategory, selectedFundSource, queueFilter, page]);
 
   const { data: response, isLoading, isFetching, refetch } = useDisbursementsList(queryFilters);
   const disbursements = useMemo(() => response?.data ?? [], [response]);
@@ -274,7 +280,10 @@ export function DisbursementsTable({
                       ₱{item.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                     </TableCell>
                     <TableCell className="text-center">
-                      <DisbursementStatusBadge status={item.status} />
+                      <DisbursementStatusBadge
+                        status={item.status}
+                        reviewReady={item.review_ready}
+                      />
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">

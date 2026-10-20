@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReleaseFundsModal } from '../components/FundsReleaseActions';
 import { AdminApprovalModal } from '../components/AdminApprovalModal';
 import { EditPaymentDetailsModal } from '../components/EditPaymentDetailsModal';
 import { DisbursementDetailDrawer } from '../components/DisbursementDetailDrawer';
@@ -32,7 +33,9 @@ const mockPendingDisbursement: Disbursement = {
   description: 'BIR Annual Registration Document Filing',
   amount: 4500,
   fund_source: 'Firm Fund',
-  status: 'Pending',
+  status: 'Draft',
+  lifecycle_version: 2,
+  review_ready: true,
   linked_work_request_id: 'wr-11111111-1111-1111-1111-111111111111',
   version: 2,
   created_at: '2026-10-17T08:00:00Z',
@@ -56,6 +59,7 @@ const mockLegacyDisbursement: Disbursement = {
   ...mockPendingDisbursement,
   id: 'disb-leg-1',
   status: 'Released',
+  lifecycle_version: 1,
   version: 1,
   payment_method: 'Cash',
   payment_date: '2026-09-01',
@@ -80,8 +84,26 @@ describe('Direct Admin Approval & Payment Details Corrections (R3 / D2)', () => 
     });
   });
 
+  it('allows Admin to confirm release of an instrument they prepared without replacing payment details', async () => {
+    const funded: Disbursement = { ...mockReleasedDisbursement, status: 'Funded', funded_by: 'user-admin', payment_processed_by: 'user-admin' };
+    let sent: unknown;
+    global.fetch = vi.fn().mockImplementation(async (_url: string, options?: RequestInit) => {
+      if (options?.method === 'POST') sent = JSON.parse(String(options.body));
+      return { ok: true, status: 200, json: async () => ({ data: { ...funded, status: 'Released', version: funded.version! + 1, released_by: 'user-admin' } }) };
+    });
+    const { wrapper } = createHarness();
+    const close = vi.fn();
+    render(<ReleaseFundsModal isOpen disbursement={funded} onClose={close} />, { wrapper });
+    expect(screen.queryByTestId('duty-sep-preparer-modal-warning')).not.toBeInTheDocument();
+    const submit = screen.getByTestId('submit-release-funds-btn');
+    expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+    await waitFor(() => expect(close).toHaveBeenCalled());
+    expect(sent).toEqual({ expectedVersion: funded.version });
+  });
+
   describe('AdminApprovalModal', () => {
-    it('collects payment fields and submits atomic approval with expectedVersion', async () => {
+    it('submits atomic budget authorization with expectedVersion without requiring payment fields', async () => {
       let approveBody: Record<string, unknown> | null = null;
       let approveUrl = '';
 
@@ -97,7 +119,7 @@ describe('Direct Admin Approval & Payment Details Corrections (R3 / D2)', () => 
             json: async () => ({
               data: {
                 ...mockPendingDisbursement,
-                status: 'Released',
+                status: 'Approved',
                 version: 3,
                 ...approveBody,
               },
@@ -127,15 +149,8 @@ describe('Direct Admin Approval & Payment Details Corrections (R3 / D2)', () => 
       );
 
       expect(screen.getByTestId('admin-approval-modal')).toBeInTheDocument();
-      expect(screen.getByTestId('select-payment-method')).toHaveValue('Bank Transfer');
-
-      // Fill reference and bank
-      fireEvent.change(screen.getByTestId('input-payment-reference'), {
-        target: { value: 'TXN-987654321' },
-      });
-      fireEvent.change(screen.getByTestId('input-payment-bank'), {
-        target: { value: 'Metrobank Makati' },
-      });
+      // V2 initial approval does not collect payment method/bank/date
+      expect(screen.queryByTestId('select-payment-method')).not.toBeInTheDocument();
 
       // Submit
       fireEvent.click(screen.getByTestId('btn-confirm-approve'));
@@ -145,35 +160,31 @@ describe('Direct Admin Approval & Payment Details Corrections (R3 / D2)', () => 
       });
 
       expect(approveUrl).toContain('/disbursements/disb-app-1/approve');
-      expect(approveBody!.method).toBe('Bank Transfer');
-      expect(approveBody!.reference).toBe('TXN-987654321');
-      expect(approveBody!.bank).toBe('Metrobank Makati');
-      expect(approveBody!.expectedVersion).toBe(2);
+      expect(approveBody).toEqual({ expectedVersion: 2 });
       expect(onClose).toHaveBeenCalled();
       expect(onSuccess).toHaveBeenCalled();
     });
 
-    it('validates required payment fields before submission', async () => {
+    it('disables submit when voucher has invalid lifecycle or is returned draft awaiting correction', async () => {
       const { wrapper } = createHarness();
+      const returnedDisbursement: Disbursement = {
+        ...mockPendingDisbursement,
+        status: 'Draft',
+        lifecycle_version: 2,
+        review_ready: false,
+      };
+
       render(
         <AdminApprovalModal
           isOpen={true}
-          disbursement={mockPendingDisbursement}
+          disbursement={returnedDisbursement}
           onClose={() => {}}
         />,
         { wrapper }
       );
 
-      // Clear method
-      fireEvent.change(screen.getByTestId('select-payment-method'), {
-        target: { value: '' },
-      });
-
-      fireEvent.click(screen.getByTestId('btn-confirm-approve'));
-
-      await waitFor(() => {
-        expect(screen.getByText('Payment method is required')).toBeInTheDocument();
-      });
+      expect(screen.getByTestId('btn-confirm-approve')).toBeDisabled();
+      expect(screen.getByTestId('returned-draft-warning')).toBeInTheDocument();
     });
   });
 
@@ -252,6 +263,19 @@ describe('Direct Admin Approval & Payment Details Corrections (R3 / D2)', () => 
     });
   });
 
+  it('shows an existing saved voucher without Legacy badges, status banners or reconciliation controls', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ data: mockLegacyDisbursement }) });
+    const { wrapper } = createHarness();
+    render(<DisbursementDetailDrawer isOpen initialDisbursement={mockLegacyDisbursement} onClose={vi.fn()} />, { wrapper });
+    expect(await screen.findByTestId('drawer-amount')).toHaveTextContent('4,500');
+    expect(screen.getByTestId('disbursement-status-badge')).toHaveTextContent('Released');
+    expect(screen.queryByTestId('legacy-badge')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('drawer-legacy-banner')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('drawer-legacy-review-btn')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('drawer-release-btn')).not.toBeInTheDocument();
+    expect(screen.getByTestId('drawer-print-btn')).toBeEnabled();
+  });
+
   describe('Authorized Receipt Preview & Legacy Unavailable Notice (R5 / D4)', () => {
     it('renders preview button and opens authorized receipt URL for valid S3 key', async () => {
       global.fetch = vi.fn().mockImplementation(async (url: string) => {
@@ -269,6 +293,14 @@ describe('Direct Admin Approval & Payment Details Corrections (R3 / D2)', () => 
                 expiresAt: '2026-10-18T01:00:00Z',
               },
             }),
+          };
+        }
+        if (u.includes('/disbursements/disb-rel-1')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({ data: mockReleasedDisbursement }),
           };
         }
         return {
@@ -316,6 +348,14 @@ describe('Direct Admin Approval & Payment Details Corrections (R3 / D2)', () => 
             }),
           };
         }
+        if (u.includes('/disbursements/disb-leg-1')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({ data: mockLegacyDisbursement }),
+          };
+        }
         return {
           ok: true,
           status: 200,
@@ -339,7 +379,7 @@ describe('Direct Admin Approval & Payment Details Corrections (R3 / D2)', () => 
       });
 
       expect(screen.getByTestId('receipt-legacy-unavailable')).toHaveTextContent(
-        /Supporting document unavailable \(legacy record\)/i
+        /Supporting document unavailable/i
       );
     });
 
@@ -361,6 +401,14 @@ describe('Direct Admin Approval & Payment Details Corrections (R3 / D2)', () => 
                 expiresAt: '2026-10-18T01:05:00Z',
               },
             }),
+          };
+        }
+        if (u.includes('/disbursements/disb-rel-1')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({ data: mockReleasedDisbursement }),
           };
         }
         return {
@@ -432,6 +480,14 @@ describe('Direct Admin Approval & Payment Details Corrections (R3 / D2)', () => 
             }),
           };
         }
+        if (u.includes('/disbursements/disb-rel-1')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({ data: mockReleasedDisbursement }),
+          };
+        }
         return {
           ok: true,
           status: 200,
@@ -469,6 +525,11 @@ describe('Direct Admin Approval & Payment Details Corrections (R3 / D2)', () => 
 
     it('handles image onError fallback and renders Refresh Image Preview button', async () => {
       let refreshCalled = false;
+      const imageDisbursement: Disbursement = {
+        ...mockReleasedDisbursement,
+        receipt_filename: 'official_receipt.png',
+      };
+
       global.fetch = vi.fn().mockImplementation(async (url: string) => {
         const u = String(url);
         if (u.includes('/disbursements/disb-rel-1/receipt-url')) {
@@ -499,6 +560,14 @@ describe('Direct Admin Approval & Payment Details Corrections (R3 / D2)', () => 
             }),
           };
         }
+        if (u.includes('/disbursements/disb-rel-1')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({ data: imageDisbursement }),
+          };
+        }
         return {
           ok: true,
           status: 200,
@@ -506,11 +575,6 @@ describe('Direct Admin Approval & Payment Details Corrections (R3 / D2)', () => 
           json: async () => ({ data: [] }),
         };
       });
-
-      const imageDisbursement: Disbursement = {
-        ...mockReleasedDisbursement,
-        receipt_filename: 'official_receipt.png',
-      };
 
       const { wrapper } = createHarness();
       render(
@@ -549,7 +613,7 @@ describe('Direct Admin Approval & Payment Details Corrections (R3 / D2)', () => 
       );
     });
 
-    it('routes drawer approve button to AdminApprovalModal collecting payment method, date, and expectedVersion', async () => {
+    it('routes drawer direct approve button to AdminApprovalModal confirming expectedVersion', async () => {
       let approveBody: Record<string, unknown> | null = null;
       global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
         const u = String(url);
@@ -562,11 +626,19 @@ describe('Direct Admin Approval & Payment Details Corrections (R3 / D2)', () => 
             json: async () => ({
               data: {
                 ...mockPendingDisbursement,
-                status: 'Released',
+                status: 'Approved',
                 version: 3,
                 ...approveBody,
               },
             }),
+          };
+        }
+        if (u.includes('/disbursements/disb-app-1')) {
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({ data: mockPendingDisbursement }),
           };
         }
         return {
@@ -588,12 +660,12 @@ describe('Direct Admin Approval & Payment Details Corrections (R3 / D2)', () => 
       );
 
       await waitFor(() => {
-        expect(screen.getByTestId('drawer-approve-btn')).toBeInTheDocument();
+        expect(screen.getByTestId('drawer-direct-approve-btn')).toBeInTheDocument();
       });
 
-      // Clicking approve button in drawer must NOT directly send POST /approve without payment fields;
+      // Clicking approve button in drawer must NOT directly send POST /approve without confirmation;
       // It must open AdminApprovalModal
-      fireEvent.click(screen.getByTestId('drawer-approve-btn'));
+      fireEvent.click(screen.getByTestId('drawer-direct-approve-btn'));
 
       await waitFor(() => {
         expect(screen.getByTestId('admin-approval-modal')).toBeInTheDocument();
@@ -608,9 +680,7 @@ describe('Direct Admin Approval & Payment Details Corrections (R3 / D2)', () => 
         expect(approveBody).not.toBeNull();
       });
 
-      expect(approveBody!.method).toBe('Bank Transfer');
-      expect(approveBody!.date).toBeDefined();
-      expect(approveBody!.expectedVersion).toBe(2);
+      expect(approveBody).toEqual({ expectedVersion: 2 });
     });
   });
 });

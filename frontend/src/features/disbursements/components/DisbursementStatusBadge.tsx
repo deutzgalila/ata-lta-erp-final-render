@@ -6,6 +6,7 @@ import type { DisbursementStatus } from '../api/types';
 export interface DisbursementStatusBadgeProps {
   status: DisbursementStatus | string;
   className?: string;
+  reviewReady?: boolean;
 }
 
 const statusStyles: Record<string, { label: string; className: string }> = {
@@ -54,6 +55,7 @@ const statusStyles: Record<string, { label: string; className: string }> = {
 export const DisbursementStatusBadge: React.FC<DisbursementStatusBadgeProps> = ({
   status,
   className,
+  reviewReady,
 }) => {
   const config = statusStyles[status] || {
     label: status,
@@ -61,17 +63,29 @@ export const DisbursementStatusBadge: React.FC<DisbursementStatusBadgeProps> = (
   };
 
   return (
-    <Badge
-      variant="outline"
-      data-testid="disbursement-status-badge"
-      data-test-status={status.toLowerCase()}
-      className={cn(
-        'font-medium text-xs px-2.5 py-0.5 rounded-full border transition-none',
-        config.className,
-        className
+    <div className="inline-flex items-center gap-1.5">
+      <Badge
+        variant="outline"
+        data-testid="disbursement-status-badge"
+        data-test-status={status.toLowerCase()}
+        className={cn(
+          'font-medium text-xs px-2.5 py-0.5 rounded-full border transition-none',
+          config.className,
+          className
+        )}
+      >
+        {config.label}
+      </Badge>
+      {status === 'Draft' && reviewReady === false && (
+        <Badge
+          variant="outline"
+          data-testid="badge-needs-correction"
+          className="bg-rose-50 text-rose-700 border-rose-200 font-medium text-[10px] px-2 py-0.5 rounded-full"
+          title="Returned for correction — must be edited and saved before approval"
+        >
+          Needs Correction
+        </Badge>
       )}
-    >
-      {config.label}
-    </Badge>
+    </div>
   );
 };
