@@ -345,7 +345,9 @@ describe('Adversarial Stress & Vulnerability Challenge Suite (Milestone M3)', ()
         description: 'Audit transport fee',
         amount: 2500,
         fund_source: 'Firm Fund',
-        status: 'Pending Admin Approval',
+        status: 'Draft',
+        lifecycle_version: 2,
+        review_ready: true,
         version: 2,
         requested_by: STAFF_ALICE_ID,
         created_by: STAFF_ALICE_ID,
@@ -360,10 +362,6 @@ describe('Adversarial Stress & Vulnerability Challenge Suite (Milestone M3)', ()
         .set('Authorization', `Bearer ${adminAllToken}`)
         .set('X-Active-Entity', 'ATA')
         .send({
-          method: 'Bank Transfer',
-          reference: 'TXN-WINNER-A',
-          bank: 'BDO Unibank',
-          date: '2026-10-17',
           expectedVersion: 2,
         });
 
@@ -372,10 +370,6 @@ describe('Adversarial Stress & Vulnerability Challenge Suite (Milestone M3)', ()
         .set('Authorization', `Bearer ${adminAllToken}`)
         .set('X-Active-Entity', 'ATA')
         .send({
-          method: 'Check',
-          reference: 'CHK-LOSER-B',
-          bank: 'Metrobank',
-          date: '2026-10-17',
           expectedVersion: 2,
         });
 
@@ -385,27 +379,17 @@ describe('Adversarial Stress & Vulnerability Challenge Suite (Milestone M3)', ()
       expect(statuses).toContain(200);
       expect(statuses).toContain(409);
 
-      const winningRes = res1.status === 200 ? res1 : res2;
       const losingRes = res1.status === 409 ? res1 : res2;
 
       expect(['ERR_CONCURRENCY_CONFLICT', 'CONFLICT_CURRENT_STATUS']).toContain(
         losingRes.body.code
       );
 
-      // Verify voucher in database is Released at version 3 with winning payment details
+      // Verify voucher in database is Approved at version 3
       const voucher = mockTables.disbursements.get(disbId);
-      expect(voucher.status).toBe('Released');
+      expect(voucher.status).toBe('Approved');
       expect(voucher.version).toBe(3);
       expect(voucher.approved_by).toBe(ADMIN_ALL_ID);
-      expect(voucher.released_by).toBe(ADMIN_ALL_ID);
-
-      if (winningRes === res1) {
-        expect(voucher.payment_reference).toBe('TXN-WINNER-A');
-        expect(voucher.payment_bank).toBe('BDO Unibank');
-      } else {
-        expect(voucher.payment_reference).toBe('CHK-LOSER-B');
-        expect(voucher.payment_bank).toBe('Metrobank');
-      }
     });
   });
 
@@ -611,15 +595,14 @@ describe('Adversarial Stress & Vulnerability Challenge Suite (Milestone M3)', ()
         .set('Authorization', `Bearer ${acctToken}`)
         .set('X-Active-Entity', 'ATA')
         .send({
+          expectedVersion: 1,
           description: 'Legitimate lunch voucher with reassign attempt',
           employeeId: STAFF_BOB_ID, // Attempted reassignment!
         });
 
       expect(reassignUpdateRes.status).toBe(403);
       expect(reassignUpdateRes.body.code).toBe('DISBURSEMENT_REQUESTER_MISMATCH');
-      expect(reassignUpdateRes.body.detail).toContain(
-        'Cannot reassign disbursement requester or employee identity.'
-      );
+      expect(reassignUpdateRes.body.detail).toContain('Cannot reassign');
     });
 
     it('ENTITY-ALL-ISOLATION: Restricts ALL entity mode and denies cross-entity access', async () => {
@@ -1114,6 +1097,7 @@ describe('Adversarial Stress & Vulnerability Challenge Suite (Milestone M3)', ()
         approved_at: originalApprovedAt,
         released_by: ADMIN_ALL_ID,
         released_at: originalReleasedAt,
+        lifecycle_version: 2,
         version: 2,
         created_at: new Date().toISOString(),
       });
@@ -1130,11 +1114,8 @@ describe('Adversarial Stress & Vulnerability Challenge Suite (Milestone M3)', ()
           expectedVersion: 2,
         });
 
-      expect(releasedPatchRes.status).toBe(200);
-      expect(releasedPatchRes.body.data.payment_method).toBe('Check');
-      expect(releasedPatchRes.body.data.payment_reference).toBe('CHK-99120');
-      expect(releasedPatchRes.body.data.payment_bank).toBe('Security Bank');
-      expect(releasedPatchRes.body.data.version).toBe(3);
+      expect(releasedPatchRes.status).toBe(409);
+      expect(releasedPatchRes.body.code).toBe('CONFLICT_CURRENT_STATUS');
 
       // Verify in-memory record attribution remains strictly untouched
       const updatedVoucher = mockTables.disbursements.get('disb-released-pd');

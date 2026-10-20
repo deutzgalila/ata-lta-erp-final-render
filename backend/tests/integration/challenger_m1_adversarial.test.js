@@ -139,7 +139,9 @@ describe('Empirical Adversarial Challenges: Milestone 1 (R1, R2, R5)', () => {
       description: `Test voucher ${id}`,
       amount: 500,
       fund_source: 'Firm Fund',
-      status: 'Pending',
+      status: 'Draft',
+      lifecycle_version: 2,
+      review_ready: true,
       created_by: OPS_A_ID,
       requested_by: OPS_A_ID,
       employee_id: OPS_A_ID,
@@ -159,8 +161,7 @@ describe('Empirical Adversarial Challenges: Milestone 1 (R1, R2, R5)', () => {
 
   describe('Adversarial Challenge R1: Approval & Release Validation and Date Boundaries', () => {
     const endpoints = [
-      { name: 'approve', path: (id) => `/v1/disbursements/${id}/approve`, initialStatus: 'Pending' },
-      { name: 'release', path: (id) => `/v1/disbursements/${id}/release`, initialStatus: 'Approved' },
+      { name: 'fund', path: (id) => `/v1/disbursements/${id}/fund`, initialStatus: 'Approved' },
     ];
 
     endpoints.forEach(({ name, path, initialStatus }) => {
@@ -213,6 +214,8 @@ describe('Empirical Adversarial Challenges: Milestone 1 (R1, R2, R5)', () => {
               .set('X-Active-Entity', 'ATA')
               .send({
                 method: badMethod,
+                bank: 'BDO',
+                reference: 'REF-1',
                 date: '2026-10-18',
                 expectedVersion: 1,
               })
@@ -234,6 +237,8 @@ describe('Empirical Adversarial Challenges: Milestone 1 (R1, R2, R5)', () => {
             .set('X-Active-Entity', 'ATA')
             .send({
               method: 'M'.repeat(51),
+              bank: 'BDO',
+              reference: 'REF-1',
               date: '2026-10-18',
               expectedVersion: 1,
             })
@@ -254,6 +259,8 @@ describe('Empirical Adversarial Challenges: Milestone 1 (R1, R2, R5)', () => {
               .set('X-Active-Entity', 'ATA')
               .send({
                 method: 'Cash',
+                bank: 'BDO',
+                reference: 'REF-1',
                 date: '2026-10-18',
                 expectedVersion: v,
               })
@@ -291,18 +298,11 @@ describe('Empirical Adversarial Challenges: Milestone 1 (R1, R2, R5)', () => {
       ];
 
       invalidDates.forEach((badDate) => {
-        it(`rejects invalid date "${badDate}" in approveDisbursementSchema`, () => {
-          const result = schema.approveDisbursementSchema.safeParse({
+        it(`rejects invalid date "${badDate}" in fundDisbursementSchema`, () => {
+          const result = schema.fundDisbursementSchema.safeParse({
             method: 'Cash',
-            date: badDate,
-            expectedVersion: 1,
-          });
-          expect(result.success).toBe(false);
-        });
-
-        it(`rejects invalid date "${badDate}" in releaseDisbursementSchema`, () => {
-          const result = schema.releaseDisbursementSchema.safeParse({
-            method: 'Cash',
+            bank: 'BDO',
+            reference: 'REF-1',
             date: badDate,
             expectedVersion: 1,
           });
@@ -312,6 +312,8 @@ describe('Empirical Adversarial Challenges: Milestone 1 (R1, R2, R5)', () => {
         it(`rejects invalid date "${badDate}" in updatePaymentDetailsSchema`, () => {
           const result = schema.updatePaymentDetailsSchema.safeParse({
             method: 'Cash',
+            bank: 'BDO',
+            reference: 'REF-1',
             date: badDate,
             expectedVersion: 1,
           });
@@ -330,9 +332,14 @@ describe('Empirical Adversarial Challenges: Milestone 1 (R1, R2, R5)', () => {
 
       validDates.forEach((goodDate) => {
         it(`accepts valid calendar date "${goodDate}" in schemas`, () => {
-          const payload = { method: 'Cash', date: goodDate, expectedVersion: 1 };
-          expect(schema.approveDisbursementSchema.safeParse(payload).success).toBe(true);
-          expect(schema.releaseDisbursementSchema.safeParse(payload).success).toBe(true);
+          const payload = {
+            method: 'Cash',
+            bank: 'BDO',
+            reference: 'REF-1',
+            date: goodDate,
+            expectedVersion: 1,
+          };
+          expect(schema.fundDisbursementSchema.safeParse(payload).success).toBe(true);
           expect(schema.updatePaymentDetailsSchema.safeParse(payload).success).toBe(true);
         });
       });
@@ -341,6 +348,26 @@ describe('Empirical Adversarial Challenges: Milestone 1 (R1, R2, R5)', () => {
 
   describe('Adversarial Challenge R2: Staff Pending Changes Counts and Column Security', () => {
     it('executes staff /counts with populated pending_changes without SQL column errors', async () => {
+      // Seed rejected disbursements in disbursements table (v2 lifecycle)
+      seedVoucher('disb-rej-ops-a-1', {
+        status: 'Rejected',
+        created_by: OPS_A_ID,
+        requested_by: OPS_A_ID,
+        entity_id: ENT_ATA,
+      });
+      seedVoucher('disb-rej-ops-a-2', {
+        status: 'Rejected',
+        created_by: OPS_A_ID,
+        requested_by: OPS_A_ID,
+        entity_id: ENT_ATA,
+      });
+      seedVoucher('disb-rej-ops-b-1', {
+        status: 'Rejected',
+        created_by: OPS_B_ID,
+        requested_by: OPS_B_ID,
+        entity_id: ENT_ATA,
+      });
+
       // 1. Seed pending_changes with various submitters and statuses
       mockTables.pending_changes.set('pc-ops-a-1', {
         id: 'pc-ops-a-1',

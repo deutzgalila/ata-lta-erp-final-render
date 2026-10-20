@@ -2,16 +2,19 @@
  * Disbursements controller.
  * Route handlers for the Disbursements module.
  *
- * Phase 6 — Agent B
+ * Authorized Disbursement Lifecycle Redesign (v2)
  */
 
 const {
   createDisbursementSchema,
   updateDisbursementSchema,
-  rejectSchema,
-  createReceiptUploadSchema,
   approveDisbursementSchema,
+  fundDisbursementSchema,
   releaseDisbursementSchema,
+  rejectSchema,
+  resendDraftSchema,
+  archiveDisbursementSchema,
+  createReceiptUploadSchema,
   updatePaymentDetailsSchema,
   disbursementTemplateSchema,
 } = require('./schema');
@@ -37,6 +40,7 @@ const handleZodError = (err, next) => {
 const listDisbursements = async (req, res, next) => {
   try {
     const filters = {
+      queue: req.query.queue,
       status: req.query.status,
       category: req.query.category,
       fundSource: req.query.fundSource,
@@ -71,6 +75,7 @@ const createDisbursement = async (req, res, next) => {
       entityId: req.activeEntity,
       entityCode: req.entityCode,
       userId: req.user.id,
+      user: req.user,
       data: validated,
     });
     res.status(201).json({ data });
@@ -96,7 +101,8 @@ const getDisbursement = async (req, res, next) => {
 /** @type {import('express').RequestHandler} */
 const updateDisbursement = async (req, res, next) => {
   try {
-    const validated = injectExpectedVersion(req, updateDisbursementSchema.parse(req.body));
+    const payload = injectExpectedVersion(req, req.body || {});
+    const validated = updateDisbursementSchema.parse(payload);
     const data = await service.updateDisbursement({
       entityId: req.activeEntity,
       id: req.params.id,
@@ -113,28 +119,36 @@ const updateDisbursement = async (req, res, next) => {
 /** @type {import('express').RequestHandler} */
 const archiveDisbursement = async (req, res, next) => {
   try {
+    const payload = injectExpectedVersion(req, req.body || {});
+    const validated = archiveDisbursementSchema.parse(payload);
     const data = await service.archiveDisbursement({
       entityId: req.activeEntity,
       id: req.params.id,
       userId: req.user.id,
+      user: req.user,
+      expectedVersion: validated.expectedVersion,
     });
     res.json({ data });
   } catch (err) {
-    next(err);
+    handleZodError(err, next);
   }
 };
 
 /** @type {import('express').RequestHandler} */
 const unarchiveDisbursement = async (req, res, next) => {
   try {
+    const payload = injectExpectedVersion(req, req.body || {});
+    const validated = archiveDisbursementSchema.parse(payload);
     const data = await service.unarchiveDisbursement({
       entityId: req.activeEntity,
       id: req.params.id,
       userId: req.user.id,
+      user: req.user,
+      expectedVersion: validated.expectedVersion,
     });
     res.json({ data });
   } catch (err) {
-    next(err);
+    handleZodError(err, next);
   }
 };
 
@@ -145,91 +159,11 @@ const submitDisbursement = async (req, res, next) => {
       entityId: req.activeEntity,
       id: req.params.id,
       userId: req.user.id,
-    });
-    res.json({ data });
-  } catch (err) {
-    next(err);
-  }
-};
-
-/** @type {import('express').RequestHandler} */
-const approveDisbursement = async (req, res, next) => {
-  try {
-    const validated = approveDisbursementSchema.parse(req.body || {});
-    const paymentDetails = {
-      method: validated.method,
-      reference: validated.reference,
-      bank: validated.bank,
-      date: validated.date,
-    };
-    const expectedVersion = validated.expectedVersion;
-
-    const data = await service.approveDisbursement({
-      entityId: req.activeEntity,
-      id: req.params.id,
-      userId: req.user.id,
       user: req.user,
-      paymentDetails,
-      expectedVersion,
-    });
-    res.json({ data });
-  } catch (err) {
-    handleZodError(err, next);
-  }
-};
-
-/** @type {import('express').RequestHandler} */
-const releaseDisbursement = async (req, res, next) => {
-  try {
-    const validated = releaseDisbursementSchema.parse(req.body || {});
-    const paymentDetails = {
-      method: validated.method,
-      reference: validated.reference,
-      bank: validated.bank,
-      date: validated.date,
-    };
-    const expectedVersion = validated.expectedVersion;
-
-    const data = await service.releaseDisbursement({
-      entityId: req.activeEntity,
-      id: req.params.id,
-      userId: req.user.id,
-      paymentDetails,
-      expectedVersion,
-    });
-    res.json({ data });
-  } catch (err) {
-    handleZodError(err, next);
-  }
-};
-
-/** @type {import('express').RequestHandler} */
-const fundDisbursement = async (req, res, next) => {
-  try {
-    const data = await service.fundDisbursement({
-      entityId: req.activeEntity,
-      id: req.params.id,
-      userId: req.user.id,
     });
     res.json({ data });
   } catch (err) {
     next(err);
-  }
-};
-
-/** @type {import('express').RequestHandler} */
-const rejectDisbursement = async (req, res, next) => {
-  try {
-    const validated = rejectSchema.parse(req.body);
-    const data = await service.rejectDisbursement({
-      entityId: req.activeEntity,
-      id: req.params.id,
-      userId: req.user.id,
-      reason: validated.reason,
-    });
-    res.json({ data });
-  } catch (err) {
-    handleZodError(err, next);
   }
 };
 
@@ -240,10 +174,108 @@ const forwardDisbursement = async (req, res, next) => {
       entityId: req.activeEntity,
       id: req.params.id,
       userId: req.user.id,
+      user: req.user,
     });
     res.json({ data });
   } catch (err) {
     next(err);
+  }
+};
+
+/** @type {import('express').RequestHandler} */
+const approveDisbursement = async (req, res, next) => {
+  try {
+    const payload = injectExpectedVersion(req, req.body || {});
+    const validated = approveDisbursementSchema.parse(payload);
+    const data = await service.approveDisbursement({
+      entityId: req.activeEntity,
+      id: req.params.id,
+      userId: req.user.id,
+      user: req.user,
+      expectedVersion: validated.expectedVersion,
+    });
+    res.json({ data });
+  } catch (err) {
+    handleZodError(err, next);
+  }
+};
+
+/** @type {import('express').RequestHandler} */
+const fundDisbursement = async (req, res, next) => {
+  try {
+    const payload = injectExpectedVersion(req, req.body || {});
+    const validated = fundDisbursementSchema.parse(payload);
+    const data = await service.fundDisbursement({
+      entityId: req.activeEntity,
+      id: req.params.id,
+      userId: req.user.id,
+      user: req.user,
+      paymentDetails: {
+        method: validated.method,
+        bank: validated.bank,
+        reference: validated.reference,
+        date: validated.date,
+      },
+      expectedVersion: validated.expectedVersion,
+    });
+    res.json({ data });
+  } catch (err) {
+    handleZodError(err, next);
+  }
+};
+
+/** @type {import('express').RequestHandler} */
+const releaseDisbursement = async (req, res, next) => {
+  try {
+    const payload = injectExpectedVersion(req, req.body || {});
+    const validated = releaseDisbursementSchema.parse(payload);
+    const data = await service.releaseDisbursement({
+      entityId: req.activeEntity,
+      id: req.params.id,
+      userId: req.user.id,
+      user: req.user,
+      expectedVersion: validated.expectedVersion,
+    });
+    res.json({ data });
+  } catch (err) {
+    handleZodError(err, next);
+  }
+};
+
+/** @type {import('express').RequestHandler} */
+const rejectDisbursement = async (req, res, next) => {
+  try {
+    const payload = injectExpectedVersion(req, req.body || {});
+    const validated = rejectSchema.parse(payload);
+    const data = await service.rejectDisbursement({
+      entityId: req.activeEntity,
+      id: req.params.id,
+      userId: req.user.id,
+      user: req.user,
+      reason: validated.reason,
+      expectedVersion: validated.expectedVersion,
+    });
+    res.json({ data });
+  } catch (err) {
+    handleZodError(err, next);
+  }
+};
+
+/** @type {import('express').RequestHandler} */
+const resendDraftDisbursement = async (req, res, next) => {
+  try {
+    const payload = injectExpectedVersion(req, req.body || {});
+    const validated = resendDraftSchema.parse(payload);
+    const data = await service.resendDraftDisbursement({
+      entityId: req.activeEntity,
+      id: req.params.id,
+      userId: req.user.id,
+      user: req.user,
+      expectedVersion: validated.expectedVersion,
+    });
+    res.json({ data });
+  } catch (err) {
+    handleZodError(err, next);
   }
 };
 
@@ -407,6 +439,22 @@ const getDisbursementPdf = async (req, res, next) => {
   }
 };
 
+const deleteDisbursement = async (req, res, next) => {
+  try {
+    const payload = injectExpectedVersion(req, req.body || {});
+    await service.deleteDisbursement({
+      entityId: req.activeEntity,
+      id: req.params.id,
+      userId: req.user.id,
+      user: req.user,
+      expectedVersion: payload.expectedVersion,
+    });
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   disbursementsController: {
     getDisbursementPdf,
@@ -417,11 +465,12 @@ module.exports = {
     archiveDisbursement,
     unarchiveDisbursement,
     submitDisbursement,
-    approveDisbursement,
-    releaseDisbursement,
-    fundDisbursement,
-    rejectDisbursement,
     forwardDisbursement,
+    approveDisbursement,
+    fundDisbursement,
+    releaseDisbursement,
+    rejectDisbursement,
+    resendDraftDisbursement,
     getDisbursementCounts,
     listDisbursementTemplates,
     createDisbursementTemplate,
@@ -431,17 +480,6 @@ module.exports = {
     createReceiptUpload,
     completeReceiptUpload,
     getReceiptUrl,
-    deleteDisbursement: async (req, res, next) => {
-      try {
-        await service.deleteDisbursement({
-          entityId: req.activeEntity,
-          id: req.params.id,
-          userId: req.user.id,
-        });
-        res.status(204).end();
-      } catch (err) {
-        next(err);
-      }
-    },
+    deleteDisbursement,
   },
 };

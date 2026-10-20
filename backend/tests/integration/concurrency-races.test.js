@@ -106,21 +106,22 @@ const adminFor = (entities = ['ATA']) => {
 describe('Concurrency race conditions', () => {
   test('1. Two concurrent disbursement approvals: only one succeeds', async () => {
     const admin = adminFor(['ATA']);
+    const staff = registerUser({
+      id: 'staff-user-concurrency',
+      email: 'staff@ata-lta.ph',
+      name: 'Staff',
+      role: 'Operations',
+      entities: ['ATA'],
+    });
 
     const created = await request(app)
       .post('/v1/disbursements')
-      .set('Authorization', `Bearer ${admin}`)
+      .set('Authorization', `Bearer ${staff}`)
       .set('X-Active-Entity', 'ATA')
       .send(validDisbursement)
       .expect(201);
 
     const id = created.body.data.id;
-
-    await request(app)
-      .post(`/v1/disbursements/${id}/submit`)
-      .set('Authorization', `Bearer ${admin}`)
-      .set('X-Active-Entity', 'ATA')
-      .expect(200);
 
     const [res1, res2] = await Promise.all([
       request(app)
@@ -128,18 +129,14 @@ describe('Concurrency race conditions', () => {
         .set('Authorization', `Bearer ${admin}`)
         .set('X-Active-Entity', 'ATA')
         .send({
-          method: 'Bank Transfer',
-          date: '2026-10-18',
-          expectedVersion: 2,
+          expectedVersion: 1,
         }),
       request(app)
         .post(`/v1/disbursements/${id}/approve`)
         .set('Authorization', `Bearer ${admin}`)
         .set('X-Active-Entity', 'ATA')
         .send({
-          method: 'Bank Transfer',
-          date: '2026-10-18',
-          expectedVersion: 2,
+          expectedVersion: 1,
         }),
     ]);
 
@@ -147,7 +144,7 @@ describe('Concurrency race conditions', () => {
     expect(statuses).toEqual([200, 409]);
 
     const winner = res1.status === 200 ? res1 : res2;
-    expect(['Approved', 'Released']).toContain(winner.body.data.status);
+    expect(winner.body.data.status).toBe('Approved');
 
     const final = await request(app)
       .get(`/v1/disbursements/${id}`)
@@ -155,7 +152,7 @@ describe('Concurrency race conditions', () => {
       .set('X-Active-Entity', 'ATA')
       .expect(200);
 
-    expect(['Approved', 'Released']).toContain(final.body.data.status);
+    expect(final.body.data.status).toBe('Approved');
   });
 
   test('2. Two concurrent invoice payments cannot overpay', async () => {

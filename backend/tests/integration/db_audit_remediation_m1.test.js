@@ -339,6 +339,7 @@ describe('DB-AUDIT-REMEDIATION-2026-10-17 Milestone M1 Test Suite', () => {
         .set('Authorization', `Bearer ${acctToken}`)
         .set('X-Active-Entity', 'ATA')
         .send({
+          expectedVersion: 1,
           employeeId: staffB_Id, // Attempt to reassign
         })
         .expect(403);
@@ -492,35 +493,74 @@ describe('DB-AUDIT-REMEDIATION-2026-10-17 Milestone M1 Test Suite', () => {
         description: 'Client luncheon',
         amount: 3200,
         fund_source: 'Firm Fund',
-        status: 'Pending',
+        status: 'Draft',
+        lifecycle_version: 2,
+        review_ready: true,
         created_by: staffA_Id,
         requested_by: staffA_Id,
         employee_id: staffA_Id,
+        linked_work_request_id: WR_ATA_ID,
         archived: false,
         version: 1,
       });
 
-      const res = await request(app)
+      // Step 1: Admin approves (Draft -> Approved)
+      const approveRes = await request(app)
         .post(`/v1/disbursements/${voucherId}/approve`)
         .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          expectedVersion: 1,
+        })
+        .expect(200);
+
+      expect(approveRes.body.data.status).toBe('Approved');
+      expect(approveRes.body.data.approved_by).toBe(ADMIN_ID);
+      expect(approveRes.body.data.version).toBe(2);
+
+      // Step 2: Accounting funds (Approved -> Funded)
+      const acctToken = registerUser({
+        id: '22222222-2222-4222-8222-222222222222',
+        email: 'acct@ata-lta.ph',
+        name: 'Accountant Bob',
+        role: 'Accounting',
+        departments: ['Accounting'],
+        entities: ['ATA'],
+      });
+
+      const fundRes = await request(app)
+        .post(`/v1/disbursements/${voucherId}/fund`)
+        .set('Authorization', `Bearer ${acctToken}`)
         .set('X-Active-Entity', 'ATA')
         .send({
           method: 'Bank Transfer',
           reference: 'BDO-REF-998877',
           bank: 'BDO Unibank',
           date: '2026-10-18',
-          expectedVersion: 1,
+          expectedVersion: 2,
         })
         .expect(200);
 
-      expect(res.body.data.status).toBe('Released');
-      expect(res.body.data.payment_method).toBe('Bank Transfer');
-      expect(res.body.data.payment_reference).toBe('BDO-REF-998877');
-      expect(res.body.data.payment_bank).toBe('BDO Unibank');
-      expect(res.body.data.payment_date).toBe('2026-10-18');
-      expect(res.body.data.approved_by).toBe(ADMIN_ID);
-      expect(res.body.data.released_by).toBe(ADMIN_ID);
-      expect(res.body.data.payment_processed_by).toBe(ADMIN_ID);
+      expect(fundRes.body.data.status).toBe('Funded');
+      expect(fundRes.body.data.payment_method).toBe('Bank Transfer');
+      expect(fundRes.body.data.payment_reference).toBe('BDO-REF-998877');
+      expect(fundRes.body.data.payment_bank).toBe('BDO Unibank');
+      expect(fundRes.body.data.payment_date).toBe('2026-10-18');
+      expect(fundRes.body.data.version).toBe(3);
+
+      // Step 3: Admin releases (Funded -> Released)
+      const releaseRes = await request(app)
+        .post(`/v1/disbursements/${voucherId}/release`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          expectedVersion: 3,
+        })
+        .expect(200);
+
+      expect(releaseRes.body.data.status).toBe('Released');
+      expect(releaseRes.body.data.released_by).toBe(ADMIN_ID);
+      expect(releaseRes.body.data.version).toBe(4);
 
       // Subsequent approve attempt conflicts (409)
       await request(app)
@@ -528,15 +568,12 @@ describe('DB-AUDIT-REMEDIATION-2026-10-17 Milestone M1 Test Suite', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
         .send({
-          method: 'Bank Transfer',
-          reference: 'BDO-REF-998877',
-          date: '2026-10-18',
-          expectedVersion: 2,
+          expectedVersion: 4,
         })
         .expect(409);
     });
 
-    it('rejects approval when required payment fields or date format are invalid (400)', async () => {
+    it('rejects funding when required payment fields or date format are invalid (400)', async () => {
       const voucherId = 'voucher-invalid-approval';
       mockTables.disbursements.set(voucherId, {
         id: voucherId,
@@ -545,7 +582,8 @@ describe('DB-AUDIT-REMEDIATION-2026-10-17 Milestone M1 Test Suite', () => {
         description: 'Dinner meeting',
         amount: 1500,
         fund_source: 'Firm Fund',
-        status: 'Pending',
+        status: 'Approved',
+        lifecycle_version: 2,
         created_by: staffA_Id,
         requested_by: staffA_Id,
         archived: false,
@@ -554,7 +592,7 @@ describe('DB-AUDIT-REMEDIATION-2026-10-17 Milestone M1 Test Suite', () => {
 
       // Missing method
       await request(app)
-        .post(`/v1/disbursements/${voucherId}/approve`)
+        .post(`/v1/disbursements/${voucherId}/fund`)
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
         .send({
@@ -565,11 +603,13 @@ describe('DB-AUDIT-REMEDIATION-2026-10-17 Milestone M1 Test Suite', () => {
 
       // Invalid date format
       await request(app)
-        .post(`/v1/disbursements/${voucherId}/approve`)
+        .post(`/v1/disbursements/${voucherId}/fund`)
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
         .send({
           method: 'Check',
+          bank: 'BDO',
+          reference: 'CHK-1',
           date: '18-10-2026',
           expectedVersion: 1,
         })
@@ -589,6 +629,7 @@ describe('DB-AUDIT-REMEDIATION-2026-10-17 Milestone M1 Test Suite', () => {
         amount: 2500,
         fund_source: 'Firm Fund',
         status: 'Released',
+        lifecycle_version: 2,
         payment_method: 'Cash',
         payment_reference: null,
         payment_bank: null,
@@ -615,19 +656,17 @@ describe('DB-AUDIT-REMEDIATION-2026-10-17 Milestone M1 Test Suite', () => {
           date: '2026-10-17',
           expectedVersion: 2,
         })
-        .expect(200);
+        .expect(409);
 
-      expect(res.body.data.payment_method).toBe('Bank Transfer');
-      expect(res.body.data.payment_reference).toBe('CORRECTED-REF-001');
-      expect(res.body.data.payment_bank).toBe('BPI');
-      expect(res.body.data.version).toBe(3);
+      expect(res.body.code).toBe('CONFLICT_CURRENT_STATUS');
 
       // Attribution and status MUST be completely unchanged
-      expect(res.body.data.status).toBe('Released');
-      expect(res.body.data.approved_by).toBe('original-approver-id');
-      expect(res.body.data.approved_at).toBe(approvedAt);
-      expect(res.body.data.released_by).toBe('original-releaser-id');
-      expect(res.body.data.released_at).toBe(releasedAt);
+      const stored = mockTables.disbursements.get(voucherId);
+      expect(stored.status).toBe('Released');
+      expect(stored.approved_by).toBe('original-approver-id');
+      expect(stored.approved_at).toBe(approvedAt);
+      expect(stored.released_by).toBe('original-releaser-id');
+      expect(stored.released_at).toBe(releasedAt);
     });
 
     it('rejects PATCH /payment-details on Draft or Pending disbursements with 409 CONFLICT_CURRENT_STATUS', async () => {
@@ -874,8 +913,6 @@ describe('DB-AUDIT-REMEDIATION-2026-10-17 Milestone M1 Test Suite', () => {
         .expect(400);
 
       expect(res.body.title).toBe('Validation Error');
-      expect(res.body.detail).toContain('method: Required');
-      expect(res.body.detail).toContain('date: Required');
       expect(res.body.detail).toContain('expectedVersion: Required');
 
       const stored = mockTables.disbursements.get(voucherId);
@@ -914,27 +951,24 @@ describe('DB-AUDIT-REMEDIATION-2026-10-17 Milestone M1 Test Suite', () => {
       expect(stored.version).toBe(2);
     });
 
-    it('rejects impossible calendar dates in approval and release schemas', () => {
+    it('rejects impossible calendar dates in fund and payment details schemas', () => {
       const invalidDates = ['2026-99-99', '2026-02-31', '2026-02-29', '2026-04-31', '18-10-2026'];
       for (const d of invalidDates) {
         expect(
-          schema.approveDisbursementSchema.safeParse({ method: 'Cash', date: d, expectedVersion: 1 }).success
+          schema.fundDisbursementSchema.safeParse({ method: 'Cash', bank: 'BDO', reference: 'REF', date: d, expectedVersion: 1 }).success
         ).toBe(false);
         expect(
-          schema.releaseDisbursementSchema.safeParse({ method: 'Cash', date: d, expectedVersion: 1 }).success
-        ).toBe(false);
-        expect(
-          schema.updatePaymentDetailsSchema.safeParse({ method: 'Cash', date: d, expectedVersion: 1 }).success
+          schema.updatePaymentDetailsSchema.safeParse({ method: 'Cash', bank: 'BDO', reference: 'REF', date: d, expectedVersion: 1 }).success
         ).toBe(false);
       }
 
       // Valid leap day passes
       expect(
-        schema.approveDisbursementSchema.safeParse({ method: 'Cash', date: '2024-02-29', expectedVersion: 1 }).success
+        schema.fundDisbursementSchema.safeParse({ method: 'Cash', bank: 'BDO', reference: 'REF', date: '2024-02-29', expectedVersion: 1 }).success
       ).toBe(true);
       // Valid regular day passes
       expect(
-        schema.approveDisbursementSchema.safeParse({ method: 'Cash', date: '2026-10-18', expectedVersion: 1 }).success
+        schema.fundDisbursementSchema.safeParse({ method: 'Cash', bank: 'BDO', reference: 'REF', date: '2026-10-18', expectedVersion: 1 }).success
       ).toBe(true);
     });
 
@@ -985,23 +1019,32 @@ describe('DB-AUDIT-REMEDIATION-2026-10-17 Milestone M1 Test Suite', () => {
 
   describe('R2: Staff Pending Changes Counts and Column Alignment', () => {
     it('correctly counts rejected pending_changes for staff callers using submitted_by', async () => {
-      // 1. Seed rejected pending change submitted by Alice
-      mockTables.pending_changes.set('pc-alice-rejected', {
-        id: 'pc-alice-rejected',
+      // 1. Seed rejected disbursements created by Alice
+      mockTables.disbursements.set('disb-alice-rejected-1', {
+        id: 'disb-alice-rejected-1',
         entity_id: 'ent-ata',
-        table_name: 'disbursements',
-        proposed_data: { description: 'Alice expense' },
-        submitted_by: staffA_Id,
-        status: 'rejected',
-      });
-
-      // 2. Seed rejected operations request requested by Alice
-      mockTables.operations_requests.set('ops-alice-rejected', {
-        id: 'ops-alice-rejected',
-        entity_id: 'ent-ata',
-        type: 'disbursement',
+        category: 'Meals',
+        description: 'Alice meal 1',
+        amount: 500,
+        fund_source: 'Firm Fund',
+        status: 'Rejected',
+        created_by: staffA_Id,
         requested_by: staffA_Id,
-        status: 'rejected',
+        archived: false,
+        version: 1,
+      });
+      mockTables.disbursements.set('disb-alice-rejected-2', {
+        id: 'disb-alice-rejected-2',
+        entity_id: 'ent-ata',
+        category: 'Meals',
+        description: 'Alice meal 2',
+        amount: 600,
+        fund_source: 'Firm Fund',
+        status: 'Rejected',
+        created_by: staffA_Id,
+        requested_by: staffA_Id,
+        archived: false,
+        version: 1,
       });
 
       // 3. Alice fetches counts -> sees rejected === 2

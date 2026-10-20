@@ -481,14 +481,19 @@ describe('Track 1 Parallel Remediation Backend Test Suite', () => {
 
       const disbId = disbRes.body.data.id;
 
-      // Admin directly approves
+      const admin2Token = registerUser({
+        email: 'admin2-remediation@ata-lta.ph',
+        name: 'Admin Second',
+        role: 'Admin',
+        entities: ['ATA'],
+      });
+
+      // Another Admin directly approves
       const approveRes = await request(app)
         .post(`/v1/disbursements/${disbId}/approve`)
-        .set('Authorization', `Bearer ${adminToken}`)
+        .set('Authorization', `Bearer ${admin2Token}`)
         .set('X-Active-Entity', 'ATA')
         .send({
-          method: 'Cash',
-          date: '2026-10-18',
           expectedVersion: 1,
         })
         .expect(200);

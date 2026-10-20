@@ -52,6 +52,8 @@ const getWeekBounds = (dateStr) => {
 const ANALYTICS_CACHE_TTL_MS = 30_000;
 const analyticsCache = new Map();
 
+const invalidateAnalytics = (entityId) => analyticsCache.delete(entityId);
+
 const getCachedAnalytics = (entityId) => {
   const entry = analyticsCache.get(entityId);
   if (entry && Date.now() < entry.expiresAt) {
@@ -230,7 +232,9 @@ const loadCalendarItemsForEntity = async (entityUuid, user) => {
   ] = await Promise.all([
     supabaseAdmin
       .from('work_requests')
-      .select('id, title, status, due_date, client_id, assigned_to, requested_by, submitted_by, entity_id')
+      .select(
+        'id, title, status, due_date, client_id, assigned_to, requested_by, submitted_by, entity_id'
+      )
       .eq('entity_id', entityUuid)
       .is('deleted_at', null)
       .not('due_date', 'is', null)
@@ -240,7 +244,9 @@ const loadCalendarItemsForEntity = async (entityUuid, user) => {
       .limit(200),
     supabaseAdmin
       .from('work_requests')
-      .select('id, title, status, due_date, client_id, assigned_to, requested_by, submitted_by, entity_id')
+      .select(
+        'id, title, status, due_date, client_id, assigned_to, requested_by, submitted_by, entity_id'
+      )
       .eq('entity_id', entityUuid)
       .is('deleted_at', null)
       .not('due_date', 'is', null)
@@ -250,7 +256,9 @@ const loadCalendarItemsForEntity = async (entityUuid, user) => {
       .limit(100),
     supabaseAdmin
       .from('disbursements')
-      .select('id, disbursement_number, status, due_date, amount, client_id, entity_id, linked_work_request_id')
+      .select(
+        'id, disbursement_number, status, due_date, amount, client_id, entity_id, linked_work_request_id'
+      )
       .eq('entity_id', entityUuid)
       .is('deleted_at', null)
       .not('due_date', 'is', null)
@@ -260,7 +268,9 @@ const loadCalendarItemsForEntity = async (entityUuid, user) => {
       .limit(200),
     supabaseAdmin
       .from('disbursements')
-      .select('id, disbursement_number, status, due_date, amount, client_id, entity_id, linked_work_request_id')
+      .select(
+        'id, disbursement_number, status, due_date, amount, client_id, entity_id, linked_work_request_id'
+      )
       .eq('entity_id', entityUuid)
       .is('deleted_at', null)
       .not('due_date', 'is', null)
@@ -660,7 +670,9 @@ const getMonthlyPending = async ({ entityId, month }) => {
     .select('id, disbursement_number, amount, status, category, created_at')
     .eq('entity_id', entityId)
     .is('deleted_at', null)
-    .in('status', ['Pending', 'Approved']);
+    .or(
+      'and(lifecycle_version.eq.2,status.in.(Draft,Approved,Funded)),and(lifecycle_version.eq.1,status.in.(Pending,Approved))'
+    );
 
   // Draft transmittals older than 7 days
   const sevenDaysAgo = new Date();
@@ -772,6 +784,7 @@ const getAgingReport = async ({ entityId }) => {
 };
 
 module.exports = {
+  invalidateAnalytics,
   getAnalytics,
   getDashboardSummary,
   getDailyReport,
