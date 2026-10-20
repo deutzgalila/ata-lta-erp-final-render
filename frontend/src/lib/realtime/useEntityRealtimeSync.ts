@@ -424,8 +424,10 @@ export function triggerAssignedTasksCoInvalidation(
   oldRecord?: Record<string, unknown> | null,
   isDelete?: boolean
 ): void {
-  const currentUserId = useSessionStore.getState().user?.id;
+  const currentUser = useSessionStore.getState().user;
+  const currentUserId = currentUser?.id;
   if (!currentUserId) return;
+  const isAdmin = String(currentUser?.role || '').toLowerCase() === 'admin';
 
   if (table === 'tasks') {
     const newAssignee = record?.assignee_id ?? record?.assigneeId;
@@ -440,14 +442,14 @@ export function triggerAssignedTasksCoInvalidation(
       (Array.isArray(oldRecord?.assignees) &&
         oldRecord.assignees.some((a) => isMatchingUserId(a, currentUserId)));
 
-    if (matchesNew || matchesOld) {
+    if (isAdmin || matchesNew || matchesOld) {
       void queryClient.invalidateQueries({ queryKey: dashboardKeys.assignedTasks.all });
     }
   } else if (table === 'task_assignees') {
     const newUserId = record?.user_id ?? record?.userId;
     const oldUserId = oldRecord?.user_id ?? oldRecord?.userId;
 
-    if (isMatchingUserId(newUserId, currentUserId) || isMatchingUserId(oldUserId, currentUserId)) {
+    if (isAdmin || isMatchingUserId(newUserId, currentUserId) || isMatchingUserId(oldUserId, currentUserId)) {
       void queryClient.invalidateQueries({ queryKey: dashboardKeys.assignedTasks.all });
     }
   } else if (table === 'work_requests') {
