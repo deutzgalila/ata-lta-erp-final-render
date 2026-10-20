@@ -37,6 +37,29 @@ import type {
   DisbursementCountsResponse,
 } from './types';
 
+function matchesQueuePredicate(item: Disbursement, queue: unknown): boolean {
+  const isArchived = Boolean(item.archived);
+  if (isArchived) return false;
+  const lv = item.lifecycle_version ?? item.lifecycleVersion;
+  if (lv !== 2) return false;
+  const hasVer = typeof item.version === 'number' && item.version > 0;
+  if (!hasVer) return false;
+  const reviewReady = item.review_ready ?? item.reviewReady;
+  if (queue === 'initial_requests') {
+    return item.status === 'Draft' && reviewReady === true;
+  }
+  if (queue === 'ready_for_funding') {
+    return item.status === 'Approved';
+  }
+  if (queue === 'payment_releases') {
+    return item.status === 'Funded';
+  }
+  if (queue === 'needs_correction') {
+    return item.status === 'Draft' && reviewReady === false;
+  }
+  return true;
+}
+
 function pinAndBroadcastDisbursement(
   queryClient: QueryClient,
   updated: Disbursement
@@ -57,6 +80,63 @@ function pinAndBroadcastDisbursement(
         queryClient.setQueryData(key, {
           ...value,
           data: value.data.map((d) => (d?.id === updated.id ? { ...d, ...updated } : d)),
+        });
+      }
+    }
+  }
+
+  // 2b. Reconcile ['disbursements', 'all-for-queue'] and ['disbursements', 'all-for-status'] caches via setQueryData
+  const allQueueLists = queryClient.getQueriesData<DisbursementListResponse>({
+    queryKey: ['disbursements', 'all-for-queue'],
+  });
+  for (const [key, value] of allQueueLists) {
+    if (value && typeof value === 'object' && Array.isArray(value.data)) {
+      const queueName = Array.isArray(key) ? key[3] : undefined;
+      const matchesQueue = matchesQueuePredicate(updated, queueName);
+      const exists = value.data.some((d) => d?.id === updated.id);
+      if (exists) {
+        const nextData = matchesQueue
+          ? value.data.map((d) => (d?.id === updated.id ? { ...d, ...updated } : d))
+          : value.data.filter((d) => d?.id !== updated.id);
+        queryClient.setQueryData(key, {
+          ...value,
+          data: nextData,
+          meta: value.meta ? { ...value.meta, total: nextData.length } : value.meta,
+        });
+      } else if (matchesQueue) {
+        const nextData = [updated, ...value.data];
+        queryClient.setQueryData(key, {
+          ...value,
+          data: nextData,
+          meta: value.meta ? { ...value.meta, total: nextData.length } : value.meta,
+        });
+      }
+    }
+  }
+
+  const allStatusLists = queryClient.getQueriesData<DisbursementListResponse>({
+    queryKey: ['disbursements', 'all-for-status'],
+  });
+  for (const [key, value] of allStatusLists) {
+    if (value && typeof value === 'object' && Array.isArray(value.data)) {
+      const targetStatus = Array.isArray(key) ? key[3] : undefined;
+      const matchesStatus = !updated.archived && (!targetStatus || updated.status === targetStatus);
+      const exists = value.data.some((d) => d?.id === updated.id);
+      if (exists) {
+        const nextData = matchesStatus
+          ? value.data.map((d) => (d?.id === updated.id ? { ...d, ...updated } : d))
+          : value.data.filter((d) => d?.id !== updated.id);
+        queryClient.setQueryData(key, {
+          ...value,
+          data: nextData,
+          meta: value.meta ? { ...value.meta, total: nextData.length } : value.meta,
+        });
+      } else if (matchesStatus) {
+        const nextData = [updated, ...value.data];
+        queryClient.setQueryData(key, {
+          ...value,
+          data: nextData,
+          meta: value.meta ? { ...value.meta, total: nextData.length } : value.meta,
         });
       }
     }
@@ -1138,7 +1218,6 @@ export function useResendDraft() {
     },
     onSuccess: (updated) => {
       pinAndBroadcastDisbursement(queryClient, updated);
-      queryClient.invalidateQueries({ queryKey: disbursementKeys.all });
     },
     onSettled: () => {
       queryClient.invalidateQueries({
@@ -1205,6 +1284,11 @@ export async function archiveDisbursementAction(
         method: 'POST',
         ...(Object.keys(payload).length > 0 ? { body: JSON.stringify(payload) } : {}),
       });
+      broadcastEntityChange({
+        domain: 'disbursements',
+        entityId: res.data.id,
+        entityData: res.data,
+      });
       return res.data;
     },
     invalidateQueries: [
@@ -1239,6 +1323,7 @@ export function useArchiveDisbursement() {
       return res.data;
     },
     onSuccess: (updated) => {
+      pinAndBroadcastDisbursement(queryClient, updated);
       queryClient.invalidateQueries({
         queryKey: disbursementKeys.all,
       });
@@ -1291,6 +1376,11 @@ export async function restoreDisbursementAction(
         method: 'POST',
         ...(Object.keys(payload).length > 0 ? { body: JSON.stringify(payload) } : {}),
       });
+      broadcastEntityChange({
+        domain: 'disbursements',
+        entityId: res.data.id,
+        entityData: res.data,
+      });
       return res.data;
     },
     invalidateQueries: [
@@ -1325,6 +1415,7 @@ export function useRestoreDisbursement() {
       return res.data;
     },
     onSuccess: (updated) => {
+      pinAndBroadcastDisbursement(queryClient, updated);
       queryClient.invalidateQueries({
         queryKey: disbursementKeys.all,
       });

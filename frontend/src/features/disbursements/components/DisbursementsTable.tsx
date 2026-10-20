@@ -88,7 +88,7 @@ export function DisbursementsTable({
   return (
     <div className="space-y-3" data-testid="disbursements-table-container">
       {/* Filter and Search Toolbar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 bg-[#FFFFFF] p-3 rounded-[8px] border-[#E2E8F0]">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 bg-[#FFFFFF] p-3 rounded-[8px] border border-[#E2E8F0]">
         <div className="flex flex-wrap items-center gap-2 flex-1">
           {/* Search */}
           <div className="relative w-full sm:w-60">
@@ -198,7 +198,7 @@ export function DisbursementsTable({
       </div>
 
       {/* Table Data */}
-      <div className="bg-[#FFFFFF] rounded-[8px] border-[#E2E8F0] overflow-hidden shadow-none">
+      <div className="bg-[#FFFFFF] rounded-[8px] border border-[#E2E8F0] overflow-hidden shadow-none">
         <Table data-testid="disbursements-table">
           <TableHeader>
             <TableRow className="bg-[#F8FAFC]/80 text-[#1E293B] hover:bg-[#F8FAFC]/80">

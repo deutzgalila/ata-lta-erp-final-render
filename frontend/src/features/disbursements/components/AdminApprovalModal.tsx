@@ -148,7 +148,7 @@ export function AdminApprovalModal({
         </DialogHeader>
 
         {/* Financial Summary Card */}
-        <div className="p-3 bg-[#F8FAFC] border-[#E2E8F0] rounded-[6px] text-xs space-y-1.5">
+        <div className="p-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[6px] text-xs space-y-1.5">
           <div className="flex justify-between items-center">
             <span className="text-[#475569]">Authorized Amount:</span>
             <span className="font-bold text-[#1E293B] text-sm" data-testid="approval-amount">
