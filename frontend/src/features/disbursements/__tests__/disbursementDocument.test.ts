@@ -39,6 +39,9 @@ describe('Canonical expense document', () => {
     expect(blank).not.toContain('<img');
     expect(blank).not.toContain('Accounting Services Firm');
     for (const html of [branded, generic, blank]) {
+      expect(html).not.toContain('THANK YOU');
+      expect(html).not.toContain('Official Internal Payment Authorization');
+      expect(html).not.toContain('voucher-footer');
       expect(html).toContain('Expense Report');
       expect(html).toContain('M. Santos');
       expect(html).toContain('A. Reyes');
