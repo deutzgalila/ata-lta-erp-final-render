@@ -7,7 +7,6 @@ import {
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
   Table,
@@ -160,8 +159,9 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
     );
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    if (typeof URL.revokeObjectURL === 'function') {
+      URL.revokeObjectURL(url);
+    }
   };
 
   const handlePrint = () => {
@@ -190,13 +190,13 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
       {/* 1. Context Toolbar (screen only) */}
       <ReportToolbar className="print:hidden">
         <ReportToolbarGroup align="left">
-          <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-600">
-            <span className="font-medium text-slate-500">As of:</span>
-            <span className="font-semibold text-slate-900 tabular-nums">
+          <div className="flex items-center gap-2 text-xs sm:text-sm text-[#1E293B]">
+            <span className="font-medium text-[#475569]">As of:</span>
+            <span className="font-semibold text-[#1E293B] tabular-nums">
               {formatManilaDate(getTodayString())}
             </span>
-            <span className="text-slate-300">·</span>
-            <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+            <span className="text-[#CBD5E1]">·</span>
+            <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-[4px] bg-[#F8FAFC] text-[#1E293B] border border-[#E2E8F0]">
               Entity: {activeEntity}
             </span>
           </div>
@@ -208,7 +208,7 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
             size="sm"
             onClick={handleExportCsv}
             disabled={filteredEntries.length === 0}
-            className="text-xs h-8 gap-1.5 cursor-pointer"
+            className="text-xs font-medium h-8 px-3 rounded-[6px] border border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] text-[#1E293B] transition-colors cursor-pointer gap-1.5 shadow-2xs"
             data-testid="aging-export-csv-button"
           >
             <Download className="w-3.5 h-3.5" />
@@ -219,7 +219,7 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
             variant="outline"
             size="sm"
             onClick={handlePrint}
-            className="text-xs h-8 gap-1.5 cursor-pointer"
+            className="text-xs font-medium h-8 px-3 rounded-[6px] border border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] text-[#1E293B] transition-colors cursor-pointer gap-1.5 shadow-2xs"
             data-testid="aging-print-button"
           >
             <Printer className="w-3.5 h-3.5" />
@@ -231,7 +231,7 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
             size="sm"
             onClick={() => refetch()}
             disabled={isRefetching}
-            className="text-xs h-8 gap-1.5 cursor-pointer"
+            className="text-xs font-medium h-8 px-3 rounded-[6px] border border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] text-[#1E293B] shadow-2xs transition-colors cursor-pointer gap-1.5"
             data-testid="aging-refresh-button"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isRefetching ? 'animate-spin' : ''}`} />
@@ -242,18 +242,20 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
 
       {/* 2. Print Header (visible only during window.print()) */}
       <div className="hidden print:block mb-6 space-y-3">
-        <div className="border-b border-slate-300 pb-3">
-          <h1 className="text-xl font-bold text-slate-900">AR Aging Report</h1>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-1 mt-2 text-xs text-slate-700">
+        <div className="border-b-2 border-[#0F172A] pb-3">
+          <h1 className="text-xl font-bold uppercase tracking-tight text-[#1E293B]">
+            AR Aging Report
+          </h1>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1 mt-2 text-xs text-[#1E293B]">
             <div>
-              <span className="font-semibold text-slate-900">Operating Entity:</span> {activeEntity}
+              <span className="font-semibold text-[#1E293B]">Operating Entity:</span> {activeEntity}
             </div>
             <div>
-              <span className="font-semibold text-slate-900">As of Date:</span>{' '}
+              <span className="font-semibold text-[#1E293B]">As of Date:</span>{' '}
               {formatManilaDate(getTodayString())}
             </div>
             <div>
-              <span className="font-semibold text-slate-900">Active Bucket:</span>{' '}
+              <span className="font-semibold text-[#1E293B]">Active Bucket:</span>{' '}
               {selectedBucket === 'all'
                 ? 'All Buckets'
                 : selectedBucket === '90+'
@@ -263,16 +265,16 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
                 : `${selectedBucket} Days`}
             </div>
             <div>
-              <span className="font-semibold text-slate-900">Invoices Included:</span>{' '}
+              <span className="font-semibold text-[#1E293B]">Invoices Included:</span>{' '}
               {filteredEntries.length} of {allEntries.length}
             </div>
             <div>
-              <span className="font-semibold text-slate-900">Outstanding Balance:</span>{' '}
+              <span className="font-semibold text-[#1E293B]">Outstanding Balance:</span>{' '}
               {formatCurrency(summary.grandTotal)}
             </div>
             {filteredBalance !== summary.grandTotal && (
               <div>
-                <span className="font-semibold text-slate-900">Filtered Balance:</span>{' '}
+                <span className="font-semibold text-[#1E293B]">Filtered Balance:</span>{' '}
                 {formatCurrency(filteredBalance)}
               </div>
             )}
@@ -282,19 +284,19 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
 
       {/* 3. Headline Outstanding Balance Summary Figure */}
       <div
-        className="bg-white rounded-xl border border-slate-200/80 p-4 sm:p-5 shadow-2xs flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 cursor-pointer transition-colors hover:border-slate-300 print:hidden"
+        className="bg-[#FFFFFF] rounded-[8px] border border-[#E2E8F0] p-4 sm:p-5 shadow-card flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 cursor-pointer transition-colors hover:bg-[#F8FAFC] print:hidden"
         onClick={() => setSelectedBucket('all')}
         data-testid="kpi-grand-total"
       >
         <div>
-          <span className="text-xs sm:text-sm font-medium text-slate-500 block">
+          <span className="text-xs font-medium text-[#475569] block">
             Outstanding balance
           </span>
-          <span className="text-2xl sm:text-3xl font-semibold text-slate-900 tracking-tight mt-1 block tabular-nums">
+          <span className="text-2xl sm:text-3xl font-bold text-[#1E293B] tracking-tight mt-1 block tabular-nums">
             {formatCurrency(summary.grandTotal)}
           </span>
         </div>
-        <div className="text-xs text-slate-500 tabular-nums">
+        <div className="text-xs text-[#475569] tabular-nums">
           Total across all overdue and current brackets ({allEntries.length} {allEntries.length === 1 ? 'invoice' : 'invoices'})
         </div>
       </div>
@@ -311,20 +313,20 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
           type="button"
           onClick={() => setSelectedBucket('all')}
           aria-pressed={selectedBucket === 'all' ? 'true' : 'false'}
-          className={`p-3 rounded-xl border transition-all text-left flex flex-col justify-between cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
+          className={`p-3.5 rounded-[8px] border transition-colors text-left flex flex-col justify-between cursor-pointer focus:outline-none ${
             selectedBucket === 'all'
-              ? 'bg-blue-50/70 border-blue-600 ring-1 ring-blue-600/30 text-blue-950'
-              : 'bg-white border-slate-200/90 text-slate-700 hover:border-slate-300 hover:bg-slate-50/60'
+              ? 'bg-[#EFF6FF] border-[#1D4ED8] ring-1 ring-[#1D4ED8] text-[#1E293B] shadow-2xs'
+              : 'bg-[#FFFFFF] border-[#E2E8F0] text-[#1E293B] hover:bg-[#F8FAFC] hover:border-[#94A3B8]'
           }`}
           data-testid="bucket-btn-all"
         >
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 block">
+          <span className={`text-xs font-medium block ${selectedBucket === 'all' ? 'text-[#1E40AF]' : 'text-[#475569]'}`}>
             All
           </span>
-          <span className="text-sm sm:text-base font-semibold text-slate-900 mt-1 block tabular-nums">
+          <span className="text-sm sm:text-base font-bold mt-1 block tabular-nums text-[#1E293B]">
             {formatCurrency(summary.grandTotal)}
           </span>
-          <span className="text-xs text-slate-500 mt-0.5 block tabular-nums">
+          <span className={`text-xs mt-0.5 block tabular-nums ${selectedBucket === 'all' ? 'text-[#1E40AF]' : 'text-[#475569]'}`}>
             {formatCount(allEntries.length)} {allEntries.length === 1 ? 'invoice' : 'invoices'}
           </span>
         </button>
@@ -334,20 +336,20 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
           type="button"
           onClick={() => handleBucketClick('current')}
           aria-pressed={selectedBucket === 'current' ? 'true' : 'false'}
-          className={`p-3 rounded-xl border transition-all text-left flex flex-col justify-between cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
+          className={`p-3.5 rounded-[8px] border transition-colors text-left flex flex-col justify-between cursor-pointer focus:outline-none ${
             selectedBucket === 'current'
-              ? 'bg-blue-50/70 border-blue-600 ring-1 ring-blue-600/30 text-blue-950'
-              : 'bg-white border-slate-200/90 text-slate-700 hover:border-slate-300 hover:bg-slate-50/60'
+              ? 'bg-[#EFF6FF] border-[#1D4ED8] ring-1 ring-[#1D4ED8] text-[#1E293B] shadow-2xs'
+              : 'bg-[#FFFFFF] border-[#E2E8F0] text-[#1E293B] hover:bg-[#F8FAFC] hover:border-[#94A3B8]'
           }`}
           data-testid="kpi-current"
         >
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 block">
+          <span className={`text-xs font-medium block ${selectedBucket === 'current' ? 'text-[#1E40AF]' : 'text-[#475569]'}`}>
             Current
           </span>
-          <span className="text-sm sm:text-base font-semibold text-slate-900 mt-1 block tabular-nums">
+          <span className="text-sm sm:text-base font-bold mt-1 block tabular-nums text-[#1E293B]">
             {formatCurrency(summary.current)}
           </span>
-          <span className="text-xs text-slate-500 mt-0.5 block tabular-nums">
+          <span className={`text-xs mt-0.5 block tabular-nums ${selectedBucket === 'current' ? 'text-[#1E40AF]' : 'text-[#475569]'}`}>
             {formatCount(agingData?.buckets?.current?.count ?? 0)}{' '}
             {(agingData?.buckets?.current?.count ?? 0) === 1 ? 'invoice' : 'invoices'}
           </span>
@@ -358,20 +360,20 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
           type="button"
           onClick={() => handleBucketClick('1-30')}
           aria-pressed={selectedBucket === '1-30' ? 'true' : 'false'}
-          className={`p-3 rounded-xl border transition-all text-left flex flex-col justify-between cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
+          className={`p-3.5 rounded-[8px] border transition-colors text-left flex flex-col justify-between cursor-pointer focus:outline-none ${
             selectedBucket === '1-30'
-              ? 'bg-blue-50/70 border-blue-600 ring-1 ring-blue-600/30 text-blue-950'
-              : 'bg-white border-slate-200/90 text-slate-700 hover:border-slate-300 hover:bg-slate-50/60'
+              ? 'bg-[#EFF6FF] border-[#1D4ED8] ring-1 ring-[#1D4ED8] text-[#1E293B] shadow-2xs'
+              : 'bg-[#FFFFFF] border-[#E2E8F0] text-[#1E293B] hover:bg-[#F8FAFC] hover:border-[#94A3B8]'
           }`}
           data-testid="kpi-1-30"
         >
-          <span className="text-xs font-semibold uppercase tracking-wider text-amber-700 block">
+          <span className={`text-xs font-medium block ${selectedBucket === '1-30' ? 'text-[#1E40AF]' : 'text-[#854D0E]'}`}>
             1–30 Days
           </span>
-          <span className="text-sm sm:text-base font-semibold text-slate-900 mt-1 block tabular-nums">
+          <span className="text-sm sm:text-base font-bold mt-1 block tabular-nums text-[#1E293B]">
             {formatCurrency(summary['1-30'])}
           </span>
-          <span className="text-xs text-slate-500 mt-0.5 block tabular-nums">
+          <span className={`text-xs mt-0.5 block tabular-nums ${selectedBucket === '1-30' ? 'text-[#1E40AF]' : 'text-[#475569]'}`}>
             {formatCount(agingData?.buckets?.['1-30']?.count ?? 0)}{' '}
             {(agingData?.buckets?.['1-30']?.count ?? 0) === 1 ? 'invoice' : 'invoices'}
           </span>
@@ -382,20 +384,20 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
           type="button"
           onClick={() => handleBucketClick('31-60')}
           aria-pressed={selectedBucket === '31-60' ? 'true' : 'false'}
-          className={`p-3 rounded-xl border transition-all text-left flex flex-col justify-between cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
+          className={`p-3.5 rounded-[8px] border transition-colors text-left flex flex-col justify-between cursor-pointer focus:outline-none ${
             selectedBucket === '31-60'
-              ? 'bg-blue-50/70 border-blue-600 ring-1 ring-blue-600/30 text-blue-950'
-              : 'bg-white border-slate-200/90 text-slate-700 hover:border-slate-300 hover:bg-slate-50/60'
+              ? 'bg-[#EFF6FF] border-[#1D4ED8] ring-1 ring-[#1D4ED8] text-[#1E293B] shadow-2xs'
+              : 'bg-[#FFFFFF] border-[#E2E8F0] text-[#1E293B] hover:bg-[#F8FAFC] hover:border-[#94A3B8]'
           }`}
           data-testid="kpi-31-60"
         >
-          <span className="text-xs font-semibold uppercase tracking-wider text-orange-700 block">
+          <span className={`text-xs font-medium block ${selectedBucket === '31-60' ? 'text-[#1E40AF]' : 'text-[#854D0E]'}`}>
             31–60 Days
           </span>
-          <span className="text-sm sm:text-base font-semibold text-slate-900 mt-1 block tabular-nums">
+          <span className="text-sm sm:text-base font-bold mt-1 block tabular-nums text-[#1E293B]">
             {formatCurrency(summary['31-60'])}
           </span>
-          <span className="text-xs text-slate-500 mt-0.5 block tabular-nums">
+          <span className={`text-xs mt-0.5 block tabular-nums ${selectedBucket === '31-60' ? 'text-[#1E40AF]' : 'text-[#475569]'}`}>
             {formatCount(agingData?.buckets?.['31-60']?.count ?? 0)}{' '}
             {(agingData?.buckets?.['31-60']?.count ?? 0) === 1 ? 'invoice' : 'invoices'}
           </span>
@@ -406,20 +408,20 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
           type="button"
           onClick={() => handleBucketClick('61-90')}
           aria-pressed={selectedBucket === '61-90' ? 'true' : 'false'}
-          className={`p-3 rounded-xl border transition-all text-left flex flex-col justify-between cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
+          className={`p-3.5 rounded-[8px] border transition-colors text-left flex flex-col justify-between cursor-pointer focus:outline-none ${
             selectedBucket === '61-90'
-              ? 'bg-blue-50/70 border-blue-600 ring-1 ring-blue-600/30 text-blue-950'
-              : 'bg-white border-slate-200/90 text-slate-700 hover:border-slate-300 hover:bg-slate-50/60'
+              ? 'bg-[#EFF6FF] border-[#1D4ED8] ring-1 ring-[#1D4ED8] text-[#1E293B] shadow-2xs'
+              : 'bg-[#FFFFFF] border-[#E2E8F0] text-[#1E293B] hover:bg-[#F8FAFC] hover:border-[#94A3B8]'
           }`}
           data-testid="kpi-61-90"
         >
-          <span className="text-xs font-semibold uppercase tracking-wider text-rose-700 block">
+          <span className={`text-xs font-medium block ${selectedBucket === '61-90' ? 'text-[#1E40AF]' : 'text-[#991B1B]'}`}>
             61–90 Days
           </span>
-          <span className="text-sm sm:text-base font-semibold text-slate-900 mt-1 block tabular-nums">
+          <span className="text-sm sm:text-base font-bold mt-1 block tabular-nums text-[#1E293B]">
             {formatCurrency(summary['61-90'])}
           </span>
-          <span className="text-xs text-slate-500 mt-0.5 block tabular-nums">
+          <span className={`text-xs mt-0.5 block tabular-nums ${selectedBucket === '61-90' ? 'text-[#1E40AF]' : 'text-[#475569]'}`}>
             {formatCount(agingData?.buckets?.['61-90']?.count ?? 0)}{' '}
             {(agingData?.buckets?.['61-90']?.count ?? 0) === 1 ? 'invoice' : 'invoices'}
           </span>
@@ -430,20 +432,20 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
           type="button"
           onClick={() => handleBucketClick('90+')}
           aria-pressed={selectedBucket === '90+' ? 'true' : 'false'}
-          className={`p-3 rounded-xl border transition-all text-left flex flex-col justify-between cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${
+          className={`p-3.5 rounded-[8px] border transition-colors text-left flex flex-col justify-between cursor-pointer focus:outline-none ${
             selectedBucket === '90+'
-              ? 'bg-blue-50/70 border-blue-600 ring-1 ring-blue-600/30 text-blue-950'
-              : 'bg-white border-slate-200/90 text-slate-700 hover:border-slate-300 hover:bg-slate-50/60'
+              ? 'bg-[#EFF6FF] border-[#1D4ED8] ring-1 ring-[#1D4ED8] text-[#1E293B] shadow-2xs'
+              : 'bg-[#FFFFFF] border-[#E2E8F0] text-[#1E293B] hover:bg-[#F8FAFC] hover:border-[#94A3B8]'
           }`}
           data-testid="kpi-90-plus"
         >
-          <span className="text-xs font-semibold uppercase tracking-wider text-purple-700 block">
+          <span className={`text-xs font-medium block ${selectedBucket === '90+' ? 'text-[#1E40AF]' : 'text-[#991B1B]'}`}>
             90+ Days
           </span>
-          <span className="text-sm sm:text-base font-semibold text-slate-900 mt-1 block tabular-nums">
+          <span className="text-sm sm:text-base font-bold mt-1 block tabular-nums text-[#1E293B]">
             {formatCurrency(summary['90+'])}
           </span>
-          <span className="text-xs text-slate-500 mt-0.5 block tabular-nums">
+          <span className={`text-xs mt-0.5 block tabular-nums ${selectedBucket === '90+' ? 'text-[#1E40AF]' : 'text-[#475569]'}`}>
             {formatCount(agingData?.buckets?.['90+']?.count ?? 0)}{' '}
             {(agingData?.buckets?.['90+']?.count ?? 0) === 1 ? 'invoice' : 'invoices'}
           </span>
@@ -453,12 +455,12 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
       {/* 5. Search Bar & Distinct Result Labeling */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 print:hidden">
         <div className="relative max-w-sm flex-1">
-          <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400 pointer-events-none" />
+          <Search className="w-4 h-4 absolute left-3 top-2.5 text-[#475569] pointer-events-none" />
           <Input
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by client or invoice number..."
-            className="pl-9 pr-8 h-9 text-xs sm:text-sm bg-white"
+            className="pl-9 pr-8 h-9 text-xs sm:text-sm bg-white rounded-[6px] border border-[#E2E8F0] text-[#1E293B] focus-visible:ring-[#1D4ED8]"
             data-testid="aging-search-input"
             aria-label="Search invoices by client name or invoice number"
           />
@@ -467,7 +469,7 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
               type="button"
               onClick={() => setSearchQuery('')}
               aria-label="Clear search"
-              className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+              className="absolute right-2.5 top-2.5 text-[#475569] hover:text-[#1E293B] cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -475,24 +477,24 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
         </div>
 
         <div
-          className="text-xs sm:text-sm text-slate-600 flex flex-wrap items-center gap-1.5"
+          className="text-xs sm:text-sm text-[#475569] flex flex-wrap items-center gap-1.5"
           data-testid="aging-filter-summary"
         >
           <span>
-            Showing <strong className="font-semibold text-slate-900 tabular-nums">{filteredEntries.length}</strong> of{' '}
-            <strong className="font-semibold text-slate-900 tabular-nums">{allEntries.length}</strong> invoices
+            Showing <strong className="font-bold text-[#1E293B] tabular-nums">{filteredEntries.length}</strong> of{' '}
+            <strong className="font-bold text-[#1E293B] tabular-nums">{allEntries.length}</strong> invoices
           </span>
-          <span aria-hidden="true" className="text-slate-300">·</span>
+          <span aria-hidden="true" className="text-[#CBD5E1]">·</span>
           <span>
             Filtered balance:{' '}
-            <strong className="font-semibold text-slate-900 tabular-nums">
+            <strong className="font-bold text-[#1E293B] tabular-nums">
               {formatCurrency(filteredBalance)}
             </strong>
           </span>
           {selectedBucket !== 'all' && (
             <>
-              <span aria-hidden="true" className="text-slate-300">·</span>
-              <span className="text-blue-700 font-medium">
+              <span aria-hidden="true" className="text-[#CBD5E1]">·</span>
+              <span className="font-medium text-[#1E293B]">
                 ({selectedBucket === '90+' ? '90+ Days' : selectedBucket === 'current' ? 'Current' : `${selectedBucket} Days`} bucket)
               </span>
             </>
@@ -530,36 +532,22 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
       ) : (
         <ReportTableContainer minWidth="min-w-[800px]" ariaLabel="Accounts receivable aging invoices">
           <Table>
-            <TableHeader className="bg-slate-50/80">
-              <TableRow className="border-b border-slate-200">
-                <TableHead className="text-xs font-semibold text-slate-700 text-left py-3 px-4">
-                  Invoice #
-                </TableHead>
-                <TableHead className="text-xs font-semibold text-slate-700 text-left py-3 px-4">
-                  Client Name
-                </TableHead>
-                <TableHead className="text-xs font-semibold text-slate-700 text-left py-3 px-4">
-                  Due Date
-                </TableHead>
-                <TableHead className="text-xs font-semibold text-slate-700 text-right py-3 px-4">
-                  Days Overdue
-                </TableHead>
-                <TableHead className="text-xs font-semibold text-slate-700 text-left py-3 px-4">
-                  Aging Bracket
-                </TableHead>
-                <TableHead className="text-xs font-semibold text-slate-700 text-right py-3 px-4">
-                  Invoice Total
-                </TableHead>
-                <TableHead className="text-xs font-semibold text-slate-700 text-right py-3 px-4">
-                  Balance
-                </TableHead>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Invoice #</TableHead>
+                <TableHead>Client Name</TableHead>
+                <TableHead>Due Date</TableHead>
+                <TableHead className="text-right">Days Overdue</TableHead>
+                <TableHead>Aging Bracket</TableHead>
+                <TableHead className="text-right">Invoice Total</TableHead>
+                <TableHead className="text-right">Balance</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody className="divide-y divide-slate-100">
+            <TableBody>
               {filteredEntries.map((row) => (
                 <TableRow
                   key={row.id}
-                  className="hover:bg-slate-50/70 transition-colors cursor-pointer"
+                  className="hover:bg-[#F8FAFC] transition-colors cursor-pointer"
                   onClick={() => onSelectInvoiceId?.(row.id)}
                   tabIndex={onSelectInvoiceId ? 0 : undefined}
                   onKeyDown={(e) => {
@@ -570,52 +558,51 @@ export function AgingReportTab({ onSelectInvoiceId }: AgingReportTabProps) {
                   }}
                   data-testid={`aging-row-${row.id}`}
                 >
-                  <TableCell className="font-semibold text-xs text-slate-900 py-3 px-4 text-left">
+                  <TableCell className="font-semibold text-xs text-[#1E293B] py-3 px-4 text-left tabular-nums">
                     {row.invoiceNumber}
                   </TableCell>
-                  <TableCell className="text-xs text-slate-700 py-3 px-4 text-left font-medium">
+                  <TableCell className="text-xs text-[#1E293B] py-3 px-4 text-left font-medium">
                     {row.clientName}
                   </TableCell>
-                  <TableCell className="text-xs text-slate-600 py-3 px-4 text-left tabular-nums">
+                  <TableCell className="text-xs text-[#475569] py-3 px-4 text-left tabular-nums">
                     {formatManilaDate(row.dueDate)}
                   </TableCell>
-                  <TableCell className="text-xs py-3 px-4 text-right tabular-nums font-medium">
+                  <TableCell className="text-xs py-3 px-4 text-right tabular-nums font-semibold">
                     <span
                       className={
                         row.daysOverdue > 60
-                          ? 'text-rose-700 font-semibold'
+                          ? 'text-[#991B1B] font-bold'
                           : row.daysOverdue > 30
-                          ? 'text-orange-700 font-semibold'
+                          ? 'text-[#854D0E] font-bold'
                           : row.daysOverdue > 0
-                          ? 'text-amber-700 font-semibold'
-                          : 'text-slate-600'
+                          ? 'text-[#854D0E] font-semibold'
+                          : 'text-[#475569]'
                       }
                     >
                       {row.daysOverdue} {row.daysOverdue === 1 ? 'day' : 'days'}
                     </span>
                   </TableCell>
                   <TableCell className="py-3 px-4 text-left">
-                    <Badge
-                      variant="outline"
-                      className={`text-[11px] font-medium ${
+                    <span
+                      className={`inline-flex items-center px-2 py-0.5 rounded-[4px] border  text-xs font-semibold tabular-nums ${
                         row.bucket === 'Current'
-                          ? 'bg-blue-50 text-blue-700 border-blue-200'
+                          ? 'bg-[#F0FDF4] text-[#166534] border-[#86EFAC]'
                           : row.bucket === '1–30 Days'
-                          ? 'bg-amber-50 text-amber-700 border-amber-200'
+                          ? 'bg-[#FEFCE8] text-[#854D0E] border-[#FDE047]'
                           : row.bucket === '31–60 Days'
-                          ? 'bg-orange-50 text-orange-700 border-orange-200'
+                          ? 'bg-[#FEFCE8] text-[#854D0E] border-[#FDE047]'
                           : row.bucket === '61–90 Days'
-                          ? 'bg-rose-50 text-rose-700 border-rose-200'
-                          : 'bg-purple-50 text-purple-700 border-purple-200'
+                          ? 'bg-[#FEF2F2] text-[#991B1B] border-[#FCA5A5]'
+                          : 'bg-[#FEF2F2] text-[#991B1B] border-[#FCA5A5]'
                       }`}
                     >
                       {row.bucket}
-                    </Badge>
+                    </span>
                   </TableCell>
-                  <TableCell className="text-xs text-slate-700 text-right py-3 px-4 tabular-nums">
+                  <TableCell className="text-xs text-[#475569] text-right py-3 px-4 tabular-nums">
                     {formatCurrency(row.total)}
                   </TableCell>
-                  <TableCell className="text-xs font-semibold text-slate-900 text-right py-3 px-4 tabular-nums">
+                  <TableCell className="text-xs font-bold text-[#1E293B] text-right py-3 px-4 tabular-nums">
                     {formatCurrency(row.balance)}
                   </TableCell>
                 </TableRow>

@@ -85,15 +85,14 @@ export function TransmittalDetailModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent
-        className="max-w-2xl max-h-[90vh] overflow-y-auto"
+      <DialogContent className="border-[#E2E8F0] max-w-2xl border max-h-[90vh] rounded-[12px] bg-[#FFFFFF] shadow-float overflow-y-auto"
         data-testid="transmittal-detail-modal"
       >
         <DialogHeader className="border-b pb-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-blue-600" />
-              <DialogTitle className="font-mono text-lg font-bold text-slate-900" data-testid="detail-tracking-number">
+              <FileText className="h-5 w-5 text-[#1E293B]" />
+              <DialogTitle className="font-mono text-lg font-bold text-[#1E293B]" data-testid="detail-tracking-number">
                 {transmittal?.tracking_number || 'Loading...'}
               </DialogTitle>
               {transmittal?.entity_code && (
@@ -114,49 +113,49 @@ export function TransmittalDetailModal({
         </DialogHeader>
 
         {error ? (
-          <div role="alert" className="space-y-3 py-10 text-center text-sm text-slate-600">
+          <div role="alert" className="space-y-3 py-10 text-center text-sm text-[#475569]">
             <p>{error.message || 'Unable to load this transmittal.'}</p>
             <Button variant="outline" size="sm" disabled={isFetching} onClick={() => void refetch()}>Retry</Button>
           </div>
         ) : isLoading || !transmittal ? (
-          <div className="py-16 text-center text-xs text-slate-400">Loading details...</div>
+          <div className="py-16 text-center text-xs text-[#475569]">Loading details...</div>
         ) : (
           <div className="space-y-6 pt-2">
             {/* Client and Recipient Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Client Info */}
-              <div className="bg-slate-50 p-3.5 rounded-lg border border-slate-200 space-y-2">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  <Building className="h-3.5 w-3.5 text-slate-500" />
+              <div className="bg-[#F8FAFC] p-3.5 rounded-[8px] border-[#E2E8F0] space-y-2">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-[#1E293B] tracking-normal">
+                  <Building className="h-3.5 w-3.5 text-[#475569]" />
                   Client Details
                 </div>
-                <div className="text-sm font-semibold text-slate-900" data-testid="detail-client-name">
+                <div className="text-sm font-semibold text-[#1E293B]" data-testid="detail-client-name">
                   {transmittal.clients?.name || 'Client not assigned'}
                 </div>
                 {transmittal.clients?.address && (
-                  <div className="text-xs text-slate-600 flex items-start gap-1">
-                    <MapPin className="h-3 w-3 mt-0.5 text-slate-400 shrink-0" />
+                  <div className="text-xs text-[#475569] flex items-start gap-1">
+                    <MapPin className="h-3 w-3 mt-0.5 text-[#475569] shrink-0" />
                     <span>{transmittal.clients.address}</span>
                   </div>
                 )}
                 {transmittal.clients?.tin && (
-                  <div className="text-xs text-slate-500">
+                  <div className="text-xs text-[#475569]">
                     <span className="font-medium">TIN:</span> {transmittal.clients.tin}
                   </div>
                 )}
               </div>
 
               {/* Recipient Info */}
-              <div className="bg-slate-50 p-3.5 rounded-lg border border-slate-200 space-y-2">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  <User className="h-3.5 w-3.5 text-slate-500" />
+              <div className="bg-[#F8FAFC] p-3.5 rounded-[8px] border-[#E2E8F0] space-y-2">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-[#1E293B] tracking-normal">
+                  <User className="h-3.5 w-3.5 text-[#475569]" />
                   Delivery Recipient
                 </div>
-                <div className="text-sm font-semibold text-slate-900" data-testid="detail-recipient-name">
+                <div className="text-sm font-semibold text-[#1E293B]" data-testid="detail-recipient-name">
                   {transmittal.recipient_name || 'No recipient person specified'}
                 </div>
                 {transmittal.recipient_details && (
-                  <div className="text-xs text-slate-600" data-testid="detail-recipient-details">
+                  <div className="text-xs text-[#475569]" data-testid="detail-recipient-details">
                     {transmittal.recipient_details}
                   </div>
                 )}
@@ -166,15 +165,15 @@ export function TransmittalDetailModal({
             {/* Document Line Items Table (Item-rows-only fix) */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <Layers className="h-3.5 w-3.5 text-blue-600" />
+                <h4 className="text-xs font-bold text-[#1E293B] tracking-normal flex items-center gap-1.5">
+                  <Layers className="h-3.5 w-3.5 text-[#1E293B]" />
                   Manifest Documents ({transmittal.items?.length ?? 0})
                 </h4>
               </div>
 
-              <div className="border border-slate-200 rounded-lg overflow-hidden">
+              <div className="border-[#E2E8F0] rounded-[6px] overflow-hidden">
                 <table className="w-full text-left text-xs" data-testid="detail-items-table">
-                  <thead className="bg-slate-100 text-slate-700 font-semibold border-b text-[11px]">
+                  <thead className="bg-[#F8FAFC] text-[#1E293B] font-semibold border-b text-xs">
                     <tr>
                       <th className="py-2.5 px-3 w-10 text-center">#</th>
                       <th className="py-2.5 px-3 w-28">Category</th>
@@ -185,25 +184,25 @@ export function TransmittalDetailModal({
                   <tbody className="divide-y divide-slate-100 bg-white">
                     {(!transmittal.items || transmittal.items.length === 0) ? (
                       <tr>
-                        <td colSpan={4} className="py-6 text-center text-slate-400">
+                        <td colSpan={4} className="py-6 text-center text-[#475569]">
                           No document line items attached.
                         </td>
                       </tr>
                     ) : (
                       transmittal.items.map((item, idx) => (
-                        <tr key={item.id || idx} className="hover:bg-slate-50/50">
-                          <td className="py-2.5 px-3 font-mono text-center text-slate-400">
+                        <tr key={item.id || idx} className="hover:bg-[#F8FAFC]/50">
+                          <td className="py-2.5 px-3 tabular-nums text-center text-[#475569]">
                             {idx + 1}
                           </td>
                           <td className="py-2.5 px-3">
-                            <Badge variant="outline" className="text-[10px] py-0 px-1 font-medium bg-slate-50">
+                            <Badge variant="outline" className="text-xs py-0 px-1 font-medium bg-[#F8FAFC]">
                               {item.document_type || item.documentType || 'Others'}
                             </Badge>
                           </td>
-                          <td className="py-2.5 px-3 font-medium text-slate-800">
+                          <td className="py-2.5 px-3 font-medium text-[#1E293B]">
                             {item.description}
                           </td>
-                          <td className="py-2.5 px-3 font-mono font-semibold text-center text-slate-700">
+                          <td className="py-2.5 px-3 tabular-nums font-semibold text-center text-[#1E293B]">
                             {item.quantity}
                           </td>
                         </tr>
@@ -216,24 +215,24 @@ export function TransmittalDetailModal({
 
             {/* Notes Section */}
             {transmittal.notes && (
-              <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
-                <div className="text-xs font-semibold text-slate-700">Delivery Notes:</div>
-                <p className="text-xs text-slate-600 whitespace-pre-wrap">{transmittal.notes}</p>
+              <div className="p-3 bg-[#F8FAFC] rounded-[8px] border-[#E2E8F0] space-y-1">
+                <div className="text-xs font-semibold text-[#1E293B]">Delivery Notes:</div>
+                <p className="text-xs text-[#475569] whitespace-pre-wrap">{transmittal.notes}</p>
               </div>
             )}
 
             {/* Audit Trail Metadata */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-slate-50/75 rounded-lg border border-slate-100 text-[11px] text-slate-500">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-[#F8FAFC]/75 rounded-[8px] border-[#E2E8F0] text-xs text-[#475569]">
               <div>
-                <span className="font-semibold block text-slate-700">Created At:</span>
+                <span className="font-semibold block text-[#1E293B]">Created At:</span>
                 <span>{new Date(transmittal.created_at).toLocaleString()}</span>
               </div>
               <div>
-                <span className="font-semibold block text-slate-700">Sent At:</span>
+                <span className="font-semibold block text-[#1E293B]">Sent At:</span>
                 <span>{transmittal.sent_at ? new Date(transmittal.sent_at).toLocaleString() : 'Not sent'}</span>
               </div>
               <div>
-                <span className="font-semibold block text-slate-700">Acknowledged:</span>
+                <span className="font-semibold block text-[#1E293B]">Acknowledged:</span>
                 <span>
                   {transmittal.acknowledged_at
                     ? new Date(transmittal.acknowledged_at).toLocaleString()
@@ -241,14 +240,14 @@ export function TransmittalDetailModal({
                 </span>
               </div>
               <div>
-                <span className="font-semibold block text-slate-700">OCC Version:</span>
-                <span className="font-mono">v{transmittal.version}</span>
+                <span className="font-semibold block text-[#1E293B]">OCC Version:</span>
+                <span className="">v{transmittal.version}</span>
               </div>
             </div>
           </div>
         )}
 
-        <DialogFooter className="pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+        <DialogFooter className="pt-4 border-t border-[#E2E8F0] flex flex-wrap items-center justify-between gap-2">
           {/* Left Actions: Print, Edit, Delete */}
           <div className="flex items-center gap-1.5">
             {transmittal && onPrint && (
@@ -313,7 +312,7 @@ export function TransmittalDetailModal({
                         size="sm"
                         disabled={isSendDisabled}
                         onClick={() => onSend(transmittal)}
-                        className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white gap-1 disabled:opacity-50"
+                        className="h-8 text-xs bg-[#1D4ED8] hover:bg-[#1E40AF] text-white shadow-2xs gap-1 disabled:opacity-50"
                         data-testid="detail-send-btn"
                       >
                         <Send className="h-3.5 w-3.5" />

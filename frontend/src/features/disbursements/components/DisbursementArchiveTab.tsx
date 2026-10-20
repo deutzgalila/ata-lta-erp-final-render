@@ -1,13 +1,5 @@
 import { useState } from 'react';
-import {
-  Archive,
-  RotateCcw,
-  Search,
-  ChevronLeft,
-  ChevronRight,
-  Eye,
-  Wallet,
-} from 'lucide-react';
+import { Archive, RotateCcw, Search, ChevronLeft, ChevronRight, Eye, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -29,9 +21,7 @@ export interface DisbursementArchiveTabProps {
   onSelectDisbursement?: (id: string) => void;
 }
 
-export function DisbursementArchiveTab({
-  onSelectDisbursement,
-}: DisbursementArchiveTabProps) {
+export function DisbursementArchiveTab({ onSelectDisbursement }: DisbursementArchiveTabProps) {
   const [searchInput, setSearchInput] = useState('');
   const debouncedSearch = useDebounce(searchInput, 300);
   const [page, setPage] = useState(1);
@@ -41,11 +31,20 @@ export function DisbursementArchiveTab({
   const activeEntity = useSessionStore((state) => state.activeEntity);
   const user = useSessionStore((state) => state.user);
   const canEdit = user?.role === 'Admin' && hasPermission(permissions, 'disbursement:edit');
-  const canRestore = (item: Disbursement) => canEdit &&
-    (item.lifecycle_version ?? item.lifecycleVersion) === 2 && item.status === 'Released' &&
-    item.archived === true && Number.isInteger(item.version) && item.version > 0;
+  const canRestore = (item: Disbursement) =>
+    canEdit &&
+    (item.lifecycle_version ?? item.lifecycleVersion) === 2 &&
+    item.status === 'Released' &&
+    item.archived === true &&
+    Number.isInteger(item.version) &&
+    item.version > 0;
 
-  const { data: response, isLoading, isFetching, refetch } = useDisbursementsList({
+  const {
+    data: response,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useDisbursementsList({
     archived: true,
     search: debouncedSearch || undefined,
     page,
@@ -81,7 +80,8 @@ export function DisbursementArchiveTab({
 
   const handleRestoreSingle = async (disb: Disbursement) => {
     if (isFiltering || !canRestore(disb)) return;
-    const refNum = disb.disbursement_number || disb.disbursementNumber || `DISB-${disb.id.slice(0, 8)}`;
+    const refNum =
+      disb.disbursement_number || disb.disbursementNumber || `DISB-${disb.id.slice(0, 8)}`;
     try {
       await restoreDisbursementAction(disb.id, refNum, activeEntity, disb.version);
       setSelectedIds((prev) => {
@@ -99,7 +99,8 @@ export function DisbursementArchiveTab({
     if (isFiltering) return;
     const toRestore = restorable.filter((d) => selectedIds.has(d.id));
     for (const disb of toRestore) {
-      const refNum = disb.disbursement_number || disb.disbursementNumber || `DISB-${disb.id.slice(0, 8)}`;
+      const refNum =
+        disb.disbursement_number || disb.disbursementNumber || `DISB-${disb.id.slice(0, 8)}`;
       try {
         await restoreDisbursementAction(disb.id, refNum, activeEntity, disb.version);
       } catch {
@@ -113,9 +114,9 @@ export function DisbursementArchiveTab({
   return (
     <div className="space-y-4" data-testid="disbursement-archive-tab">
       {/* Search and Action Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-lg border border-slate-200">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-[#FFFFFF] p-3 rounded-[8px] border-[#E2E8F0]">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-[#475569]" />
           <Input
             type="text"
             placeholder="Search archived disbursements..."
@@ -137,7 +138,7 @@ export function DisbursementArchiveTab({
               variant="outline"
               onClick={handleBulkRestore}
               disabled={isFiltering}
-              className="text-xs h-9 gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50"
+              className="text-xs h-9 gap-1.5 border-[#93C5FD] text-[#1E40AF] hover:bg-[#EFF6FF]"
               data-testid="bulk-restore-btn"
             >
               <RotateCcw className="h-3.5 w-3.5" />
@@ -148,10 +149,10 @@ export function DisbursementArchiveTab({
       </div>
 
       {/* Archived Disbursements Table */}
-      <div className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-2xs">
+      <div className="border-[#E2E8F0] rounded-[6px] overflow-hidden bg-[#FFFFFF] shadow-none">
         <Table>
           <TableHeader>
-            <TableRow className="bg-slate-50/80 text-slate-700 hover:bg-slate-50/80">
+            <TableRow className="bg-[#F8FAFC]/80 text-[#1E293B] hover:bg-[#F8FAFC]/80">
               <TableHead className="w-10">
                 <input
                   type="checkbox"
@@ -159,7 +160,7 @@ export function DisbursementArchiveTab({
                   checked={restorable.length > 0 && restorable.every((d) => selectedIds.has(d.id))}
                   disabled={isFiltering || restorable.length === 0}
                   onChange={toggleSelectAll}
-                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  className="rounded border-[#E2E8F0] text-[#1E293B] focus:ring-blue-500"
                 />
               </TableHead>
               <TableHead className="w-40 text-xs font-bold">Voucher #</TableHead>
@@ -174,17 +175,25 @@ export function DisbursementArchiveTab({
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-32 text-center text-xs text-slate-500" data-testid="archive-loading">
+                <TableCell
+                  colSpan={8}
+                  className="h-32 text-center text-xs text-[#475569]"
+                  data-testid="archive-loading"
+                >
                   Loading archived disbursements...
                 </TableCell>
               </TableRow>
             ) : disbursements.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-32 text-center text-xs text-slate-500" data-testid="archive-empty">
+                <TableCell
+                  colSpan={8}
+                  className="h-32 text-center text-xs text-[#475569]"
+                  data-testid="archive-empty"
+                >
                   <div className="space-y-1">
-                    <Archive className="h-6 w-6 text-slate-300 mx-auto" />
-                    <p className="font-medium text-slate-700">No archived disbursements</p>
-                    <p className="text-[11px] text-slate-400">
+                    <Archive className="h-6 w-6 text-[#94A3B8] mx-auto" />
+                    <p className="font-medium text-[#1E293B]">No archived disbursements</p>
+                    <p className="text-xs text-[#475569]">
                       Archived expense and payment vouchers will appear here.
                     </p>
                   </div>
@@ -201,8 +210,8 @@ export function DisbursementArchiveTab({
                 return (
                   <TableRow
                     key={item.id}
-                    className={`hover:bg-slate-50/60 cursor-pointer transition-colors ${
-                      isSelected ? 'bg-blue-50/40' : ''
+                    className={`hover:bg-[#F8FAFC]/60 cursor-pointer transition-colors ${
+                      isSelected ? 'bg-[#F8FAFC]/40' : ''
                     }`}
                     onClick={() => onSelectDisbursement?.(item.id)}
                     data-testid={`archived-disbursement-row-${item.id}`}
@@ -214,34 +223,35 @@ export function DisbursementArchiveTab({
                         checked={isSelected}
                         disabled={isFiltering || !canRestore(item)}
                         onChange={() => toggleSelectOne(item.id)}
-                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        className="rounded border-[#E2E8F0] text-[#1E293B] focus:ring-blue-500"
                       />
                     </TableCell>
-                    <TableCell className="font-mono text-xs font-bold text-slate-700">
+                    <TableCell className="text-xs font-bold text-[#1E293B]">
                       <div className="flex items-center gap-1.5">
-                        <Wallet className="h-3.5 w-3.5 text-slate-400" />
+                        <Wallet className="h-3.5 w-3.5 text-[#475569]" />
                         <span>{disbNumber}</span>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="space-y-0.5">
-                        <p className="text-xs font-medium text-slate-900 line-clamp-1">
+                        <p className="text-xs font-medium text-[#1E293B] line-clamp-1">
                           {item.description}
                         </p>
-                        <p className="text-[11px] text-slate-400">
+                        <p className="text-xs tabular-nums text-[#475569]">
                           {new Date(item.created_at || item.createdAt || '').toLocaleDateString()}
                           {item.client_name ? ` • ${item.client_name}` : ''}
                         </p>
                       </div>
                     </TableCell>
-                    <TableCell className="text-xs text-slate-700">{item.category}</TableCell>
+                    <TableCell className="text-xs text-[#1E293B]">{item.category}</TableCell>
                     <TableCell>
-                      <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-[6px] bg-[#F8FAFC] text-[#1E293B]">
                         {item.fund_source || item.fundSource}
                       </span>
                     </TableCell>
-                    <TableCell className="text-right font-mono text-xs font-bold text-slate-900">
-                      ₱{(typeof item.amount === 'number' ? item.amount : 0).toLocaleString('en-PH', {
+                    <TableCell className="text-right tabular-nums text-xs font-bold text-[#1E293B]">
+                      ₱
+                      {(typeof item.amount === 'number' ? item.amount : 0).toLocaleString('en-PH', {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
                       })}
@@ -258,7 +268,7 @@ export function DisbursementArchiveTab({
                             size="sm"
                             onClick={() => handleRestoreSingle(item)}
                             disabled={isFiltering}
-                            className="h-7 w-7 p-0 text-slate-600 hover:text-blue-600 hover:bg-blue-50"
+                            className="h-7 w-7 p-0 text-[#475569] hover:text-[#1D4ED8] hover:bg-[#EFF6FF]"
                             title="Restore voucher"
                             data-testid={`restore-action-${item.id}`}
                           >
@@ -270,7 +280,7 @@ export function DisbursementArchiveTab({
                           variant="ghost"
                           size="sm"
                           onClick={() => onSelectDisbursement?.(item.id)}
-                          className="h-7 w-7 p-0 text-slate-500 hover:text-slate-900"
+                          className="h-7 w-7 p-0 text-[#475569] hover:text-[#1E293B]"
                           title="View Details"
                           data-testid={`view-action-${item.id}`}
                         >
@@ -287,10 +297,10 @@ export function DisbursementArchiveTab({
 
         {/* Pagination Bar */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-2.5 border-t border-slate-100 bg-slate-50/50 text-xs text-slate-600">
+          <div className="flex items-center justify-between px-4 py-2.5 border-t border-[#E2E8F0] bg-[#F8FAFC]/50 text-xs text-[#475569]">
             <span>
-              Page <span className="font-semibold text-slate-800">{page}</span> of{' '}
-              <span className="font-semibold text-slate-800">{totalPages}</span>
+              Page <span className="font-semibold text-[#1E293B]">{page}</span> of{' '}
+              <span className="font-semibold text-[#1E293B]">{totalPages}</span>
             </span>
             <div className="flex items-center gap-1">
               <Button

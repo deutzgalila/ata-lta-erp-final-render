@@ -43,7 +43,10 @@ export function AdminApprovalModal({
     version: disbursement?.version,
   });
 
-  useEffect(() => { isSubmittingRef.current = false; setIsSubmitting(false); }, [contextKey]);
+  useEffect(() => {
+    isSubmittingRef.current = false;
+    setIsSubmitting(false);
+  }, [contextKey]);
 
   if (!isOpen || !disbursement) return null;
 
@@ -55,7 +58,9 @@ export function AdminApprovalModal({
 
   const validate = (): boolean => {
     if (isInvalidLifecycle) {
-      setError('This saved voucher is view-only. Create a new request to use the current workflow.');
+      setError(
+        'This saved voucher is view-only. Create a new request to use the current workflow.'
+      );
       return false;
     }
     if (isMissingVersion) {
@@ -127,59 +132,60 @@ export function AdminApprovalModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isSubmitting && onClose()}>
-      <DialogContent
-        className="max-w-md p-6 space-y-4"
-        data-testid="admin-approval-modal"
-      >
+      <DialogContent className="max-w-md p-6 space-y-4" data-testid="admin-approval-modal">
         <DialogHeader>
-          <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+          <DialogTitle className="text-base font-bold text-[#1E293B] flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-emerald-600" />
             <span>Admin Budget Approval</span>
           </DialogTitle>
-          <DialogDescription className="text-xs text-slate-600">
+          <DialogDescription className="text-xs text-[#475569]">
             Authorize budget for disbursement{' '}
-            <span className="font-mono font-semibold text-slate-800">
-              {disbNumber}
-            </span>
-            . Budget authorization advances this request to{' '}
-            <strong className="text-blue-700">Approved</strong> status for payment instrument preparation by Accounting.
+            <span className="tabular-nums font-semibold text-[#1E293B]">{disbNumber}</span>. Budget
+            authorization advances this request to{' '}
+            <strong className="text-[#1E40AF]">Approved</strong> status for payment instrument
+            preparation by Accounting.
           </DialogDescription>
         </DialogHeader>
 
         {/* Financial Summary Card */}
-        <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1.5">
+        <div className="p-3 bg-[#F8FAFC] border-[#E2E8F0] rounded-[6px] text-xs space-y-1.5">
           <div className="flex justify-between items-center">
-            <span className="text-slate-500">Authorized Amount:</span>
-            <span className="font-bold text-slate-900 text-sm" data-testid="approval-amount">
+            <span className="text-[#475569]">Authorized Amount:</span>
+            <span className="font-bold text-[#1E293B] text-sm" data-testid="approval-amount">
               ₱{disbursement.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
             </span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-slate-500">Fund Source:</span>
-            <span className="font-semibold text-blue-700">
+            <span className="text-[#475569]">Fund Source:</span>
+            <span className="font-semibold text-[#1E293B]">
               {disbursement.fund_source || disbursement.fundSource}
             </span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-slate-500">Category:</span>
-            <span className="font-medium text-slate-700">{disbursement.category}</span>
+            <span className="text-[#475569]">Category:</span>
+            <span className="font-medium text-[#1E293B]">{disbursement.category}</span>
           </div>
-          <div className="pt-1 border-t border-slate-200 text-slate-600 line-clamp-2">
-            <span className="text-slate-400">Purpose: </span>
+          <div className="pt-1 border-t border-[#E2E8F0] text-[#475569] line-clamp-2">
+            <span className="text-[#475569]">Purpose: </span>
             {disbursement.description}
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3" data-testid="admin-approval-form">
-          <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-md text-xs text-blue-900 space-y-1">
-            <span className="font-semibold block text-blue-800">Budget Authorization Notice:</span>
-            <p className="text-[11px] text-blue-700">
-              Authorizing this expense confirms budget availability. In compliance with separation of duties, payment instruments are recorded separately during the subsequent Funding stage.
+          <div className="p-3 bg-[#EFF6FF]/80 border border-[#93C5FD] rounded-[6px] text-xs text-[#1E3A8A] space-y-1">
+            <span className="font-semibold block text-[#1E40AF]">Budget Authorization Notice:</span>
+            <p className="text-xs text-[#1E40AF]">
+              Authorizing this expense confirms budget availability. In compliance with separation
+              of duties, payment instruments are recorded separately during the subsequent Funding
+              stage.
             </p>
           </div>
 
           {error && (
-            <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-md text-xs text-rose-800 flex items-center gap-1.5" role="alert">
+            <div
+              className="p-2.5 bg-rose-50 border border-rose-200 rounded-[6px] text-xs text-rose-800 flex items-center gap-1.5"
+              role="alert"
+            >
               <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
               <span>{error}</span>
             </div>
@@ -187,11 +193,14 @@ export function AdminApprovalModal({
 
           {isReturnedDraft && (
             <div
-              className="p-2.5 bg-orange-50 border border-orange-200 rounded-md text-xs text-orange-800 flex items-center gap-1.5"
+              className="p-2.5 bg-orange-50 border border-orange-200 rounded-[6px] text-xs text-orange-800 flex items-center gap-1.5"
               data-testid="returned-draft-warning"
             >
               <AlertCircle className="h-4 w-4 text-orange-600 shrink-0" />
-              <span>Voucher was returned for correction. Requester must edit and resubmit before budget authorization.</span>
+              <span>
+                Voucher was returned for correction. Requester must edit and resubmit before budget
+                authorization.
+              </span>
             </div>
           )}
 

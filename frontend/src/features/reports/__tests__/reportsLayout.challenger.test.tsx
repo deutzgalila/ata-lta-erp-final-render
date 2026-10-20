@@ -317,12 +317,9 @@ describe('Reports Challenger Suite: Layout, Viewports, Print & State Integration
       });
 
       const rootPage = screen.getByTestId('reports-page');
-      // Max boundary conforms to centered max-w-7xl
-      expect(rootPage.className).toContain('max-w-7xl');
-      expect(rootPage.className).toContain('mx-auto');
-      // Mobile padding 16px (p-4), desktop padding 24px (sm:p-6)
-      expect(rootPage.className).toContain('p-4');
-      expect(rootPage.className).toContain('sm:p-6');
+      // Full-bleed within Shell's single gutter container
+      expect(rootPage.className).toContain('w-full');
+      expect(rootPage.className).toContain('space-y-6');
     });
 
     it('stacks header items vertically on 390px mobile and aligns horizontally on >= 768px viewports', async () => {

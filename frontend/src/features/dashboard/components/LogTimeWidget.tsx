@@ -220,32 +220,32 @@ export function LogTimeWidget() {
   return (
     <div className="grid gap-6 lg:grid-cols-12" data-testid="log-time-widget">
       {/* 1. Left Card: Log Time Form & Quick Add */}
-      <Card className="lg:col-span-5 border-[#e2e8f0] shadow-xs">
-        <CardHeader className="pb-3 border-b border-slate-100">
+      <Card className="lg:col-span-5 border-[#E2E8F0] bg-[#FFFFFF] rounded-[8px] shadow-card">
+        <CardHeader className="pb-3 border-b border-[#E2E8F0]">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+              <div className="flex h-8 w-8 items-center justify-center rounded-[6px] bg-[#F8FAFC] text-[#1E293B] border-[#E2E8F0]">
                 <Clock className="h-4 w-4" />
               </div>
               <div>
-                <CardTitle className="text-sm font-semibold text-slate-900">
+                <CardTitle className="text-sm font-bold text-[#1E293B]">
                   Log Working Time
                 </CardTitle>
-                <CardDescription className="text-xs text-slate-500">
+                <CardDescription className="text-xs text-[#475569]">
                   Record duration-canonical hours against assigned tasks
                 </CardDescription>
               </div>
             </div>
             {/* Optional Timer Pill */}
             <div
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-medium ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] text-xs  font-medium border ${
                 isTimerRunning
-                  ? 'bg-blue-100 text-blue-800 animate-pulse border border-blue-300'
-                  : 'bg-slate-100 text-slate-600'
+                  ? 'bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs border-[#E2E8F0] animate-pulse'
+                  : 'bg-[#F8FAFC] text-[#1E293B] border-[#E2E8F0]'
               }`}
               data-testid="timer-display"
             >
-              <span className={`h-2 w-2 rounded-full ${isTimerRunning ? 'bg-blue-600' : 'bg-slate-400'}`} />
+              <span className={`h-2 w-2 rounded-[6px] ${isTimerRunning ? 'bg-[#DC2626]' : 'bg-[#94A3B8]'}`} />
               {formatTimerDisplay(elapsedSeconds)}
             </div>
           </div>
@@ -255,7 +255,7 @@ export function LogTimeWidget() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {validationError && (
               <div
-                className="p-2.5 rounded-md bg-red-50 border border-red-200 text-xs text-red-700 font-medium"
+                className="p-2.5 rounded-[6px] bg-[#FEF2F2] border-[#FCA5A5] text-xs text-[#991B1B] font-medium"
                 data-testid="time-validation-error"
               >
                 {validationError}
@@ -265,29 +265,29 @@ export function LogTimeWidget() {
             {/* Task Picker Scoped to Assigned Tasks */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-slate-500" />
+                <label className="text-xs font-semibold text-[#1E293B] flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-[#475569]" />
                   Assigned Task
                 </label>
-                <span className="text-[11px] text-slate-500 font-mono">
+                <span className="text-xs text-[#475569]">
                   {assignedTasks.length} available
                 </span>
               </div>
 
               {taskLoadFailed && (
-                <div role="alert" className="text-xs text-red-700">
+                <div role="alert" className="text-xs text-[#DC2626]">
                   Unable to load assigned tasks.{' '}
                   <button type="button" onClick={() => void reloadTasks()} className="underline">Retry</button>
                 </div>
               )}
               {isLoadingTasks ? (
-                <div className="h-9 w-full bg-slate-100 animate-pulse rounded-md" />
+                <div className="h-9 w-full bg-[#F8FAFC] animate-pulse rounded-[8px] border-[#E2E8F0]" />
               ) : (
                 <select
                   value={selectedTaskId}
                   onChange={(e) => setSelectedTaskId(e.target.value)}
                   disabled={!canCreateLog}
-                  className="w-full text-xs rounded-md border border-slate-200 bg-white px-3 py-2 text-slate-800 shadow-2xs focus:border-blue-500 focus:outline-none disabled:bg-slate-50 disabled:text-slate-400"
+                  className="w-full text-xs rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] px-3 py-2 text-[#1E293B] shadow-none focus:border-[#1D4ED8] focus:outline-none disabled:bg-[#F8FAFC] disabled:text-[#475569]"
                   data-testid="task-picker-select"
                 >
                   {assignedTasks.length === 0 ? (
@@ -374,11 +374,11 @@ export function LogTimeWidget() {
             {/* Duration Quick-Chips & Number Input */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                  <Clock className="h-3.5 w-3.5 text-slate-500" />
+                <label className="text-xs font-semibold text-[#1E293B] flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5 text-[#475569]" />
                   Duration (Minutes)
                 </label>
-                <span className="text-[11px] font-mono text-blue-600 font-semibold">
+                <span className="text-xs text-[#1E293B] font-semibold tabular-nums">
                   {formatMinutes(durationMinutes)}
                 </span>
               </div>
@@ -391,7 +391,7 @@ export function LogTimeWidget() {
                   value={durationMinutes}
                   onChange={(e) => setDurationMinutes(parseInt(e.target.value, 10) || 0)}
                   disabled={!canCreateLog}
-                  className="text-xs h-9 w-24 font-mono font-bold"
+                  className="text-xs h-9 w-24 font-bold rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] tabular-nums"
                   required
                   data-testid="duration-minutes-input"
                 />
@@ -403,7 +403,11 @@ export function LogTimeWidget() {
                     size="xs"
                     onClick={() => handleDurationPreset(15)}
                     disabled={!canCreateLog}
-                    className="text-xs h-9 px-2.5"
+                    className={`text-xs h-9 px-2.5 rounded-[6px]  font-semibold cursor-pointer ${
+                      durationMinutes === 15
+                        ? 'bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs border-[#E2E8F0]'
+                        : 'bg-[#FFFFFF] text-[#1E293B] border-[#E2E8F0] hover:bg-[#F8FAFC]'
+                    }`}
                     data-testid="duration-chip-15"
                   >
                     15m
@@ -414,7 +418,11 @@ export function LogTimeWidget() {
                     size="xs"
                     onClick={() => handleDurationPreset(30)}
                     disabled={!canCreateLog}
-                    className="text-xs h-9 px-2.5"
+                    className={`text-xs h-9 px-2.5 rounded-[6px]  font-semibold cursor-pointer ${
+                      durationMinutes === 30
+                        ? 'bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs border-[#E2E8F0]'
+                        : 'bg-[#FFFFFF] text-[#1E293B] border-[#E2E8F0] hover:bg-[#F8FAFC]'
+                    }`}
                     data-testid="duration-chip-30"
                   >
                     30m
@@ -425,7 +433,11 @@ export function LogTimeWidget() {
                     size="xs"
                     onClick={() => handleDurationPreset(60)}
                     disabled={!canCreateLog}
-                    className="text-xs h-9 px-2.5"
+                    className={`text-xs h-9 px-2.5 rounded-[6px]  font-semibold cursor-pointer ${
+                      durationMinutes === 60
+                        ? 'bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs border-[#E2E8F0]'
+                        : 'bg-[#FFFFFF] text-[#1E293B] border-[#E2E8F0] hover:bg-[#F8FAFC]'
+                    }`}
                     data-testid="duration-chip-60"
                   >
                     60m
@@ -436,7 +448,11 @@ export function LogTimeWidget() {
                     size="xs"
                     onClick={() => handleDurationPreset(120)}
                     disabled={!canCreateLog}
-                    className="text-xs h-9 px-2.5"
+                    className={`text-xs h-9 px-2.5 rounded-[6px]  font-semibold cursor-pointer ${
+                      durationMinutes === 120
+                        ? 'bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs border-[#E2E8F0]'
+                        : 'bg-[#FFFFFF] text-[#1E293B] border-[#E2E8F0] hover:bg-[#F8FAFC]'
+                    }`}
                     data-testid="duration-chip-120"
                   >
                     2h
@@ -448,11 +464,11 @@ export function LogTimeWidget() {
             {/* Note Field */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
-                  <FileText className="h-3.5 w-3.5 text-slate-500" />
+                <label className="text-xs font-semibold text-[#1E293B] flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5 text-[#475569]" />
                   Work Description / Note (Optional)
                 </label>
-                <span className="text-[10px] text-slate-400">
+                <span className="text-xs text-[#475569]">
                   {note.length} / 5000
                 </span>
               </div>
@@ -463,7 +479,7 @@ export function LogTimeWidget() {
                 placeholder="What was completed during this block?"
                 maxLength={5000}
                 disabled={!canCreateLog}
-                className="w-full text-xs rounded-md border border-slate-200 bg-white p-2.5 text-slate-800 shadow-2xs focus:border-blue-500 focus:outline-none disabled:bg-slate-50"
+                className="w-full text-xs rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] p-2.5 text-[#1E293B] shadow-none focus:border-[#1D4ED8] focus:outline-none disabled:bg-[#F8FAFC]"
                 data-testid="note-textarea"
               />
             </div>
@@ -473,7 +489,7 @@ export function LogTimeWidget() {
               type="submit"
               size="sm"
               disabled={!canCreateLog || createMutation.isPending || isTimerRunning || !selectedTaskId}
-              className="w-full text-xs font-semibold gap-1.5 h-9"
+              className="w-full text-xs font-semibold tracking-normal gap-1.5 h-9 rounded-[8px] border-[#E2E8F0] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs hover:bg-[#222220] shadow-none cursor-pointer"
               data-testid="submit-timelog-btn"
             >
               <Plus className="h-4 w-4" />
@@ -484,21 +500,21 @@ export function LogTimeWidget() {
       </Card>
 
       {/* 2. Right Card: Today's Summary & Edit-in-Place Entries */}
-      <Card className="lg:col-span-7 border-[#e2e8f0] shadow-xs">
-        <CardHeader className="pb-3 border-b border-slate-100">
+      <Card className="lg:col-span-7 border-[#E2E8F0] bg-[#FFFFFF] rounded-[8px] shadow-card">
+        <CardHeader className="pb-3 border-b border-[#E2E8F0]">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
-              <CardTitle className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-                <ListOrdered className="h-4 w-4 text-blue-600" />
+              <CardTitle className="text-sm font-bold text-[#1E293B] flex items-center gap-2">
+                <ListOrdered className="h-4 w-4 text-[#1E293B]" />
                 Logged Time Breakdown
               </CardTitle>
-              <CardDescription className="text-xs text-slate-500">
+              <CardDescription className="text-xs text-[#475569]">
                 Summary and entries for {selectedDate}
               </CardDescription>
             </div>
 
             <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="text-xs font-mono font-bold px-2.5 py-1">
+              <Badge variant="secondary" className="text-xs tabular-nums font-bold px-2.5 py-1 rounded-[8px] border-[#E2E8F0] bg-[#F8FAFC] text-[#1E293B]">
                 Total: {formatMinutes(summary?.totalMinutes ?? 0)}
               </Badge>
             </div>
@@ -509,24 +525,24 @@ export function LogTimeWidget() {
           {/* Summary By Task (Aggregated) */}
           {summary && summary.byTask.length > 0 && (
             <div className="space-y-1.5" data-testid="task-breakdown-section">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+              <span className="text-xs tabular-nums font-semibold text-[#475569] tracking-normal">
                 Task Breakdown
               </span>
               <div className="grid gap-2 sm:grid-cols-2">
                 {summary.byTask.map((task) => (
                   <div
                     key={task.taskId}
-                    className="p-2.5 rounded-lg border border-slate-100 bg-slate-50/70 flex items-center justify-between"
+                    className="p-2.5 rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] flex items-center justify-between"
                   >
                     <div className="min-w-0 pr-2">
-                      <div className="text-xs font-medium text-slate-900 truncate">
+                      <div className="text-xs font-semibold text-[#1E293B] truncate">
                         {task.title}
                       </div>
-                      <div className="text-[10px] text-slate-400 font-mono truncate">
+                      <div className="text-xs text-[#475569] font-mono truncate">
                         {task.taskId}
                       </div>
                     </div>
-                    <Badge variant="outline" className="text-xs font-mono font-bold shrink-0">
+                    <Badge variant="outline" className="text-xs font-bold shrink-0 rounded-[8px] border-[#E2E8F0]">
                       {formatMinutes(task.minutes)}
                     </Badge>
                   </div>
@@ -537,21 +553,21 @@ export function LogTimeWidget() {
 
           {/* Today's Individual Entries (Edit/Delete in place) */}
           <div className="space-y-2">
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+            <span className="text-xs font-semibold text-[#475569] tracking-normal flex items-center justify-between">
               <span>Individual Time Entries</span>
-              <span className="text-slate-400 lowercase font-normal">
+              <span className="text-[#475569] lowercase font-normal">
                 {entries.length} recorded
               </span>
             </span>
 
             {isLoadingEntries ? (
               <div className="space-y-2">
-                <div className="h-14 w-full bg-slate-100 animate-pulse rounded-md" />
-                <div className="h-14 w-full bg-slate-100 animate-pulse rounded-md" />
+                <div className="h-14 w-full bg-[#F8FAFC] animate-pulse rounded-[8px] border-[#E2E8F0]" />
+                <div className="h-14 w-full bg-[#F8FAFC] animate-pulse rounded-[8px] border-[#E2E8F0]" />
               </div>
             ) : entries.length === 0 ? (
               <div
-                className="py-8 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-lg"
+                className="py-8 text-center text-xs text-[#475569] border-dashed border-[#E2E8F0] rounded-[6px]"
                 data-testid="no-entries-message"
               >
                 No time entries logged for {selectedDate}. Use the form to record hours.
@@ -565,24 +581,24 @@ export function LogTimeWidget() {
                   return (
                     <div
                       key={entry.id}
-                      className="p-3 rounded-lg border border-slate-200 bg-white hover:border-slate-300 transition-colors flex items-start justify-between gap-3"
+                      className="p-3 rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] hover:border-[#E2E8F0] transition-colors flex items-start justify-between gap-3"
                       data-testid={`time-entry-item-${entry.id}`}
                     >
                       <div className="space-y-1 min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold text-slate-900 truncate">
+                          <span className="text-xs font-semibold text-[#1E293B] truncate">
                             {taskTitle}
                           </span>
-                          <Badge variant="secondary" className="text-[10px] font-mono shrink-0">
+                          <Badge variant="secondary" className="text-xs shrink-0 rounded-[8px] border-[#E2E8F0] bg-[#F8FAFC] text-[#1E293B]">
                             {formatMinutes(entry.durationMinutes)}
                           </Badge>
                         </div>
                         {entry.note && (
-                          <p className="text-xs text-slate-600 line-clamp-2">
+                          <p className="text-xs text-[#475569] line-clamp-2">
                             {entry.note}
                           </p>
                         )}
-                        <div className="flex items-center gap-3 text-[10px] text-slate-400">
+                        <div className="flex items-center gap-3 text-xs text-[#475569]">
                           <span>Date: {entry.entryDate}</span>
                           <span>•</span>
                           <span>Logged: {new Date(entry.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
@@ -597,7 +613,7 @@ export function LogTimeWidget() {
                             variant="ghost"
                             size="icon"
                             onClick={() => setEditingEntry(entry)}
-                            className="h-7 w-7 text-slate-500 hover:text-blue-600"
+                            className="h-7 w-7 rounded-[6px] text-[#475569] hover:text-[#1E293B] hover:bg-[#F8FAFC] cursor-pointer"
                             title="Edit entry"
                             data-testid={`edit-entry-btn-${entry.id}`}
                           >
@@ -608,7 +624,7 @@ export function LogTimeWidget() {
                             variant="ghost"
                             size="icon"
                             onClick={() => setDeletingEntry(entry)}
-                            className="h-7 w-7 text-slate-500 hover:text-red-600"
+                            className="h-7 w-7 rounded-[6px] text-[#475569] hover:text-[#DC2626] hover:bg-[#FEF2F2] cursor-pointer"
                             title="Delete entry"
                             data-testid={`delete-entry-btn-${entry.id}`}
                           >

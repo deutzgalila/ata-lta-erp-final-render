@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { PRINT_PAGE_CSS, wrapPrintPage } from '@/lib/printPage';
 import {
   buildDisbursementDocument,
   disbursementAmountInWords,
@@ -38,6 +39,9 @@ describe('Canonical expense document', () => {
     expect(blank).not.toContain('<img');
     expect(blank).not.toContain('Accounting Services Firm');
     for (const html of [branded, generic, blank]) {
+      expect(html).not.toContain('THANK YOU');
+      expect(html).not.toContain('Official Internal Payment Authorization');
+      expect(html).not.toContain('voucher-footer');
       expect(html).toContain('Expense Report');
       expect(html).toContain('M. Santos');
       expect(html).toContain('A. Reyes');
@@ -82,7 +86,7 @@ describe('Canonical expense document', () => {
   ])('keeps amount words consistent with currency rounding (%s)', (value, expected) =>
     expect(disbursementAmountInWords(Number(value))).toBe(expected)
   );
-  it('prints only the canonical document with blank corners and A4 margins', async () => {
+  it('prints the canonical document without browser headers/footers and with page padding', async () => {
     const write = vi.fn();
     const print = vi.fn();
     vi.spyOn(window, 'open').mockReturnValue({
@@ -93,11 +97,17 @@ describe('Canonical expense document', () => {
     printDisbursementDocument(item, { noLogo: true });
     await Promise.resolve();
     await Promise.resolve();
-    expect(write.mock.calls[0]![0]).toContain(buildDisbursementDocument(item, { noLogo: true }));
+    expect(write.mock.calls[0]![0]).toContain(
+      wrapPrintPage(
+        `<main class="disbursement-document">${buildDisbursementDocument(item, { noLogo: true })}</main>`
+      )
+    );
     expect(write.mock.calls[0]![0]).not.toContain('Print Document');
     expect(print).toHaveBeenCalledOnce();
-    expect(DISBURSEMENT_PAGE_CSS).toContain('margin: 15mm 20mm');
-    for (const corner of ['top-left', 'top-right', 'bottom-left', 'bottom-right'])
-      expect(DISBURSEMENT_PAGE_CSS).toContain(`@${corner} { content: ""; }`);
+    expect(write.mock.calls[0]![0]).toContain(DISBURSEMENT_PAGE_CSS);
+    expect(write.mock.calls[0]![0]).toContain(PRINT_PAGE_CSS);
+    expect(PRINT_PAGE_CSS).toContain('@page { size: A4; margin: 0; }');
+    expect(PRINT_PAGE_CSS).toContain('height: 15mm');
+    expect(PRINT_PAGE_CSS).toContain('padding: 0 20mm');
   });
 });

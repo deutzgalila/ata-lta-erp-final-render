@@ -46,21 +46,35 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
   const currentUser = useSessionStore((state) => state.user);
   const isAdmin = currentUser?.role === 'Admin';
   const isAccounting = Boolean(
-    currentUser?.role === 'Accounting' ||
-    currentUser?.departments?.includes('Accounting')
+    currentUser?.role === 'Accounting' || currentUser?.departments?.includes('Accounting')
   );
   const canAccessQueue = isAdmin || isAccounting;
 
   const [segment, setSegment] = useState<QueueSegment>(isAdmin ? 'all' : 'payment_releases');
 
   // Complete traversal queries for queues with exact predicates
-  const { data: initialResponse, isLoading: isLoadingInitial, isError: isErrorInitial, refetch: refetchInitial } = useAllDisbursementsForQueue('initial_requests', {
+  const {
+    data: initialResponse,
+    isLoading: isLoadingInitial,
+    isError: isErrorInitial,
+    refetch: refetchInitial,
+  } = useAllDisbursementsForQueue('initial_requests', {
     enabled: canAccessQueue,
   });
-  const { data: releaseResponse, isLoading: isLoadingRelease, isError: isErrorRelease, refetch: refetchRelease } = useAllDisbursementsForQueue('payment_releases', {
+  const {
+    data: releaseResponse,
+    isLoading: isLoadingRelease,
+    isError: isErrorRelease,
+    refetch: refetchRelease,
+  } = useAllDisbursementsForQueue('payment_releases', {
     enabled: canAccessQueue,
   });
-  const { data: fundingResponse, isLoading: isLoadingFunding, isError: isErrorFunding, refetch: refetchFunding } = useAllDisbursementsForQueue('ready_for_funding', {
+  const {
+    data: fundingResponse,
+    isLoading: isLoadingFunding,
+    isError: isErrorFunding,
+    refetch: refetchFunding,
+  } = useAllDisbursementsForQueue('ready_for_funding', {
     enabled: canAccessQueue,
   });
 
@@ -72,20 +86,36 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
 
   // Server counts
   const { data: counts } = useDisbursementCounts({ enabled: canAccessQueue });
-  const initialRequestsCount = counts?.initialRequests ?? (initialResponse?.data?.length ?? 0);
-  const paymentReleasesCount = counts?.paymentReleases ?? (releaseResponse?.data?.length ?? 0);
-  const readyForFundingCount = counts?.readyForFunding ?? (fundingResponse?.data?.length ?? 0);
+  const initialRequestsCount = counts?.initialRequests ?? initialResponse?.data?.length ?? 0;
+  const paymentReleasesCount = counts?.paymentReleases ?? releaseResponse?.data?.length ?? 0;
+  const readyForFundingCount = counts?.readyForFunding ?? fundingResponse?.data?.length ?? 0;
 
   // Strict v2 items with predicate enforcement
   const items = useMemo(() => {
     const rawInitial = (initialResponse?.data ?? []).filter(
-      (item) => item.lifecycle_version === 2 && item.status === 'Draft' && item.review_ready === true && Number.isInteger(item.version) && (item.version ?? 0) > 0 && !item.archived
+      (item) =>
+        item.lifecycle_version === 2 &&
+        item.status === 'Draft' &&
+        item.review_ready === true &&
+        Number.isInteger(item.version) &&
+        (item.version ?? 0) > 0 &&
+        !item.archived
     );
     const rawRelease = (releaseResponse?.data ?? []).filter(
-      (item) => item.lifecycle_version === 2 && item.status === 'Funded' && Number.isInteger(item.version) && (item.version ?? 0) > 0 && !item.archived
+      (item) =>
+        item.lifecycle_version === 2 &&
+        item.status === 'Funded' &&
+        Number.isInteger(item.version) &&
+        (item.version ?? 0) > 0 &&
+        !item.archived
     );
     const rawFunding = (fundingResponse?.data ?? []).filter(
-      (item) => item.lifecycle_version === 2 && item.status === 'Approved' && Number.isInteger(item.version) && (item.version ?? 0) > 0 && !item.archived
+      (item) =>
+        item.lifecycle_version === 2 &&
+        item.status === 'Approved' &&
+        Number.isInteger(item.version) &&
+        (item.version ?? 0) > 0 &&
+        !item.archived
     );
 
     if (segment === 'initial_requests') {
@@ -156,12 +186,12 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
   if (!canAccessQueue) {
     return (
       <div
-        className="p-8 text-center bg-slate-50 border border-slate-200 rounded-xl space-y-2"
+        className="p-8 text-center bg-[#F8FAFC] border border-[#E2E8F0] rounded-[12px] space-y-2"
         data-testid="admin-approval-queue-unauthorized"
       >
         <ShieldAlert className="h-8 w-8 text-amber-600 mx-auto" />
-        <h3 className="text-sm font-bold text-slate-800">Access Restricted</h3>
-        <p className="text-xs text-slate-500">
+        <h3 className="text-sm font-bold text-[#1E293B]">Access Restricted</h3>
+        <p className="text-xs text-[#475569]">
           The pending approvals queue is restricted to Admin and Accounting roles.
         </p>
       </div>
@@ -171,26 +201,40 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
   return (
     <div className="space-y-4" data-testid="admin-approval-queue">
       {(isErrorInitial || isErrorRelease || isErrorFunding) && (
-        <div role="alert" className="rounded border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+        <div
+          role="alert"
+          className="rounded border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900"
+        >
           The queue could not be refreshed. Review current records before taking action.
-          <Button type="button" variant="outline" size="sm" onClick={() => { void refetchInitial(); void refetchRelease(); void refetchFunding(); }}>Refresh queues</Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              void refetchInitial();
+              void refetchRelease();
+              void refetchFunding();
+            }}
+          >
+            Refresh queues
+          </Button>
         </div>
       )}
       {/* Header bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+          <h2 className="text-base font-bold text-[#1E293B] flex items-center gap-2">
             <Clock className="h-5 w-5 text-amber-600" />
             {isAdmin ? 'Admin Approval Queue' : 'Accounting Funds Tracking'}
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-[#475569] mt-0.5">
             {isAdmin
               ? 'Review and authorize pending disbursement requests and sanction released payments.'
               : 'Track funded vouchers across authorized entities and prepare payment instruments for approved requests.'}
           </p>
         </div>
         <div className="relative w-full sm:w-64">
-          <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-slate-400" />
+          <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-[#475569]" />
           <Input
             type="text"
             placeholder={isAdmin ? 'Search pending vouchers...' : 'Search vouchers...'}
@@ -204,17 +248,17 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
 
       {/* Queue Segmentation Sub-tabs */}
       <div
-        className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-lg border border-slate-200 text-xs w-fit"
+        className="flex items-center gap-1.5 p-1 bg-[#F8FAFC] rounded-[8px] border border-[#E2E8F0] text-xs w-full overflow-x-auto whitespace-nowrap"
         data-testid="queue-segmentation-tabs"
       >
         {isAdmin && (
           <button
             type="button"
             onClick={() => setSegment('all')}
-            className={`px-3 py-1 rounded-md font-medium transition-all ${
+            className={`px-3 py-1 rounded-[6px] font-medium transition-[background-color,border-color,color,box-shadow] ${
               segment === 'all'
-                ? 'bg-white text-slate-900 shadow-xs font-semibold'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-[#FFFFFF] text-[#1E40AF] shadow-2xs font-semibold'
+                : 'text-[#475569] hover:text-[#1E293B]'
             }`}
             data-testid="queue-subtab-all"
           >
@@ -225,10 +269,10 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
           <button
             type="button"
             onClick={() => setSegment('initial_requests')}
-            className={`px-3 py-1 rounded-md font-medium transition-all ${
+            className={`px-3 py-1 rounded-[6px] font-medium transition-[background-color,border-color,color,box-shadow] ${
               segment === 'initial_requests'
-                ? 'bg-white text-slate-900 shadow-xs font-semibold'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-[#FFFFFF] text-[#1E40AF] shadow-2xs font-semibold'
+                : 'text-[#475569] hover:text-[#1E293B]'
             }`}
             data-testid="queue-subtab-initial"
           >
@@ -238,22 +282,24 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
         <button
           type="button"
           onClick={() => setSegment('payment_releases')}
-          className={`px-3 py-1 rounded-md font-medium transition-all ${
+          className={`px-3 py-1 rounded-[6px] font-medium transition-[background-color,border-color,color,box-shadow] ${
             segment === 'payment_releases'
-              ? 'bg-white text-slate-900 shadow-xs font-semibold'
-              : 'text-slate-600 hover:text-slate-900'
+              ? 'bg-[#FFFFFF] text-[#1E40AF] shadow-2xs font-semibold'
+              : 'text-[#475569] hover:text-[#1E293B]'
           }`}
           data-testid="queue-subtab-payment-releases"
         >
-          {isAdmin ? `Payment Releases (${paymentReleasesCount})` : `Funded Tracking (${paymentReleasesCount})`}
+          {isAdmin
+            ? `Payment Releases (${paymentReleasesCount})`
+            : `Funded Tracking (${paymentReleasesCount})`}
         </button>
         <button
           type="button"
           onClick={() => setSegment('ready_for_funding')}
-          className={`px-3 py-1 rounded-md font-medium transition-all ${
+          className={`px-3 py-1 rounded-[6px] font-medium transition-[background-color,border-color,color,box-shadow] ${
             segment === 'ready_for_funding'
-              ? 'bg-white text-slate-900 shadow-xs font-semibold'
-              : 'text-slate-600 hover:text-slate-900'
+              ? 'bg-[#FFFFFF] text-[#1E40AF] shadow-2xs font-semibold'
+              : 'text-[#475569] hover:text-[#1E293B]'
           }`}
           data-testid="queue-subtab-funding"
         >
@@ -263,20 +309,20 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
 
       {/* Loading state */}
       {isLoading ? (
-        <div className="p-8 text-center text-xs text-slate-500" data-testid="pending-queue-loading">
+        <div className="p-8 text-center text-xs text-[#475569]" data-testid="pending-queue-loading">
           Loading approval items...
         </div>
       ) : filteredItems.length === 0 ? (
         /* Empty state */
         <div
-          className="p-10 text-center bg-slate-50 border border-slate-200 rounded-xl"
+          className="p-10 text-center bg-[#F8FAFC] border-[#E2E8F0] rounded-[6px]"
           data-testid="pending-queue-empty"
         >
           <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto mb-3" />
-          <h3 className="text-sm font-bold text-slate-800">
+          <h3 className="text-sm font-bold text-[#1E293B]">
             {isAdmin ? 'Queue is Clear' : 'No Vouchers in Queue'}
           </h3>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-[#475569] mt-1">
             {isAdmin
               ? 'There are no pending disbursements requiring administrative action.'
               : 'There are no vouchers currently in this tracking queue.'}
@@ -301,52 +347,55 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
             return (
               <div
                 key={item.id}
-                className="p-4 bg-white border border-slate-200 rounded-lg hover:border-slate-300 transition-colors shadow-2xs space-y-3"
+                className="p-4 bg-[#FFFFFF] border border-[#E2E8F0] rounded-[6px] hover:border-[#E2E8F0] transition-colors shadow-none space-y-3"
                 data-testid={`pending-item-${item.id}`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-slate-900">
-                        {disbNumber}
-                      </span>
+                      <span className="text-xs font-bold text-[#1E293B]">{disbNumber}</span>
                       <DisbursementStatusBadge
                         status={item.status}
                         reviewReady={item.review_ready}
                       />
-                      <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-[6px] bg-[#F8FAFC] text-[#475569]">
                         {item.category}
                       </span>
-                      <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-[6px] bg-[#F8FAFC] text-[#1E293B]">
                         {item.fund_source || item.fundSource}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-800 font-medium line-clamp-2">
+                    <p className="text-xs text-[#1E293B] font-medium line-clamp-2">
                       {item.description}
                     </p>
                   </div>
 
                   <div className="text-right shrink-0">
-                    <span className="text-sm font-bold text-slate-900 block" data-testid={`item-amount-${item.id}`}>
+                    <span
+                      className="text-sm font-bold text-[#1E293B] block"
+                      data-testid={`item-amount-${item.id}`}
+                    >
                       ₱{item.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                     </span>
-                    <span className="text-[10px] text-slate-400">
+                    <span className="text-xs tabular-nums text-[#475569]">
                       {new Date(item.created_at || item.createdAt || '').toLocaleDateString()}
                     </span>
                   </div>
                 </div>
 
                 {/* Metadata strip */}
-                <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-500 pt-1 border-t border-slate-100">
+                <div className="flex flex-wrap items-center gap-4 text-xs text-[#475569] pt-1 border-t border-[#E2E8F0]">
                   <span className="flex items-center gap-1">
-                    <Building className="h-3 w-3 text-slate-400" />
+                    <Building className="h-3 w-3 text-[#475569]" />
                     {clientName}
                   </span>
-                  {(item.linked_work_request_name || item.linked_work_request_order_number || workRequestId) && (
+                  {(item.linked_work_request_name ||
+                    item.linked_work_request_order_number ||
+                    workRequestId) && (
                     <span className="flex items-center gap-1">
-                      <FileText className="h-3 w-3 text-slate-400" />
+                      <FileText className="h-3 w-3 text-[#475569]" />
                       WR:{' '}
-                      <span className="font-mono" data-testid={`pending-item-wr-${item.id}`}>
+                      <span className="tabular-nums" data-testid={`pending-item-wr-${item.id}`}>
                         {item.linked_work_request_order_number && item.linked_work_request_name
                           ? `${item.linked_work_request_order_number} — ${item.linked_work_request_name}`
                           : item.linked_work_request_name ||
@@ -366,7 +415,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
                     item.created_by ||
                     item.createdBy) && (
                     <span className="flex items-center gap-1">
-                      <User className="h-3 w-3 text-slate-400" />
+                      <User className="h-3 w-3 text-[#475569]" />
                       {item.employee_name ||
                         item.employeeName ||
                         item.requested_by_name ||
@@ -380,7 +429,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
                     </span>
                   )}
                   {(item.receipt_filename || item.receiptFilename) && (
-                    <span className="flex items-center gap-1 text-blue-600">
+                    <span className="flex items-center gap-1 text-[#1E293B]">
                       <Receipt className="h-3 w-3" />
                       {item.receipt_filename || item.receiptFilename}
                     </span>
@@ -390,7 +439,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
                 {/* Duty Separation & Readiness Notices */}
                 {isReturnedDraft && (
                   <div
-                    className="flex items-center gap-1.5 text-[11px] font-medium text-orange-800 bg-orange-50 px-2.5 py-1 rounded border border-orange-200"
+                    className="flex items-center gap-1.5 text-xs font-medium text-orange-800 bg-orange-50 px-2.5 py-1 rounded border border-orange-200"
                     data-testid={`needs-correction-notice-${item.id}`}
                   >
                     <AlertCircle className="h-3.5 w-3.5 text-orange-600 shrink-0" />
@@ -399,7 +448,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
                 )}
 
                 {/* Actions */}
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E2E8F0]">
                   {onSelectDisbursement && (
                     <Button
                       type="button"
@@ -420,7 +469,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
                       variant="default"
                       size="sm"
                       onClick={() => setFundingItem(item)}
-                      className="text-xs h-7 bg-purple-600 hover:bg-purple-700 text-white font-medium"
+                      className="text-xs h-7 bg-[#1D4ED8] hover:bg-[#1E40AF] text-white font-medium"
                       data-testid={`fund-btn-${item.id}`}
                     >
                       <DollarSign className="h-3.5 w-3.5 mr-1" />
@@ -449,7 +498,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
                           size="sm"
                           title="Release payment funds"
                           onClick={() => setReleasingItem(item)}
-                          className="text-xs h-7 bg-purple-600 hover:bg-purple-700 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="text-xs h-7 bg-[#1D4ED8] hover:bg-[#1E40AF] text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                           data-testid={`release-btn-${item.id}`}
                         >
                           <DollarSign className="h-3.5 w-3.5 mr-1" />
@@ -481,9 +530,13 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
 
       {/* Pagination Controls */}
       {filteredItems.length > pageSize && (
-        <div className="flex items-center justify-between px-2 pt-2 text-xs text-slate-600 border-t border-slate-200" data-testid="queue-pagination-bar">
+        <div
+          className="flex items-center justify-between px-2 pt-2 text-xs text-[#475569] border-t border-[#E2E8F0]"
+          data-testid="queue-pagination-bar"
+        >
           <span data-testid="queue-page-info">
-            Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filteredItems.length)} of {filteredItems.length}
+            Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filteredItems.length)} of{' '}
+            {filteredItems.length}
           </span>
           <div className="flex items-center gap-2">
             <Button
@@ -522,7 +575,9 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
           requestId={rejectingItem.id}
           title="Reject Disbursement Voucher"
           description={`Provide a justification for rejecting voucher ${
-            rejectingItem.disbursement_number || rejectingItem.disbursementNumber || rejectingItem.id
+            rejectingItem.disbursement_number ||
+            rejectingItem.disbursementNumber ||
+            rejectingItem.id
           } (1–500 characters).`}
           placeholder="e.g. Ineligible reimbursement item without valid receipt..."
           submitLabel="Reject Voucher"

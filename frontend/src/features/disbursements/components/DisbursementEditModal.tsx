@@ -43,7 +43,8 @@ export function DisbursementEditModal({
 }) {
   const currentUser = useSessionStore((s) => s.user);
   const isAdmin = currentUser?.role === 'Admin';
-  const isAccounting = currentUser?.role === 'Accounting' || Boolean(currentUser?.departments?.includes('Accounting'));
+  const isAccounting =
+    currentUser?.role === 'Accounting' || Boolean(currentUser?.departments?.includes('Accounting'));
   const isOwner =
     Boolean(currentUser?.id) &&
     (disbursement.created_by === currentUser?.id ||
@@ -85,12 +86,18 @@ export function DisbursementEditModal({
   const [saving, setSaving] = useState(false);
   const [conflict, setConflict] = useState(false);
   const isSubmittingRef = useRef(false);
-  useEffect(() => { isSubmittingRef.current = false; setSaving(false); }, [contextKey]);
+  useEffect(() => {
+    isSubmittingRef.current = false;
+    setSaving(false);
+  }, [contextKey]);
 
   const loadedContext = useRef<string | null>(null);
   const formVersion = useRef(disbursement.version);
   useEffect(() => {
-    if (!isOpen) { loadedContext.current = null; return; }
+    if (!isOpen) {
+      loadedContext.current = null;
+      return;
+    }
     if (loadedContext.current === contextKey) return;
     loadedContext.current = contextKey;
     formVersion.current = disbursement.version;
@@ -201,14 +208,22 @@ export function DisbursementEditModal({
       )}
 
       {disbursement.status === 'Draft' && disbursement.review_ready === false && (
-        <div className="p-3 bg-amber-50 border border-amber-200 rounded-md text-xs text-amber-900 mb-2" data-testid="edit-correction-banner">
-          <strong>Returned for Correction:</strong> Please make and save the necessary adjustments to resubmit this voucher for Admin budget approval.
+        <div
+          className="p-3 bg-amber-50 border border-amber-200 rounded-[6px] text-xs text-amber-900 mb-2"
+          data-testid="edit-correction-banner"
+        >
+          <strong>Returned for Correction:</strong> Please make and save the necessary adjustments
+          to resubmit this voucher for Admin budget approval.
         </div>
       )}
 
       {!isFinancialEditable && (
-        <div className="p-3 bg-slate-100 border border-slate-200 rounded-md text-xs text-slate-700 mb-2" data-testid="edit-print-only-banner">
-          <strong>Print Customization Mode:</strong> Financial fields are locked for this workflow stage. Only print presentation details below may be customized.
+        <div
+          className="p-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[6px] text-xs text-[#1E293B] mb-2"
+          data-testid="edit-print-only-banner"
+        >
+          <strong>Print Customization Mode:</strong> Financial fields are locked for this workflow
+          stage. Only print presentation details below may be customized.
         </div>
       )}
 
@@ -250,7 +265,7 @@ export function DisbursementEditModal({
             Description
             <textarea
               aria-label="Description"
-              className="w-full border border-slate-200 rounded-md p-2 disabled:bg-slate-50 disabled:text-slate-500"
+              className="w-full border border-[#E2E8F0] rounded-[6px] p-2 disabled:bg-[#F8FAFC] disabled:text-[#475569]"
               rows={3}
               maxLength={2000}
               disabled={!isFinancialEditable}
@@ -262,7 +277,7 @@ export function DisbursementEditModal({
             Fund source
             <select
               aria-label="Fund source"
-              className="w-full border border-slate-200 rounded-md p-2 disabled:bg-slate-50 disabled:text-slate-500"
+              className="w-full border border-[#E2E8F0] rounded-[6px] p-2 disabled:bg-[#F8FAFC] disabled:text-[#475569]"
               value={fundSource}
               disabled={!isFinancialEditable}
               onChange={(e) => setFundSource(e.target.value as FundSource)}
@@ -284,7 +299,7 @@ export function DisbursementEditModal({
             Notes
             <textarea
               aria-label="Notes"
-              className="w-full border border-slate-200 rounded-md p-2 disabled:bg-slate-50 disabled:text-slate-500"
+              className="w-full border border-[#E2E8F0] rounded-[6px] p-2 disabled:bg-[#F8FAFC] disabled:text-[#475569]"
               rows={2}
               maxLength={2000}
               disabled={!isFinancialEditable}
@@ -293,9 +308,9 @@ export function DisbursementEditModal({
             />
           </label>
         </div>
-        <fieldset className="border-t border-slate-200 pt-3 space-y-3">
+        <fieldset className="border-t border-[#E2E8F0] pt-3 space-y-3">
           <legend className="text-sm font-semibold">Printed voucher details</legend>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-[#475569]">
             These values appear on the document. Use Edit Payment Details to correct the recorded
             payment.
           </p>
@@ -326,7 +341,7 @@ export function DisbursementEditModal({
   );
   return inline ? (
     <section
-      className="bg-white border border-slate-200 rounded-md p-4 space-y-3"
+      className="bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px] p-4 space-y-3"
       data-testid="disbursement-inline-editor"
     >
       {content}

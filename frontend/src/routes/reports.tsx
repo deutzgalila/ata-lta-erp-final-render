@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { BarChart3 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Forbidden } from '@/components/common/Forbidden';
 import { BlockingActionModal } from '@/features/operations/components/BlockingActionModal';
@@ -26,11 +27,6 @@ export default function ReportsPage() {
   const isAdmin = user?.role === 'Admin' || hasPermission(permissions, 'users:manage');
   const canViewReports = hasPermission(permissions, 'reports:view');
   const canViewBilling = hasPermission(permissions, 'billing:view');
-
-  // Enforce admin-only access when user profile is loaded
-  if (user && !isAdmin) {
-    return <Forbidden requiredPermission="users:manage" />;
-  }
 
   // Determine available tabs based on permissions
   const availableTabs = useMemo(() => {
@@ -75,6 +71,11 @@ export default function ReportsPage() {
     }
   }, [canViewReports, canViewBilling, requestedTab, defaultTab, availableTabs, setSearchParams]);
 
+  // Enforce admin-only access when user profile is loaded
+  if (user && !isAdmin) {
+    return <Forbidden requiredPermission="users:manage" />;
+  }
+
   // If user has neither permission, show Forbidden screen
   if (!canViewReports && !canViewBilling) {
     return <Forbidden requiredPermission="reports:view" />;
@@ -97,34 +98,35 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6" data-testid="reports-page">
-      {/* 1. Page Header & Breadcrumbs */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="w-full space-y-6" data-testid="reports-page">
+      {/* 1. Unified Module Header */}
+      <div className="border-b border-[#E2E8F0] pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <nav
             aria-label="Breadcrumb"
-            className="text-xs font-medium text-slate-500 flex items-center gap-1.5 pb-1"
+            className="text-xs font-medium text-[#475569] flex items-center gap-1.5 pb-1"
           >
             <span>Modules</span>
             <span aria-hidden="true">/</span>
-            <span className="text-slate-500 font-semibold">Reports</span>
+            <span>Reports</span>
             <span aria-hidden="true">/</span>
-            <span className="text-slate-900 font-semibold">
+            <span className="text-[#1E293B] font-semibold">
               {tabDisplayTitles[activeTab] || 'Overview'}
             </span>
           </nav>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+          <h1 className="text-2xl font-semibold tracking-tight text-[#1E293B] flex items-center gap-2">
+            <BarChart3 className="h-6 w-6 text-[#1D4ED8]" />
             Reports
           </h1>
-          <p className="text-sm text-slate-500 pt-0.5">
+          <p className="text-xs sm:text-sm text-[#475569] pt-0.5">
             Review activity, balances, and pending items.
           </p>
         </div>
 
-        {/* Header Controls: Entity Switcher */}
+        {/* Header Controls: Soft Segmented Entity Switcher */}
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <div
-            className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200"
+            className="flex items-center bg-[#F8FAFC] p-1 rounded-[8px] border border-[#E2E8F0]"
             data-testid="entity-switcher"
           >
             {(['ATA', 'LTA', 'ALL'] as const).map((ent) => (
@@ -132,10 +134,10 @@ export default function ReportsPage() {
                 key={ent}
                 type="button"
                 onClick={() => setActiveEntity(ent)}
-                className={`px-3 py-1 rounded-md text-xs transition-all cursor-pointer ${
+                className={`px-3 py-1 rounded-[6px] text-xs font-semibold transition-colors cursor-pointer ${
                   activeEntity === ent
-                    ? 'bg-white text-slate-900 shadow-2xs font-semibold'
-                    : 'text-slate-500 hover:text-slate-900 font-medium'
+                    ? 'bg-[#1D4ED8] text-[#FFFFFF] shadow-2xs'
+                    : 'text-[#475569] hover:text-[#1E293B] hover:bg-[#E2E8F0]/60'
                 }`}
                 data-testid={`entity-btn-${ent.toLowerCase()}`}
               >
@@ -146,14 +148,14 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* 2. Main Navigation Tabs */}
+      {/* 2. Unified Inner Tab Strip */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-        <TabsList className="w-full justify-start rounded-none bg-transparent p-0 border-b border-slate-200 gap-6 h-auto overflow-x-auto scrollbar-none">
+        <TabsList className="w-full justify-start rounded-[8px] bg-[#F8FAFC] p-1 border border-[#E2E8F0] gap-1 h-auto overflow-x-auto scrollbar-none">
           {canViewReports && (
             <>
               <TabsTrigger
                 value="overview"
-                className="rounded-none bg-transparent px-1 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 shadow-none data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:shadow-none -mb-px transition-colors cursor-pointer"
+                className="rounded-[6px] px-4 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] data-[state=active]:shadow-2xs transition-colors cursor-pointer"
                 data-testid="tab-trigger-overview"
               >
                 Overview
@@ -161,7 +163,7 @@ export default function ReportsPage() {
 
               <TabsTrigger
                 value="daily"
-                className="rounded-none bg-transparent px-1 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 shadow-none data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:shadow-none -mb-px transition-colors cursor-pointer"
+                className="rounded-[6px] px-4 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] data-[state=active]:shadow-2xs transition-colors cursor-pointer"
                 data-testid="tab-trigger-daily"
               >
                 Daily activity
@@ -169,7 +171,7 @@ export default function ReportsPage() {
 
               <TabsTrigger
                 value="weekly"
-                className="rounded-none bg-transparent px-1 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 shadow-none data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:shadow-none -mb-px transition-colors cursor-pointer"
+                className="rounded-[6px] px-4 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] data-[state=active]:shadow-2xs transition-colors cursor-pointer"
                 data-testid="tab-trigger-weekly"
               >
                 Weekly summary
@@ -177,7 +179,7 @@ export default function ReportsPage() {
 
               <TabsTrigger
                 value="monthly"
-                className="rounded-none bg-transparent px-1 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 shadow-none data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:shadow-none -mb-px transition-colors cursor-pointer"
+                className="rounded-[6px] px-4 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] data-[state=active]:shadow-2xs transition-colors cursor-pointer"
                 data-testid="tab-trigger-monthly"
               >
                 Monthly pending
@@ -188,7 +190,7 @@ export default function ReportsPage() {
           {canViewBilling && (
             <TabsTrigger
               value="aging"
-              className="rounded-none bg-transparent px-1 py-3 text-sm font-medium text-slate-500 hover:text-slate-700 shadow-none data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:border-b-2 data-[state=active]:border-blue-600 data-[state=active]:shadow-none -mb-px transition-colors cursor-pointer"
+              className="rounded-[6px] px-4 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] data-[state=active]:shadow-2xs transition-colors cursor-pointer"
               data-testid="tab-trigger-aging"
             >
               AR aging

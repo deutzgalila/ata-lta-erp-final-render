@@ -1,6 +1,5 @@
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useReportsAnalytics } from '../api/useReports';
 import type { AnalyticsData, ConsolidatedAnalyticsData } from '../api/types';
@@ -45,16 +44,16 @@ function StatusProgressBar({ label, count, total, maxCount }: StatusProgressBarP
 
   return (
     <div className="space-y-1.5 py-1">
-      <div className="flex items-center justify-between text-xs text-slate-600">
-        <span className="font-medium text-slate-700">{label}</span>
-        <div className="flex items-center gap-1.5 tabular-nums font-sans">
-          <span className="font-semibold text-slate-900">{formatCount(count)}</span>
-          <span className="text-slate-400 font-normal">({percentage}%)</span>
+      <div className="flex items-center justify-between text-xs">
+        <span className="font-medium text-[#1E293B]">{label}</span>
+        <div className="flex items-center gap-1.5 tabular-nums">
+          <span className="font-bold text-[#1E293B]">{formatCount(count)}</span>
+          <span className="text-[#475569] font-normal">({percentage}%)</span>
         </div>
       </div>
-      <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+      <div className="w-full bg-[#E2E8F0] rounded-full h-2 overflow-hidden">
         <div
-          className="bg-blue-600 h-full rounded-full transition-all duration-300"
+          className="bg-[#1D4ED8] h-full rounded-full transition-all duration-150"
           style={{ width: `${barWidth}%` }}
         />
       </div>
@@ -74,7 +73,7 @@ function StatusBreakdownList({
   const entries = Object.entries(byStatus || {});
   if (entries.length === 0) {
     return (
-      <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500 italic">
+      <div className="mt-4 pt-3 border-t border-[#E2E8F0] text-xs text-[#475569] italic">
         No status data recorded
       </div>
     );
@@ -83,8 +82,8 @@ function StatusBreakdownList({
   const maxCount = Math.max(1, ...entries.map(([, c]) => c));
 
   return (
-    <div className="mt-4 pt-3 border-t border-slate-100">
-      <h4 className="text-xs font-semibold text-slate-700 mb-2 uppercase tracking-wider">
+    <div className="mt-4 pt-3 border-t border-[#E2E8F0]">
+      <h4 className="text-xs font-semibold text-[#1E293B] mb-2 tracking-tight">
         {title}
       </h4>
       <div className="space-y-2">
@@ -178,11 +177,13 @@ function SingleAnalyticsView({ data }: { data: AnalyticsData }) {
           <ReportSummaryBand metrics={summaryMetrics} columns={4} />
 
           {/* Supporting Expenses row beneath summary band */}
-          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 bg-slate-50/80 border border-slate-200/80 rounded-xl text-xs sm:text-sm">
-            <span className="text-slate-600 font-medium">Supporting expenses (disbursements)</span>
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[8px] text-xs sm:text-sm">
+            <span className="text-xs font-medium text-[#475569]">
+              Supporting expenses (disbursements)
+            </span>
             <div className="flex items-center gap-2">
-              <span className="text-slate-500">Total expenses:</span>
-              <span className="font-semibold text-slate-900 tabular-nums font-sans">
+              <span className="text-xs text-[#475569]">Total expenses:</span>
+              <span className="font-bold text-sm sm:text-base text-[#1E293B] tabular-nums">
                 {formatCurrency(revenue?.totalExpenses)}
               </span>
             </div>
@@ -190,7 +191,7 @@ function SingleAnalyticsView({ data }: { data: AnalyticsData }) {
         </div>
       </ReportSection>
 
-      {/* 2. Compact Record Totals */}
+      {/* 2. Compact Record Totals Matrix */}
       <ReportSection
         title="Record totals"
         dataTestId="section-record-totals"
@@ -203,10 +204,12 @@ function SingleAnalyticsView({ data }: { data: AnalyticsData }) {
             <div
               key={kpi.label}
               data-testid={kpi.testId}
-              className="p-3 sm:p-4 bg-white rounded-xl border border-slate-200/80 shadow-2xs"
+              className="p-3.5 sm:p-4 bg-[#FFFFFF] rounded-[8px] border border-[#E2E8F0] shadow-card"
             >
-              <div className="text-xs font-medium text-slate-500">{kpi.label}</div>
-              <div className="text-lg sm:text-xl font-semibold text-slate-900 tracking-tight tabular-nums mt-1 font-sans">
+              <div className="text-xs font-medium text-[#475569]">
+                {kpi.label}
+              </div>
+              <div className="text-lg sm:text-xl font-bold text-[#1E293B] tracking-tight tabular-nums mt-1">
                 {kpi.value}
               </div>
             </div>
@@ -220,31 +223,33 @@ function SingleAnalyticsView({ data }: { data: AnalyticsData }) {
         data-testid="analytics-bento-grid"
       >
         {/* Billing Summary */}
-        <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
+        <div className="bg-[#FFFFFF] p-4 sm:p-5 rounded-[8px] border border-[#E2E8F0] shadow-card flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-sm font-semibold text-slate-900">Billing Summary</h3>
-              <Badge variant="outline" className="text-xs font-normal tabular-nums">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E2E8F0]">
+              <h3 className="text-sm font-semibold tracking-tight text-[#1E293B]">
+                Billing Summary
+              </h3>
+              <span className="rounded-[4px] border border-[#BFDBFE] bg-[#EFF6FF] px-2 py-0.5 text-xs font-semibold text-[#1E40AF] tabular-nums">
                 {formatCount(invoices?.total)} invoices
-              </Badge>
+              </span>
             </div>
 
             <div className="mt-3 space-y-2 text-xs">
-              <div className="flex items-center justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-600">Total billed</span>
-                <span className="font-semibold text-slate-900 tabular-nums font-sans">
+              <div className="flex items-center justify-between py-1.5 border-b border-[#E2E8F0]">
+                <span className="text-[#475569]">Total billed</span>
+                <span className="font-semibold text-[#1E293B] tabular-nums">
                   {formatCurrency(invoices?.totalBilled)}
                 </span>
               </div>
-              <div className="flex items-center justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-600">Total collected</span>
-                <span className="font-semibold text-slate-900 tabular-nums font-sans">
+              <div className="flex items-center justify-between py-1.5 border-b border-[#E2E8F0]">
+                <span className="text-[#475569]">Total collected</span>
+                <span className="font-semibold text-[#1E293B] tabular-nums">
                   {formatCurrency(invoices?.totalCollected)}
                 </span>
               </div>
-              <div className="flex items-center justify-between py-1">
-                <span className="text-slate-600">Total outstanding</span>
-                <span className="font-semibold text-slate-900 tabular-nums font-sans">
+              <div className="flex items-center justify-between py-1.5">
+                <span className="text-[#475569]">Total outstanding</span>
+                <span className="font-semibold text-[#1E293B] tabular-nums">
                   {formatCurrency(invoices?.totalOutstanding)}
                 </span>
               </div>
@@ -259,25 +264,27 @@ function SingleAnalyticsView({ data }: { data: AnalyticsData }) {
         </div>
 
         {/* Disbursement Summary */}
-        <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
+        <div className="bg-[#FFFFFF] p-4 sm:p-5 rounded-[8px] border border-[#E2E8F0] shadow-card flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-sm font-semibold text-slate-900">Disbursement Summary</h3>
-              <Badge variant="outline" className="text-xs font-normal tabular-nums">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E2E8F0]">
+              <h3 className="text-sm font-semibold tracking-tight text-[#1E293B]">
+                Disbursement Summary
+              </h3>
+              <span className="rounded-[4px] border border-[#BFDBFE] bg-[#EFF6FF] px-2 py-0.5 text-xs font-semibold text-[#1E40AF] tabular-nums">
                 {formatCount(disbursements?.total)} vouchers
-              </Badge>
+              </span>
             </div>
 
             <div className="mt-3 space-y-2 text-xs">
-              <div className="flex items-center justify-between py-1 border-b border-slate-100">
-                <span className="text-slate-600">Total recorded</span>
-                <span className="font-semibold text-slate-900 tabular-nums font-sans">
+              <div className="flex items-center justify-between py-1.5 border-b border-[#E2E8F0]">
+                <span className="text-[#475569]">Total recorded</span>
+                <span className="font-semibold text-[#1E293B] tabular-nums">
                   {formatCurrency(disbursements?.totalAmount)}
                 </span>
               </div>
-              <div className="flex items-center justify-between py-1">
-                <span className="text-slate-600">Released amount</span>
-                <span className="font-semibold text-slate-900 tabular-nums font-sans">
+              <div className="flex items-center justify-between py-1.5">
+                <span className="text-[#475569]">Released amount</span>
+                <span className="font-semibold text-[#1E293B] tabular-nums">
                   {formatCurrency(disbursements?.releasedAmount)}
                 </span>
               </div>
@@ -292,19 +299,21 @@ function SingleAnalyticsView({ data }: { data: AnalyticsData }) {
         </div>
 
         {/* Transmittal Summary */}
-        <div className="bg-white p-4 sm:p-5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col justify-between">
+        <div className="bg-[#FFFFFF] p-4 sm:p-5 rounded-[8px] border border-[#E2E8F0] shadow-card flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-sm font-semibold text-slate-900">Transmittal Summary</h3>
-              <Badge variant="outline" className="text-xs font-normal tabular-nums">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E2E8F0]">
+              <h3 className="text-sm font-semibold tracking-tight text-[#1E293B]">
+                Transmittal Summary
+              </h3>
+              <span className="rounded-[4px] border border-[#BFDBFE] bg-[#EFF6FF] px-2 py-0.5 text-xs font-semibold text-[#1E40AF] tabular-nums">
                 {formatCount(transmittals?.total)} records
-              </Badge>
+              </span>
             </div>
 
             <div className="mt-3 space-y-2 text-xs">
-              <div className="flex items-center justify-between py-1">
-                <span className="text-slate-600">Total transmittals</span>
-                <span className="font-semibold text-slate-900 tabular-nums font-sans">
+              <div className="flex items-center justify-between py-1.5">
+                <span className="text-[#475569]">Total transmittals</span>
+                <span className="font-semibold text-[#1E293B] tabular-nums">
                   {formatCount(transmittals?.total)}
                 </span>
               </div>
@@ -348,7 +357,7 @@ function ConsolidatedAnalyticsView({ data }: { data: ConsolidatedAnalyticsData }
         title="Consolidated Enterprise Analytics"
         dataTestId="section-consolidated-enterprise"
       >
-        <p className="text-xs sm:text-sm text-slate-500 mb-5">
+        <p className="text-xs sm:text-sm text-[#475569] mb-5">
           Comparative performance across ATA and LTA entities. Combined operational record counts
           represent summed entity records across entities, not deduplicated customers.
         </p>
@@ -356,83 +365,93 @@ function ConsolidatedAnalyticsView({ data }: { data: ConsolidatedAnalyticsData }
         <div className="space-y-6">
           {/* 1. Financial Metrics Table */}
           <div className="space-y-3">
-            <h3 className="text-sm font-semibold text-slate-900">Financial metrics</h3>
+            <h3 className="text-xs font-semibold tracking-normal text-[#1E293B]">
+              Financial metrics
+            </h3>
             <ReportTableContainer minWidth="min-w-[600px]" ariaLabel="Financial metrics comparison">
-              <table className="w-full text-sm">
+              <table className="w-full text-xs sm:text-sm">
                 <thead>
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Metric</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">ATA</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">LTA</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Combined</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-[#334155] whitespace-nowrap">
+                      Metric
+                    </th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-[#334155] whitespace-nowrap">
+                      ATA
+                    </th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-[#334155] whitespace-nowrap">
+                      LTA
+                    </th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-[#334155] whitespace-nowrap">
+                      Combined
+                    </th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-[#E2E8F0]">
                   <tr>
-                    <td className="px-4 py-2.5 font-medium text-slate-900">Total billed</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                    <td className="px-4 py-2.5 font-medium text-[#1E293B]">Total billed</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-[#1E293B]">
                       {formatCurrency(ATA.revenue?.totalBilled)}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                    <td className="px-4 py-2.5 text-right tabular-nums text-[#1E293B]">
                       {formatCurrency(LTA.revenue?.totalBilled)}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-slate-900">
+                    <td className="px-4 py-2.5 text-right tabular-nums font-bold text-[#1E293B]">
                       {formatCurrency(
                         (ATA.revenue?.totalBilled || 0) + (LTA.revenue?.totalBilled || 0)
                       )}
                     </td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-2.5 font-medium text-slate-900">Total collected</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                    <td className="px-4 py-2.5 font-medium text-[#1E293B]">Total collected</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-[#1E293B]">
                       {formatCurrency(ATA.revenue?.totalCollected)}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                    <td className="px-4 py-2.5 text-right tabular-nums text-[#1E293B]">
                       {formatCurrency(LTA.revenue?.totalCollected)}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-slate-900">
+                    <td className="px-4 py-2.5 text-right tabular-nums font-bold text-[#1E293B]">
                       {formatCurrency(
                         (ATA.revenue?.totalCollected || 0) + (LTA.revenue?.totalCollected || 0)
                       )}
                     </td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-2.5 font-medium text-slate-900">Total outstanding</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                    <td className="px-4 py-2.5 font-medium text-[#1E293B]">Total outstanding</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-[#1E293B]">
                       {formatCurrency(ATA.revenue?.totalOutstanding)}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                    <td className="px-4 py-2.5 text-right tabular-nums text-[#1E293B]">
                       {formatCurrency(LTA.revenue?.totalOutstanding)}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-slate-900">
+                    <td className="px-4 py-2.5 text-right tabular-nums font-bold text-[#1E293B]">
                       {formatCurrency(
                         (ATA.revenue?.totalOutstanding || 0) + (LTA.revenue?.totalOutstanding || 0)
                       )}
                     </td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-2.5 font-medium text-slate-900">Total expenses</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                    <td className="px-4 py-2.5 font-medium text-[#1E293B]">Total expenses</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-[#1E293B]">
                       {formatCurrency(ATA.revenue?.totalExpenses)}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                    <td className="px-4 py-2.5 text-right tabular-nums text-[#1E293B]">
                       {formatCurrency(LTA.revenue?.totalExpenses)}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-slate-900">
+                    <td className="px-4 py-2.5 text-right tabular-nums font-bold text-[#1E293B]">
                       {formatCurrency(
                         (ATA.revenue?.totalExpenses || 0) + (LTA.revenue?.totalExpenses || 0)
                       )}
                     </td>
                   </tr>
-                  <tr className="bg-slate-50/75">
-                    <td className="px-4 py-2.5 font-semibold text-slate-900">Net operating income</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-slate-900">
+                  <tr className="bg-[#EFF6FF] border-t-2 border-[#1D4ED8]">
+                    <td className="px-4 py-2.5 font-bold text-[#1E40AF]">Net operating income</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums font-bold text-[#1E40AF]">
                       {formatCurrency(ATA.revenue?.netIncome)}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-slate-900">
+                    <td className="px-4 py-2.5 text-right tabular-nums font-bold text-[#1E40AF]">
                       {formatCurrency(LTA.revenue?.netIncome)}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-slate-900">
+                    <td className="px-4 py-2.5 text-right tabular-nums font-bold text-[#1E40AF]">
                       {formatCurrency(
                         (ATA.revenue?.netIncome || 0) + (LTA.revenue?.netIncome || 0)
                       )}
@@ -446,98 +465,108 @@ function ConsolidatedAnalyticsView({ data }: { data: ConsolidatedAnalyticsData }
           {/* 2. Operational Record Totals Table */}
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold text-slate-900">Record totals</h3>
-              <span className="text-xs text-slate-500">
+              <h3 className="text-xs font-semibold tracking-normal text-[#1E293B]">
+                Record totals
+              </h3>
+              <span className="text-xs text-[#475569]">
                 Summed entity records (not deduplicated customers)
               </span>
             </div>
             <ReportTableContainer minWidth="min-w-[600px]" ariaLabel="Record totals comparison">
-              <table className="w-full text-sm">
+              <table className="w-full text-xs sm:text-sm">
                 <thead>
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600">Metric</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">ATA</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">LTA</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600">Combined</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-[#334155] whitespace-nowrap">
+                      Metric
+                    </th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-[#334155] whitespace-nowrap">
+                      ATA
+                    </th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-[#334155] whitespace-nowrap">
+                      LTA
+                    </th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-[#334155] whitespace-nowrap">
+                      Combined
+                    </th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-[#E2E8F0]">
                   <tr>
-                    <td className="px-4 py-2.5 text-slate-900">
-                      <span className="font-medium text-slate-900 block">Combined Clients</span>
-                      <span className="text-xs text-slate-500 block">
+                    <td className="px-4 py-2.5 text-[#1E293B]">
+                      <span className="font-medium text-[#1E293B] block">Combined Clients</span>
+                      <span className="text-xs text-[#475569] block">
                         Summed entity records (not deduplicated customers)
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                    <td className="px-4 py-2.5 text-right tabular-nums text-[#1E293B]">
                       {formatCount(ATA.clients?.total)}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                    <td className="px-4 py-2.5 text-right tabular-nums text-[#1E293B]">
                       {formatCount(LTA.clients?.total)}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-slate-900">
+                    <td className="px-4 py-2.5 text-right tabular-nums font-bold text-[#1E293B]">
                       {formatCount((ATA.clients?.total || 0) + (LTA.clients?.total || 0))}
                     </td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-2.5 font-medium text-slate-900">Work requests</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                    <td className="px-4 py-2.5 font-medium text-[#1E293B]">Work requests</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-[#1E293B]">
                       {formatCount(ATA.workRequests?.total)}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                    <td className="px-4 py-2.5 text-right tabular-nums text-[#1E293B]">
                       {formatCount(LTA.workRequests?.total)}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-slate-900">
+                    <td className="px-4 py-2.5 text-right tabular-nums font-bold text-[#1E293B]">
                       {formatCount((ATA.workRequests?.total || 0) + (LTA.workRequests?.total || 0))}
                     </td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-2.5 font-medium text-slate-900">Active documents</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                    <td className="px-4 py-2.5 font-medium text-[#1E293B]">Active documents</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-[#1E293B]">
                       {formatCount(ATA.documents?.total)}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                    <td className="px-4 py-2.5 text-right tabular-nums text-[#1E293B]">
                       {formatCount(LTA.documents?.total)}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-slate-900">
+                    <td className="px-4 py-2.5 text-right tabular-nums font-bold text-[#1E293B]">
                       {formatCount((ATA.documents?.total || 0) + (LTA.documents?.total || 0))}
                     </td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-2.5 font-medium text-slate-900">Invoices</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                    <td className="px-4 py-2.5 font-medium text-[#1E293B]">Invoices</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-[#1E293B]">
                       {formatCount(ATA.invoices?.total)}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                    <td className="px-4 py-2.5 text-right tabular-nums text-[#1E293B]">
                       {formatCount(LTA.invoices?.total)}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-slate-900">
+                    <td className="px-4 py-2.5 text-right tabular-nums font-bold text-[#1E293B]">
                       {formatCount((ATA.invoices?.total || 0) + (LTA.invoices?.total || 0))}
                     </td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-2.5 font-medium text-slate-900">Disbursements</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                    <td className="px-4 py-2.5 font-medium text-[#1E293B]">Disbursements</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-[#1E293B]">
                       {formatCount(ATA.disbursements?.total)}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                    <td className="px-4 py-2.5 text-right tabular-nums text-[#1E293B]">
                       {formatCount(LTA.disbursements?.total)}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-slate-900">
+                    <td className="px-4 py-2.5 text-right tabular-nums font-bold text-[#1E293B]">
                       {formatCount(
                         (ATA.disbursements?.total || 0) + (LTA.disbursements?.total || 0)
                       )}
                     </td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-2.5 font-medium text-slate-900">Transmittals</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                    <td className="px-4 py-2.5 font-medium text-[#1E293B]">Transmittals</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-[#1E293B]">
                       {formatCount(ATA.transmittals?.total)}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                    <td className="px-4 py-2.5 text-right tabular-nums text-[#1E293B]">
                       {formatCount(LTA.transmittals?.total)}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-slate-900">
+                    <td className="px-4 py-2.5 text-right tabular-nums font-bold text-[#1E293B]">
                       {formatCount((ATA.transmittals?.total || 0) + (LTA.transmittals?.total || 0))} records
                     </td>
                   </tr>
@@ -548,35 +577,37 @@ function ConsolidatedAnalyticsView({ data }: { data: ConsolidatedAnalyticsData }
 
           {/* 3. Status Comparisons Tables */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-slate-900">Status comparisons</h3>
+            <h3 className="text-xs font-semibold tracking-normal text-[#1E293B]">
+              Status comparisons
+            </h3>
 
             {/* Invoices Status Breakdown */}
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+              <h4 className="text-xs font-semibold text-[#475569] tracking-normal">
                 Invoices by status
               </h4>
               <ReportTableContainer minWidth="min-w-[600px]" ariaLabel="Invoices status comparison">
-                <table className="w-full text-sm">
+                <table className="w-full text-xs sm:text-sm">
                   <thead>
                     <tr>
-                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600">
+                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-[#334155] whitespace-nowrap">
                         Status
                       </th>
-                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600">
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-[#334155] whitespace-nowrap">
                         ATA
                       </th>
-                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600">
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-[#334155] whitespace-nowrap">
                         LTA
                       </th>
-                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600">
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-[#334155] whitespace-nowrap">
                         Combined
                       </th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-[#E2E8F0]">
                     {invoiceStatuses.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="px-4 py-3 text-center text-xs text-slate-500 italic">
+                        <td colSpan={4} className="px-4 py-3 text-center text-xs text-[#475569] italic">
                           No invoice status data available
                         </td>
                       </tr>
@@ -586,14 +617,14 @@ function ConsolidatedAnalyticsView({ data }: { data: ConsolidatedAnalyticsData }
                         const countLTA = LTA.invoices?.byStatus?.[st] ?? 0;
                         return (
                           <tr key={st}>
-                            <td className="px-4 py-2 text-slate-800">{st}</td>
-                            <td className="px-4 py-2 text-right tabular-nums text-slate-600">
+                            <td className="px-4 py-2 text-[#1E293B] font-medium">{st}</td>
+                            <td className="px-4 py-2 text-right tabular-nums text-[#1E293B]">
                               {formatCount(countATA)}
                             </td>
-                            <td className="px-4 py-2 text-right tabular-nums text-slate-600">
+                            <td className="px-4 py-2 text-right tabular-nums text-[#1E293B]">
                               {formatCount(countLTA)}
                             </td>
-                            <td className="px-4 py-2 text-right tabular-nums font-semibold text-slate-900">
+                            <td className="px-4 py-2 text-right tabular-nums font-bold text-[#1E293B]">
                               {formatCount(countATA + countLTA)}
                             </td>
                           </tr>
@@ -607,52 +638,52 @@ function ConsolidatedAnalyticsView({ data }: { data: ConsolidatedAnalyticsData }
 
             {/* Disbursements Status Breakdown & Amounts */}
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+              <h4 className="text-xs font-semibold text-[#475569] tracking-normal">
                 Disbursements by status & amounts
               </h4>
               <ReportTableContainer minWidth="min-w-[600px]" ariaLabel="Disbursements comparison">
-                <table className="w-full text-sm">
+                <table className="w-full text-xs sm:text-sm">
                   <thead>
                     <tr>
-                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600">
+                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-[#334155] whitespace-nowrap">
                         Detail / Status
                       </th>
-                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600">
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-[#334155] whitespace-nowrap">
                         ATA
                       </th>
-                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600">
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-[#334155] whitespace-nowrap">
                         LTA
                       </th>
-                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600">
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-[#334155] whitespace-nowrap">
                         Combined
                       </th>
                     </tr>
                   </thead>
-                  <tbody>
-                    <tr className="bg-slate-50/50">
-                      <td className="px-4 py-2 font-medium text-slate-900">Total recorded amount</td>
-                      <td className="px-4 py-2 text-right tabular-nums text-slate-700">
+                  <tbody className="divide-y divide-[#E2E8F0]">
+                    <tr className="bg-[#F8FAFC]">
+                      <td className="px-4 py-2 font-medium text-[#1E293B]">Total recorded amount</td>
+                      <td className="px-4 py-2 text-right tabular-nums text-[#1E293B]">
                         {formatCurrency(ATA.disbursements?.totalAmount)}
                       </td>
-                      <td className="px-4 py-2 text-right tabular-nums text-slate-700">
+                      <td className="px-4 py-2 text-right tabular-nums text-[#1E293B]">
                         {formatCurrency(LTA.disbursements?.totalAmount)}
                       </td>
-                      <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-slate-900">
+                      <td className="px-4 py-2.5 text-right tabular-nums font-bold text-[#1E293B]">
                         {formatCurrency(
                           (ATA.disbursements?.totalAmount || 0) +
                             (LTA.disbursements?.totalAmount || 0)
                         )}
                       </td>
                     </tr>
-                    <tr className="bg-slate-50/50">
-                      <td className="px-4 py-2 font-medium text-slate-900">Released amount</td>
-                      <td className="px-4 py-2 text-right tabular-nums text-slate-700">
+                    <tr className="bg-[#F8FAFC]">
+                      <td className="px-4 py-2 font-medium text-[#1E293B]">Released amount</td>
+                      <td className="px-4 py-2 text-right tabular-nums text-[#1E293B]">
                         {formatCurrency(ATA.disbursements?.releasedAmount)}
                       </td>
-                      <td className="px-4 py-2 text-right tabular-nums text-slate-700">
+                      <td className="px-4 py-2 text-right tabular-nums text-[#1E293B]">
                         {formatCurrency(LTA.disbursements?.releasedAmount)}
                       </td>
-                      <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-slate-900">
+                      <td className="px-4 py-2.5 text-right tabular-nums font-bold text-[#1E293B]">
                         {formatCurrency(
                           (ATA.disbursements?.releasedAmount || 0) +
                             (LTA.disbursements?.releasedAmount || 0)
@@ -661,7 +692,7 @@ function ConsolidatedAnalyticsView({ data }: { data: ConsolidatedAnalyticsData }
                     </tr>
                     {disbursementStatuses.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="px-4 py-3 text-center text-xs text-slate-500 italic">
+                        <td colSpan={4} className="px-4 py-3 text-center text-xs text-[#475569] italic">
                           No disbursement status data available
                         </td>
                       </tr>
@@ -671,14 +702,14 @@ function ConsolidatedAnalyticsView({ data }: { data: ConsolidatedAnalyticsData }
                         const countLTA = LTA.disbursements?.byStatus?.[st] ?? 0;
                         return (
                           <tr key={st}>
-                            <td className="px-4 py-2 text-slate-800">{st}</td>
-                            <td className="px-4 py-2 text-right tabular-nums text-slate-600">
+                            <td className="px-4 py-2 text-[#1E293B] font-medium">{st}</td>
+                            <td className="px-4 py-2 text-right tabular-nums text-[#1E293B]">
                               {formatCount(countATA)}
                             </td>
-                            <td className="px-4 py-2 text-right tabular-nums text-slate-600">
+                            <td className="px-4 py-2 text-right tabular-nums text-[#1E293B]">
                               {formatCount(countLTA)}
                             </td>
-                            <td className="px-4 py-2 text-right tabular-nums font-semibold text-slate-900">
+                            <td className="px-4 py-2 text-right tabular-nums font-bold text-[#1E293B]">
                               {formatCount(countATA + countLTA)}
                             </td>
                           </tr>
@@ -692,31 +723,31 @@ function ConsolidatedAnalyticsView({ data }: { data: ConsolidatedAnalyticsData }
 
             {/* Transmittals Status Breakdown */}
             <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+              <h4 className="text-xs font-semibold text-[#475569] tracking-normal">
                 Transmittals by status
               </h4>
               <ReportTableContainer minWidth="min-w-[600px]" ariaLabel="Transmittals status comparison">
-                <table className="w-full text-sm">
+                <table className="w-full text-xs sm:text-sm">
                   <thead>
                     <tr>
-                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600">
+                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-[#334155] whitespace-nowrap">
                         Status
                       </th>
-                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600">
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-[#334155] whitespace-nowrap">
                         ATA
                       </th>
-                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600">
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-[#334155] whitespace-nowrap">
                         LTA
                       </th>
-                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600">
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-[#334155] whitespace-nowrap">
                         Combined
                       </th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-[#E2E8F0]">
                     {transmittalStatuses.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="px-4 py-3 text-center text-xs text-slate-500 italic">
+                        <td colSpan={4} className="px-4 py-3 text-center text-xs text-[#475569] italic">
                           No transmittal status data available
                         </td>
                       </tr>
@@ -726,14 +757,14 @@ function ConsolidatedAnalyticsView({ data }: { data: ConsolidatedAnalyticsData }
                         const countLTA = LTA.transmittals?.byStatus?.[st] ?? 0;
                         return (
                           <tr key={st}>
-                            <td className="px-4 py-2 text-slate-800">{st}</td>
-                            <td className="px-4 py-2 text-right tabular-nums text-slate-600">
+                            <td className="px-4 py-2 text-[#1E293B] font-medium">{st}</td>
+                            <td className="px-4 py-2 text-right tabular-nums text-[#1E293B]">
                               {formatCount(countATA)}
                             </td>
-                            <td className="px-4 py-2 text-right tabular-nums text-slate-600">
+                            <td className="px-4 py-2 text-right tabular-nums text-[#1E293B]">
                               {formatCount(countLTA)}
                             </td>
-                            <td className="px-4 py-2 text-right tabular-nums font-semibold text-slate-900">
+                            <td className="px-4 py-2 text-right tabular-nums font-bold text-[#1E293B]">
                               {formatCount(countATA + countLTA)}
                             </td>
                           </tr>
@@ -785,15 +816,12 @@ export function AnalyticsOverviewTab() {
       <ReportToolbar dataTestId="analytics-toolbar">
         <ReportToolbarGroup align="left">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <span className="text-xs font-medium text-[#475569]">
               Scope:
             </span>
-            <Badge
-              variant="outline"
-              className="text-xs font-semibold text-blue-700 bg-blue-50/50 border-blue-200"
-            >
+            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] border border-[#E2E8F0] bg-[#F8FAFC] text-xs font-semibold text-[#1E293B]">
               {activeEntity === 'ALL' ? 'ALL (Consolidated)' : activeEntity}
-            </Badge>
+            </span>
           </div>
         </ReportToolbarGroup>
 
@@ -803,7 +831,7 @@ export function AnalyticsOverviewTab() {
             size="sm"
             onClick={() => refetch()}
             disabled={isRefetching}
-            className="text-xs h-8 gap-1.5 cursor-pointer"
+            className="text-xs font-semibold h-8 px-3 rounded-[6px] border border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] text-[#1E293B] transition-colors cursor-pointer gap-1.5 shadow-2xs"
             data-testid="analytics-refresh-button"
           >
             <RefreshCw className={cn('w-3.5 h-3.5', isRefetching && 'animate-spin')} />
