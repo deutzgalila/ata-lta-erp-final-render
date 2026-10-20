@@ -54,9 +54,9 @@
   /* Tier 2 Semantics (Tailwind Theme) */
   --color-canvas: #F8FAFC;
   --color-bg-app: #F8FAFC;
-  --color-sidebar: #F8FAFC;
-  --color-bg-subtle: #F8FAFC;
-  --color-bg-muted: #F8FAFC;
+  --color-sidebar: #F1F5F9;
+  --color-bg-subtle: #F1F5F9;
+  --color-bg-muted: #E2E8F0;
   --color-surface: #FFFFFF;
   --color-panel: #FFFFFF;
   --color-bg-light: #FFFFFF;
@@ -64,10 +64,10 @@
   --color-bg-hover: #E2E8F0;
   --color-selected: #DBEAFE;
   --color-surface-selected: #DBEAFE;
-  --color-ink: #1E293B;
-  --color-text-main: #1E293B;
-  --color-text-base: #1E293B;
-  --color-strong: #1E293B;
+  --color-ink: #0F172A;
+  --color-text-main: #0F172A;
+  --color-text-base: #0F172A;
+  --color-strong: #0F172A;
   --color-text-secondary: #334155;
   --color-muted: #475569;
   --color-text-muted: #475569;
@@ -75,10 +75,31 @@
   --color-text-placeholder: #64748B;
   --color-inverse: #FFFFFF;
   --color-text-inverse: #FFFFFF;
-  --color-border: #E2E8F0;
-  --color-border-subtle: #E2E8F0;
+  --color-border: #CBD5E1;
+  --color-border-subtle: #CBD5E1;
   --color-border-strong: #94A3B8;
   --color-control-border: #64748B;
+
+  /* Sticky Note Palette (Tailwind Theme) */
+  --color-sticky-canary-bg: #FEFCE8;
+  --color-sticky-canary-border: #FDE047;
+  --color-sticky-canary-tape: #CA8A04;
+  --color-sticky-canary-ink: #713F12;
+
+  --color-sticky-sky-bg: #F0F9FF;
+  --color-sticky-sky-border: #BAE6FD;
+  --color-sticky-sky-tape: #0284C7;
+  --color-sticky-sky-ink: #075985;
+
+  --color-sticky-rose-bg: #FFF1F2;
+  --color-sticky-rose-border: #FECDD3;
+  --color-sticky-rose-tape: #E11D48;
+  --color-sticky-rose-ink: #991B1B;
+
+  --color-sticky-mint-bg: #F0FDF4;
+  --color-sticky-mint-border: #86EFAC;
+  --color-sticky-mint-tape: #166534;
+  --color-sticky-mint-ink: #166534;
 
   --color-focus: #1D4ED8;
   --color-primary: #1D4ED8;
@@ -179,9 +200,9 @@
   --color-bg-app: var(--slate-50);
   --color-bg: var(--slate-50);
 
-  --color-sidebar: var(--slate-50);
-  --color-bg-subtle: var(--slate-50);
-  --color-bg-muted: var(--slate-50);
+  --color-sidebar: var(--slate-100);
+  --color-bg-subtle: var(--slate-100);
+  --color-bg-muted: var(--slate-200);
 
   --color-surface: #FFFFFF;
   --color-panel: #FFFFFF;
@@ -193,11 +214,11 @@
   --color-selected: var(--blue-100);
   --color-surface-selected: var(--blue-100);
 
-  --color-ink: var(--slate-800);
-  --color-text: var(--slate-800);
-  --color-text-main: var(--slate-800);
-  --color-text-base: var(--slate-800);
-  --color-strong: var(--slate-800);
+  --color-ink: var(--slate-900);
+  --color-text: var(--slate-900);
+  --color-text-main: var(--slate-900);
+  --color-text-base: var(--slate-900);
+  --color-strong: var(--slate-900);
 
   --color-text-secondary: var(--slate-700);
   --color-muted: var(--slate-600);
@@ -207,10 +228,31 @@
   --color-inverse: #FFFFFF;
   --color-text-inverse: #FFFFFF;
 
-  --color-border: var(--slate-200);
-  --color-border-subtle: var(--slate-200);
+  --color-border: var(--slate-300);
+  --color-border-subtle: var(--slate-300);
   --color-border-strong: var(--slate-400);
   --color-control-border: var(--slate-500);
+
+  /* Sticky Note Palette (CSS Variables) */
+  --color-sticky-canary-bg: #FEFCE8;
+  --color-sticky-canary-border: #FDE047;
+  --color-sticky-canary-tape: #CA8A04;
+  --color-sticky-canary-ink: #713F12;
+
+  --color-sticky-sky-bg: #F0F9FF;
+  --color-sticky-sky-border: #BAE6FD;
+  --color-sticky-sky-tape: #0284C7;
+  --color-sticky-sky-ink: #075985;
+
+  --color-sticky-rose-bg: #FFF1F2;
+  --color-sticky-rose-border: #FECDD3;
+  --color-sticky-rose-tape: #E11D48;
+  --color-sticky-rose-ink: #991B1B;
+
+  --color-sticky-mint-bg: #F0FDF4;
+  --color-sticky-mint-border: #86EFAC;
+  --color-sticky-mint-tape: #166534;
+  --color-sticky-mint-ink: #166534;
 
   --color-focus: var(--blue-700);
   --color-primary: var(--blue-700);
