@@ -479,6 +479,7 @@ describe('EMPIRICAL CHALLENGE 4: Failed Consumption Rollbacks', () => {
       fundSource: 'Client Fund',
       receiptS3Key: objectKey,
       receiptFilename: 'consume_fail_update.pdf',
+      expectedVersion: 1,
     });
 
     supabaseAdmin.from = originalFrom;

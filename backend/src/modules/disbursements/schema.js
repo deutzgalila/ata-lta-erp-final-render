@@ -2,7 +2,7 @@
  * Disbursements Zod schemas.
  * Validation for disbursement CRUD and workflow transitions.
  *
- * Phase 6 — Agent B
+ * Authorized Disbursement Lifecycle Redesign (v2)
  */
 
 const { z } = require('zod');
@@ -24,34 +24,69 @@ const DISBURSEMENT_CATEGORIES = [
   'Other',
 ];
 
+const calendarDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
+  .refine((value) => {
+    const parsed = new Date(`${value}T00:00:00Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+  }, 'Date must be a valid calendar date');
+
 /**
  * Schema for creating a disbursement.
  */
-const createDisbursementBaseSchema = z.object({
-  category: z.string().min(1).max(50),
-  description: z.string().min(1).max(2000),
-  amount: z.number().positive(),
-  fundSource: z.enum(FUND_SOURCES),
-  clientId: z.string().uuid().optional().nullable(),
-  employeeId: z.string().uuid().optional().nullable(),
-  linkedInvoiceId: z.string().uuid().optional().nullable(),
-  linkedWorkRequestId: z.string().uuid().optional(),
-  workRequestId: z.string().uuid().optional(),
-  work_request_id: z.string().uuid().optional(),
-  taskId: z.string().uuid().optional().nullable(),
-  task_id: z.string().uuid().optional().nullable(),
-  linkedTaskId: z.string().uuid().optional().nullable(),
-  linkedTransmittalId: z.string().uuid().optional().nullable(),
-  dueDate: z.string().optional().nullable(),
-  notes: z.string().max(2000).optional().nullable(),
-  receiptS3Key: z.string().max(500).optional().nullable(),
-  receiptFilename: z.string().max(255).optional().nullable(),
-  status: z
-    .never({
-      message: 'Explicit status cannot be set on creation; status forgery is prohibited',
-    })
-    .optional(),
-});
+const createDisbursementBaseSchema = z
+  .object({
+    category: z.string().min(1).max(50),
+    description: z.string().min(1).max(2000),
+    amount: z.number().positive(),
+    fundSource: z.enum(FUND_SOURCES),
+    clientId: z.string().uuid().optional().nullable(),
+    employeeId: z.string().uuid().optional().nullable(),
+    linkedInvoiceId: z.string().uuid().optional().nullable(),
+    linkedWorkRequestId: z.string().uuid().optional(),
+    workRequestId: z.string().uuid().optional(),
+    work_request_id: z.string().uuid().optional(),
+    taskId: z.string().uuid().optional().nullable(),
+    task_id: z.string().uuid().optional().nullable(),
+    linkedTaskId: z.string().uuid().optional().nullable(),
+    linkedTransmittalId: z.string().uuid().optional().nullable(),
+    dueDate: z.string().optional().nullable(),
+    notes: z.string().max(2000).optional().nullable(),
+    receiptS3Key: z.string().max(500).optional().nullable(),
+    receiptFilename: z.string().max(255).optional().nullable(),
+    status: z
+      .never({
+        message: 'Explicit status cannot be set on creation; status forgery is prohibited',
+      })
+      .optional(),
+    version: z
+      .never({
+        message: 'Explicit version cannot be set on creation',
+      })
+      .optional(),
+    lifecycle_version: z
+      .never({
+        message: 'Explicit lifecycle_version cannot be set on creation',
+      })
+      .optional(),
+    lifecycleVersion: z
+      .never({
+        message: 'Explicit lifecycleVersion cannot be set on creation',
+      })
+      .optional(),
+    review_ready: z
+      .never({
+        message: 'Explicit review_ready cannot be set on creation',
+      })
+      .optional(),
+    reviewReady: z
+      .never({
+        message: 'Explicit reviewReady cannot be set on creation',
+      })
+      .optional(),
+  })
+  .strict();
 
 const createDisbursementSchema = createDisbursementBaseSchema.superRefine((data, ctx) => {
   if (!data.linkedWorkRequestId && !data.workRequestId && !data.work_request_id) {
@@ -63,7 +98,6 @@ const createDisbursementSchema = createDisbursementBaseSchema.superRefine((data,
   }
 
   // Enforce paired receipt metadata (R5 / F9)
-  // Vouchers cannot be created with a receipt filename without a verified receiptS3Key.
   if (data.receiptFilename && !data.receiptS3Key) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -72,7 +106,6 @@ const createDisbursementSchema = createDisbursementBaseSchema.superRefine((data,
     });
   }
 
-  // Vouchers cannot be created with a receiptS3Key without a paired receiptFilename.
   if (data.receiptS3Key && !data.receiptFilename) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -105,24 +138,46 @@ const updateDisbursementSchema = createDisbursementBaseSchema
   .partial()
   .extend({
     printDetails: printDetailsSchema.optional(),
-    status: z.string().optional(),
-    archived: z.boolean().optional(),
-    // OCC guard (Spec 2.2 / R-10): update applies only if the stored version matches.
-    expectedVersion: z.number().int().positive().optional(),
+    status: z
+      .never({
+        message: 'Use workflow action endpoints to change status',
+      })
+      .optional(),
+    archived: z
+      .never({
+        message: 'Use archive/unarchive endpoints',
+      })
+      .optional(),
+    lifecycle_version: z
+      .never({
+        message: 'Lifecycle version cannot be modified',
+      })
+      .optional(),
+    lifecycleVersion: z
+      .never({
+        message: 'Lifecycle version cannot be modified',
+      })
+      .optional(),
+    review_ready: z
+      .never({
+        message: 'Review ready cannot be modified directly',
+      })
+      .optional(),
+    reviewReady: z
+      .never({
+        message: 'Review ready cannot be modified directly',
+      })
+      .optional(),
+    // OCC guard (Spec 2.2 / R-10 / v2 lifecycle)
+    expectedVersion: z.number().int().positive(),
   })
+  .strict()
   .superRefine((data, ctx) => {
     if (data.printDetails !== undefined && data.expectedVersion === undefined) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'expectedVersion is required for printed voucher edits',
         path: ['expectedVersion'],
-      });
-    }
-    if (data.printDetails !== undefined && data.status !== undefined) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Use workflow actions separately from voucher edits',
-        path: ['status'],
       });
     }
     // Reject contradictory payload: clearing key while supplying filename
@@ -136,11 +191,63 @@ const updateDisbursementSchema = createDisbursementBaseSchema
   });
 
 /**
- * Schema for rejecting a disbursement.
+ * Schema for approving a disbursement (Admin only, v2 Draft -> Approved).
  */
-const rejectSchema = z.object({
-  reason: z.string().trim().min(1, 'Rejection reason is required').max(500),
-});
+const approveDisbursementSchema = z
+  .object({
+    expectedVersion: z.number().int().positive('expectedVersion must be a positive integer'),
+  })
+  .strict();
+
+/**
+ * Schema for funding a disbursement (Accounting/Admin, v2 Approved -> Funded).
+ */
+const fundDisbursementSchema = z
+  .object({
+    method: z.enum(['Bank Transfer', 'Check', 'Cash', 'GCash / Maya', 'Other']),
+    bank: z.string().trim().min(1, 'Bank is required').max(100),
+    reference: z.string().trim().min(1, 'Payment reference is required').max(100),
+    date: calendarDateSchema,
+    expectedVersion: z.number().int().positive('expectedVersion must be a positive integer'),
+  })
+  .strict();
+
+/**
+ * Schema for releasing payment (Admin only, including the preparer, v2 Funded -> Released).
+ */
+const releaseDisbursementSchema = z
+  .object({
+    expectedVersion: z.number().int().positive('expectedVersion must be a positive integer'),
+  })
+  .strict();
+
+/**
+ * Schema for rejecting a disbursement (Admin only, v2 Draft or Funded -> Rejected).
+ */
+const rejectSchema = z
+  .object({
+    reason: z.string().trim().min(1, 'Rejection reason is required').max(500),
+    expectedVersion: z.number().int().positive('expectedVersion must be a positive integer'),
+  })
+  .strict();
+
+/**
+ * Schema for returning a rejected disbursement to draft (Admin only, v2 Rejected -> Draft).
+ */
+const resendDraftSchema = z
+  .object({
+    expectedVersion: z.number().int().positive('expectedVersion must be a positive integer'),
+  })
+  .strict();
+
+/**
+ * Schema for archive and unarchive (Admin only, v2 Released).
+ */
+const archiveDisbursementSchema = z
+  .object({
+    expectedVersion: z.number().int().positive('expectedVersion must be a positive integer'),
+  })
+  .strict();
 
 /**
  * Schema for receipt upload reservation.
@@ -157,42 +264,8 @@ const createReceiptUploadSchema = z.object({
     .max(10485760, 'Size must not exceed 10 MiB'),
 });
 
-const calendarDateSchema = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
-  .refine((value) => {
-    const parsed = new Date(`${value}T00:00:00Z`);
-    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
-  }, 'Date must be a valid calendar date');
-
 /**
- * Schema for direct admin approval or payment release.
- */
-const approveDisbursementSchema = z.object({
-  method: z.string().trim().min(1, 'Payment method is required').max(50),
-  reference: z.string().trim().max(100).optional().nullable(),
-  bank: z.string().trim().max(100).optional().nullable(),
-  date: calendarDateSchema,
-  expectedVersion: z.number().int().positive('expectedVersion must be a positive integer'),
-});
-
-/**
- * Schema for disbursement payment release (Milestone 1 - R1).
- */
-const releaseDisbursementSchema = approveDisbursementSchema;
-
-/**
- * Schema for release payment details (legacy).
- */
-const releasePaymentSchema = z.object({
-  method: z.string().max(50).optional(),
-  reference: z.string().max(100).optional(),
-  bank: z.string().max(100).optional(),
-  date: z.string().optional(),
-});
-
-/**
- * Schema for updating payment details on Released/Funded vouchers.
+ * Schema for updating payment details (retained for backward compatibility, blocked on v2 Funded/Released).
  */
 const updatePaymentDetailsSchema = z.object({
   method: z.string().trim().min(1, 'Payment method is required').max(50),
@@ -220,11 +293,13 @@ const disbursementTemplateSchema = z.object({
 module.exports = {
   createDisbursementSchema,
   updateDisbursementSchema,
-  rejectSchema,
-  releasePaymentSchema,
-  createReceiptUploadSchema,
   approveDisbursementSchema,
+  fundDisbursementSchema,
   releaseDisbursementSchema,
+  rejectSchema,
+  resendDraftSchema,
+  archiveDisbursementSchema,
+  createReceiptUploadSchema,
   updatePaymentDetailsSchema,
   disbursementTemplateSchema,
   calendarDateSchema,

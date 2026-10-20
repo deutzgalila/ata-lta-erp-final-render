@@ -194,8 +194,10 @@ describe('Codex Completion Review Regression Suite (R1–R6)', () => {
   it('rejects impossible calendar dates in payment schema', () => {
     // 2026-99-99 (impossible month & day)
     expect(
-      schema.approveDisbursementSchema.safeParse({
+      schema.fundDisbursementSchema.safeParse({
         method: 'Cash',
+        bank: 'Cash',
+        reference: 'REF-1',
         date: '2026-99-99',
         expectedVersion: 1,
       }).success
@@ -203,8 +205,10 @@ describe('Codex Completion Review Regression Suite (R1–R6)', () => {
 
     // 2026-02-29 (not a leap year)
     expect(
-      schema.approveDisbursementSchema.safeParse({
+      schema.fundDisbursementSchema.safeParse({
         method: 'Cash',
+        bank: 'Cash',
+        reference: 'REF-1',
         date: '2026-02-29',
         expectedVersion: 1,
       }).success
@@ -212,8 +216,10 @@ describe('Codex Completion Review Regression Suite (R1–R6)', () => {
 
     // 2026-04-31 (April has only 30 days)
     expect(
-      schema.approveDisbursementSchema.safeParse({
+      schema.fundDisbursementSchema.safeParse({
         method: 'Cash',
+        bank: 'Cash',
+        reference: 'REF-1',
         date: '2026-04-31',
         expectedVersion: 1,
       }).success
@@ -221,8 +227,10 @@ describe('Codex Completion Review Regression Suite (R1–R6)', () => {
 
     // Valid real date must pass
     expect(
-      schema.approveDisbursementSchema.safeParse({
+      schema.fundDisbursementSchema.safeParse({
         method: 'Cash',
+        bank: 'Cash',
+        reference: 'REF-1',
         date: '2026-10-18',
         expectedVersion: 1,
       }).success

@@ -516,6 +516,7 @@ describe('Adversarial Challenge 3: Replay Prevention on Consumed Reservations', 
     const updateRes = await send('put', `/v1/disbursements/${voucherId}`, {
       receiptS3Key: consumedKey,
       receiptFilename: 'replay-test.pdf',
+      expectedVersion: 1,
     });
     expect(updateRes.status).toBe(400);
     expect(updateRes.body.code).toBe('INVALID_RECEIPT_RESERVATION');
@@ -554,6 +555,7 @@ describe('Adversarial Challenge 3: Replay Prevention on Consumed Reservations', 
       description: 'Updated description for original voucher',
       receiptS3Key: consumedKey,
       receiptFilename: 'replay-test.pdf',
+      expectedVersion: 1,
     });
     expect(updateRes.status).toBe(200);
     expect(updateRes.body.data.receipt_s3_key).toBe(consumedKey);
@@ -678,6 +680,7 @@ describe('Adversarial Challenge 4: Concurrency Race Conditions on Reservation Cl
       send('put', `/v1/disbursements/${vId}`, {
         receiptS3Key: objectKey,
         receiptFilename: `swarm-update-${idx}.pdf`,
+        expectedVersion: 1,
       })
     );
 
@@ -1062,6 +1065,7 @@ describe('Adversarial Challenge 5: Create-Fail-Retry Rollback Safety Probes', ()
     const failUpdate = await send('put', `/v1/disbursements/${nonExistentVoucher}`, {
       receiptS3Key: objectKey,
       receiptFilename: 'notfound-test.pdf',
+      expectedVersion: 1,
     });
     expect(failUpdate.status).toBe(404);
 

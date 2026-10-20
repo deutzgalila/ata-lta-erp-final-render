@@ -40,6 +40,7 @@ const mockTables = {
   idempotency_keys: new Map(),
   status_history: new Map(),
   document_sequences: new Map(),
+  notifications: new Map(),
 };
 
 const mockStorageObjects = new Map();
@@ -271,6 +272,30 @@ const tableQuery = (table) => {
         }
         if (table === 'retainer_templates' && stored.template_type === undefined) {
           stored.template_type = 'retainer';
+        }
+        if (table === 'disbursements' && stored.lifecycle_version === 2) {
+          const histId = nextId();
+          mockTables.status_history.set(histId, {
+            id: histId,
+            table_name: 'disbursements',
+            record_id: id,
+            old_status: null,
+            new_status: stored.status || 'Draft',
+            actor_id: stored.created_by,
+            entity_id: stored.entity_id,
+            details: {
+              action: 'create',
+              amount: stored.amount,
+              category: stored.category,
+              description: stored.description,
+              disbursement_number: stored.disbursement_number,
+              review_ready: stored.review_ready,
+              lifecycle_version: stored.lifecycle_version,
+              receipt_filename: stored.receipt_filename,
+              receipt_s3_key: stored.receipt_s3_key,
+            },
+            created_at: stored.created_at || nowIso(),
+          });
         }
         rows.set(id, stored);
         inserted.push(stored);
@@ -572,12 +597,19 @@ const rpcImpl = {
     const row = mockTables.disbursements.get(params.p_id);
     if (!row) return { data: [], error: null };
     if (row.entity_id !== params.p_entity_id) return { data: [], error: null };
-    const fromStatuses = Array.isArray(params.p_from_statuses)
-      ? params.p_from_statuses
-      : [params.p_from_statuses];
-    if (!fromStatuses.includes(row.status)) return { data: [], error: null };
 
-    if (
+    if (row.lifecycle_version === 2) {
+      if (
+        params.p_expected_version === null ||
+        params.p_expected_version === undefined ||
+        Number(params.p_expected_version) <= 0
+      ) {
+        return { data: null, error: { message: 'VERSION_REQUIRED', code: 'P0001' } };
+      }
+      if (row.version !== Number(params.p_expected_version)) {
+        return { data: null, error: { message: 'ERR_CONCURRENCY_CONFLICT', code: 'P0001' } };
+      }
+    } else if (
       params.p_expected_version !== null &&
       params.p_expected_version !== undefined &&
       row.version !== Number(params.p_expected_version)
@@ -585,36 +617,214 @@ const rpcImpl = {
       return { data: [], error: null };
     }
 
+    const actor = mockTables.users.get(params.p_user_id);
+    const isAdmin = actor?.role === 'Admin';
+    const isAccounting =
+      actor?.role === 'Accounting' ||
+      (actor?.user_departments || []).some((d) => (d.departments?.name || '').toLowerCase() === 'accounting');
+
+    const fromStatuses = Array.isArray(params.p_from_statuses)
+      ? params.p_from_statuses
+      : [params.p_from_statuses];
+    if (!fromStatuses.includes(row.status)) return { data: [], error: null };
+
+    const oldStatus = row.status;
     const now = nowIso();
+
+    if (params.p_to_status === 'Approved') {
+      if (!isAdmin) {
+        return { data: null, error: { message: 'FORBIDDEN_ROLE_NOT_ADMIN', code: '42501' } };
+      }
+      row.approved_by = params.p_user_id;
+      row.approved_at = now;
+    } else if (params.p_to_status === 'Funded') {
+      if (!isAdmin && !isAccounting) {
+        return { data: null, error: { message: 'FORBIDDEN_FUNDING_PERMISSION', code: '42501' } };
+      }
+      const pd = params.p_payment_details || {};
+      if (!pd.method || !pd.bank || !pd.reference || !pd.date) {
+        return { data: null, error: { message: 'MISSING_PAYMENT_DETAILS', code: '22023' } };
+      }
+      row.funded_by = params.p_user_id;
+      row.funded_at = now;
+      row.payment_method = pd.method;
+      row.payment_bank = pd.bank;
+      row.payment_reference = pd.reference;
+      row.payment_date = pd.date;
+      row.payment_processed_by = params.p_user_id;
+    } else if (params.p_to_status === 'Released') {
+      if (!isAdmin) {
+        return { data: null, error: { message: 'FORBIDDEN_ROLE_NOT_ADMIN', code: '42501' } };
+      }
+      row.released_by = params.p_user_id;
+      row.released_at = now;
+    } else if (params.p_to_status === 'Rejected') {
+      if (!isAdmin) {
+        return { data: null, error: { message: 'FORBIDDEN_ROLE_NOT_ADMIN', code: '42501' } };
+      }
+      if (!params.p_reason || !String(params.p_reason).trim()) {
+        return { data: null, error: { message: 'INVALID_REASON', code: '22023' } };
+      }
+      row.rejected_by = params.p_user_id;
+      row.rejected_at = now;
+      row.rejection_reason = String(params.p_reason).trim();
+    }
+
     row.status = params.p_to_status;
     row.updated_at = now;
     row.updated_by = params.p_user_id;
     row.version = (row.version || 1) + 1;
 
-    if (params.p_to_status === 'Approved' || (params.p_to_status === 'Released' && !row.approved_by)) {
-      row.approved_by = params.p_user_id;
-      row.approved_at = now;
+    const histId = nextId();
+    mockTables.status_history.set(histId, {
+      id: histId,
+      table_name: 'disbursements',
+      record_id: row.id,
+      old_status: oldStatus,
+      new_status: row.status,
+      actor_id: params.p_user_id,
+      entity_id: params.p_entity_id,
+      details: {
+        action: 'status_change',
+        reason: params.p_reason || null,
+        payment_details: params.p_payment_details || null,
+        previous_version: params.p_expected_version,
+      },
+      created_at: now,
+    });
+
+    return { data: [row], error: null };
+  },
+
+  disbursement_atomic_delete: (params) => {
+    const row = mockTables.disbursements.get(params.p_id);
+    if (!row || row.entity_id !== params.p_entity_id) return { data: [], error: null };
+    if (row.deleted_at || row.archived) {
+      return { data: null, error: { message: 'ALREADY_DELETED_OR_ARCHIVED', code: 'P0002' } };
     }
-    if (params.p_to_status === 'Released') {
-      row.released_by = params.p_user_id;
-      row.released_at = now;
-      const pd = params.p_payment_details || {};
-      if (pd.method !== undefined) row.payment_method = pd.method || null;
-      if (pd.reference !== undefined) row.payment_reference = pd.reference || null;
-      if (pd.bank !== undefined) row.payment_bank = pd.bank || null;
-      if (pd.date !== undefined) row.payment_date = pd.date || null;
-      row.payment_processed_by = params.p_user_id;
+    if (row.lifecycle_version !== 2) {
+      return { data: null, error: { message: 'SAVED_WORKFLOW_READ_ONLY', code: 'P0002' } };
     }
-    if (params.p_to_status === 'Funded') {
-      row.funded_by = params.p_user_id;
-      row.funded_at = now;
+    if (row.status !== 'Draft') {
+      return { data: null, error: { message: 'CANNOT_DELETE_NON_DRAFT', code: 'P0002' } };
     }
-    if (params.p_to_status === 'Rejected') {
-      row.rejected_by = params.p_user_id;
-      row.rejected_at = now;
-      row.rejection_reason = params.p_reason || null;
+    const actor = mockTables.users.get(params.p_user_id);
+    const isAdmin = actor?.role === 'Admin';
+    const isOwner = row.created_by === params.p_user_id || row.requested_by === params.p_user_id;
+    if (!isAdmin && !isOwner) {
+      return { data: null, error: { message: 'FORBIDDEN_DELETE_PERMISSION', code: '42501' } };
+    }
+    if (
+      params.p_expected_version === null ||
+      params.p_expected_version === undefined ||
+      Number(params.p_expected_version) <= 0 ||
+      row.version !== Number(params.p_expected_version)
+    ) {
+      return { data: null, error: { message: 'ERR_CONCURRENCY_CONFLICT', code: 'P0001' } };
+    }
+    const now = nowIso();
+    const oldStatus = row.status;
+    row.deleted_at = now;
+    row.updated_at = now;
+    row.updated_by = params.p_user_id;
+    row.version = (row.version || 1) + 1;
+
+    const histId = nextId();
+    mockTables.status_history.set(histId, {
+      id: histId,
+      table_name: 'disbursements',
+      record_id: row.id,
+      old_status: oldStatus,
+      new_status: 'Deleted',
+      actor_id: params.p_user_id,
+      entity_id: params.p_entity_id,
+      details: { action: 'delete', previous_status: oldStatus, previous_version: params.p_expected_version },
+      created_at: now,
+    });
+    return { data: [row], error: null };
+  },
+
+  disbursement_archive_toggle: (params) => {
+    const row = mockTables.disbursements.get(params.p_id);
+    if (!row || row.entity_id !== params.p_entity_id) return { data: [], error: null };
+    const actor = mockTables.users.get(params.p_user_id);
+    if (actor?.role !== 'Admin') {
+      return { data: null, error: { message: 'FORBIDDEN_ROLE_NOT_ADMIN', code: '42501' } };
+    }
+    if (row.version !== Number(params.p_expected_version)) {
+      return { data: null, error: { message: 'ERR_CONCURRENCY_CONFLICT', code: 'P0001' } };
+    }
+    const now = nowIso();
+    row.archived = params.p_archive;
+    row.archived_at = params.p_archive ? now : null;
+    row.archived_by = params.p_archive ? params.p_user_id : null;
+    row.updated_at = now;
+    row.updated_by = params.p_user_id;
+    row.version = (row.version || 1) + 1;
+
+    const histId = nextId();
+    mockTables.status_history.set(histId, {
+      id: histId,
+      table_name: 'disbursements',
+      record_id: row.id,
+      old_status: row.status,
+      new_status: row.status,
+      actor_id: params.p_user_id,
+      entity_id: params.p_entity_id,
+      details: { action: params.p_archive ? 'archive' : 'unarchive', previous_version: params.p_expected_version },
+      created_at: now,
+    });
+    return { data: [row], error: null };
+  },
+
+
+
+  disbursement_atomic_edit: (params) => {
+    const row = mockTables.disbursements.get(params.p_id);
+    if (!row || row.entity_id !== params.p_entity_id) return { data: [], error: null };
+    if (row.version !== Number(params.p_expected_version)) {
+      return { data: null, error: { message: 'ERR_CONCURRENCY_CONFLICT', code: 'P0001' } };
+    }
+    const u = params.p_updates || {};
+    const actor = mockTables.users.get(params.p_user_id);
+    const isAdmin = actor?.role === 'Admin';
+    const isFinancial =
+      u.amount !== undefined ||
+      u.category !== undefined ||
+      u.description !== undefined ||
+      u.fund_source !== undefined ||
+      u.client_id !== undefined ||
+      u.linked_work_request_id !== undefined ||
+      u.receipt_s3_key !== undefined;
+
+    if (isFinancial && row.status !== 'Draft') {
+      return { data: null, error: { message: 'FINANCIAL_EDITS_LOCKED_AFTER_APPROVAL', code: 'P0002' } };
+    }
+    if (u.print_details !== undefined && !isAdmin) {
+      return { data: null, error: { message: 'FORBIDDEN_PRINT_DETAILS_ADMIN_ONLY', code: '42501' } };
     }
 
+    const now = nowIso();
+    Object.assign(row, u);
+    if (row.review_ready === false && isFinancial) {
+      row.review_ready = true;
+    }
+    row.updated_at = now;
+    row.updated_by = params.p_user_id;
+    row.version = (row.version || 1) + 1;
+
+    const histId = nextId();
+    mockTables.status_history.set(histId, {
+      id: histId,
+      table_name: 'disbursements',
+      record_id: row.id,
+      old_status: row.status,
+      new_status: row.status,
+      actor_id: params.p_user_id,
+      entity_id: params.p_entity_id,
+      details: { action: 'edit', after: u, previous_version: params.p_expected_version },
+      created_at: now,
+    });
     return { data: [row], error: null };
   },
 

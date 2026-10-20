@@ -86,7 +86,7 @@ describe('/v1/disbursements', () => {
       .send(validDisbursement)
       .expect(201);
 
-    expect(res.body.data.status).toBe('Pending');
+    expect(res.body.data.status).toBe('Draft');
   });
 
   it('returns tab-badge counts scoped to the active entity', async () => {
@@ -127,13 +127,15 @@ describe('/v1/disbursements', () => {
       archived: false,
     });
 
-    mockTables.pending_changes.set('rejected-pc', {
-      id: 'rejected-pc',
+    mockTables.disbursements.set('rejected-disb', {
+      id: 'rejected-disb',
       entity_id: 'ent-ata',
-      table_name: 'disbursements',
-      proposed_data: {},
-      submitted_by: admin,
-      status: 'rejected',
+      category: 'Meals',
+      description: 'Rejected expense',
+      amount: 500,
+      fund_source: 'Firm Fund',
+      status: 'Rejected',
+      archived: false,
     });
 
     const afterSeed = await request(app)
@@ -142,7 +144,7 @@ describe('/v1/disbursements', () => {
       .set('X-Active-Entity', 'ATA')
       .expect(200);
 
-    expect(afterSeed.body.data.active).toBe(1);
+    expect(afterSeed.body.data.active).toBe(2);
     expect(afterSeed.body.data.archived).toBe(1);
     expect(afterSeed.body.data.rejected).toBe(1);
   });
@@ -256,14 +258,15 @@ describe('/v1/disbursements', () => {
       entities: ['ATA'],
     });
 
-    mockTables.disbursements.set('approved-disb', {
-      id: 'approved-disb',
+    mockTables.disbursements.set('funded-disb', {
+      id: 'funded-disb',
       entity_id: 'ent-ata',
       category: 'Meals',
-      description: 'Approved expense',
+      description: 'Funded expense',
       amount: 800,
       fund_source: 'Firm Fund',
-      status: 'Approved',
+      status: 'Funded',
+      lifecycle_version: 2,
       archived: false,
     });
 
@@ -310,6 +313,7 @@ describe('/v1/disbursements', () => {
       .delete(`/v1/disbursements/${created.body.data.id}`)
       .set('Authorization', `Bearer ${token}`)
       .set('X-Active-Entity', 'ATA')
+      .send({ expectedVersion: 1 })
       .expect(204);
 
     await request(app)
@@ -461,6 +465,15 @@ describe('/v1/disbursements', () => {
       status: 'Sent',
     });
 
+    mockTables.transmittals.set(TRANSMITTAL_ID_2, {
+      id: TRANSMITTAL_ID_2,
+      entity_id: 'ent-ata',
+      client_id: CLIENT_ID,
+      work_request_id: WORK_REQUEST_ID,
+      tracking_number: 'ATA-TR-2026-0003',
+      status: 'Sent',
+    });
+
     // 1. Create disbursement with linkedTransmittalId
     const createRes = await request(app)
       .post('/v1/disbursements')
@@ -503,6 +516,7 @@ describe('/v1/disbursements', () => {
       .set('X-Active-Entity', 'ATA')
       .send({
         linkedTransmittalId: TRANSMITTAL_ID_2,
+        expectedVersion: 1,
       })
       .expect(200);
 
@@ -652,8 +666,8 @@ describe('/v1/disbursements', () => {
       mockTables.disbursements.set(LTA_DISB_ID, {
         id: LTA_DISB_ID,
         entity_id: 'ent-lta',
-        client_id: CLIENT_ID,
-        linked_work_request_id: WORK_REQUEST_ID,
+        client_id: null,
+        linked_work_request_id: null,
         disbursement_number: 'DISB-LTA-2026-ALL',
         category: 'Supplies',
         description: 'LTA special stationery',
@@ -661,6 +675,9 @@ describe('/v1/disbursements', () => {
         fund_source: 'Firm Fund',
         status: 'Draft',
         archived: false,
+        lifecycle_version: 2,
+        review_ready: true,
+        version: 1,
       });
 
       // PUT /v1/disbursements/:id with X-Active-Entity: ALL
@@ -668,7 +685,7 @@ describe('/v1/disbursements', () => {
         .put(`/v1/disbursements/${LTA_DISB_ID}`)
         .set('Authorization', `Bearer ${admin}`)
         .set('X-Active-Entity', 'ALL')
-        .send({ notes: 'Updated LTA disb in ALL mode' })
+        .send({ notes: 'Updated LTA disb in ALL mode', expectedVersion: 1 })
         .expect(200);
 
       expect(res.body.data.notes).toBe('Updated LTA disb in ALL mode');
@@ -759,7 +776,7 @@ describe('/v1/disbursements', () => {
       expect(found.employee_name).toBe('Employee Juan');
     });
 
-    it('Task A.5: Standard 5-stage lifecycle transitions (Draft -> Submitted -> Pending Admin Approval -> Released -> Funded)', async () => {
+    it('Task A.5: Standard canonical lifecycle transitions (Draft -> Approved -> Funded -> Released)', async () => {
       const admin = registerUser({
         email: 'admin-lifecycle@ata-lta.ph',
         name: 'Admin Lifecycle',
@@ -767,10 +784,24 @@ describe('/v1/disbursements', () => {
         entities: ['ATA'],
       });
 
+      const staff = registerUser({
+        email: 'staff-lifecycle@ata-lta.ph',
+        name: 'Staff Lifecycle',
+        role: 'Operations',
+        entities: ['ATA'],
+      });
+
+      const accounting = registerUser({
+        email: 'accounting-lifecycle@ata-lta.ph',
+        name: 'Accounting Lifecycle',
+        role: 'Accounting',
+        entities: ['ATA'],
+      });
+
       // 1. Create Draft disbursement
       const createRes = await request(app)
         .post('/v1/disbursements')
-        .set('Authorization', `Bearer ${admin}`)
+        .set('Authorization', `Bearer ${staff}`)
         .set('X-Active-Entity', 'ATA')
         .send(validDisbursement)
         .expect(201);
@@ -778,57 +809,56 @@ describe('/v1/disbursements', () => {
       const disbId = createRes.body.data.id;
       expect(createRes.body.data.status).toBe('Draft');
 
-      // 2. submit: Draft -> Submitted
-      const submitRes = await request(app)
-        .post(`/v1/disbursements/${disbId}/submit`)
-        .set('Authorization', `Bearer ${admin}`)
-        .set('X-Active-Entity', 'ATA')
-        .expect(200);
-
-      expect(submitRes.body.data.status).toBe('Submitted');
-
-      // 3. forward_admin: Submitted -> Pending Admin Approval
-      const forwardRes = await request(app)
-        .post(`/v1/disbursements/${disbId}/forward_admin`)
-        .set('Authorization', `Bearer ${admin}`)
-        .set('X-Active-Entity', 'ATA')
-        .expect(200);
-
-      expect(forwardRes.body.data.status).toBe('Pending Admin Approval');
-
-      // 4. approve: Pending Admin Approval -> Released
+      // 2. approve: Draft -> Approved (Admin only)
       const approveRes = await request(app)
         .post(`/v1/disbursements/${disbId}/approve`)
         .set('Authorization', `Bearer ${admin}`)
         .set('X-Active-Entity', 'ATA')
         .send({
-          method: 'Cash',
-          date: '2026-10-18',
+          expectedVersion: 1,
+        })
+        .expect(200);
+
+      expect(approveRes.body.data.status).toBe('Approved');
+
+      // 3. fund: Approved -> Funded (Accounting)
+      const fundRes = await request(app)
+        .post(`/v1/disbursements/${disbId}/fund`)
+        .set('Authorization', `Bearer ${accounting}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          method: 'Bank Transfer',
+          bank: 'BDO',
+          reference: 'REF-A5-BDO',
+          date: '2026-10-20',
+          expectedVersion: 2,
+        })
+        .expect(200);
+
+      expect(fundRes.body.data.status).toBe('Funded');
+
+      // 4. release: Funded -> Released (Admin, non-preparer)
+      const releaseRes = await request(app)
+        .post(`/v1/disbursements/${disbId}/release`)
+        .set('Authorization', `Bearer ${admin}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
           expectedVersion: 3,
         })
         .expect(200);
 
-      expect(approveRes.body.data.status).toBe('Released');
-
-      // 5. fund: Released -> Funded
-      const fundRes = await request(app)
-        .post(`/v1/disbursements/${disbId}/fund`)
-        .set('Authorization', `Bearer ${admin}`)
-        .set('X-Active-Entity', 'ATA')
-        .expect(200);
-
-      expect(fundRes.body.data.status).toBe('Funded');
+      expect(releaseRes.body.data.status).toBe('Released');
     });
 
-    it('Task A.5: Accounting staff can reject a voucher with reason', async () => {
-      const accountingToken = registerUser({
-        email: 'jen.andoga@ata-lta.ph',
-        name: 'Jen Andoga',
-        role: 'Accounting',
+    it('Task A.5: Admin can reject a voucher with reason', async () => {
+      const adminToken = registerUser({
+        email: 'admin.rej@ata-lta.ph',
+        name: 'Admin Rejection',
+        role: 'Admin',
         entities: ['ATA'],
       });
 
-      // Seed a submitted disbursement
+      // Seed a draft disbursement
       const DISB_TO_REJECT = 'disb-reject-9999';
       mockTables.disbursements.set(DISB_TO_REJECT, {
         id: DISB_TO_REJECT,
@@ -840,15 +870,18 @@ describe('/v1/disbursements', () => {
         description: 'Team dinner',
         amount: 3200,
         fund_source: 'Firm Fund',
-        status: 'Submitted',
+        status: 'Draft',
+        lifecycle_version: 2,
+        review_ready: true,
         archived: false,
+        version: 1,
       });
 
       const res = await request(app)
         .post(`/v1/disbursements/${DISB_TO_REJECT}/reject`)
-        .set('Authorization', `Bearer ${accountingToken}`)
+        .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
-        .send({ reason: 'Duplicate meal reimbursement claim' })
+        .send({ reason: 'Duplicate meal reimbursement claim', expectedVersion: 1 })
         .expect(200);
 
       expect(res.body.data.status).toBe('Rejected');
@@ -863,7 +896,7 @@ describe('/v1/disbursements', () => {
         entities: ['ATA'],
       });
 
-      // Seed a Pending voucher
+      // Seed a Draft voucher
       const DISB_EDIT_ID = 'disb-edit-accounting-8888';
       mockTables.disbursements.set(DISB_EDIT_ID, {
         id: DISB_EDIT_ID,
@@ -875,9 +908,12 @@ describe('/v1/disbursements', () => {
         description: 'Grab fare to SEC',
         amount: 450,
         fund_source: 'Firm Fund',
-        status: 'Pending',
+        status: 'Draft',
+        lifecycle_version: 2,
+        review_ready: true,
         notes: 'Original requester note',
         archived: false,
+        version: 1,
       });
 
       const res = await request(app)
@@ -888,6 +924,7 @@ describe('/v1/disbursements', () => {
           amount: 500,
           category: 'Miscellaneous',
           notes: 'Adjusted per official receipt',
+          expectedVersion: 1,
         })
         .expect(200);
 

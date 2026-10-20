@@ -160,9 +160,9 @@ it('allows admin corrections with version checks and preserves approval/requeste
     releasedBy: 'R. Tan',
   };
   const res = await api('put', `/v1/disbursements/${voucher.id}`)
-    .send({ amount: 1999.99, notes: 'Revised', printDetails, expectedVersion: voucher.version })
+    .send({ printDetails, expectedVersion: voucher.version })
     .expect(200);
-  expect(res.body.data.amount).toBe(1999.99);
+  expect(res.body.data.amount).toBe(original.amount);
   expect(res.body.data.print_details).toEqual(printDetails);
   expect(res.body.data.version).toBe(voucher.version + 1);
   expect(res.body.data.status).toBe('Released');
