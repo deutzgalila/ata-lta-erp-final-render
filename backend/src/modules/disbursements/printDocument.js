@@ -1,4 +1,5 @@
-// Equivalent to frontend/src/lib/disbursementDocument.ts; keep document rendering synchronized.
+// Keep document content in sync with frontend/src/lib/disbursementDocument.ts.
+// PDF page margins differ from browser printing; pdfService disables headers/footers.
 'use strict';
 Object.defineProperty(exports, '__esModule', { value: true });
 exports.DISBURSEMENT_DOCUMENT_CSS = exports.DISBURSEMENT_PAGE_CSS = void 0;
@@ -94,10 +95,8 @@ function disbursementAmountInWords(amount) {
   const whole = Math.floor(cents / 100);
   return `${convert(whole) || 'Zero'} Pesos${cents % 100 ? ' and ' + convert(cents % 100) + ' Centavos' : ''} Only`.toUpperCase();
 }
-exports.DISBURSEMENT_PAGE_CSS = `@page { size: A4; margin: 15mm 20mm;
-  @top-left { content: ""; } @top-center { content: ""; } @top-right { content: ""; }
-  @bottom-left { content: ""; } @bottom-center { content: ""; } @bottom-right { content: ""; }
-}`;
+// Use actual page margins for consistent PDF spacing on every sheet.
+exports.DISBURSEMENT_PAGE_CSS = `@page { size: A4; margin: 15mm 20mm; }`;
 exports.DISBURSEMENT_DOCUMENT_CSS = `
 .disbursement-document { font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.5; color: #111; background: white; }
 .disbursement-document * { box-sizing: border-box; }
@@ -130,8 +129,6 @@ exports.DISBURSEMENT_DOCUMENT_CSS = `
 .disbursement-document .voucher-signature { flex: 1; text-align: center; padding-top: 45px; min-width: 0; }
 .disbursement-document .voucher-signature-name { min-height: 24px; padding-top: 6px; border-top: 1px solid #111; font-weight: 700; text-transform: uppercase; overflow-wrap: anywhere; }
 .disbursement-document .voucher-signature-label { font-size: 9pt; }
-.disbursement-document .voucher-footer { margin-top: 35px; padding-top: 12px; border-top: 1px solid #bbb; text-align: center; font-size: 8pt; }
-.disbursement-document .voucher-footer strong { display: block; font-size: 11pt; margin-bottom: 4px; }
 .disbursement-document .voucher-meta, .disbursement-document .voucher-totals { break-inside: avoid; }
 `;
 function buildDisbursementDocument(d, options = {}) {
@@ -156,6 +153,5 @@ function buildDisbursementDocument(d, options = {}) {
   <div class="voucher-totals"><section class="voucher-box"><span class="voucher-label">Amount in Words</span><p data-testid="amount-in-words">${esc(disbursementAmountInWords(d.amount))}</p></section><section class="voucher-total"><strong>Total Amount:</strong><div>PHP <span class="voucher-total-amount" data-testid="disbursement-total-amount">${esc(formatAmount(d.amount))}</span></div></section></div>
   <section class="voucher-box voucher-payment"><h4 class="voucher-label">Payment Details</h4><div class="voucher-payment-fields">${payment('Date:', details.paymentDate)}${payment('Method:', details.paymentMethod)}${payment('Check/Ref No.:', details.paymentReference)}${payment('Bank/Branch:', details.paymentBank)}</div></section>
   ${d.notes ? `<section class="voucher-notes"><strong>Notes:</strong><p>${esc(d.notes)}</p></section>` : ''}
-  <div class="voucher-signatures" data-testid="signatures-section">${signature('Prepared By', details.preparedBy, 'sig-prepared-by')}${signature('Approved By', details.approvedBy, 'sig-approved-by')}${signature('Released By', details.releasedBy, 'sig-released-by')}</div>
-  <footer class="voucher-footer"><strong>THANK YOU !!!</strong>${includeCompany ? `${esc(company)} • ` : ''}Official Internal Payment Authorization</footer>`;
+  <div class="voucher-signatures" data-testid="signatures-section">${signature('Prepared By', details.preparedBy, 'sig-prepared-by')}${signature('Approved By', details.approvedBy, 'sig-approved-by')}${signature('Released By', details.releasedBy, 'sig-released-by')}</div>`;
 }

@@ -1,4 +1,5 @@
-// Keep in sync with frontend/src/lib/printDocuments.ts statement renderer.
+// Keep document content in sync with frontend/src/lib/printDocuments.ts.
+// PDF page margins differ from browser printing; pdfService disables headers/footers.
 'use strict';
 Object.defineProperty(exports, '__esModule', { value: true });
 exports.STATEMENT_CSS = void 0;
@@ -45,10 +46,8 @@ function getInvoicePrintDetails(inv) {
 }
 exports.STATEMENT_CSS = `
 * { box-sizing: border-box; }
-@page { size: A4; margin: 15mm 20mm;
-  @top-left { content: ""; } @top-center { content: ""; } @top-right { content: ""; }
-  @bottom-left { content: ""; } @bottom-center { content: ""; } @bottom-right { content: ""; }
-}
+/* Use actual page margins for consistent PDF spacing on every sheet. */
+@page { size: A4; margin: 15mm 20mm; }
 body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; line-height: 1.5; color: #000; box-sizing: border-box; max-width: 210mm; margin: 0 auto; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
 /* Generic Header Styles */
@@ -117,7 +116,6 @@ body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; line-height:
 .footer-container { margin-top: 30px; text-align: center; }
 .thank-you { font-size: 11pt; font-weight: 700; letter-spacing: 1px; margin-bottom: 4px; }
 .footer-text { font-size: 9pt; font-weight: bold; }
-.footer-text.underline { text-decoration: underline; }
 
 .vat-breakdown { background: #f8fafc; padding: 12px; border-radius: 12px; margin-top: 12px; font-size: 9pt; border: 1px solid #cbd5e1; }
 .vat-breakdown p { margin: 2px 0; }
@@ -254,7 +252,7 @@ function buildStatementDocument(inv, options = {}) {
     `<div class="footer-container"><div class="thank-you">THANK YOU !!!</div>` +
     (!includeCompanyDetails || entity === 'ATA'
       ? `<div class="footer-text">customer's copy</div>`
-      : `<div class="footer-text underline">Should you have any enquiries concerning this statement, please contact us on 742-8582/404-4928</div>`) +
+      : '') +
     `</div>`;
   const notesHtml = inv.notes
     ? `<p style="white-space:pre-wrap"><strong>Notes:</strong> ${esc(inv.notes)}</p>`
