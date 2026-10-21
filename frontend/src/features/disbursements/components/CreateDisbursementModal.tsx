@@ -1,5 +1,5 @@
 import { DateInput } from '@/components/ui/date-input';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -79,6 +79,10 @@ function classifyReceiptUploadError(err: unknown): string {
     return 'Receipt storage is unavailable. Your request has not been submitted. Please try again later or contact your administrator.';
   }
 
+  if (code === 'RECEIPT_ENTITY_REQUIRED') {
+    return 'Select a specific ATA or LTA entity for this receipt upload.';
+  }
+
   const rawMsg =
     typeof err === 'string'
       ? err
@@ -135,8 +139,13 @@ export function CreateDisbursementModal({
     file: File;
     receiptS3Key: string;
     receiptFilename: string;
+    targetWorkRequestId: string;
+    targetClientId: string;
+    targetEntity: 'ATA' | 'LTA';
+    targetGeneration: number;
   } | null>(null);
   const isSubmittingRef = React.useRef(false);
+  const attemptIdRef = React.useRef(0);
   const [needsCreateReview, setNeedsCreateReview] = useState(false);
   const { captureContext, contextKey } = useLiveModalContext({
     isOpen,
@@ -155,6 +164,7 @@ export function CreateDisbursementModal({
   };
 
   const handleSelectFile = (file: File) => {
+    if (isUploadingReceipt || isPending) return;
     if (!['application/pdf', 'image/png', 'image/jpeg'].includes(file.type)) {
       setErrors((prev) => ({ ...prev, receipt: 'Only PDF, PNG, and JPEG files are allowed' }));
       return;
@@ -177,6 +187,7 @@ export function CreateDisbursementModal({
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+    if (isUploadingReceipt || isPending) return;
     const file = e.dataTransfer.files?.[0];
     if (file) {
       handleSelectFile(file);
@@ -209,6 +220,7 @@ export function CreateDisbursementModal({
     setUploadedReceipt(null);
     setReceiptFile(null);
     setReceiptFilename('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
   }, [contextKey, pendingCreateKey]);
 
   const { data: clientsData = [] } = useQuery<ClientSummary[]>({
@@ -292,11 +304,60 @@ export function CreateDisbursementModal({
   // Auto-detect client from selected work request
   const selectedWr = workRequests.find((wr) => wr.id === linkedWorkRequestId);
 
+  const resolvedTargetEntity: 'ATA' | 'LTA' | undefined = React.useMemo(() => {
+    if (activeEntity !== 'ALL') {
+      return activeEntity === 'ATA' || activeEntity === 'LTA' ? activeEntity : undefined;
+    }
+    const wrEntity = selectedWr?.entity;
+    if (wrEntity === 'ATA' || wrEntity === 'LTA') {
+      return wrEntity;
+    }
+    return undefined;
+  }, [activeEntity, selectedWr?.entity]);
+
+  const targetGenerationRef = React.useRef(0);
+  const formSeed = JSON.stringify([
+    prefill?.workRequestId, prefill?.clientId, prefill?.taskId,
+    defaultWorkRequestId, defaultClientId,
+  ]);
+  const liveTargetRef = React.useRef({
+    workRequestId: linkedWorkRequestId,
+    clientId,
+    entity: resolvedTargetEntity,
+    file: receiptFile,
+    formSeed,
+    generation: 0,
+  });
+
+  // Invalidate callbacks before pending responses can use a changed target or file.
+  useLayoutEffect(() => {
+    const prev = liveTargetRef.current;
+    if (
+      prev.workRequestId !== linkedWorkRequestId ||
+      prev.clientId !== clientId ||
+      prev.entity !== resolvedTargetEntity ||
+      prev.file !== receiptFile ||
+      prev.formSeed !== formSeed
+    ) {
+      targetGenerationRef.current += 1;
+      liveTargetRef.current = {
+        workRequestId: linkedWorkRequestId,
+        clientId,
+        entity: resolvedTargetEntity,
+        file: receiptFile,
+        formSeed,
+        generation: targetGenerationRef.current,
+      };
+      setUploadedReceipt(null);
+    }
+  }, [linkedWorkRequestId, clientId, resolvedTargetEntity, receiptFile, formSeed]);
+
   useEffect(() => {
     const isClientLockedByPrefill = Boolean(prefill?.clientId || defaultClientId);
-    if (isOpen && linkedWorkRequestId && selectedWr?.client_id && !isClientLockedByPrefill) {
-      if (clientId !== selectedWr.client_id) {
-        setClientId(selectedWr.client_id);
+    const wrClientId = selectedWr?.clientId || selectedWr?.client_id;
+    if (isOpen && linkedWorkRequestId && wrClientId && !isClientLockedByPrefill) {
+      if (clientId !== wrClientId) {
+        setClientId(wrClientId);
       }
     }
   }, [isOpen, linkedWorkRequestId, selectedWr, prefill?.clientId, defaultClientId, clientId]);
@@ -306,8 +367,10 @@ export function CreateDisbursementModal({
       return (
         selectedWr.clientName ||
         selectedWr.client_name ||
-        clients.find((c) => c.id === selectedWr.client_id)?.name ||
-        (selectedWr.client_id ? `Client (${selectedWr.client_id})` : '')
+        clients.find((c) => c.id === (selectedWr.clientId || selectedWr.client_id))?.name ||
+        ((selectedWr.clientId || selectedWr.client_id)
+          ? `Client (${selectedWr.clientId || selectedWr.client_id})`
+          : '')
       );
     }
     if (clientId) {
@@ -319,14 +382,23 @@ export function CreateDisbursementModal({
   const handleSelectWorkRequest = (wrId: string) => {
     setLinkedWorkRequestId(wrId);
     setSelectedTaskId('');
+    if (wrId !== linkedWorkRequestId) setUploadedReceipt(null);
     if (errors.linkedWorkRequestId) {
       setErrors((prev) => ({ ...prev, linkedWorkRequestId: '' }));
+    }
+    if (errors.receipt) {
+      setErrors((prev) => {
+        const copy = { ...prev };
+        delete copy.receipt;
+        return copy;
+      });
     }
     const isClientLockedByPrefill = Boolean(prefill?.clientId || defaultClientId);
     if (wrId) {
       const found = workRequests.find((wr) => wr.id === wrId);
-      if (found?.client_id && !isClientLockedByPrefill) {
-        setClientId(found.client_id);
+      const wrClientId = found?.clientId || found?.client_id;
+      if (wrClientId && !isClientLockedByPrefill) {
+        setClientId(wrClientId);
       }
     } else if (!isClientLockedByPrefill) {
       setClientId('');
@@ -353,6 +425,15 @@ export function CreateDisbursementModal({
     }
     if (!linkedWorkRequestId.trim()) {
       newErrors.linkedWorkRequestId = 'Please select a Work Request';
+    } else {
+      if (activeEntity === 'ALL') {
+        const wrEntity = selectedWr?.entity;
+        if (!wrEntity || (wrEntity !== 'ATA' && wrEntity !== 'LTA')) {
+          newErrors.linkedWorkRequestId = 'Selected Work Request must belong to a specific ATA or LTA entity';
+        }
+      } else if (selectedWr?.entity && selectedWr.entity !== activeEntity) {
+        newErrors.linkedWorkRequestId = `Selected work request belongs to ${selectedWr.entity}, but active session is ${activeEntity}`;
+      }
     }
 
     if (employeeId.trim()) {
@@ -404,58 +485,120 @@ export function CreateDisbursementModal({
   const doSubmit = async (bypassReceipt: boolean) => {
     if (isSubmittingRef.current || hasPendingCreate(pendingCreateKey)) return;
     isSubmittingRef.current = true;
+    const currentAttemptId = ++attemptIdRef.current;
+
     const { isStale } = captureContext();
+    const capturedTarget = { ...liveTargetRef.current };
     let creationStarted = false;
+
+    // Upload, submission and error responses must belong to this exact form attempt.
+    const isCurrent = () => {
+      if (isStale()) return false;
+      if (attemptIdRef.current !== currentAttemptId) return false;
+      const live = liveTargetRef.current;
+      return (
+        live.generation === capturedTarget.generation &&
+        live.workRequestId === capturedTarget.workRequestId &&
+        live.clientId === capturedTarget.clientId &&
+        live.entity === capturedTarget.entity &&
+        live.file === capturedTarget.file
+      );
+    };
 
     let resultingS3Key: string | null = null;
     let resultingFilename: string | null = null;
 
     try {
-      if (
-        !bypassReceipt &&
-        uploadedReceipt &&
-        receiptFile &&
-        uploadedReceipt.file === receiptFile
-      ) {
-        // Reuse already uploaded and completed receipt reservation without re-uploading
-        resultingS3Key = uploadedReceipt.receiptS3Key;
-        resultingFilename = uploadedReceipt.receiptFilename;
-      } else if (!bypassReceipt && receiptFile) {
-        // Validate MIME and size before upload
-        if (!['application/pdf', 'image/png', 'image/jpeg'].includes(receiptFile.type)) {
-          setErrors((prev) => ({ ...prev, receipt: 'Only PDF, PNG, and JPEG files are allowed' }));
-          return;
-        }
-        if (receiptFile.size > 10 * 1024 * 1024) {
-          setErrors((prev) => ({ ...prev, receipt: 'File size cannot exceed 10 MiB' }));
+      if (!bypassReceipt && (receiptFile || uploadedReceipt)) {
+        // Target entity validation before any upload network call (C1, R1, R4)
+        if (activeEntity === 'ALL') {
+          if (!capturedTarget.workRequestId) {
+            setErrors((prev) => ({ ...prev, linkedWorkRequestId: 'Please select a Work Request' }));
+            return;
+          }
+          if (
+            !capturedTarget.entity ||
+            (capturedTarget.entity !== 'ATA' && capturedTarget.entity !== 'LTA')
+          ) {
+            setErrors((prev) => ({
+              ...prev,
+              receipt: 'Select a specific ATA or LTA entity for this receipt upload.',
+            }));
+            return;
+          }
+        } else if (selectedWr?.entity && selectedWr.entity !== activeEntity) {
+          setErrors((prev) => ({
+            ...prev,
+            linkedWorkRequestId: `Selected work request belongs to ${selectedWr.entity}, but active session is ${activeEntity}`,
+          }));
           return;
         }
 
-        setIsUploadingReceipt(true);
-        try {
-          const uploadResult = await uploadReceiptFile(receiptFile, () => !isStale());
-          if (isStale()) return;
-          setUploadedReceipt({
-            file: receiptFile,
-            receiptS3Key: uploadResult.receiptS3Key,
-            receiptFilename: uploadResult.receiptFilename,
-          });
-          resultingS3Key = uploadResult.receiptS3Key;
-          resultingFilename = uploadResult.receiptFilename;
-        } catch (err: unknown) {
-          if (isStale()) return;
-          setIsUploadingReceipt(false);
-          setErrors((prev) => ({
-            ...prev,
-            receipt: classifyReceiptUploadError(err),
-          }));
-          return; // ABORT creation!
-        } finally {
-          if (!isStale()) setIsUploadingReceipt(false);
+        const canReuseReceipt =
+          uploadedReceipt !== null &&
+          receiptFile !== null &&
+          uploadedReceipt.file === receiptFile &&
+          uploadedReceipt.targetWorkRequestId === capturedTarget.workRequestId &&
+          uploadedReceipt.targetClientId === capturedTarget.clientId &&
+          uploadedReceipt.targetEntity === capturedTarget.entity &&
+          uploadedReceipt.targetGeneration === capturedTarget.generation;
+
+        if (canReuseReceipt) {
+          // Reuse already uploaded and completed receipt reservation without re-uploading
+          resultingS3Key = uploadedReceipt.receiptS3Key;
+          resultingFilename = uploadedReceipt.receiptFilename;
+        } else if (receiptFile) {
+          // Validate MIME and size before upload
+          if (!['application/pdf', 'image/png', 'image/jpeg'].includes(receiptFile.type)) {
+            setErrors((prev) => ({ ...prev, receipt: 'Only PDF, PNG, and JPEG files are allowed' }));
+            return;
+          }
+          if (receiptFile.size > 10 * 1024 * 1024) {
+            setErrors((prev) => ({ ...prev, receipt: 'File size cannot exceed 10 MiB' }));
+            return;
+          }
+
+          setIsUploadingReceipt(true);
+          try {
+            if (!isCurrent()) return;
+
+            const uploadResult = await uploadReceiptFile(
+              receiptFile,
+              isCurrent,
+              capturedTarget.entity ? { entity: capturedTarget.entity } : undefined
+            );
+
+            if (!isCurrent()) return;
+
+            setUploadedReceipt({
+              file: receiptFile,
+              receiptS3Key: uploadResult.receiptS3Key,
+              receiptFilename: uploadResult.receiptFilename,
+              targetWorkRequestId: capturedTarget.workRequestId,
+              targetClientId: capturedTarget.clientId,
+              targetEntity: capturedTarget.entity!,
+              targetGeneration: capturedTarget.generation,
+            });
+            resultingS3Key = uploadResult.receiptS3Key;
+            resultingFilename = uploadResult.receiptFilename;
+          } catch (err: unknown) {
+            if (!isCurrent()) return;
+            setIsUploadingReceipt(false);
+            setUploadedReceipt(null);
+            setErrors((prev) => ({
+              ...prev,
+              receipt: classifyReceiptUploadError(err),
+            }));
+            return; // ABORT creation!
+          } finally {
+            if (attemptIdRef.current === currentAttemptId) {
+              setIsUploadingReceipt(false);
+            }
+          }
         }
       }
 
-      if (isStale()) return;
+      if (!isCurrent()) return;
 
       const effectiveCategory =
         category === 'Other' && customCategory.trim() ? customCategory.trim() : category;
@@ -464,8 +607,8 @@ export function CreateDisbursementModal({
         description: description.trim(),
         amount: parseFloat(amount),
         fundSource,
-        linkedWorkRequestId: linkedWorkRequestId.trim(),
-        clientId: clientId ? clientId.trim() : null,
+        linkedWorkRequestId: capturedTarget.workRequestId.trim(),
+        clientId: capturedTarget.clientId ? capturedTarget.clientId.trim() : null,
         linkedTaskId: selectedTaskId ? selectedTaskId.trim() : null,
         employeeId: currentUser?.id || null, // Locked to session user
         dueDate: dueDate ? dueDate : null,
@@ -476,9 +619,12 @@ export function CreateDisbursementModal({
 
       creationStarted = true;
       markPendingCreate(pendingCreateKey, true);
-      await createWithBlocking(payload);
+      await createWithBlocking(
+        payload,
+        capturedTarget.entity ? { entity: capturedTarget.entity } : undefined
+      );
       markPendingCreate(pendingCreateKey, false);
-      if (isStale()) return;
+      if (!isCurrent()) return;
       resetForm();
       onClose();
       if (onSuccess) onSuccess();
@@ -489,9 +635,30 @@ export function CreateDisbursementModal({
         const rejected = error instanceof ApiError && error.status >= 400 && error.status < 500;
         if (rejected) markPendingCreate(pendingCreateKey, false);
         if (!isStale()) setNeedsCreateReview(!rejected);
+
+        const isMismatch =
+          error instanceof ApiError &&
+          (error.status === 403 || error.status === 400) &&
+          (error.code === 'RECEIPT_RESERVATION_MISMATCH' ||
+            error.code === 'UPLOAD_RESERVATION_MISMATCH' ||
+            error.code === 'RECEIPT_ENTITY_REQUIRED' ||
+            /receipt/i.test(error.message));
+
+        // A response from an earlier form must not change the current attachment.
+        if (isMismatch && isCurrent()) {
+          setUploadedReceipt(null);
+          setErrors((prev) => ({
+            ...prev,
+            receipt:
+              error instanceof ApiError && error.message
+                ? `${error.message} Please re-upload the receipt for the selected work request.`
+                : 'Receipt entity mismatch. Please re-upload your receipt for this Work Request.',
+          }));
+        }
       }
     } finally {
-      if (!isStale()) {
+      if (attemptIdRef.current === currentAttemptId) {
+        setIsUploadingReceipt(false);
         isSubmittingRef.current = false;
       }
     }
@@ -803,8 +970,10 @@ export function CreateDisbursementModal({
               ref={fileInputRef}
               type="file"
               accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+              disabled={isPending || isUploadingReceipt}
               className="hidden"
               onChange={(e) => {
+                if (isPending || isUploadingReceipt) return;
                 const file = e.target.files?.[0];
                 if (file) {
                   handleSelectFile(file);
@@ -817,6 +986,7 @@ export function CreateDisbursementModal({
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
               onClick={() => {
+                if (isPending || isUploadingReceipt) return;
                 if (!receiptFile && !receiptFilename) {
                   fileInputRef.current?.click();
                 }
@@ -843,8 +1013,10 @@ export function CreateDisbursementModal({
                     type="button"
                     variant="ghost"
                     size="sm"
+                    disabled={isPending || isUploadingReceipt}
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (isPending || isUploadingReceipt) return;
                       setReceiptFile(null);
                       setReceiptFilename('');
                       setUploadedReceipt(null);

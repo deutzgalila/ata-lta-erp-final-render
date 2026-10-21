@@ -380,6 +380,27 @@ export interface CreateReceiptUploadReservationInput {
   size: number;
 }
 
+/**
+ * Receipt & Voucher Target Entity Transport Options
+ * Canonical entity transport: X-Active-Entity: ATA|LTA
+ */
+export interface ReceiptTargetOptions {
+  entity?: 'ATA' | 'LTA';
+}
+
+export interface UploadReceiptOptions extends ReceiptTargetOptions {
+  isCurrent?: () => boolean;
+}
+
+export type CreateDisbursementOptions = ReceiptTargetOptions;
+
+export type CreateDisbursementMutationArg =
+  | CreateDisbursementInput
+  | {
+      data: CreateDisbursementInput;
+      entity?: 'ATA' | 'LTA';
+    };
+
 export interface ReceiptUploadReservation {
   uploadId: string;
   uploadUrl: string;

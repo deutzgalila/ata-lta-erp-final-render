@@ -2,6 +2,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { uploadReceiptFile } from '../api/useDisbursements';
 import { useLiveModalContext } from '../lib/useLiveModalContext';
+import { useSessionStore } from '@/lib/session';
 
 const originalFetch = globalThis.fetch;
 const validReservation = {
@@ -11,7 +12,10 @@ const validReservation = {
 const file = () => new File(['%PDF-example'], 'example.pdf', { type: 'application/pdf' });
 const jsonResponse = (data: unknown) => ({ ok: true, status: 200, json: async () => ({ data }) }) as Response;
 
-beforeEach(() => { vi.restoreAllMocks(); });
+beforeEach(() => {
+  vi.restoreAllMocks();
+  useSessionStore.setState({ activeEntity: 'ATA' });
+});
 afterEach(() => { globalThis.fetch = originalFetch; });
 
 describe('Verified receipt boundaries', () => {
@@ -43,7 +47,7 @@ describe('Verified receipt boundaries', () => {
     const fetch = vi.fn().mockResolvedValue(jsonResponse(validReservation));
     globalThis.fetch = fetch;
     await expect(uploadReceiptFile(file(), () => false)).rejects.toThrow('form changed');
-    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
 
