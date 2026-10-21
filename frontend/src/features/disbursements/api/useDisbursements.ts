@@ -24,6 +24,10 @@ import type {
   Disbursement,
   DisbursementFilters,
   CreateDisbursementInput,
+  CreateDisbursementOptions,
+  CreateDisbursementMutationArg,
+  ReceiptTargetOptions,
+  UploadReceiptOptions,
   UpdateDisbursementInput,
   ReleasePaymentInput,
   ApproveDisbursementInput,
@@ -434,13 +438,26 @@ export function useCreateDisbursement() {
   const queryClient = useQueryClient();
   const activeEntity = useSessionStore((state) => state.activeEntity);
 
-  const mutation = useMutation<Disbursement, ApiError, CreateDisbursementInput>({
+  const mutation = useMutation<Disbursement, ApiError, CreateDisbursementMutationArg>({
     mutationFn: async (input) => {
-      // Client-side schema validation (will reject any status field)
-      const validated = createDisbursementSchema.parse(input);
+      const payload = 'data' in input ? input.data : input;
+      const targetEntity = 'entity' in input ? input.entity : undefined;
+
+      if (targetEntity !== undefined && targetEntity !== 'ATA' && targetEntity !== 'LTA') {
+        throw new Error(`Invalid target entity: ${String(targetEntity)}`);
+      }
+
+      // Client-side schema validation on payload only (rejects status field; zero entity field in JSON)
+      const validated = createDisbursementSchema.parse(payload);
+      const headers: Record<string, string> = {};
+      if (targetEntity) {
+        headers['X-Active-Entity'] = targetEntity;
+      }
+
       const res = await apiRequest<DisbursementDetailResponse>('/disbursements', {
         method: 'POST',
         body: JSON.stringify(validated),
+        headers: Object.keys(headers).length > 0 ? headers : undefined,
       });
       return res.data;
     },
@@ -452,12 +469,23 @@ export function useCreateDisbursement() {
     },
   });
 
-  const createWithBlocking = async (input: CreateDisbursementInput): Promise<Disbursement> => {
+  const createWithBlocking = async (
+    input: CreateDisbursementInput,
+    options?: CreateDisbursementOptions
+  ): Promise<Disbursement> => {
+    const targetEntity = options?.entity;
+    if (targetEntity !== undefined && targetEntity !== 'ATA' && targetEntity !== 'LTA') {
+      throw new Error(`Invalid target entity: ${String(targetEntity)}`);
+    }
+    const arg: CreateDisbursementMutationArg = targetEntity
+      ? { data: input, entity: targetEntity }
+      : input;
+
     return runBlockingAction({
       title: 'Creating Disbursement',
       message: 'Submitting disbursement voucher to the server...',
       actionName: 'Create Disbursement',
-      apiCall: async () => mutation.mutateAsync(input),
+      apiCall: async () => mutation.mutateAsync(arg),
       invalidateQueries: [
         disbursementKeys.all,
         disbursementKeys.counts(activeEntity),
@@ -955,15 +983,48 @@ const completedReceiptResponse = z.object({
   receiptFilename: z.string().trim().min(1),
 });
 
+function resolveAndValidateReceiptEntity(options?: ReceiptTargetOptions): 'ATA' | 'LTA' {
+  if (options && 'entity' in options) {
+    const raw = (options as { entity?: unknown }).entity;
+    if (raw !== undefined && raw !== 'ATA' && raw !== 'LTA') {
+      throw new Error('Invalid target entity. Entity must be ATA or LTA.');
+    }
+  }
+
+  const explicitTarget = options?.entity;
+  const activeEntity = useSessionStore.getState().activeEntity;
+
+  if (explicitTarget) {
+    if (activeEntity === 'ATA' || activeEntity === 'LTA') {
+      if (explicitTarget !== activeEntity) {
+        throw new Error(`Receipt target entity mismatch: expected ${activeEntity}, got ${explicitTarget}`);
+      }
+    }
+    return explicitTarget;
+  }
+
+  if (activeEntity === 'ATA' || activeEntity === 'LTA') {
+    return activeEntity;
+  }
+
+  throw new Error('Select a specific ATA or LTA entity for this receipt upload.');
+}
+
 export async function requestReceiptUploadReservation(
-  input: CreateReceiptUploadReservationInput
+  input: CreateReceiptUploadReservationInput,
+  options?: ReceiptTargetOptions
 ): Promise<ReceiptUploadReservation> {
+  const entity = resolveAndValidateReceiptEntity(options);
   const validated = receiptUploadReservationSchema.parse(input);
+  const headers: Record<string, string> = {
+    'X-Active-Entity': entity,
+  };
   const res = await apiRequest<{ data: ReceiptUploadReservation }>(
     '/disbursements/receipt-uploads',
     {
       method: 'POST',
       body: JSON.stringify(validated),
+      headers,
     }
   );
   return receiptReservationResponse.parse(res.data);
@@ -993,12 +1054,18 @@ export async function uploadReceiptBinary(
  * Endpoint: POST /v1/disbursements/receipt-uploads/:uploadId/complete
  */
 export async function completeReceiptUpload(
-  uploadId: string
+  uploadId: string,
+  options?: ReceiptTargetOptions
 ): Promise<{ receiptS3Key: string; receiptFilename: string }> {
+  const entity = resolveAndValidateReceiptEntity(options);
+  const headers: Record<string, string> = {
+    'X-Active-Entity': entity,
+  };
   const res = await apiRequest<{ data: { receiptS3Key: string; receiptFilename: string } }>(
     `/disbursements/receipt-uploads/${uploadId}/complete`,
     {
       method: 'POST',
+      headers,
     }
   );
   return completedReceiptResponse.parse(res.data);
@@ -1007,14 +1074,26 @@ export async function completeReceiptUpload(
 /**
  * Execute full pre-signed upload pipeline:
  * 1. Validate MIME (PDF, PNG, JPEG) & size (<= 10 MiB)
- * 2. Reserve upload via POST /v1/disbursements/receipt-uploads
- * 3. PUT binary to uploadUrl with Content-Type header
- * 4. Verify & complete via POST /v1/disbursements/receipt-uploads/:uploadId/complete
+ * 2. Validate runtime target value (ATA/LTA) before any network call
+ * 3. Reserve upload via POST /v1/disbursements/receipt-uploads with X-Active-Entity
+ * 4. PUT binary to uploadUrl with Content-Type header
+ * 5. Verify & complete via POST /v1/disbursements/receipt-uploads/:uploadId/complete with X-Active-Entity
  */
 export async function uploadReceiptFile(
   file: File,
-  isCurrent: () => boolean = () => true
+  isCurrentOrOptions?: (() => boolean) | UploadReceiptOptions,
+  options?: UploadReceiptOptions
 ): Promise<{ receiptS3Key: string; receiptFilename: string }> {
+  const isCurrent =
+    typeof isCurrentOrOptions === 'function'
+      ? isCurrentOrOptions
+      : isCurrentOrOptions?.isCurrent ?? options?.isCurrent ?? (() => true);
+
+  const entityOpt =
+    typeof isCurrentOrOptions === 'object' && isCurrentOrOptions !== null && 'entity' in isCurrentOrOptions
+      ? isCurrentOrOptions
+      : options;
+
   if (!['application/pdf', 'image/png', 'image/jpeg'].includes(file.type)) {
     throw new Error('Only PDF, PNG, and JPEG files are allowed');
   }
@@ -1022,16 +1101,26 @@ export async function uploadReceiptFile(
     throw new Error('File size cannot exceed 10 MiB');
   }
 
-  const reservation = await requestReceiptUploadReservation({
-    filename: file.name,
-    contentType: file.type,
-    size: file.size,
-  });
+  const targetEntity = resolveAndValidateReceiptEntity(entityOpt);
+
+  if (!isCurrent()) throw new Error('Receipt form changed. Select the receipt again.');
+
+  const reservation = await requestReceiptUploadReservation(
+    {
+      filename: file.name,
+      contentType: file.type,
+      size: file.size,
+    },
+    { entity: targetEntity }
+  );
 
   if (!isCurrent()) throw new Error('Receipt form changed. Select the receipt again.');
   await uploadReceiptBinary(reservation.uploadUrl, file);
   if (!isCurrent()) throw new Error('Receipt form changed. Select the receipt again.');
-  const completed = await completeReceiptUpload(reservation.uploadId);
+  const completed = await completeReceiptUpload(
+    reservation.uploadId,
+    { entity: targetEntity }
+  );
   if (!isCurrent()) throw new Error('Receipt form changed. Select the receipt again.');
   if (completed.receiptS3Key !== reservation.objectKey) {
     throw new Error('Receipt verification returned a different attachment. Please upload again.');
