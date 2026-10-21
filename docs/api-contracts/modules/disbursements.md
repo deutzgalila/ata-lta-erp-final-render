@@ -179,3 +179,19 @@ Returns badge counts of disbursements by status for the active entity or `ALL`.
 - **Guards:** Authenticated, `disbursement:view`.
 - **Since-version:** `1.0.0`.
 - **Events Emitted:** None.
+
+
+## Receipt upload reservations
+
+Receipt attachment uses these existing authenticated endpoints, scoped to the active entity and requesting actor:
+
+1. `POST /v1/disbursements/receipt-uploads` with `{ filename, contentType, size }` returns 201 `{ data: { uploadId, uploadUrl, objectKey, expiresAt } }`.
+2. PUT the binary to `uploadUrl` using its content type.
+3. `POST /v1/disbursements/receipt-uploads/:uploadId/complete` verifies size and binary signature and returns `{ data: { receiptS3Key, receiptFilename } }`.
+4. Submit that verified pair on voucher create/update. A key cannot be rebound after consumption; arbitrary direct uploads and Documents IDs are not valid receipt keys.
+
+Permitted types are PDF, PNG, and JPEG, with a positive size no greater than 10 MiB. Reservation metadata defaults to PostgreSQL in production; binaries remain private in Supabase Storage. The public upload protocol does not change with the backing reservation driver.
+
+Store unavailability returns RFC 7807 HTTP 503. Clients should interpret `RECEIPT_STORE_NOT_CONFIGURED` as administrator action, `RECEIPT_STORE_DATABASE_UNAVAILABLE` / `RECEIPT_STORE_IO_ERROR` as unavailable persistence, and `RECEIPT_STORE_BUSY` as retryable contention. Preserve selected files and form input and abort voucher creation on upload failure. Do not use a selected receipt's filename as evidence of successful storage.
+
+Migration 000072 and the selected driver's configuration must be ready before rollout. See [receipt operations and recovery](../../receipt-reservation-operations.md).
