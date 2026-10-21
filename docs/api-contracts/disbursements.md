@@ -12,7 +12,14 @@
 
 All HTTP endpoints require:
 - `Authorization: Bearer <supabase-jwt>`
-- `X-Active-Entity: ATA|LTA` (or `ALL` for badge counters where authorized)
+- `X-Active-Entity: ATA|LTA` (or `ALL` for badge counters and list views where authorized)
+
+### 1.1 Receipt Upload Entity Scoping (RECEIPT-ENTITY-20261021)
+Receipt upload reservation (`POST /v1/disbursements/receipt-uploads`) and completion (`POST /v1/disbursements/receipt-uploads/:uploadId/complete`) routes require an explicit, canonical `X-Active-Entity: ATA|LTA` header matching the target work request.
+- Submissions in consolidated `ALL` contexts with omitted or literal `ALL` headers return HTTP **400 `RECEIPT_ENTITY_REQUIRED`** before storage signing or database writes.
+- Malformed entity headers are rejected with 400 `RECEIPT_ENTITY_REQUIRED` rather than falling back upstream.
+- Single-entity user accounts with omitted header remain defaulted to their single authorized entity.
+- Receipt claim during voucher creation executes atomically via database RPC `receipt_reservation_claim`.
 
 All mutation requests on v2 vouchers require optimistic concurrency control (OCC) via `expectedVersion` (positive non-null integer).
 

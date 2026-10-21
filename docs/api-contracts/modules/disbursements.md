@@ -183,12 +183,26 @@ Returns badge counts of disbursements by status for the active entity or `ALL`.
 
 ## Receipt upload reservations
 
-Receipt attachment uses these existing authenticated endpoints, scoped to the active entity and requesting actor:
+Receipt attachment uses these existing authenticated endpoints, scoped to an explicit authorized entity and requesting actor:
 
-1. `POST /v1/disbursements/receipt-uploads` with `{ filename, contentType, size }` returns 201 `{ data: { uploadId, uploadUrl, objectKey, expiresAt } }`.
+1. `POST /v1/disbursements/receipt-uploads` with `{ filename, contentType, size }` and header `X-Active-Entity: ATA|LTA` returns 201 `{ data: { uploadId, uploadUrl, objectKey, expiresAt } }`.
 2. PUT the binary to `uploadUrl` using its content type.
-3. `POST /v1/disbursements/receipt-uploads/:uploadId/complete` verifies size and binary signature and returns `{ data: { receiptS3Key, receiptFilename } }`.
-4. Submit that verified pair on voucher create/update. A key cannot be rebound after consumption; arbitrary direct uploads and Documents IDs are not valid receipt keys.
+3. `POST /v1/disbursements/receipt-uploads/:uploadId/complete` with header `X-Active-Entity: ATA|LTA` (matching reservation) verifies size and binary signature and returns `{ data: { receiptS3Key, receiptFilename } }`.
+4. Submit that verified pair on voucher create/update with matching `X-Active-Entity: ATA|LTA`. Receipt claim executes atomically via database RPC `receipt_reservation_claim`. A key cannot be rebound after consumption; arbitrary direct uploads and Documents IDs are not valid receipt keys.
+
+### Explicit Entity Requirement (RECEIPT-ENTITY-20261021)
+- **Consolidated `ALL` View Requirement:** Clients operating in the consolidated `ALL` session MUST supply an explicit `X-Active-Entity: ATA|LTA` header matching the target work request across reserve, complete, and voucher create requests.
+- **Fail-Closed Guard:** Requests to reserve or complete an upload with omitted entity header under dual-entity accounts or with literal `X-Active-Entity: ALL` or malformed headers are rejected before storage presigning or database writes with:
+  ```json
+  {
+    "status": 400,
+    "title": "Bad Request",
+    "detail": "Select a specific ATA or LTA entity for this receipt upload.",
+    "code": "RECEIPT_ENTITY_REQUIRED"
+  }
+  ```
+- **Single-Entity Defaulting:** Single-entity accounts whose omitted header is unambiguously resolved by `entityScope` to their only authorized entity (`ATA` or `LTA`) remain compatible.
+- **Rollout Compatibility:** Explicit `X-Active-Entity` headers are already accepted by the existing backend. Deploying the frontend change ensures consolidated requests send explicit targets before backend enforcement rejects ambiguous calls. Staging UI upload, create, and preview acceptance checks remain required before broad cutover.
 
 Permitted types are PDF, PNG, and JPEG, with a positive size no greater than 10 MiB. Reservation metadata defaults to PostgreSQL in production; binaries remain private in Supabase Storage. The public upload protocol does not change with the backing reservation driver.
 

@@ -12,6 +12,7 @@ const { requirePermission, computePermissions } = require('../../middleware/rbac
 const { hasPermission } = require('../../lib/permissions');
 const { audit } = require('../../middleware/audit');
 const { resolveEntity } = require('../../middleware/resolveEntity');
+const { receiptEntityGuard } = require('../../middleware/receiptEntityGuard');
 const AppError = require('../../lib/AppError');
 
 /**
@@ -134,20 +135,26 @@ router.get(
   disbursementsController.getDisbursementPdf
 );
 
-// Resolve entity code → UUID for all remaining mutation routes in this module
-router.use(resolveEntity());
-
-// --- Receipt Upload Reservations (R5 / D4) ---
+// --- Receipt Upload Reservations (C2 / RECEIPT-ENTITY-20261021) ---
+// Mounted before module-wide resolveEntity() to enforce explicit, authorized entity context
+// without double resolution or impact on other disbursement routes.
 router.post(
   '/receipt-uploads',
   requirePermission('disbursement:create'),
+  receiptEntityGuard,
+  resolveEntity(),
   disbursementsController.createReceiptUpload
 );
 router.post(
   '/receipt-uploads/:uploadId/complete',
   requirePermission('disbursement:create'),
+  receiptEntityGuard,
+  resolveEntity(),
   disbursementsController.completeReceiptUpload
 );
+
+// Resolve entity code → UUID for all remaining mutation routes in this module
+router.use(resolveEntity());
 
 // --- Disbursement Templates Mutations ---
 router.post(
