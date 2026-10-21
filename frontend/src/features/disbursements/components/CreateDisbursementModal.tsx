@@ -65,6 +65,41 @@ function markPendingCreate(key: string, pending: boolean): void {
   }
 }
 
+/**
+ * Classify receipt upload errors according to RFC 7807 codes and Spec C6.
+ */
+function classifyReceiptUploadError(err: unknown): string {
+  const code = err instanceof ApiError ? err.code : (err as { code?: string })?.code;
+
+  if (code === 'RECEIPT_STORE_NOT_CONFIGURED') {
+    return 'Receipt uploads are unavailable. Please contact your administrator. Your request has not been submitted.';
+  }
+
+  if (code === 'RECEIPT_STORE_DATABASE_UNAVAILABLE' || code === 'RECEIPT_STORE_IO_ERROR') {
+    return 'Receipt storage is unavailable. Your request has not been submitted. Please try again later or contact your administrator.';
+  }
+
+  const rawMsg =
+    typeof err === 'string'
+      ? err
+      : err instanceof Error
+        ? err.message
+        : (err as { message?: string })?.message || 'Receipt upload failed';
+
+  const cleanMsg = rawMsg.trim().replace(/\.+$/, '');
+
+  if (
+    /please retry/i.test(cleanMsg) ||
+    /retry this operation/i.test(cleanMsg) ||
+    /please upload again/i.test(cleanMsg) ||
+    /try again/i.test(cleanMsg)
+  ) {
+    return `Receipt upload failed: ${cleanMsg}.`;
+  }
+
+  return `Receipt upload failed: ${cleanMsg}. Please retry.`;
+}
+
 export function CreateDisbursementModal({
   isOpen,
   onClose,
@@ -410,10 +445,9 @@ export function CreateDisbursementModal({
         } catch (err: unknown) {
           if (isStale()) return;
           setIsUploadingReceipt(false);
-          const msg = err instanceof Error ? err.message : 'Receipt upload failed';
           setErrors((prev) => ({
             ...prev,
-            receipt: `Receipt upload failed: ${msg}. Please retry.`,
+            receipt: classifyReceiptUploadError(err),
           }));
           return; // ABORT creation!
         } finally {
@@ -815,6 +849,11 @@ export function CreateDisbursementModal({
                       setReceiptFilename('');
                       setUploadedReceipt(null);
                       if (fileInputRef.current) fileInputRef.current.value = '';
+                      setErrors((prev) => {
+                        const copy = { ...prev };
+                        delete copy.receipt;
+                        return copy;
+                      });
                     }}
                     className="h-6 w-6 p-0 text-[#475569] hover:text-[#475569] cursor-pointer"
                     data-testid="remove-receipt-btn"
