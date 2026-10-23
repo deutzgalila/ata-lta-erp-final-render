@@ -59,6 +59,8 @@ const phaseTaskSchema = z.object({
   localId: z.string().optional().nullable(),
   status: z.string().optional().nullable(),
   dueDate: z.string().optional().nullable(),
+  requiredLinkType: z.string().max(50).optional().nullable(),
+  required_link_type: z.string().max(50).optional().nullable(),
   checklist: z.array(checklistItemSchema).optional().nullable(),
 });
 
@@ -236,6 +238,8 @@ const generateTaskOverrideSchema = z.object({
   dependsOn: z.string().optional().nullable(),
   dueDate: z.string().optional().nullable(),
   due_date: z.string().optional().nullable(),
+  requiredLinkType: z.string().max(50).optional().nullable(),
+  required_link_type: z.string().max(50).optional().nullable(),
   checklist: z.array(checklistItemSchema).optional().nullable(),
 });
 
@@ -318,6 +322,7 @@ const rerouteSchema = z
   });
 
 module.exports = {
+  phaseTaskSchema,
   createWorkRequestSchema,
   updateWorkRequestSchema,
   createTaskSchema,

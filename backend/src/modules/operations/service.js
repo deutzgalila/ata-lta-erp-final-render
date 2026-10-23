@@ -825,6 +825,7 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
           depends_on: dependsOn,
           status: rawTask.status || (assignees.length > 0 ? 'Assigned' : 'Draft'),
           dueDate: rawTask.dueDate || null,
+          requiredLinkType: rawTask.requiredLinkType ?? rawTask.required_link_type ?? null,
           checklist: rawTask.checklist || [],
         });
 
@@ -840,6 +841,7 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
             depends_on: dependsOn,
             status: rawTask.status || (assignees.length > 0 ? 'Assigned' : 'Draft'),
             dueDate: rawTask.dueDate || null,
+            requiredLinkType: rawTask.requiredLinkType ?? rawTask.required_link_type ?? null,
             checklist: [],
           });
         }
@@ -855,6 +857,7 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
           depends_on: dependsOn,
           status: rawTask.status || (assignees.length > 0 ? 'Assigned' : 'Draft'),
           dueDate: rawTask.dueDate || null,
+          requiredLinkType: rawTask.requiredLinkType ?? rawTask.required_link_type ?? null,
           checklist: rawTask.checklist || [],
         });
       }
@@ -1077,6 +1080,7 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
         assignee_name: assigneeName,
         predecessors: predecessorUuids,
         due_date: t.dueDate,
+        required_link_type: t.requiredLinkType || null,
         display_order: t.display_order,
         assigned_by: user?.id || null,
         assigned_at: now,
@@ -1253,6 +1257,7 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
         depends_on: matchedExpanded?.depends_on || null,
         predecessors: tr.predecessors,
         dueDate: tr.due_date,
+        requiredLinkType: tr.required_link_type || null,
         displayOrder: tr.display_order,
         assignedBy: tr.assigned_by,
         assigned_by: tr.assigned_by,
@@ -3111,6 +3116,12 @@ const generateRetainerTemplate = async ({ entityId, templateId, user, data = {} 
       assignees,
       depends_on: dependsOn || null,
       dueDate,
+      requiredLinkType:
+        t.requiredLinkType !== undefined
+          ? t.requiredLinkType || null
+          : t.required_link_type !== undefined
+            ? t.required_link_type || null
+            : base.requiredLinkType || base.required_link_type || null,
       checklist: t.checklist || base.checklist || base.default_checklist || [],
     };
 
