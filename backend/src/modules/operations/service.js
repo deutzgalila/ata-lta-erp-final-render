@@ -2727,13 +2727,16 @@ const getWorkRequestRelated = async (arg1, arg2) => {
 };
 
 /**
- * Fetch related financial records linked to a task.
- * Because task linkage is stored through the parent work request, the endpoint
- * returns invoices/disbursements for the task's work request; callers filter by
- * linkedTaskId when they need task-scoped records.
+ * Fetch related financial and transmittal records strictly linked to a task.
+ * Enforces task ownership at the database level:
+ * - Invoices and disbursements: canonical task_id with legacy linked_task_id fallback
+ *   when task_id is null.
+ * - Transmittals: linked_task_id.
+ * Preserves entity scope, soft-delete filtering, and caller/role visibility restrictions.
+ * Parent work-request aggregation remains separate in getWorkRequestRelated.
  * @param {object|string} arg1 - Task UUID or params object
  * @param {object} [arg2] - Caller user object when arg1 is string
- * @returns {Promise<{ invoices: object[], disbursements: object[] }>}
+ * @returns {Promise<{ invoices: object[], disbursements: object[], transmittals: object[] }>}
  */
 const getTaskRelated = async (arg1, arg2) => {
   const { id, entityId, caller, user } =
@@ -2749,7 +2752,7 @@ const getTaskRelated = async (arg1, arg2) => {
     .maybeSingle();
 
   if (!task || !task.work_request_id) {
-    return { invoices: [], disbursements: [] };
+    return { invoices: [], disbursements: [], transmittals: [] };
   }
 
   const { data: wr } = await supabaseAdmin
@@ -2771,7 +2774,7 @@ const getTaskRelated = async (arg1, arg2) => {
       .from('invoices')
       .select('*, clients(name)')
       .eq('entity_id', relatedEntityId)
-      .eq('work_request_id', task.work_request_id)
+      .or(`task_id.eq.${id},and(task_id.is.null,linked_task_id.eq.${id})`)
       .is('deleted_at', null)
       .order('created_at', { ascending: false }),
     (() => {
@@ -2779,7 +2782,7 @@ const getTaskRelated = async (arg1, arg2) => {
         .from('disbursements')
         .select('*, clients(name)')
         .eq('entity_id', relatedEntityId)
-        .or(`linked_task_id.eq.${id},linked_work_request_id.eq.${task.work_request_id}`)
+        .or(`task_id.eq.${id},and(task_id.is.null,linked_task_id.eq.${id})`)
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
       if (effectiveCaller) {
@@ -2797,7 +2800,7 @@ const getTaskRelated = async (arg1, arg2) => {
       .from('transmittals')
       .select('*, clients(name)')
       .eq('entity_id', relatedEntityId)
-      .eq('work_request_id', task.work_request_id)
+      .eq('linked_task_id', id)
       .is('deleted_at', null)
       .order('created_at', { ascending: false }),
   ]);
