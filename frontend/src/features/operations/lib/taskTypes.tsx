@@ -1,4 +1,3 @@
-import React from 'react';
 import { CheckSquare, Receipt, FileText, ChevronDown } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
