@@ -779,3 +779,70 @@ export interface ApiErrorResponse {
     reason: string;
   }>;
 }
+
+export interface TaskRelatedInvoice {
+  id: string;
+  task_id?: string | null;
+  taskId?: string | null;
+  linked_task_id?: string | null;
+  linkedTaskId?: string | null;
+  work_request_id?: string | null;
+  workRequestId?: string | null;
+  entity_id?: string | null;
+  entityId?: string | null;
+  invoice_number?: string;
+  invoiceNumber?: string;
+  amount?: number;
+  status?: string;
+  created_at?: string;
+  clients?: { name: string } | null;
+}
+
+export interface TaskRelatedDisbursement {
+  id: string;
+  task_id?: string | null;
+  taskId?: string | null;
+  linked_task_id?: string | null;
+  linkedTaskId?: string | null;
+  linked_work_request_id?: string | null;
+  linkedWorkRequestId?: string | null;
+  work_request_id?: string | null;
+  workRequestId?: string | null;
+  entity_id?: string | null;
+  entityId?: string | null;
+  disbursement_number?: string;
+  disbursementNumber?: string;
+  category?: string;
+  description?: string;
+  amount?: number;
+  status?: string;
+  created_at?: string;
+  clients?: { name: string } | null;
+}
+
+export interface TaskRelatedTransmittal {
+  id: string;
+  linked_task_id?: string | null;
+  linkedTaskId?: string | null;
+  task_id?: string | null;
+  taskId?: string | null;
+  work_request_id?: string | null;
+  workRequestId?: string | null;
+  entity_id?: string | null;
+  entityId?: string | null;
+  transmittal_number?: string;
+  transmittalNumber?: string;
+  tracking_number?: string;
+  trackingNumber?: string;
+  recipient_name?: string;
+  recipientName?: string;
+  status?: string;
+  created_at?: string;
+  clients?: { name: string } | null;
+}
+
+export interface TaskRelatedRecords {
+  invoices: TaskRelatedInvoice[];
+  disbursements: TaskRelatedDisbursement[];
+  transmittals: TaskRelatedTransmittal[];
+}

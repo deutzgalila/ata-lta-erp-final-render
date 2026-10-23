@@ -48,7 +48,12 @@ import { CreateDisbursementModal } from '@/features/disbursements';
 import { TransmittalFormModal } from '@/features/transmittals';
 import { DocumentUploadModal, DocumentViewerModal } from '@/features/documents';
 import { useDocuments } from '../api/useDocuments';
-import { useTaskMutations, useTaskRelated, useWorkRequestTasks, useTaskDetail } from '../api/useTasks';
+import {
+  useTaskMutations,
+  useTaskRelated,
+  useWorkRequestTasks,
+  useTaskDetail,
+} from '../api/useTasks';
 import { useCreateOperationsRequest, useOperationsRequests } from '../api/usePhaseTransitions';
 import { useTeam } from '../api/useTeam';
 import { useSessionStore } from '@/lib/session';
@@ -63,6 +68,7 @@ import {
   canRequestInvoice,
   canRequestTransmittal,
   isUserAdmin,
+  filterTaskRelatedRecords,
 } from '../lib/taskScope';
 import { runBlockingAction } from './BlockingActionModal';
 import { operationsKeys } from '../api/queryKeys';
@@ -207,10 +213,17 @@ export function TaskDetailModal({
     task?.id ? { taskId: task.id } : undefined
   );
 
-  // Documents linked to this work request / task
+  // Documents linked to this work request / task (narrowed by selected task)
+  const currentWrId =
+    task?.workRequestId ||
+    (task as { work_request_id?: string } | null | undefined)?.work_request_id ||
+    workRequest?.id;
+
   const { data: rawDocs, isLoading: isLoadingDocs, refetch: refetchDocs } = useDocuments(
-    task?.workRequestId ? { workRequestId: task.workRequestId } : undefined,
-    { enabled: Boolean(task?.workRequestId) }
+    currentWrId && task?.id
+      ? { workRequestId: currentWrId, linkedTaskId: task.id }
+      : undefined,
+    { enabled: Boolean(currentWrId && task?.id) }
   );
 
   const linkedDocs: DmsDocument[] = useMemo(() => {
@@ -332,11 +345,15 @@ export function TaskDetailModal({
   // Document upload modal state (UAT2-11)
   const [isUploadDocModalOpen, setIsUploadDocModalOpen] = useState(false);
 
-  // Linked records query (UAT2-7)
-  const { data: relatedRecords, refetch: refetchRelated } = useTaskRelated(task?.id);
-  const invoices = relatedRecords?.invoices || [];
-  const disbursements = relatedRecords?.disbursements || [];
-  const transmittals = relatedRecords?.transmittals || [];
+  // Linked records query (UAT2-7) with defensive task-scoping
+  const { data: rawRelatedRecords, refetch: refetchRelated } = useTaskRelated(task?.id);
+  const relatedRecords = useMemo(
+    () => filterTaskRelatedRecords(rawRelatedRecords, task?.id),
+    [rawRelatedRecords, task?.id]
+  );
+  const invoices = relatedRecords.invoices;
+  const disbursements = relatedRecords.disbursements;
+  const transmittals = relatedRecords.transmittals;
 
   // Team directory lookup for employee assignment (UAT2-8)
   const { data: rawTeam } = useTeam();

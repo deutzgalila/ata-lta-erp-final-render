@@ -4,13 +4,25 @@ import { apiRequest, ApiError } from '@/lib/api';
 import { useSessionStore } from '@/lib/session';
 import { broadcastEntityChange } from '@/lib/tabSync';
 import { operationsKeys } from './queryKeys';
+import { filterTaskRelatedRecords } from '../lib/taskScope';
 import type {
   Task,
   CreateTaskInput,
   UpdateTaskInput,
   TaskTimeLogInput,
   TaskStatus,
+  TaskRelatedRecords,
+  TaskRelatedInvoice,
+  TaskRelatedDisbursement,
+  TaskRelatedTransmittal,
 } from './types';
+
+export type {
+  TaskRelatedRecords,
+  TaskRelatedInvoice,
+  TaskRelatedDisbursement,
+  TaskRelatedTransmittal,
+};
 
 // ============================================================================
 // Queries
@@ -65,55 +77,23 @@ export function useTaskDetail(
   });
 }
 
-export interface TaskRelatedRecords {
-  invoices: Array<{
-    id: string;
-    invoice_number?: string;
-    invoiceNumber?: string;
-    amount?: number;
-    status?: string;
-    created_at?: string;
-    clients?: { name: string } | null;
-  }>;
-  disbursements: Array<{
-    id: string;
-    disbursement_number?: string;
-    disbursementNumber?: string;
-    category?: string;
-    description?: string;
-    amount?: number;
-    status?: string;
-    created_at?: string;
-    clients?: { name: string } | null;
-  }>;
-  transmittals: Array<{
-    id: string;
-    transmittal_number?: string;
-    transmittalNumber?: string;
-    tracking_number?: string;
-    trackingNumber?: string;
-    recipient_name?: string;
-    recipientName?: string;
-    status?: string;
-    created_at?: string;
-    clients?: { name: string } | null;
-  }>;
-}
-
 export function useTaskRelated(
   taskId: string | undefined,
   options?: { enabled?: boolean }
 ) {
+  const activeEntity = useSessionStore((state) => state.activeEntity);
+
   return useQuery({
-    queryKey: ['operations', 'tasks', taskId, 'related'],
+    queryKey: operationsKeys.taskRelated(taskId ?? '', activeEntity),
     queryFn: async () => {
       if (!taskId) throw new Error('Task ID is required');
       const res = await apiRequest<{ data: TaskRelatedRecords }>(
         `/operations/tasks/${taskId}/related`
       );
-      return res.data;
+      return res.data ?? { invoices: [], disbursements: [], transmittals: [] };
     },
     enabled: Boolean(taskId) && (options?.enabled ?? true),
+    select: (data) => filterTaskRelatedRecords(data, taskId),
   });
 }
 

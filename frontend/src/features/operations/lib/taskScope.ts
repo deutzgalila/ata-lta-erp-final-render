@@ -1,5 +1,12 @@
 import type { UserProfile } from '@/lib/session';
-import type { Task, WorkRequest } from '../api/types';
+import type {
+  Task,
+  WorkRequest,
+  TaskRelatedRecords,
+  TaskRelatedInvoice,
+  TaskRelatedDisbursement,
+  TaskRelatedTransmittal,
+} from '../api/types';
 
 /**
  * Checks if the user is an assigned employee on this specific task
@@ -242,4 +249,100 @@ export function canRequestTransmittal(
     user.role === 'Staff';
 
   return isTaskAssignee(user, task) || (hasAllowedDept && isWrTeamMember(user, workRequest, tasks));
+}
+
+/**
+ * Checks whether an invoice or disbursement is owned by the specified task.
+ *
+ * Rules per CROSS_TASK_DOCUMENT_ISOLATION_AGY_20261024:
+ * 1. task_id / taskId is canonical.
+ * 2. linked_task_id / linkedTaskId is legacy fallback, used ONLY when canonical is null/missing (not empty string).
+ *    Empty string is malformed canonical data and fails closed.
+ * 3. Conflicting links: If canonical is present and does not match targetTaskId, the record
+ *    must NOT match targetTaskId even if legacy matches (canonical precedence).
+ * 4. Missing task ownership fails closed (returns false). Shared parent WR alone is never task ownership.
+ */
+export function isRecordOwnedByTask(
+  record:
+    | TaskRelatedInvoice
+    | TaskRelatedDisbursement
+    | {
+        task_id?: string | null;
+        taskId?: string | null;
+        linked_task_id?: string | null;
+        linkedTaskId?: string | null;
+      }
+    | null
+    | undefined,
+  targetTaskId: string | null | undefined
+): boolean {
+  if (!record || !targetTaskId) return false;
+
+  const canonicalTaskId = record.task_id ?? record.taskId;
+  if (canonicalTaskId !== undefined && canonicalTaskId !== null) {
+    // Canonical is present: empty string is malformed and fails closed. Never fall back to legacy if canonical is present.
+    return canonicalTaskId === targetTaskId;
+  }
+
+  const legacyTaskId = record.linked_task_id ?? record.linkedTaskId;
+  if (legacyTaskId !== undefined && legacyTaskId !== null && legacyTaskId !== '') {
+    return legacyTaskId === targetTaskId;
+  }
+
+  // Missing task ownership fails closed in a task panel
+  return false;
+}
+
+/**
+ * Checks whether a transmittal is owned by the specified task.
+ *
+ * Rules per CROSS_TASK_DOCUMENT_ISOLATION_AGY_20261024:
+ * 1. Transmittals use linked_task_id / linkedTaskId ONLY. No fallback to task_id / taskId.
+ * 2. If missing or null (e.g. parent-only transmittal or only task_id), fails closed (returns false).
+ */
+export function isTransmittalOwnedByTask(
+  record:
+    | TaskRelatedTransmittal
+    | {
+        linked_task_id?: string | null;
+        linkedTaskId?: string | null;
+      }
+    | null
+    | undefined,
+  targetTaskId: string | null | undefined
+): boolean {
+  if (!record || !targetTaskId) return false;
+
+  const taskId = record.linked_task_id ?? record.linkedTaskId;
+  if (taskId !== undefined && taskId !== null && taskId !== '') {
+    return taskId === targetTaskId;
+  }
+
+  // Missing task ownership fails closed in a task panel
+  return false;
+}
+
+/**
+ * Defensively filters related financial records to only those explicitly owned by targetTaskId.
+ * Missing/empty collections fail closed gracefully into empty arrays, maintaining the response shape.
+ */
+export function filterTaskRelatedRecords(
+  records: TaskRelatedRecords | null | undefined,
+  targetTaskId: string | null | undefined
+): TaskRelatedRecords {
+  if (!records || !targetTaskId) {
+    return { invoices: [], disbursements: [], transmittals: [] };
+  }
+
+  return {
+    invoices: Array.isArray(records.invoices)
+      ? records.invoices.filter((inv) => isRecordOwnedByTask(inv, targetTaskId))
+      : [],
+    disbursements: Array.isArray(records.disbursements)
+      ? records.disbursements.filter((disb) => isRecordOwnedByTask(disb, targetTaskId))
+      : [],
+    transmittals: Array.isArray(records.transmittals)
+      ? records.transmittals.filter((tx) => isTransmittalOwnedByTask(tx, targetTaskId))
+      : [],
+  };
 }
