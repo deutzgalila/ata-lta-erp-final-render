@@ -148,7 +148,33 @@ const tableQuery = (table) => {
   let insertRecords = null;
   let updateValues = null;
 
-  const matchFilter = (row, { column, value, op: fop = 'eq', innerOp }) => {
+  const splitTopLevel = (str) => {
+    const parts = [];
+    let current = '';
+    let depth = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str[i];
+      if (char === '(' || char === '{') depth++;
+      else if (char === ')' || char === '}') depth--;
+      if (char === ',' && depth === 0) {
+        parts.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    if (current.trim()) parts.push(current.trim());
+    return parts;
+  };
+
+  const matchFilter = (row, filter) => {
+    const { column, value, op: fop = 'eq', innerOp } = filter;
+    if (fop === 'and') {
+      return (filter.parts || []).every((p) => matchFilter(row, p));
+    }
+    if (fop === 'or') {
+      return (filter.parts || []).some((p) => matchFilter(row, p));
+    }
     const rowValue = row[column];
     if (fop === 'not') {
       return !matchFilter(row, { column, value, op: innerOp || 'eq' });
@@ -204,6 +230,16 @@ const tableQuery = (table) => {
   };
 
   const parseOrPart = (part) => {
+    const andM = part.match(/^and\((.*)\)$/);
+    if (andM) {
+      const subParts = splitTopLevel(andM[1]);
+      return { op: 'and', parts: subParts.map(parseOrPart).filter(Boolean) };
+    }
+    const orM = part.match(/^or\((.*)\)$/);
+    if (orM) {
+      const subParts = splitTopLevel(orM[1]);
+      return { op: 'or', parts: subParts.map(parseOrPart).filter(Boolean) };
+    }
     const notIsM = part.match(/^([^.]+)\.not\.is\.null$/);
     if (notIsM) {
       return { column: notIsM[1], value: null, op: 'not', innerOp: 'is' };
@@ -234,7 +270,7 @@ const tableQuery = (table) => {
       filters.every((filter) => {
         if (filter.op === 'or') {
           return filter.parts.some((part) => {
-            const parsed = parseOrPart(part);
+            const parsed = typeof part === 'string' ? parseOrPart(part) : part;
             if (!parsed) return false;
             return matchFilter(row, parsed);
           });
@@ -400,21 +436,7 @@ const tableQuery = (table) => {
       return builder;
     },
     or: (expression) => {
-      const parts = [];
-      let current = '';
-      let depth = 0;
-      for (let i = 0; i < expression.length; i++) {
-        const char = expression[i];
-        if (char === '(' || char === '{') depth++;
-        else if (char === ')' || char === '}') depth--;
-        if (char === ',' && depth === 0) {
-          parts.push(current.trim());
-          current = '';
-        } else {
-          current += char;
-        }
-      }
-      if (current.trim()) parts.push(current.trim());
+      const parts = splitTopLevel(expression);
       filters.push({ op: 'or', parts });
       return builder;
     },
