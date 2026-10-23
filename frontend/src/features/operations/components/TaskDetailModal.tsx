@@ -67,6 +67,7 @@ import {
 import { runBlockingAction } from './BlockingActionModal';
 import { operationsKeys } from '../api/queryKeys';
 import { getPhaseBadgeInfo } from '../lib/statusBadges';
+import { TaskTypeSelect, TaskTypeBadge } from '../lib/taskTypes';
 import type { Task, WorkRequest, DmsDocument, TaskStatus } from '../api/types';
 
 export interface TaskDetailModalProps {
@@ -165,6 +166,16 @@ export function TaskDetailModal({
   useEffect(() => {
     setLocalDueDate(task?.dueDate ?? null);
   }, [task?.dueDate]);
+
+  // Instant reactive local state for task link type
+  const rawTaskLinkType =
+    task?.requiredLinkType ??
+    (task as unknown as { required_link_type?: string | null } | null)?.required_link_type ??
+    null;
+  const [localLinkType, setLocalLinkType] = useState<string | null>(rawTaskLinkType);
+  useEffect(() => {
+    setLocalLinkType(rawTaskLinkType);
+  }, [rawTaskLinkType]);
 
   // Time logging form state
   const [logDate, setLogDate] = useState(() => workDate());
@@ -781,6 +792,36 @@ export function TaskDetailModal({
                 >
                   {task.status}
                 </Badge>
+                {canEdit ? (
+                  <TaskTypeSelect
+                    value={localLinkType}
+                    onChange={async (val) => {
+                      const nextVal = val || null;
+                      setLocalLinkType(nextVal);
+                      try {
+                        const updated = await updateTask({
+                          workRequestId: task.workRequestId,
+                          taskId: task.id,
+                          data: { requiredLinkType: nextVal },
+                        });
+                        if (updated && onTaskUpdated) {
+                          onTaskUpdated(updated as Task);
+                        }
+                      } catch (err) {
+                        console.error('Failed to update task type:', err);
+                      }
+                    }}
+                    showLabel
+                    ariaLabel="Task type"
+                    data-testid="task-detail-type-select"
+                  />
+                ) : (
+                  <TaskTypeBadge
+                    value={localLinkType}
+                    showStandardLabel
+                    data-testid="task-detail-type-badge"
+                  />
+                )}
                 {task.qaStatus && (
                   <Badge
                     variant={task.qaStatus === 'passed' ? 'success' : 'destructive'}

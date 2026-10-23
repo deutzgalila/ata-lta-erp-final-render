@@ -23,6 +23,7 @@ import { useRetainerTemplates, useRetainerMutations } from '../api/useRetainers'
 import { useClients } from '../api/useClients';
 import { useTeam } from '../api/useTeam';
 import { AssignerSelect } from './AssignerSelect';
+import { TaskTypeBadge } from '../lib/taskTypes';
 import { runBlockingAction } from './BlockingActionModal';
 import { operationsKeys } from '../api/queryKeys';
 import { useSessionStore } from '@/lib/session';
@@ -50,6 +51,7 @@ interface BlueprintTask {
   assignees: string[];
   depends_on?: string | null;
   dueDate?: string | null;
+  requiredLinkType?: string | null;
   checklist?: ChecklistItemData[];
 }
 
@@ -142,6 +144,7 @@ export function OtherTemplateGenerateModal({
           assignees: Array.isArray(rawAssignees) ? rawAssignees : [],
           depends_on: dependsOn,
           dueDate: t.dueDate || t.due_date || null,
+          requiredLinkType: t.requiredLinkType ?? t.required_link_type ?? null,
           checklist: t.checklist || [],
         };
       })
@@ -232,6 +235,7 @@ export function OtherTemplateGenerateModal({
               assignees: t.assignees,
               depends_on: t.depends_on || null,
               dueDate: t.dueDate || null,
+              requiredLinkType: t.requiredLinkType || null,
               checklist: t.checklist || [],
             })),
           },
@@ -491,6 +495,10 @@ export function OtherTemplateGenerateModal({
                   >
                     <div className="flex items-center gap-1.5 truncate">
                       <span className="text-[#475569] text-xs">#{idx + 1}</span>
+                      <TaskTypeBadge
+                        value={t.requiredLinkType}
+                        data-testid={`other-generate-task-type-${t.local_id || idx}`}
+                      />
                       <span className="font-semibold text-[#1E293B] truncate">{t.title}</span>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">

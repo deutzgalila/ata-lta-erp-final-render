@@ -171,6 +171,8 @@ export const phaseTaskInputSchema = z.object({
   localId: z.string().optional().nullable(),
   status: z.string().max(50).optional().nullable(),
   dueDate: z.string().optional().nullable(),
+  requiredLinkType: z.string().nullable().optional(),
+  required_link_type: z.string().nullable().optional(),
 });
 
 export const createWorkRequestPhasesSchema = z.object({

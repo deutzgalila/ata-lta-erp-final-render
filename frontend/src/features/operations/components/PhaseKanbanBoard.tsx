@@ -51,6 +51,7 @@ import { RerouteModal } from './RerouteModal';
 import { WorkRequestModal } from './WorkRequestModal';
 import { TaskDetailModal } from './TaskDetailModal';
 import { QuickAddCard } from './QuickAddCard';
+import { TaskTypeBadge } from '../lib/taskTypes';
 import { operationsKeys } from '../api/queryKeys';
 import { getPhaseBadgeInfo, getStatusBadgeInfo } from '../lib/statusBadges';
 import { useSearchParams, useInRouterContext } from 'react-router-dom';
@@ -709,7 +710,14 @@ function PhaseKanbanBoardInner({
                       >
                         {/* Task Card Header */}
                         <div className="flex items-start justify-between gap-1.5">
-                          <div className="min-w-0 flex-1">
+                          <div className="min-w-0 flex-1 flex items-center gap-1.5">
+                            <TaskTypeBadge
+                              value={
+                                task.requiredLinkType ??
+                                (task as unknown as { required_link_type?: string | null }).required_link_type
+                              }
+                              data-testid={`kanban-task-type-${task.id}`}
+                            />
                             <span className="font-semibold text-xs text-[#1E293B] leading-tight block">
                               {task.title}
                             </span>

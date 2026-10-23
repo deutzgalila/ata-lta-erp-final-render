@@ -2,13 +2,13 @@ import { DateInput } from '@/components/ui/date-input';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Calendar,
-  CheckSquare,
   CornerDownLeft,
   Loader2,
   User,
   X,
 } from 'lucide-react';
 import { getEligibleStaff, useTeam } from '../api/useTeam';
+import { TaskTypeSelect } from '../lib/taskTypes';
 import type { CreatablePhase, CreateTaskInput, WorkRequest } from '../api/types';
 
 interface QuickAddCardProps {
@@ -20,6 +20,7 @@ interface QuickAddCardProps {
 
 export function QuickAddCard({ phase, workRequest, onCreate, onCancel }: QuickAddCardProps) {
   const [title, setTitle] = useState('');
+  const [requiredLinkType, setRequiredLinkType] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [dateOpen, setDateOpen] = useState(false);
   const [assigneeId, setAssigneeId] = useState('');
@@ -76,13 +77,16 @@ export function QuickAddCard({ phase, workRequest, onCreate, onCancel }: QuickAd
         title: title.trim(),
         phase,
         status: assignee ? 'Assigned' : 'Draft',
-        requiredLinkType: null,
+        requiredLinkType: requiredLinkType || null,
         dueDate: dueDate || null,
         assigneeId: assignee?.id ?? null,
         assigneeName: assignee?.name ?? null,
         assignees: assignee ? [assignee.id] : [],
       });
-      if (mounted.current) onCancel();
+      if (mounted.current) {
+        setRequiredLinkType('');
+        onCancel();
+      }
     } catch {
       setError('Unable to create task. Please try again.');
     } finally {
@@ -106,6 +110,7 @@ export function QuickAddCard({ phase, workRequest, onCreate, onCancel }: QuickAd
       onKeyDown={(event) => {
         if (event.key === 'Escape' && !pending) {
           event.preventDefault();
+          setRequiredLinkType('');
           onCancel();
         }
       }}
@@ -135,7 +140,10 @@ export function QuickAddCard({ phase, workRequest, onCreate, onCancel }: QuickAd
           type="button"
           aria-label="Cancel quick-add task"
           disabled={pending}
-          onClick={onCancel}
+          onClick={() => {
+            setRequiredLinkType('');
+            onCancel();
+          }}
           className="rounded-[6px] p-1 text-[#475569] hover:text-[#1E293B] disabled:opacity-40"
           data-testid={`quick-add-cancel-${phase}`}
         >
@@ -146,9 +154,13 @@ export function QuickAddCard({ phase, workRequest, onCreate, onCancel }: QuickAd
         disabled={pending}
         className="flex min-w-0 flex-wrap items-center gap-1 disabled:opacity-60"
       >
-        <span className="flex h-7 items-center justify-center px-1" title="Standard Task">
-          <CheckSquare className="h-4 w-4 text-[#1E293B]" role="img" aria-label="Standard Task" />
-        </span>
+        <TaskTypeSelect
+          value={requiredLinkType}
+          onChange={setRequiredLinkType}
+          disabled={pending}
+          ariaLabel="Task link type"
+          data-testid={`quick-add-type-trigger-${phase}`}
+        />
         <button
           type="button"
           className={`${controlClass} gap-1 px-1`}

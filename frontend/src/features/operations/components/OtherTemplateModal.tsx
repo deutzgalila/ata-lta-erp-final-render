@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/select';
 import { useRetainerMutations } from '../api/useRetainers';
 import { parseTaskDelimiterInput } from '../hooks/useTokenizer';
+import { TaskTypeSelect } from '../lib/taskTypes';
 import { usePermission } from '@/lib/permissions';
 import { useSessionStore } from '@/lib/session';
 import type {
@@ -87,6 +88,7 @@ export function OtherTemplateModal({
           local_id: t.local_id || t.localId || `task_${idx + 1}`,
           phase: t.phase || 'pre_processing',
           depends_on_local_id: t.depends_on_local_id || t.dependsOnLocalId || null,
+          requiredLinkType: t.requiredLinkType ?? t.required_link_type ?? null,
           checklist: t.checklist || [],
         }))
       );
@@ -101,6 +103,7 @@ export function OtherTemplateModal({
           description: '',
           phase: 'pre_processing',
           depends_on_local_id: null,
+          requiredLinkType: null,
           checklist: [],
         },
       ]);
@@ -120,6 +123,7 @@ export function OtherTemplateModal({
         description: '',
         phase: 'pre_processing',
         depends_on_local_id: null,
+        requiredLinkType: null,
         checklist: [],
       },
     ]);
@@ -221,6 +225,7 @@ export function OtherTemplateModal({
       description: target.description || '',
       phase: basePhase,
       depends_on_local_id: tIdx === 0 ? target.depends_on_local_id : null,
+      requiredLinkType: target.requiredLinkType ?? null,
     }));
 
     const nextTasks = [
@@ -278,6 +283,7 @@ export function OtherTemplateModal({
         description: t.description?.trim() || null,
         phase: t.phase,
         depends_on_local_id: t.depends_on_local_id || null,
+        requiredLinkType: t.requiredLinkType || null,
         checklist: (t.checklist || []).map((c) => ({
           id: c.id,
           text: c.text.trim(),
@@ -432,6 +438,13 @@ export function OtherTemplateModal({
                         <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] bg-[#1D4ED8] text-xs font-bold text-[#FFFFFF]">
                           {idx + 1}
                         </span>
+                        <TaskTypeSelect
+                          value={task.requiredLinkType}
+                          onChange={(val) => updateTaskField(idx, 'requiredLinkType', val || null)}
+                          ariaLabel="Task type"
+                          data-testid={`other-template-task-type-${idx}`}
+                          className="h-8"
+                        />
                         {/* Task Title Input */}
                         <div className="flex-1 space-y-1">
                           <Input

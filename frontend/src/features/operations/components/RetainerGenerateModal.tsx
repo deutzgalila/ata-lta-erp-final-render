@@ -22,6 +22,7 @@ import { useRetainerTemplates, useRetainerMutations } from '../api/useRetainers'
 import { useClients } from '../api/useClients';
 import { useTeam } from '../api/useTeam';
 import { AssignerSelect } from './AssignerSelect';
+import { TaskTypeBadge } from '../lib/taskTypes';
 import { runBlockingAction } from './BlockingActionModal';
 import { operationsKeys } from '../api/queryKeys';
 import { useSessionStore } from '@/lib/session';
@@ -48,6 +49,7 @@ interface BlueprintTask {
   assignees: string[];
   depends_on?: string | null;
   dueDate?: string | null;
+  requiredLinkType?: string | null;
   checklist?: ChecklistItemData[];
 }
 
@@ -135,6 +137,7 @@ export function RetainerGenerateModal({
           assignees: Array.isArray(rawAssignees) ? rawAssignees : [],
           depends_on: dependsOn,
           dueDate: t.dueDate || t.due_date || null,
+          requiredLinkType: t.requiredLinkType ?? t.required_link_type ?? null,
           checklist: t.checklist || [],
         };
       })
@@ -210,6 +213,7 @@ export function RetainerGenerateModal({
               assignees: t.assignees,
               depends_on: t.depends_on || null,
               dueDate: t.dueDate || null,
+              requiredLinkType: t.requiredLinkType || null,
               checklist: t.checklist || [],
             })),
           },
@@ -442,6 +446,10 @@ export function RetainerGenerateModal({
                           <span className="text-xs text-[#475569] shrink-0">
                             #{idx + 1}
                           </span>
+                          <TaskTypeBadge
+                            value={task.requiredLinkType}
+                            data-testid={`retainer-generate-task-type-${task.local_id || idx}`}
+                          />
                           <span className="font-semibold text-[#1E293B] truncate" title={task.title}>
                             {task.title}
                           </span>

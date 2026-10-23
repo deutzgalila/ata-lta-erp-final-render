@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/select';
 import { useRetainerTemplateMutations } from '../api/useRetainerTemplates';
 import { useClients } from '@/features/operations/api/useClients';
+import { TaskTypeSelect } from '@/features/operations/lib/taskTypes';
 import { useUsersList } from '../api/useUsers';
 import { usePermission } from '@/lib/permissions';
 import type { ChecklistItemData } from '@/features/operations/api/types';
@@ -109,6 +110,7 @@ export function RetainerTemplateModal({
           local_id: t.local_id || t.localId || `task_${idx + 1}`,
           phase: t.phase || 'pre_processing',
           default_assignees: t.default_assignees || t.defaultAssignees || [],
+          requiredLinkType: t.requiredLinkType ?? t.required_link_type ?? null,
           checklist: t.checklist || [],
         }))
       );
@@ -129,6 +131,7 @@ export function RetainerTemplateModal({
           phase: 'pre_processing',
           default_assignees: [],
           depends_on_local_id: null,
+          requiredLinkType: null,
           checklist: [],
         },
       ]);
@@ -149,6 +152,7 @@ export function RetainerTemplateModal({
         phase: 'pre_processing',
         default_assignees: [],
         depends_on_local_id: null,
+        requiredLinkType: null,
         checklist: [],
       },
     ]);
@@ -279,6 +283,7 @@ export function RetainerTemplateModal({
         phase: t.phase,
         default_assignees: t.default_assignees || [],
         depends_on_local_id: t.depends_on_local_id || null,
+        requiredLinkType: t.requiredLinkType || null,
         checklist: (t.checklist || []).map((c) => ({
           id: c.id,
           text: c.text.trim(),
@@ -312,7 +317,7 @@ export function RetainerTemplateModal({
             <DialogTitle className="text-base font-bold text-[#1E293B]">
               Access Restricted
             </DialogTitle>
-            <DialogDescription className="text-xs text-rose-600">
+            <DialogDescription className="text-xs text-[#DC2626]">
               You do not have permission to author or edit retainer templates (<code className="font-mono">retainers:edit</code> required).
             </DialogDescription>
           </DialogHeader>
@@ -346,18 +351,18 @@ export function RetainerTemplateModal({
             {/* Template Name */}
             <div className="space-y-1 md:col-span-2">
               <label className="text-xs font-semibold text-[#1E293B]">
-                Template Name <span className="text-rose-500">*</span>
+                Template Name <span className="text-[#DC2626]">*</span>
               </label>
               <Input
                 type="text"
                 placeholder="e.g. Annual BIR Compliance & Tax Filing"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="h-9 text-xs bg-white"
+                className="h-9 text-xs bg-[#FFFFFF]"
                 data-testid="template-name-input"
                 required
               />
-              {errors.name && <p className="text-xs text-rose-600">{errors.name}</p>}
+              {errors.name && <p className="text-xs text-[#DC2626]">{errors.name}</p>}
             </div>
 
             {/* Client (Optional default) */}
@@ -366,7 +371,7 @@ export function RetainerTemplateModal({
                 Default Client (Optional)
               </label>
               <Select value={clientId || 'none'} onValueChange={(val) => setClientId(val === 'none' ? '' : val)}>
-                <SelectTrigger className="h-9 text-xs bg-white" data-testid="template-client-select">
+                <SelectTrigger className="h-9 text-xs bg-[#FFFFFF]" data-testid="template-client-select">
                   <SelectValue placeholder="All Clients / Unassigned" />
                 </SelectTrigger>
                 <SelectContent>
@@ -386,7 +391,7 @@ export function RetainerTemplateModal({
                 Billing Schedule
               </label>
               <Select value={schedule} onValueChange={setSchedule}>
-                <SelectTrigger className="h-9 text-xs bg-white" data-testid="template-schedule-select">
+                <SelectTrigger className="h-9 text-xs bg-[#FFFFFF]" data-testid="template-schedule-select">
                   <SelectValue placeholder="Schedule" />
                 </SelectTrigger>
                 <SelectContent>
@@ -404,7 +409,7 @@ export function RetainerTemplateModal({
                 Default Priority
               </label>
               <Select value={priority} onValueChange={(v) => setPriority(v as Priority)}>
-                <SelectTrigger className="h-9 text-xs bg-white" data-testid="template-priority-select">
+                <SelectTrigger className="h-9 text-xs bg-[#FFFFFF]" data-testid="template-priority-select">
                   <SelectValue placeholder="Priority" />
                 </SelectTrigger>
                 <SelectContent>
@@ -428,7 +433,7 @@ export function RetainerTemplateModal({
                 placeholder="0.00"
                 value={pfAmount}
                 onChange={(e) => setPfAmount(e.target.value)}
-                className="h-9 text-xs bg-white"
+                className="h-9 text-xs bg-[#FFFFFF]"
                 data-testid="template-pf-input"
               />
             </div>
@@ -436,7 +441,7 @@ export function RetainerTemplateModal({
             {/* Recurrence Toggle */}
             <div className="space-y-1.5 md:col-span-2 pt-1 border-t border-[#E2E8F0]">
               <label className="text-xs font-semibold text-[#1E293B] flex items-center gap-1.5">
-                <Calendar className="h-3.5 w-3.5 text-purple-600" />
+                <Calendar className="h-3.5 w-3.5 text-[#1D4ED8]" />
                 <span>Recurrence Frequency:</span>
               </label>
               <div className="flex gap-4">
@@ -447,7 +452,7 @@ export function RetainerTemplateModal({
                     value="none"
                     checked={recurrence === 'none'}
                     onChange={() => setRecurrence('none')}
-                    className="text-purple-600 focus:ring-purple-500 h-3.5 w-3.5"
+                    className="text-[#1D4ED8] focus:ring-[#1D4ED8] h-3.5 w-3.5"
                     data-testid="recurrence-none-radio"
                   />
                   <span>None / Ad-Hoc</span>
@@ -459,24 +464,24 @@ export function RetainerTemplateModal({
                     value="annual"
                     checked={recurrence === 'annual'}
                     onChange={() => setRecurrence('annual')}
-                    className="text-purple-600 focus:ring-purple-500 h-3.5 w-3.5"
+                    className="text-[#1D4ED8] focus:ring-[#1D4ED8] h-3.5 w-3.5"
                     data-testid="recurrence-annual-radio"
                   />
-                  <span className="font-semibold text-purple-800">Annual Recurrence</span>
+                  <span className="font-semibold text-[#1E293B]">Annual Recurrence</span>
                 </label>
               </div>
 
               {/* Annual Period Label Formatting Guidance */}
               {recurrence === 'annual' && (
                 <div
-                  className="rounded-[6px] bg-purple-50 border-purple-200 p-2.5 text-xs text-purple-800 space-y-1"
+                  className="rounded-[6px] bg-[#EFF6FF] border border-[#BFDBFE] p-2.5 text-xs text-[#1E293B] space-y-1"
                   data-testid="annual-period-hint"
                 >
-                  <p className="font-semibold flex items-center gap-1">
-                    <Clock className="h-3.5 w-3.5 text-purple-600" />
+                  <p className="font-semibold flex items-center gap-1 text-[#1D4ED8]">
+                    <Clock className="h-3.5 w-3.5 text-[#1D4ED8]" />
                     Annual Period Label Guidance (e.g. FY-2026, FY-2027)
                   </p>
-                  <p className="text-xs text-purple-700">
+                  <p className="text-xs text-[#475569]">
                     When generating work requests from an annual template, you will be prompted for a period label (e.g. <code className="font-mono font-bold">FY-2026</code>). The system enforces duplicate protection (<code className="font-mono">UNIQUE(template_id, period_label)</code>) to prevent accidental duplicate work request creation.
                   </p>
                 </div>
@@ -510,7 +515,7 @@ export function RetainerTemplateModal({
               </Button>
             </div>
 
-            {errors.tasks && <p className="text-xs text-rose-600">{errors.tasks}</p>}
+            {errors.tasks && <p className="text-xs text-[#DC2626]">{errors.tasks}</p>}
 
             {/* Task Rows List */}
             <div className="space-y-2.5" data-testid="task-rows-container">
@@ -522,7 +527,7 @@ export function RetainerTemplateModal({
                 return (
                   <div
                     key={task.local_id || idx}
-                    className="rounded-[8px] border-[#E2E8F0] bg-white p-3 shadow-none space-y-2.5"
+                    className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] p-3 shadow-none space-y-2.5"
                     data-testid={`task-row-${idx}`}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -530,6 +535,13 @@ export function RetainerTemplateModal({
                         <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] bg-[#F8FAFC] text-xs font-bold text-[#475569]">
                           {idx + 1}
                         </span>
+                        <TaskTypeSelect
+                          value={task.requiredLinkType}
+                          onChange={(val) => updateTaskField(idx, 'requiredLinkType', val || null)}
+                          ariaLabel="Task type"
+                          data-testid={`retainer-template-task-type-${idx}`}
+                          className="h-8"
+                        />
                         {/* Task Title Input */}
                         <div className="flex-1">
                           <Input
@@ -554,7 +566,7 @@ export function RetainerTemplateModal({
                           onValueChange={(val) => updateTaskField(idx, 'phase', val as CreatablePhase)}
                         >
                           <SelectTrigger
-                            className="h-8 text-xs bg-white font-medium"
+                            className="h-8 text-xs bg-[#FFFFFF] font-medium"
                             data-testid={`task-phase-select-${idx}`}
                           >
                             <SelectValue placeholder="Phase" />
@@ -563,7 +575,7 @@ export function RetainerTemplateModal({
                             <SelectItem value="pre_processing" className="text-xs text-[#1E293B]">
                               Pre-Processing
                             </SelectItem>
-                            <SelectItem value="processing" className="text-xs text-emerald-700">
+                            <SelectItem value="processing" className="text-xs text-[#1E293B]">
                               Processing
                             </SelectItem>
                           </SelectContent>
@@ -577,7 +589,7 @@ export function RetainerTemplateModal({
                           variant="ghost"
                           size="sm"
                           onClick={() => removeTaskRow(idx)}
-                          className="h-8 w-8 p-0 text-[#475569] hover:text-rose-600 shrink-0"
+                          className="h-8 w-8 p-0 text-[#475569] hover:text-[#DC2626] shrink-0"
                           title="Remove task row"
                           data-testid={`remove-task-btn-${idx}`}
                         >
@@ -670,7 +682,7 @@ export function RetainerTemplateModal({
                       </div>
 
                       {task.checklist && task.checklist.length > 0 ? (
-                        <div className="space-y-1.5 bg-[#F8FAFC]/50 p-2 rounded border-[#E2E8F0]">
+                        <div className="space-y-1.5 bg-[#F8FAFC]/50 p-2 rounded-[8px] border-[#E2E8F0]">
                           {task.checklist.map((item, ci) => (
                             <div key={item.id || ci} className="flex items-center gap-2 text-xs">
                               {/* Text input */}
@@ -681,7 +693,7 @@ export function RetainerTemplateModal({
                                   updateChecklistItem(idx, ci, 'text', e.target.value)
                                 }
                                 placeholder="Checklist item or document requirement..."
-                                className="flex-1 text-xs border-[#E2E8F0] rounded px-2 py-1 bg-white text-[#1E293B] placeholder:text-[#475569] focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                className="flex-1 text-xs border-[#E2E8F0] rounded-[6px] px-2 py-1 bg-[#FFFFFF] text-[#1E293B] placeholder:text-[#475569] focus:outline-none focus:ring-1 focus:ring-[#1D4ED8]"
                                 data-testid={`checklist-item-input-${idx}-${ci}`}
                               />
 
@@ -693,7 +705,7 @@ export function RetainerTemplateModal({
                                     item.category === 'document' ? 'subtask' : 'document';
                                   updateChecklistItem(idx, ci, 'category', nextCat);
                                 }}
-                                className="px-2 py-1 text-xs rounded border-[#E2E8F0] bg-white text-[#475569] hover:bg-[#F8FAFC] font-medium shrink-0"
+                                className="px-2 py-1 text-xs rounded-[6px] border-[#E2E8F0] bg-[#FFFFFF] text-[#475569] hover:bg-[#F8FAFC] font-medium shrink-0"
                                 data-testid={`checklist-category-toggle-${idx}-${ci}`}
                               >
                                 {item.category === 'document' ? (
@@ -718,7 +730,7 @@ export function RetainerTemplateModal({
                                       parseInt(e.target.value, 10) || null
                                     )
                                   }
-                                  className="w-16 text-xs p-1 border-[#E2E8F0] rounded bg-white text-center shrink-0"
+                                  className="w-16 text-xs p-1 border-[#E2E8F0] rounded-[6px] bg-[#FFFFFF] text-center shrink-0"
                                   placeholder="Year"
                                   data-testid={`checklist-period-year-${idx}-${ci}`}
                                 />
@@ -728,7 +740,7 @@ export function RetainerTemplateModal({
                               <button
                                 type="button"
                                 onClick={() => removeChecklistItem(idx, ci)}
-                                className="text-[#475569] hover:text-red-500 p-0.5 shrink-0"
+                                className="text-[#475569] hover:text-[#DC2626] p-0.5 shrink-0"
                                 title="Remove item"
                                 data-testid={`checklist-remove-btn-${idx}-${ci}`}
                               >

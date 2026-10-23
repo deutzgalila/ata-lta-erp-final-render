@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/select';
 import { parseTaskDelimiterInput } from '../hooks/useTokenizer';
 import { validateDependencies } from '../utils/dependencyValidator';
+import { TaskTypeSelect } from '../lib/taskTypes';
 import type { TeamMember } from '../api/useTeam';
 import type { CreatablePhase } from '../api/types';
 
@@ -46,6 +47,7 @@ export interface TaskItemData {
   dependsOn?: string[] | string | null;
   checklist?: ChecklistItemData[];
   dueDate?: string | null;
+  requiredLinkType?: string | null;
 }
 
 export interface TaskLineItemsProps {
@@ -124,6 +126,7 @@ export function TaskLineItems({
       checklist: [],
       dependsOn: null,
       dueDate: null,
+      requiredLinkType: null,
     };
     onChange([...tasks, newTask]);
     setExpandedRow(newLocalId);
@@ -275,6 +278,16 @@ export function TaskLineItems({
                     <ChevronRight className="h-4 w-4" />
                   )}
                 </button>
+
+                {/* Task Type Selector */}
+                <TaskTypeSelect
+                  value={task.requiredLinkType}
+                  onChange={(val) => handleUpdateTask(index, 'requiredLinkType', val || null)}
+                  disabled={disabled}
+                  ariaLabel="Task type"
+                  data-testid={`task-type-select-${index}`}
+                  className="h-8"
+                />
 
                 {/* Task Title Input */}
                 <div className="min-w-48 flex-[1_1_12rem]">

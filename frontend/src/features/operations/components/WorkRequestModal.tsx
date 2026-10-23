@@ -59,6 +59,7 @@ const DEFAULT_TASKS: TaskItemData[] = [
     checklist: [],
     dependsOn: null,
     dueDate: null,
+    requiredLinkType: null,
   },
   {
     localId: 'tmp-2',
@@ -68,6 +69,7 @@ const DEFAULT_TASKS: TaskItemData[] = [
     checklist: [],
     dependsOn: null,
     dueDate: null,
+    requiredLinkType: null,
   },
 ];
 
@@ -144,6 +146,10 @@ export function WorkRequestModal({
               [],
             dependsOn: t.predecessors?.length ? t.predecessors : null,
             dueDate: t.dueDate ? t.dueDate.split('T')[0] : null,
+            requiredLinkType:
+              t.requiredLinkType ||
+              (t as unknown as { required_link_type?: string | null }).required_link_type ||
+              null,
             checklist: t.checklist?.map((c) => ({
               id: c.id,
               text: c.text,
@@ -429,6 +435,7 @@ export function WorkRequestModal({
                   assignees,
                   predecessors: initialPredecessors,
                   dueDate: t.dueDate || null,
+                  requiredLinkType: t.requiredLinkType || null,
                   checklist: t.checklist
                     ?.filter((c) => c.text.trim())
                     .map((c) => ({
@@ -479,6 +486,7 @@ export function WorkRequestModal({
                   assignees,
                   predecessors: resolvePredecessors(t.dependsOn),
                   dueDate: t.dueDate || null,
+                  requiredLinkType: t.requiredLinkType || null,
                   checklist: t.checklist?.map((c) => ({
                     id: isValidUUID(c.id) ? c.id : undefined,
                     text: c.text,
@@ -510,6 +518,7 @@ export function WorkRequestModal({
                   assignees: item.assignees,
                   predecessors: finalPredecessors,
                   dueDate: item.task.dueDate || null,
+                  requiredLinkType: item.task.requiredLinkType || null,
                   checklist: item.task.checklist?.map((c) => ({
                     id: isValidUUID(c.id) ? c.id : undefined,
                     text: c.text,
@@ -550,6 +559,7 @@ export function WorkRequestModal({
               assignees,
               depends_on: t.dependsOn || undefined,
               dueDate: t.dueDate || null,
+              requiredLinkType: t.requiredLinkType || null,
               checklist: t.checklist?.filter((c) => c.text?.trim()).map((c) => ({
                 text: c.text.trim(),
                 completed: c.completed,

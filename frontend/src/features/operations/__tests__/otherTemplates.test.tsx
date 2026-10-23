@@ -437,6 +437,14 @@ describe('Other Templates Engine & Tab Feature Tests', () => {
       const removeBtn = screen.getByTestId('checklist-remove-btn-0-0');
       fireEvent.click(removeBtn);
       expect(screen.queryByTestId('checklist-item-input-0-0')).not.toBeInTheDocument();
+
+      // Verify task type selector (Task / Billing / Documents) on task rows
+      const typeSelect0 = screen.getByTestId('other-template-task-type-0');
+      expect(typeSelect0).toHaveValue('');
+      fireEvent.change(typeSelect0, { target: { value: 'billing' } });
+      expect(typeSelect0).toHaveValue('billing');
+      fireEvent.change(typeSelect0, { target: { value: 'documents' } });
+      expect(typeSelect0).toHaveValue('documents');
     });
   });
 

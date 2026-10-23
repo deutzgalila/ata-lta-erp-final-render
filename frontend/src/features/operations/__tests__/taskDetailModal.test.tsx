@@ -268,4 +268,50 @@ describe('TaskDetailModal Document Linking & Query Invalidation', () => {
       expect(screen.getByText('Audit Report.pdf')).toBeInTheDocument();
     });
   });
+
+  it('renders editable task type selector when user has workflow:edit and read-only badge otherwise', async () => {
+    render(
+      <TaskDetailModal
+        isOpen={true}
+        onClose={vi.fn()}
+        task={mockTask}
+        workRequest={mockWr}
+      />,
+      { wrapper }
+    );
+
+    const typeSelect = screen.getByTestId('task-detail-type-select');
+    expect(typeSelect).toBeInTheDocument();
+    expect(typeSelect).toHaveValue('');
+
+    fireEvent.change(typeSelect, { target: { value: 'billing' } });
+    expect(typeSelect).toHaveValue('billing');
+
+    cleanup();
+    useSessionStore.getState().setSession({
+      user: {
+        id: 'user-staff',
+        email: 'staff@ata-lta.ph',
+        name: 'Staff User',
+        role: 'Operations',
+        departments: ['Operations'],
+        entities: ['ATA'],
+      },
+      permissions: ['workflow:view'],
+      activeEntity: 'ATA',
+    });
+
+    render(
+      <TaskDetailModal
+        isOpen={true}
+        onClose={vi.fn()}
+        task={{ ...mockTask, requiredLinkType: 'documents' }}
+        workRequest={mockWr}
+      />,
+      { wrapper }
+    );
+
+    expect(screen.queryByTestId('task-detail-type-select')).toBeNull();
+    expect(screen.getByTestId('task-detail-type-badge')).toHaveTextContent('Documents');
+  });
 });

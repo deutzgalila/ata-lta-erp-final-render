@@ -342,6 +342,7 @@ export interface RetainerTemplateTask {
   depends_on_local_id?: string | null;
   dependsOnLocalId?: string | null;
   requiredLinkType?: string | null;
+  required_link_type?: string | null;
   dueDate?: string | null;
   due_date?: string | null;
   checklist?: ChecklistItemData[];
@@ -461,6 +462,8 @@ export interface CreatePhaseTaskInput {
   localId?: string | null;
   status?: string | null;
   dueDate?: string | null;
+  requiredLinkType?: string | null;
+  required_link_type?: string | null;
 }
 
 export type PhaseTaskInput = CreatePhaseTaskInput;
@@ -613,6 +616,9 @@ export interface RetainerGenerateTaskOverride {
   dependsOn?: string | null;
   dueDate?: string | null;
   due_date?: string | null;
+  requiredLinkType?: string | null;
+  required_link_type?: string | null;
+  checklist?: ChecklistItemData[];
 }
 
 export interface RetainerGenerateOverrides {
