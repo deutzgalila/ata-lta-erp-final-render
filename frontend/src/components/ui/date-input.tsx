@@ -8,10 +8,15 @@ import { cn } from '@/lib/utils';
 
 dayjs.extend(customParseFormat);
 
-function parseDate(raw: string | undefined, format: string) {
+function parseDate(raw: string | undefined, type: 'date' | 'month') {
   if (!raw) return null;
-  const parsed = dayjs(raw, format, true);
-  return parsed.isValid() ? parsed : null;
+  const trimmed = raw.includes('T') ? raw.split('T')[0] : raw;
+  const formats = type === 'month' ? ['YYYY-MM', 'MM/YYYY'] : ['YYYY-MM-DD', 'MM/DD/YYYY'];
+  for (const fmt of formats) {
+    const parsed = dayjs(trimmed, fmt, true);
+    if (parsed.isValid()) return parsed;
+  }
+  return null;
 }
 
 export interface DateInputProps extends Omit<
@@ -46,47 +51,54 @@ export const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function D
   forwardedRef
 ) {
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const format = type === 'month' ? 'YYYY-MM' : 'YYYY-MM-DD';
+  const displayFormat = type === 'month' ? 'YYYY-MM' : 'MM/DD/YYYY';
+  const valueFormat = type === 'month' ? 'YYYY-MM' : 'YYYY-MM-DD';
   // Retain invalid/incomplete edits locally so they cannot save stale parent values.
-  const [draft, setDraft] = useState(() => parseDate(value, format));
+  const [draft, setDraft] = useState(() => parseDate(value, type));
   const invalidEdit = useRef(false);
   useEffect(() => {
     invalidEdit.current = false;
-    setDraft(parseDate(value, format));
-  }, [value, format]);
+    setDraft(parseDate(value, type));
+  }, [value, type]);
   useEffect(() => {
     // A report may replace clearing with today's date, even if its value did not change.
     if (invalidEdit.current) return;
-    const accepted = parseDate(value, format);
+    const accepted = parseDate(value, type);
     if (draft?.valueOf() !== accepted?.valueOf()) setDraft(accepted);
-  }, [draft, value, format]);
+  }, [draft, value, type]);
   // Keep calendar portals inside Radix modal focus/dismiss boundaries.
   const portalContainer = () =>
     inputRef.current?.closest<HTMLElement>('[role="dialog"]') ?? document.body;
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
+      {name ? (
+        <input
+          type="hidden"
+          name={name}
+          value={draft && !invalidEdit.current ? draft.format(valueFormat) : ''}
+        />
+      ) : null}
       <DatePicker
         value={draft}
         onChange={(next, context) => {
           invalidEdit.current = context.validationError != null;
           setDraft(next);
-          if (context.validationError == null) onValueChange(next ? next.format(format) : '');
+          if (context.validationError == null) onValueChange(next ? next.format(valueFormat) : '');
         }}
         onError={(error) =>
           inputRef.current?.setCustomValidity(
             error ? 'Enter a valid date within the allowed range.' : ''
           )
         }
-        format={format}
+        format={displayFormat}
         views={type === 'month' ? ['year', 'month'] : ['year', 'month', 'day']}
         openTo={type === 'month' ? 'month' : 'day'}
-        minDate={parseDate(min, format) ?? dayjs('2000-01-01').year(1)}
-        maxDate={parseDate(max, format) ?? dayjs('9999-12-31', 'YYYY-MM-DD', true)}
+        minDate={parseDate(min, type) ?? dayjs('2000-01-01').year(1)}
+        maxDate={parseDate(max, type) ?? dayjs('9999-12-31', 'YYYY-MM-DD', true)}
         disabled={disabled}
         readOnly={readOnly}
         autoFocus={autoFocus}
-        name={name}
         className={cn(
           'h-9 w-full min-w-0 text-sm font-sans rounded-[6px]',
           type === 'month' ? 'sm:min-w-[184px]' : 'sm:min-w-[176px]',
@@ -103,7 +115,28 @@ export const DateInput = forwardRef<HTMLInputElement, DateInputProps>(function D
             required,
             size: 'small',
             slotProps: {
-              htmlInput: { ...inputProps, id, required },
+              htmlInput: {
+                ...inputProps,
+                id,
+                required,
+                onChangeCapture: (e: React.FormEvent<HTMLInputElement>) => {
+                  if (type === 'date' && e.currentTarget && typeof e.currentTarget.value === 'string') {
+                    const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(e.currentTarget.value);
+                    if (isoMatch) {
+                      const formatted = `${isoMatch[2]}/${isoMatch[3]}/${isoMatch[1]}`;
+                      const nativeSetter = Object.getOwnPropertyDescriptor(
+                        window.HTMLInputElement.prototype,
+                        'value'
+                      )?.set;
+                      if (nativeSetter) {
+                        nativeSetter.call(e.currentTarget, formatted);
+                      } else {
+                        e.currentTarget.value = formatted;
+                      }
+                    }
+                  }
+                },
+              },
               input: { 'aria-label': inputProps['aria-label'] },
             },
           },

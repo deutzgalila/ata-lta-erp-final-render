@@ -658,7 +658,7 @@ export function WorkRequestSidePeek({
                           const PHASES_ORDER = ['pre_processing', 'processing', 'quality_assurance', 'completion'];
                           const currentWrPhaseIndex = PHASES_ORDER.indexOf(workRequest?.phase || 'pre_processing');
                           const taskPhaseIndex = PHASES_ORDER.indexOf(task.phase);
-                          const isTaskActivePhase = task.phase === workRequest?.phase || workRequest?.phase === 'quality_assurance';
+                          const isTaskActivePhase = task.phase === workRequest?.phase;
                           const isTaskPastPhase = taskPhaseIndex < currentWrPhaseIndex;
                           const taskPhaseInfo = getPhaseBadgeInfo(task.phase);
 
@@ -736,7 +736,7 @@ export function WorkRequestSidePeek({
                                 </div>
 
                                 <div className="flex items-center gap-2 shrink-0">
-                                  {task.qaStatus && task.qaStatus !== 'none' && (
+                                  {task.qaStatus === 'passed' || task.qaStatus === 'failed' ? (
                                     <Badge
                                       variant={task.qaStatus === 'passed' ? 'success' : 'destructive'}
                                       size="compact"
@@ -744,7 +744,15 @@ export function WorkRequestSidePeek({
                                     >
                                       QA: {task.qaStatus}
                                     </Badge>
-                                  )}
+                                  ) : workRequest?.phase === 'quality_assurance' ? (
+                                    <Badge
+                                      variant="secondary"
+                                      size="compact"
+                                      className="text-xs rounded-[6px] bg-[#FFFBEB] text-[#92400E] border border-[#FDE68A]"
+                                    >
+                                      QA: Under Review
+                                    </Badge>
+                                  ) : null}
                                   <Badge
                                     variant={isCompleted ? 'success' : 'secondary'}
                                     size="compact"

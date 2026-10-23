@@ -725,6 +725,7 @@ export interface OperationsRequestFilters {
 
 export interface OperationsCounts {
   all: number;
+  active?: number;
   pre_processing: number;
   processing: number;
   quality_assurance: number;

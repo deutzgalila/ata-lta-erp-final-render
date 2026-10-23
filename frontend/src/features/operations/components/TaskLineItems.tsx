@@ -12,6 +12,7 @@ import {
   CheckSquare,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/date-input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -358,13 +359,13 @@ export function TaskLineItems({
                 </div>
 
                 {/* Task Due Date */}
-                <div className="w-32 shrink-0">
-                  <Input
+                <div className="w-40 shrink-0">
+                  <DateInput
                     type="date"
-                    value={task.dueDate || ''}
-                    onChange={(e) => handleUpdateTask(index, 'dueDate', e.target.value || null)}
+                    value={task.dueDate ? (task.dueDate.includes('T') ? task.dueDate.split('T')[0] : task.dueDate) : ''}
+                    onValueChange={(val) => handleUpdateTask(index, 'dueDate', val || null)}
                     disabled={disabled}
-                    className="h-8 text-xs tabular-nums bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px] px-1.5 text-[#1E293B]"
+                    className="h-8 text-xs tabular-nums bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px] text-[#1E293B]"
                     aria-label="Task due date"
                     title="Task Due Date"
                     data-testid={`task-due-date-input-${task.localId}`}

@@ -314,4 +314,50 @@ describe('TaskDetailModal Document Linking & Query Invalidation', () => {
     expect(screen.queryByTestId('task-detail-type-select')).toBeNull();
     expect(screen.getByTestId('task-detail-type-badge')).toHaveTextContent('Documents');
   });
+
+  it('locks task actions when task phase does not match active work request phase and unlocks when rerouted back', () => {
+    // 1. Task is in pre_processing, but WR has moved to processing -> locked
+    const { rerender } = render(
+      <TaskDetailModal
+        isOpen={true}
+        onClose={vi.fn()}
+        task={{ ...mockTask, phase: 'pre_processing', qaStatus: 'none' }}
+        workRequest={{ ...mockWr, phase: 'processing' }}
+      />,
+      { wrapper }
+    );
+
+    expect(screen.getByTestId('phase-locked-banner')).toBeInTheDocument();
+    expect(screen.getByText('Phase Completed (Locked)')).toBeInTheDocument();
+    expect(screen.getByTestId('task-toggle-status-btn')).toBeDisabled();
+    expect(screen.getByTestId('task-upload-doc-btn')).toBeDisabled();
+
+    // 2. WR is in quality_assurance -> task in pre_processing is still locked and shows QA: Under Review
+    rerender(
+      <TaskDetailModal
+        isOpen={true}
+        onClose={vi.fn()}
+        task={{ ...mockTask, phase: 'pre_processing', qaStatus: 'none' }}
+        workRequest={{ ...mockWr, phase: 'quality_assurance' }}
+      />
+    );
+    expect(screen.getByTestId('phase-locked-banner')).toBeInTheDocument();
+    expect(screen.getByText('QA: Under Review')).toBeInTheDocument();
+    expect(screen.getByTestId('task-toggle-status-btn')).toBeDisabled();
+    expect(screen.getByTestId('task-upload-doc-btn')).toBeDisabled();
+
+    // 3. Admin reroutes WR back to pre_processing -> task unlocks
+    rerender(
+      <TaskDetailModal
+        isOpen={true}
+        onClose={vi.fn()}
+        task={{ ...mockTask, phase: 'pre_processing', qaStatus: 'none' }}
+        workRequest={{ ...mockWr, phase: 'pre_processing' }}
+      />
+    );
+    expect(screen.queryByTestId('phase-locked-banner')).toBeNull();
+    expect(screen.getByText('Active Phase')).toBeInTheDocument();
+    expect(screen.getByTestId('task-toggle-status-btn')).not.toBeDisabled();
+    expect(screen.getByTestId('task-upload-doc-btn')).not.toBeDisabled();
+  });
 });

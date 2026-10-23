@@ -800,7 +800,7 @@ function PhaseKanbanBoardInner({
                           >
                             <div className="flex items-center justify-between text-xs uppercase font-bold text-[#1E293B]">
                               <span>QA Compliance:</span>
-                              {task.qaStatus ? (
+                              {task.qaStatus === 'passed' || task.qaStatus === 'failed' ? (
                                 <Badge
                                   variant={task.qaStatus === 'passed' ? 'success' : 'destructive'}
                                   size="compact"
@@ -810,7 +810,14 @@ function PhaseKanbanBoardInner({
                                   {task.qaStatus === 'passed' ? 'Passed' : 'Failed'}
                                 </Badge>
                               ) : (
-                                <span className="text-[#475569] italic lowercase">Pending Review</span>
+                                <Badge
+                                  variant="secondary"
+                                  size="compact"
+                                  className="text-xs font-bold uppercase rounded-[6px] bg-[#FFFBEB] text-[#92400E] border border-[#FDE68A]"
+                                  data-testid={`qa-status-badge-${task.id}`}
+                                >
+                                  Under Review
+                                </Badge>
                               )}
                             </div>
 

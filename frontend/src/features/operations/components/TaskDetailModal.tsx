@@ -290,10 +290,13 @@ export function TaskDetailModal({
     ? `Blocked by prerequisite task(s): ${incompletePredecessors.map((p) => p.title).join(', ')}`
     : undefined;
 
-  // Task B.4: Client-side phase gate for processing tasks
-  const isPhaseBlocked = task?.phase === 'processing' && workRequest?.phase === 'pre_processing';
-  const phaseBlockedTooltip =
-    'Parent Work Request is in Pre-processing. Must be routed to Processing before advancing processing tasks.';
+  // Task B.4: Client-side phase gate for non-active phases
+  const isPhaseBlocked = Boolean(
+    workRequest?.phase && task?.phase && task.phase !== workRequest.phase
+  );
+  const phaseBlockedTooltip = isPhaseBlocked
+    ? `Task is locked because the Work Request is currently in the ${getPhaseBadgeInfo(workRequest?.phase).label} phase.`
+    : undefined;
 
   // Check pending operations requests for this task
   const { data: rawPendingReqs } = useOperationsRequests(
@@ -755,7 +758,7 @@ export function TaskDetailModal({
                   const PHASES_ORDER = ['pre_processing', 'processing', 'quality_assurance', 'completion'];
                   const currentWrPhaseIndex = PHASES_ORDER.indexOf(workRequest?.phase || 'pre_processing');
                   const taskPhaseIndex = PHASES_ORDER.indexOf(task.phase);
-                  const isTaskActivePhase = !workRequest?.phase || task.phase === workRequest.phase || workRequest.phase === 'quality_assurance';
+                  const isTaskActivePhase = !workRequest?.phase || task.phase === workRequest.phase;
                   const isTaskPastPhase = taskPhaseIndex < currentWrPhaseIndex;
 
                   return (
@@ -773,7 +776,7 @@ export function TaskDetailModal({
                       ) : isTaskPastPhase ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[6px] text-xs font-medium bg-[#F0FDF4] text-[#166534] border border-[#BBF7D0]">
                           <span className="w-1.5 h-1.5 rounded-full bg-[#16A34A]" />
-                          <span>Phase Completed</span>
+                          <span>Phase Completed (Locked)</span>
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[6px] text-xs font-medium bg-[#FFFBEB] text-[#92400E] border border-[#FDE68A]">
@@ -822,7 +825,7 @@ export function TaskDetailModal({
                     data-testid="task-detail-type-badge"
                   />
                 )}
-                {task.qaStatus && (
+                {task.qaStatus === 'passed' || task.qaStatus === 'failed' ? (
                   <Badge
                     variant={task.qaStatus === 'passed' ? 'success' : 'destructive'}
                     size="compact"
@@ -830,7 +833,15 @@ export function TaskDetailModal({
                   >
                     QA: {task.qaStatus}
                   </Badge>
-                )}
+                ) : workRequest?.phase === 'quality_assurance' ? (
+                  <Badge
+                    variant="secondary"
+                    size="compact"
+                    className="rounded-[6px] text-xs bg-[#FFFBEB] text-[#92400E] border border-[#FDE68A]"
+                  >
+                    QA: Under Review
+                  </Badge>
+                ) : null}
               </div>
               <DialogTitle
                 className="text-lg font-bold text-[#1E293B] leading-tight"
@@ -910,6 +921,15 @@ export function TaskDetailModal({
               >
                 <Lock className="h-3.5 w-3.5 text-[#1E293B] shrink-0" />
                 <span>Completed Work Request: Task records and attachments are finalized and locked.</span>
+              </div>
+            )}
+            {isPhaseBlocked && !isCompletedWr && (
+              <div
+                className="bg-[#FFFBEB] border border-[#FDE68A] text-[#92400E] text-xs px-3 py-2 rounded-[6px] flex items-center gap-2"
+                data-testid="phase-locked-banner"
+              >
+                <Lock className="h-3.5 w-3.5 text-[#D97706] shrink-0" />
+                <span>{phaseBlockedTooltip}</span>
               </div>
             )}
 
@@ -1246,7 +1266,8 @@ export function TaskDetailModal({
                           type="checkbox"
                           checked={item.completed}
                           onChange={() => handleToggleChecklist(item.id, !item.completed)}
-                          disabled={!canEdit}
+                          disabled={!canEdit || isPhaseBlocked}
+                          title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
                           className="rounded-[6px] accent-[#1D4ED8] text-[#1E293B] cursor-pointer"
                         />
                         <span className={item.completed ? 'line-through text-[#475569]' : 'text-[#1E293B] font-medium'}>
@@ -1271,6 +1292,8 @@ export function TaskDetailModal({
                     placeholder="Add a new checklist item..."
                     value={newChecklistText}
                     onChange={(e) => setNewChecklistText(e.target.value)}
+                    disabled={isPhaseBlocked}
+                    title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
@@ -1283,7 +1306,8 @@ export function TaskDetailModal({
                     type="button"
                     size="xs"
                     onClick={handleAddChecklistItem}
-                    disabled={!newChecklistText.trim()}
+                    disabled={!newChecklistText.trim() || isPhaseBlocked}
+                    title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
                     className="h-8 text-xs gap-1 rounded-[6px] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs"
                   >
                     <Plus className="h-3.5 w-3.5" /> Add
@@ -1332,6 +1356,8 @@ export function TaskDetailModal({
                     type="button"
                     variant="outline"
                     size="xs"
+                    disabled={isPhaseBlocked}
+                    title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
                     onClick={() => setIsUploadDocModalOpen(true)}
                     className="text-xs gap-1 rounded-[8px] border-[#E2E8F0] hover:bg-[#F8FAFC]"
                     data-testid="task-upload-doc-btn"
@@ -1402,6 +1428,8 @@ export function TaskDetailModal({
                       type="button"
                       variant="outline"
                       size="xs"
+                      disabled={isPhaseBlocked}
+                      title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
                       onClick={() => setIsInvoiceModalOpen(true)}
                       className="text-xs gap-1 rounded-[8px] border-[#E2E8F0] hover:bg-[#F8FAFC]"
                       data-testid="link-invoice-btn"
@@ -1415,7 +1443,8 @@ export function TaskDetailModal({
                       variant="outline"
                       size="xs"
                       onClick={handleRequestInvoice}
-                      disabled={hasPendingInvoiceReq}
+                      disabled={hasPendingInvoiceReq || isPhaseBlocked}
+                      title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
                       className="text-xs gap-1 rounded-[8px] border-[#E2E8F0] bg-[#F8FAFC] hover:bg-[#E2E8F0] text-[#1E293B]"
                       data-testid="request-invoice-btn"
                     >
@@ -1428,6 +1457,8 @@ export function TaskDetailModal({
                       type="button"
                       variant="outline"
                       size="xs"
+                      disabled={isPhaseBlocked}
+                      title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
                       onClick={() => setIsDisbursementModalOpen(true)}
                       className="text-xs gap-1 rounded-[8px] border-[#E2E8F0] hover:bg-[#F8FAFC]"
                       data-testid="link-disbursement-btn"
@@ -1440,6 +1471,8 @@ export function TaskDetailModal({
                       type="button"
                       variant="outline"
                       size="xs"
+                      disabled={isPhaseBlocked}
+                      title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
                       onClick={() => setIsTransmittalModalOpen(true)}
                       className="text-xs gap-1 rounded-[8px] border-[#E2E8F0] hover:bg-[#F8FAFC]"
                       data-testid="link-transmittal-btn"
@@ -1453,7 +1486,8 @@ export function TaskDetailModal({
                       variant="outline"
                       size="xs"
                       onClick={handleRequestTransmittal}
-                      disabled={hasPendingTransmittalReq}
+                      disabled={hasPendingTransmittalReq || isPhaseBlocked}
+                      title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
                       className="text-xs gap-1 rounded-[8px] border-[#E2E8F0] bg-[#F8FAFC] hover:bg-[#E2E8F0] text-[#1E293B]"
                       data-testid="request-transmittal-btn"
                     >
@@ -1605,6 +1639,8 @@ export function TaskDetailModal({
                     type="button"
                     variant="outline"
                     size="xs"
+                    disabled={isPhaseBlocked}
+                    title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
                     onClick={() => setShowLogForm(true)}
                     className="text-xs gap-1 rounded-[8px] border-[#E2E8F0] hover:bg-[#F8FAFC]"
                     data-testid="open-log-time-btn"

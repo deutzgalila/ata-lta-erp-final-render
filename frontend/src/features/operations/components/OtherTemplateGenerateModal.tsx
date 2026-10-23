@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/date-input';
 import { Badge } from '@/components/ui/badge';
 import {
   Select,
@@ -414,11 +415,12 @@ export function OtherTemplateGenerateModal({
                 <Calendar className="h-3 w-3 text-[#475569]" />
                 <span>Due Date (Optional)</span>
               </label>
-              <Input
+              <DateInput
                 type="date"
                 value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
+                onValueChange={(val) => setDueDate(val)}
                 className="h-9 bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px] tabular-nums text-xs text-[#1E293B]"
+                aria-label="Due Date"
                 data-testid="other-template-due-date-input"
               />
             </div>

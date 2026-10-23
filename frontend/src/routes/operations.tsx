@@ -232,6 +232,7 @@ export default function OperationsPage() {
 
   const pendingApprovalsCount = requestCounts?.pending ?? 0;
   const archivedCount = wrCounts?.archived ?? 0;
+  const workRequestsCount = wrCounts?.active ?? wrCounts?.all ?? 0;
 
   return (
     <div className="w-full space-y-6" data-testid="operations-page">
@@ -338,6 +339,14 @@ export default function OperationsPage() {
             >
               <FileText className="h-4 w-4" />
               <span>Work Requests</span>
+              <Badge
+                variant="secondary"
+                size="compact"
+                className="text-xs tabular-nums rounded-[4px] border border-[#E2E8F0] bg-[#E2E8F0]/70 text-[#1E293B]"
+                data-testid="tab-work-requests-badge"
+              >
+                {workRequestsCount}
+              </Badge>
             </TabsTrigger>
 
             {/* Tab 2: Retainer Templates */}

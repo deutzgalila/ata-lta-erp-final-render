@@ -42,6 +42,19 @@ export function isUserAccounting(user: UserProfile | null | undefined): boolean 
 }
 
 /**
+ * Checks if a task is of type 'billing' (requiredLinkType === 'billing' or legacy 'invoice').
+ */
+export function isBillingTask(task: Task | null | undefined): boolean {
+  if (!task) return false;
+  const raw =
+    task.requiredLinkType ??
+    (task as Task & { required_link_type?: string | null }).required_link_type ??
+    '';
+  const normalized = String(raw || '').toLowerCase().trim();
+  return normalized === 'billing' || normalized === 'invoice';
+}
+
+/**
  * Checks if a user is part of the parent Work Request:
  * - Lead manager/assignee on the WR
  * - Listed in the WR's co-assignees
@@ -81,27 +94,39 @@ export function isManagerWithOperations(user: UserProfile | null | undefined): b
 
 /**
  * Only the assigned employee (or Admin) can mark task as In Progress or Complete.
+ * Non-Admin Accounting users can only mutate status on 'billing' tasks assigned to them.
  */
 export function canMutateTaskStatus(user: UserProfile | null | undefined, task: Task | null | undefined): boolean {
   if (!user || !task) return false;
   if (isUserAdmin(user)) return true;
+  if (isUserAccounting(user)) {
+    return isTaskAssignee(user, task) && isBillingTask(task);
+  }
   return isTaskAssignee(user, task);
 }
 
 /**
  * Time is always attributed to the caller, who must be assigned (including Admins).
+ * Non-Admin Accounting users can only log time on 'billing' tasks assigned to them.
  */
 export function canLogTaskTime(user: UserProfile | null | undefined, task: Task | null | undefined): boolean {
   if (!user || !task) return false;
+  if (!isUserAdmin(user) && isUserAccounting(user)) {
+    return isTaskAssignee(user, task) && isBillingTask(task);
+  }
   return isTaskAssignee(user, task);
 }
 
 /**
  * Only the assigned employee (or Admin) can upload documents to this task.
+ * Non-Admin Accounting users can only upload documents to 'billing' tasks assigned to them.
  */
 export function canUploadTaskDocument(user: UserProfile | null | undefined, task: Task | null | undefined): boolean {
   if (!user || !task) return false;
   if (isUserAdmin(user)) return true;
+  if (isUserAccounting(user)) {
+    return isTaskAssignee(user, task) && isBillingTask(task);
+  }
   return isTaskAssignee(user, task);
 }
 
@@ -109,20 +134,21 @@ export function canUploadTaskDocument(user: UserProfile | null | undefined, task
  * Linking Billing (Invoices):
  * Allowed for:
  * 1. Admin
- * 2. Assigned employee on the task
- * 3. Accounting users who are part of the Work Request
+ * 2. Non-Admin Accounting users ONLY on 'billing' tasks assigned to them
+ * 3. Assigned employee on the task (non-Accounting)
  */
 export function canLinkInvoice(
   user: UserProfile | null | undefined,
   task: Task | null | undefined,
-  workRequest: WorkRequest | null | undefined,
-  tasks: Task[] = []
+  _workRequest?: WorkRequest | null | undefined,
+  _tasks: Task[] = []
 ): boolean {
-  if (!user) return false;
+  if (!user || !task) return false;
   if (isUserAdmin(user)) return true;
+  if (isUserAccounting(user)) {
+    return isTaskAssignee(user, task) && isBillingTask(task);
+  }
   if (isTaskAssignee(user, task)) return true;
-  const isAccounting = isUserAccounting(user);
-  if (isAccounting && isWrTeamMember(user, workRequest, tasks)) return true;
   return false;
 }
 
@@ -130,7 +156,7 @@ export function canLinkInvoice(
  * Linking Disbursement:
  * Allowed for:
  * 1. Admin
- * 2. Assigned employee on the task (who holds disbursement permission)
+ * 2. Assigned employee on the task (who holds disbursement permission, excluding non-Admin Accounting users)
  */
 export function canLinkDisbursement(
   user: UserProfile | null | undefined,
@@ -139,6 +165,7 @@ export function canLinkDisbursement(
 ): boolean {
   if (!user || !task) return false;
   if (isUserAdmin(user)) return true;
+  if (isUserAccounting(user)) return false;
   return isTaskAssignee(user, task) && hasDisbursementPermission;
 }
 
@@ -146,7 +173,7 @@ export function canLinkDisbursement(
  * Linking Transmittal:
  * Allowed for:
  * 1. Admin
- * 2. Assigned employee on the task (Documentation users strictly require isTaskAssignee; no WR fallback)
+ * 2. Assigned employee on the task (Documentation users strictly require isTaskAssignee; non-Admin Accounting excluded)
  */
 export function canLinkTransmittal(
   user: UserProfile | null | undefined,
@@ -156,6 +183,7 @@ export function canLinkTransmittal(
 ): boolean {
   if (!user || !task) return false;
   if (isUserAdmin(user)) return true;
+  if (isUserAccounting(user)) return false;
   if (isUserDocumentation(user)) {
     return isTaskAssignee(user, task);
   }
@@ -204,6 +232,7 @@ export function canRequestTransmittal(
   if (!user || !task) return false;
   if (isUserAdmin(user)) return false; // Admin links directly
   if (isUserDocumentation(user)) return false; // Documentation links directly
+  if (isUserAccounting(user)) return false; // Accounting only uploads docs and links invoices on assigned billing tasks
 
   const allowedDepts = ['operations', 'hr', 'management'];
   const hasAllowedDept =

@@ -833,5 +833,31 @@ describe('Phase Kanban Board & Routing Features (Milestone 3)', () => {
       expect(screen.queryByTestId('presence-avatars')).not.toBeInTheDocument();
     });
   });
+
+  it('defaults QA compliance badge to "Under Review" instead of "Failed" when task qaStatus is "none"', async () => {
+    const { wrapper } = createTestHarness();
+    const qaWr = { ...mockWorkRequests[0]!, phase: 'quality_assurance' as const };
+    const qaTasks = mockPreTasks.map((t) => ({ ...t, status: 'Completed' as const, qaStatus: 'none' as const }));
+
+    vi.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes('/operations/work-requests?')) {
+        return new Response(JSON.stringify({ data: [qaWr] }), { status: 200 });
+      }
+      if (url.includes('/operations/work-requests/wr-101/tasks')) {
+        return new Response(JSON.stringify({ data: qaTasks }), { status: 200 });
+      }
+      if (url.includes('/operations/work-requests/wr-101')) {
+        return new Response(JSON.stringify({ data: qaWr }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
+    });
+
+    render(<PhaseKanbanBoard initialWorkRequestId="wr-101" />, { wrapper });
+
+    const qaBadge = await screen.findByTestId('qa-status-badge-task-1');
+    expect(qaBadge).toHaveTextContent('Under Review');
+    expect(qaBadge).not.toHaveTextContent('Failed');
+  });
 });
 

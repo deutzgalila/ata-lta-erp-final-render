@@ -149,18 +149,42 @@ describe('Task Scoping Utility Unit Tests (taskScope.ts)', () => {
     expect(canLogTaskTime(userAccountingTeam, mockTask)).toBe(false);
   });
 
-  it('enforces document upload permissions (only assigned employee or Admin)', () => {
+  it('enforces document upload permissions (only assigned employee or Admin; Accounting only on assigned billing tasks)', () => {
     expect(canUploadTaskDocument(userAssignedStaff, mockTask)).toBe(true);
     expect(canUploadTaskDocument(userAdmin, mockTask)).toBe(true);
     expect(canUploadTaskDocument(userUnassignedManager, mockTask)).toBe(false);
     expect(canUploadTaskDocument(userDocTeam, mockTask)).toBe(false);
+
+    // Accounting user assigned to non-billing task -> denied
+    const userAcctAssigned: UserProfile = {
+      ...userAccountingTeam,
+      id: 'emp-assigned-1',
+    };
+    expect(canUploadTaskDocument(userAcctAssigned, { ...mockTask, requiredLinkType: null })).toBe(false);
+    expect(canUploadTaskDocument(userAcctAssigned, { ...mockTask, requiredLinkType: 'documents' })).toBe(false);
+
+    // Accounting user assigned to billing task -> allowed
+    expect(canUploadTaskDocument(userAcctAssigned, { ...mockTask, requiredLinkType: 'billing' })).toBe(true);
+    // Unassigned Accounting user on billing task -> denied
+    expect(canUploadTaskDocument(userAccountingTeam, { ...mockTask, requiredLinkType: 'billing' })).toBe(false);
   });
 
-  it('enforces billing invoice permissions (Admin/Accounting direct, non-Admin Doc denied, others request)', () => {
+  it('enforces billing invoice permissions (Admin direct; Accounting only on assigned billing tasks; non-Admin Doc denied; others request)', () => {
     // Direct link
     expect(canLinkInvoice(userAdmin, mockTask, mockWr, [mockTask])).toBe(true);
     expect(canLinkInvoice(userAssignedStaff, mockTask, mockWr, [mockTask])).toBe(true);
-    expect(canLinkInvoice(userAccountingTeam, mockTask, mockWr, [mockTask])).toBe(true);
+    // Unassigned Accounting user on WR is NOT allowed to link invoice
+    expect(canLinkInvoice(userAccountingTeam, mockTask, mockWr, [mockTask])).toBe(false);
+    expect(canLinkInvoice(userAccountingTeam, { ...mockTask, requiredLinkType: 'billing' }, mockWr, [mockTask])).toBe(false);
+    // Assigned Accounting user on non-billing task is NOT allowed to link invoice
+    const userAcctAssigned: UserProfile = {
+      ...userAccountingTeam,
+      id: 'emp-assigned-1',
+    };
+    expect(canLinkInvoice(userAcctAssigned, { ...mockTask, requiredLinkType: null }, mockWr, [mockTask])).toBe(false);
+    expect(canLinkInvoice(userAcctAssigned, { ...mockTask, requiredLinkType: 'documents' }, mockWr, [mockTask])).toBe(false);
+    // Assigned Accounting user on billing task IS allowed to link invoice
+    expect(canLinkInvoice(userAcctAssigned, { ...mockTask, requiredLinkType: 'billing' }, mockWr, [mockTask])).toBe(true);
     expect(canLinkInvoice(userUnassignedManager, mockTask, mockWr, [mockTask])).toBe(false);
 
     // Request from accounting

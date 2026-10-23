@@ -327,7 +327,7 @@ describe('Lane C: OperationsPage Tab Guards & Deep-Link Normalization', () => {
           json: () => Promise.resolve({ data: { pending: 3, rejected: 0, fulfilled: 1 } }),
         });
       }
-      if (u.includes('/operations/work-requests/counts')) {
+      if (u.includes('/operations/work-requests/counts') || u.includes('/operations/counts')) {
         return Promise.resolve({
           ok: true,
           status: 200,
@@ -373,6 +373,9 @@ describe('Lane C: OperationsPage Tab Guards & Deep-Link Normalization', () => {
     );
 
     expect(await screen.findByTestId('tab-work-requests')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId('tab-work-requests-badge')).toHaveTextContent('5');
+    });
     expect(screen.getByTestId('tab-retainer-templates')).toBeInTheDocument();
     expect(screen.getByTestId('tab-pending-approvals')).toBeInTheDocument();
     expect(capturedCountsFetch).toBe(true);
