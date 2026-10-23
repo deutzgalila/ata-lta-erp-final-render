@@ -101,6 +101,7 @@ const mockRelatedRecords = {
   invoices: [
     {
       id: 'inv-101',
+      task_id: 't-w2-1',
       invoice_number: 'INV-2026-001',
       amount: 45000,
       status: 'draft',
@@ -111,6 +112,7 @@ const mockRelatedRecords = {
   disbursements: [
     {
       id: 'disb-101',
+      task_id: 't-w2-1',
       category: 'Filing Fees',
       description: 'SEC Filing Filing fee reimbursement',
       amount: 5200,
@@ -121,6 +123,7 @@ const mockRelatedRecords = {
   transmittals: [
     {
       id: 'trans-101',
+      linked_task_id: 't-w2-1',
       tracking_number: 'TR-2026-099',
       recipient_name: 'SEC Officer in Charge',
       status: 'draft',

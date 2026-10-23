@@ -23,8 +23,10 @@ export const operationsKeys = {
   tasks: (wrId: string) => [...operationsKeys.workRequestDetail(wrId), 'tasks'] as const,
   taskDetail: (wrId: string, taskId: string) =>
     [...operationsKeys.tasks(wrId), taskId] as const,
-  taskRelated: (taskId: string) =>
-    [...operationsKeys.all, 'tasks', taskId, 'related'] as const,
+  taskRelated: (taskId: string, entity?: string | null) =>
+    entity !== undefined
+      ? ([...operationsKeys.all, 'tasks', taskId, 'related', entity] as const)
+      : ([...operationsKeys.all, 'tasks', taskId, 'related'] as const),
 
   // --- Operations / Phase Transition Requests ---
   requests: () => [...operationsKeys.all, 'requests'] as const,
