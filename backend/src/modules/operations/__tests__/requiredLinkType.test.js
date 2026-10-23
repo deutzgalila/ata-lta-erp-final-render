@@ -24,6 +24,10 @@ const {
 const {
   createWorkRequest,
   generateRetainerTemplate,
+  getWorkRequestCounts,
+  updateTask,
+  addTimeLogs,
+  rerouteWorkRequest,
 } = require('../service');
 
 const {
@@ -272,6 +276,272 @@ describe('Task requiredLinkType Schema & Service Support', () => {
       expect(mockTables.tasks.get(t1.id).required_link_type).toBe('documents');
       expect(mockTables.tasks.get(t2.id).required_link_type).toBe('billing');
       expect(mockTables.tasks.get(t3.id).required_link_type).toBeNull();
+    });
+  });
+
+  describe('4. getWorkRequestCounts active & all counts', () => {
+    it('returns { active, all, archived } with both active and all populated', async () => {
+      mockTables.work_requests.set('wr-active-1', {
+        id: 'wr-active-1',
+        entity_id: ENTITY_ID,
+        title: 'Active WR 1',
+        archived: null,
+        deleted_at: null,
+      });
+      mockTables.work_requests.set('wr-active-2', {
+        id: 'wr-active-2',
+        entity_id: ENTITY_ID,
+        title: 'Active WR 2',
+        archived: null,
+        deleted_at: null,
+      });
+      mockTables.work_requests.set('wr-archived-1', {
+        id: 'wr-archived-1',
+        entity_id: ENTITY_ID,
+        title: 'Archived WR 1',
+        archived: true,
+        deleted_at: null,
+      });
+
+      const counts = await getWorkRequestCounts({ entityId: ENTITY_ID });
+      expect(counts).toEqual({
+        active: 2,
+        all: 2,
+        archived: 1,
+      });
+    });
+  });
+
+  describe('5. Active Phase Gate Locking in updateTask', () => {
+    it('blocks status changes on tasks belonging to inactive phases and unlocks upon QA reroute', async () => {
+      const adminUser = {
+        id: '99999999-9999-4999-8999-999999999999',
+        email: 'admin@ata-lta.ph',
+        name: 'System Admin',
+        role: 'Admin',
+        departments: ['Management'],
+        entities: ['ATA', 'LTA'],
+      };
+      registerUser(adminUser);
+
+      const wr = await createWorkRequest({
+        entityId: ENTITY_ID,
+        user: managerUser,
+        data: {
+          title: 'Phase Lock Test WR',
+          clientId: CLIENT_ID,
+          assignedTo: MANAGER_ID,
+          coAssignees: [STAFF_ID],
+          phases: {
+            pre_processing: {
+              tasks: [
+                {
+                  local_id: 'pre_t1',
+                  title: 'Pre-processing Task',
+                  assignees: [STAFF_ID],
+                },
+              ],
+            },
+            processing: {
+              tasks: [
+                {
+                  local_id: 'proc_t1',
+                  title: 'Processing Task',
+                  assignees: [STAFF_ID],
+                },
+              ],
+            },
+          },
+        },
+      });
+
+      const preTask = wr.tasks.find((t) => t.localId === 'pre_t1');
+      const procTask = wr.tasks.find((t) => t.localId === 'proc_t1');
+
+      // Complete preTask while WR is in pre_processing
+      await updateTask({
+        workRequestId: wr.id,
+        taskId: preTask.id,
+        entityId: ENTITY_ID,
+        data: { status: 'Completed' },
+        user: adminUser,
+      });
+
+      // Move WR to processing phase
+      mockTables.work_requests.get(wr.id).phase = 'processing';
+      mockTables.work_requests.get(wr.id).status = 'Processing';
+
+      // Attempting to change pre_processing task status while WR is in processing -> 409 WORK_REQUEST_PHASE_NOT_ACTIVE
+      await expect(
+        updateTask({
+          workRequestId: wr.id,
+          taskId: preTask.id,
+          entityId: ENTITY_ID,
+          data: { status: 'In Progress' },
+          user: adminUser,
+        })
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        code: 'WORK_REQUEST_PHASE_NOT_ACTIVE',
+        detail:
+          'Cannot modify task status: task belongs to "pre_processing" phase while parent work request is in "processing" phase.',
+      });
+
+      // Complete processing task while WR is in processing
+      await updateTask({
+        workRequestId: wr.id,
+        taskId: procTask.id,
+        entityId: ENTITY_ID,
+        data: { status: 'Completed' },
+        user: adminUser,
+      });
+
+      // Move WR to quality_assurance phase
+      mockTables.work_requests.get(wr.id).phase = 'quality_assurance';
+      mockTables.work_requests.get(wr.id).status = 'Quality Assurance';
+
+      // Both pre_processing and processing task status transitions are blocked during quality_assurance
+      await expect(
+        updateTask({
+          workRequestId: wr.id,
+          taskId: procTask.id,
+          entityId: ENTITY_ID,
+          data: { status: 'In Progress' },
+          user: adminUser,
+        })
+      ).rejects.toMatchObject({
+        statusCode: 409,
+        code: 'WORK_REQUEST_PHASE_NOT_ACTIVE',
+        detail:
+          'Cannot modify task status: task belongs to "processing" phase while parent work request is in "quality_assurance" phase.',
+      });
+
+      // Mark procTask as failed QA and reroute back to processing
+      mockTables.tasks.get(procTask.id).qa_status = 'failed';
+      await rerouteWorkRequest({
+        id: wr.id,
+        entityId: ENTITY_ID,
+        toPhase: 'processing',
+        reason: 'Fix calculation',
+        user: adminUser,
+      });
+
+      // Now WR phase is 'processing' -> procTask is unlocked and can transition to Completed
+      const updatedProc = await updateTask({
+        workRequestId: wr.id,
+        taskId: procTask.id,
+        entityId: ENTITY_ID,
+        data: { status: 'Completed' },
+        user: adminUser,
+      });
+      expect(updatedProc.status).toBe('Completed');
+    });
+  });
+
+  describe('6. Accounting User Billing Task Scope in addTimeLogs', () => {
+    it('allows non-Admin Accounting user to log time only on billing tasks assigned to them', async () => {
+      const ACCOUNTING_ID = '44444444-4444-4444-8444-444444444444';
+      const accountingUser = {
+        id: ACCOUNTING_ID,
+        email: 'accounting@ata-lta.ph',
+        name: 'Accounting Staff',
+        role: 'Accounting',
+        departments: ['Accounting', 'Operations'],
+        entities: ['ATA', 'LTA'],
+      };
+      registerUser(accountingUser);
+      mockTables.users.get(ACCOUNTING_ID).user_departments = [
+        { departments: { name: 'Accounting' } },
+        { departments: { name: 'Operations' } },
+      ];
+
+      const wr = await createWorkRequest({
+        entityId: ENTITY_ID,
+        user: managerUser,
+        data: {
+          title: 'Accounting Time Log Scope WR',
+          clientId: CLIENT_ID,
+          assignedTo: MANAGER_ID,
+          coAssignees: [ACCOUNTING_ID],
+          phases: {
+            pre_processing: {
+              tasks: [
+                {
+                  local_id: 't_std',
+                  title: 'Standard Task',
+                  assignees: [ACCOUNTING_ID],
+                  requiredLinkType: null,
+                },
+                {
+                  local_id: 't_doc',
+                  title: 'Documents Task',
+                  assignees: [ACCOUNTING_ID],
+                  requiredLinkType: 'documents',
+                },
+                {
+                  local_id: 't_bill',
+                  title: 'Billing Task',
+                  assignees: [ACCOUNTING_ID],
+                  requiredLinkType: 'billing',
+                },
+              ],
+            },
+          },
+        },
+      });
+
+      const stdTask = wr.tasks.find((t) => t.localId === 't_std');
+      const docTask = wr.tasks.find((t) => t.localId === 't_doc');
+      const billTask = wr.tasks.find((t) => t.localId === 't_bill');
+
+      const sampleLogs = [
+        {
+          date: '2026-10-23',
+          startTime: '09:00',
+          endTime: '10:30',
+          hours: 1.5,
+          note: 'Worked on billing statement',
+        },
+      ];
+
+      // Rejected on standard task (requiredLinkType: null)
+      await expect(
+        addTimeLogs({
+          workRequestId: wr.id,
+          taskId: stdTask.id,
+          entityId: ENTITY_ID,
+          logs: sampleLogs,
+          user: accountingUser,
+        })
+      ).rejects.toMatchObject({
+        statusCode: 403,
+        detail: 'Accounting users can only log time on billing tasks assigned to them',
+      });
+
+      // Rejected on documents task (requiredLinkType: 'documents')
+      await expect(
+        addTimeLogs({
+          workRequestId: wr.id,
+          taskId: docTask.id,
+          entityId: ENTITY_ID,
+          logs: sampleLogs,
+          user: accountingUser,
+        })
+      ).rejects.toMatchObject({
+        statusCode: 403,
+        detail: 'Accounting users can only log time on billing tasks assigned to them',
+      });
+
+      // Permitted on billing task (requiredLinkType: 'billing')
+      const updatedBillTask = await addTimeLogs({
+        workRequestId: wr.id,
+        taskId: billTask.id,
+        entityId: ENTITY_ID,
+        logs: sampleLogs,
+        user: accountingUser,
+      });
+      expect(updatedBillTask.timeLogs).toHaveLength(1);
+      expect(updatedBillTask.timeLogs[0].hours).toBe(1.5);
     });
   });
 });

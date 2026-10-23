@@ -1777,7 +1777,7 @@ const getWorkRequestCounts = async ({ entityId }) => {
     baseQuery().eq('archived', true),
   ]);
 
-  return { active: activeCount || 0, archived: archivedCount || 0 };
+  return { active: activeCount || 0, all: activeCount || 0, archived: archivedCount || 0 };
 };
 
 const deleteWorkRequest = async ({ id, entityId, user }) => {
@@ -2138,6 +2138,22 @@ const addTimeLogs = async ({ workRequestId, taskId, entityId, logs, user }) => {
   if (!await isUserAssignedToTask(taskId, user.id)) {
     throw new AppError({ statusCode: 403, title: 'Forbidden', detail: 'You are not assigned to this task' });
   }
+  const isNonAdminAccounting =
+    user &&
+    user.role !== 'Admin' &&
+    (String(user.role || '').toLowerCase() === 'accounting' ||
+      (Array.isArray(user.departments) &&
+        user.departments.some((d) => String(d).toLowerCase() === 'accounting')));
+  if (
+    isNonAdminAccounting &&
+    String(existing.requiredLinkType || existing.required_link_type || '').toLowerCase() !== 'billing'
+  ) {
+    throw new AppError({
+      statusCode: 403,
+      title: 'Forbidden',
+      detail: 'Accounting users can only log time on billing tasks assigned to them',
+    });
+  }
   if (logs.some((log) => log.checklistItemId && !existing.checklist.some((item) => item.id === log.checklistItemId))) {
     throw new AppError({ statusCode: 400, title: 'Bad Request', detail: 'Checklist item does not belong to this task' });
   }
@@ -2318,7 +2334,7 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user }
         });
       }
 
-      if (parentWr && parentWr.phase !== 'processing' && parentWr.phase !== 'completion') {
+      if (parentWr && parentWr.phase === 'pre_processing') {
         throw new AppError({
           statusCode: 409,
           title: 'Conflict',
@@ -2327,6 +2343,26 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user }
         });
       }
     }
+  }
+
+  // Active Phase Gate Lock: tasks in a phase that does not match the parent WR's active phase
+  // cannot have their status modified (Note: processing tasks during pre_processing are governed above).
+  if (
+    targetStatus !== undefined &&
+    targetStatus !== existing.status &&
+    parentWr &&
+    parentWr.phase &&
+    parentWr.phase !== 'completion' &&
+    existing.phase &&
+    existing.phase !== parentWr.phase &&
+    !(isProcessingTask && parentWr.phase === 'pre_processing')
+  ) {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: `Cannot modify task status: task belongs to "${existing.phase}" phase while parent work request is in "${parentWr.phase}" phase.`,
+      code: 'WORK_REQUEST_PHASE_NOT_ACTIVE',
+    });
   }
 
   // Task-level Predecessor Check (Issue 19b, B2.3, B2.4):
