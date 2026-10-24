@@ -2203,55 +2203,10 @@ const addTimeLogs = async ({ workRequestId, taskId, entityId, logs, user }) => {
 /**
  * Verify whether a user is an assignee of a specific task.
  * Checks relational join table task_assignees first, with fallback to legacy tasks.assignee_id.
- *
- * @param {string} taskId
- * @param {string} userId
- * @returns {Promise<boolean>}
+ * Extracted to shared lib/taskAssignment to avoid circular module dependencies.
  */
-const isUserAssignedToTask = async (taskId, userId) => {
-  if (!taskId || !userId) return false;
+const { isUserAssignedToTask } = require('../../lib/taskAssignment');
 
-  // 1. Check task_assignees join table (multi-assignee standard)
-  const { data: assignment, error: assignError } = await supabaseAdmin
-    .from('task_assignees')
-    .select('id')
-    .eq('task_id', taskId)
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (assignError) {
-    throw new AppError({
-      statusCode: 500,
-      title: 'Database Error',
-      detail: assignError.message,
-    });
-  }
-
-  if (assignment) {
-    return true;
-  }
-
-  // 2. Fallback: check tasks table for legacy assignee_id
-  const { data: task, error: taskError } = await supabaseAdmin
-    .from('tasks')
-    .select('id, assignee_id')
-    .eq('id', taskId)
-    .maybeSingle();
-
-  if (taskError) {
-    throw new AppError({
-      statusCode: 500,
-      title: 'Database Error',
-      detail: taskError.message,
-    });
-  }
-
-  if (!task) {
-    return false;
-  }
-
-  return task.assignee_id === userId;
-};
 
 const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user }) => {
   if (data && data.phase !== undefined) {
