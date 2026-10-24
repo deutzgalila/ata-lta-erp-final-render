@@ -105,6 +105,7 @@ const createRequest = async (req, res, next) => {
     const data = await service.createRequest({
       entityId: req.activeEntity,
       userId: req.user.id,
+      user: req.user,
       data: validated,
     });
     res.status(201).json({ data });

@@ -556,12 +556,14 @@ const applyPendingChange = async (change, user) => {
         entityId: change.entity_id,
         id: change.parent_record_id,
         userId: user.id,
+        user,
         data: proposed,
       });
     } else {
       await billingService.createInvoice({
         entityId: change.entity_id,
         userId: user.id,
+        user,
         data: proposed,
       });
     }
@@ -574,6 +576,7 @@ const applyPendingChange = async (change, user) => {
         entityId: change.entity_id,
         id: change.parent_record_id,
         userId: user.id,
+        user,
         data: proposed,
       });
     } else {
@@ -582,6 +585,7 @@ const applyPendingChange = async (change, user) => {
         entityId: change.entity_id,
         entityCode: entityCode || 'ATA',
         userId: user.id,
+        user,
         data: proposed,
       });
     }

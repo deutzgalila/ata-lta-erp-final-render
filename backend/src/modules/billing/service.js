@@ -16,6 +16,12 @@ const auditService = require('../../services/auditService');
 const AppError = require('../../lib/AppError');
 const { resolveEntityCode } = require('../../lib/entityResolver');
 const { buildPermissionSet, hasPermission } = require('../../lib/permissions');
+const {
+  normalizeTaskAndParentAliases,
+  resolveTrustedUser,
+  resolveAndAuthorizeTaskTarget,
+  authorizeTaskRelink,
+} = require('../../lib/taskAssignment');
 
 // ============================================================
 // Invoice CRUD
@@ -194,7 +200,8 @@ const listInvoices = async ({ entityId, filters = {}, user }) => {
  * @param {object} params.data - Validated invoice data
  * @returns {Promise<object>}
  */
-const createInvoice = async ({ entityId, userId, data }) => {
+const createInvoice = async ({ entityId, userId, user, data }) => {
+  const effectiveUser = await resolveTrustedUser({ user, userId });
   const subtotal = data.lineItems.reduce((sum, item) => sum + item.amount, 0);
   const total = subtotal; // Tax removed per prototype v3 schema
 
@@ -207,34 +214,21 @@ const createInvoice = async ({ entityId, userId, data }) => {
     });
   }
 
-  const effectiveTaskId = data.taskId || data.task_id || data.linkedTaskId || null;
-  const effectiveWrId = data.workRequestId || data.work_request_id || null;
+  // Normalize aliases once across root data (Correction 3)
+  const { effectiveTaskId, effectiveWrId } = normalizeTaskAndParentAliases(data);
 
-  // Validation: Task existence & WR association (UAT2-6/12)
+  let validatedWrId = effectiveWrId;
   if (effectiveTaskId) {
-    const { data: task, error: taskErr } = await supabaseAdmin
-      .from('tasks')
-      .select('id, work_request_id')
-      .eq('id', effectiveTaskId)
-      .maybeSingle();
-
-    if (taskErr || !task) {
-      throw new AppError({
-        statusCode: 400,
-        title: 'Bad Request',
-        detail: `Linked task "${effectiveTaskId}" was not found`,
-        code: 'TASK_NOT_FOUND',
-      });
-    }
-
-    if (effectiveWrId && task.work_request_id !== effectiveWrId) {
-      throw new AppError({
-        statusCode: 400,
-        title: 'Bad Request',
-        detail: 'Task does not belong to work request',
-        code: 'TASK_WR_MISMATCH',
-      });
-    }
+    const authorized = await resolveAndAuthorizeTaskTarget({
+      entityId,
+      user: effectiveUser,
+      userId,
+      targetTaskId: effectiveTaskId,
+      targetWorkRequestId: effectiveWrId,
+      clientId: data.clientId,
+      allowNoTask: true,
+    });
+    validatedWrId = authorized.effectiveWrId;
   }
 
   // Atomic create (Spec 2.3 / R-11): the invoice row and its line items are
@@ -254,10 +248,10 @@ const createInvoice = async ({ entityId, userId, data }) => {
     {
       p_invoice_data: {
         clientId: data.clientId,
-        workRequestId: effectiveWrId,
-        linkedTaskId: effectiveTaskId,
-        taskId: effectiveTaskId,
-        task_id: effectiveTaskId,
+        workRequestId: validatedWrId,
+        linkedTaskId: effectiveTaskId || null,
+        taskId: effectiveTaskId || null,
+        task_id: effectiveTaskId || null,
         linkedTransmittalId: data.linkedTransmittalId || null,
         invoiceNumber: data.invoiceNumber,
         issueDate: data.issueDate,
@@ -585,75 +579,39 @@ const updateInvoice = async ({ entityId, id, userId, data, user }) => {
     }
   }
 
-  const effectiveTaskId =
-    data.taskId !== undefined
-      ? data.taskId
-      : data.task_id !== undefined
-        ? data.task_id
-        : data.linkedTaskId !== undefined
-          ? data.linkedTaskId
-          : undefined;
+  // Normalize aliases once across update payload (Correction 3)
+  const { effectiveTaskId: payloadTaskId, effectiveWrId: payloadWrId } =
+    normalizeTaskAndParentAliases(data);
 
-  const effectiveWrId =
-    data.workRequestId !== undefined
-      ? data.workRequestId
-      : data.work_request_id !== undefined
-        ? data.work_request_id
-        : existing.work_request_id;
+  // Authorize relink / linkage change (Correction 1, 5)
+  const relinkResult = await authorizeTaskRelink({
+    entityId,
+    user: effectiveUser,
+    userId,
+    existing,
+    payloadTaskId,
+    payloadWrId,
+    clientId: data.clientId,
+  });
 
-  // Validation: Task existence & WR association (UAT2-6/12)
-  if (effectiveTaskId) {
-    const { data: task, error: taskErr } = await supabaseAdmin
-      .from('tasks')
-      .select('id, work_request_id')
-      .eq('id', effectiveTaskId)
-      .maybeSingle();
-
-    if (taskErr || !task) {
-      throw new AppError({
-        statusCode: 400,
-        title: 'Bad Request',
-        detail: `Linked task "${effectiveTaskId}" was not found`,
-        code: 'TASK_NOT_FOUND',
-      });
-    }
-
-    if (effectiveWrId && task.work_request_id !== effectiveWrId) {
-      throw new AppError({
-        statusCode: 400,
-        title: 'Bad Request',
-        detail: 'Task does not belong to work request',
-        code: 'TASK_WR_MISMATCH',
-      });
-    }
-  } else if (
-    effectiveTaskId === undefined &&
-    (data.workRequestId !== undefined || data.work_request_id !== undefined)
-  ) {
-    // If only workRequestId is updated, check existing linked task against new WR
-    const existingTaskId = existing.task_id || existing.linked_task_id;
-    if (existingTaskId && effectiveWrId) {
-      const { data: task } = await supabaseAdmin
-        .from('tasks')
-        .select('id, work_request_id')
-        .eq('id', existingTaskId)
-        .maybeSingle();
-      if (task && task.work_request_id !== effectiveWrId) {
-        throw new AppError({
-          statusCode: 400,
-          title: 'Bad Request',
-          detail: 'Task does not belong to work request',
-          code: 'TASK_WR_MISMATCH',
-        });
-      }
-    }
-  }
+  const effectiveWrId = relinkResult.isLinkageChanged
+    ? relinkResult.effectiveWrId
+    : payloadWrId !== undefined
+      ? payloadWrId
+      : existing.work_request_id;
+  const effectiveTaskId = relinkResult.isLinkageChanged
+    ? relinkResult.effectiveTaskId
+    : payloadTaskId !== undefined
+      ? payloadTaskId
+      : undefined;
 
   // Restrict financial field, line item, and date/terms edits strictly to Draft invoices (R4 / D3)
   const FINANCIAL_FIELDS = [
     'clientId',
     'workRequestId',
     'work_request_id',
+    'linkedWorkRequestId',
+    'linked_work_request_id',
     'taskId',
     'task_id',
     'linkedTaskId',
@@ -709,10 +667,18 @@ const updateInvoice = async ({ entityId, id, userId, data, user }) => {
   const rpcUpdates = {};
   if (data.printDetails !== undefined) rpcUpdates.print_details = data.printDetails;
   if (data.clientId !== undefined) rpcUpdates.client_id = data.clientId;
-  if (data.workRequestId !== undefined || data.work_request_id !== undefined) {
+  if (
+    data.workRequestId !== undefined ||
+    data.work_request_id !== undefined ||
+    data.linkedWorkRequestId !== undefined ||
+    data.linked_work_request_id !== undefined
+  ) {
     rpcUpdates.work_request_id = effectiveWrId;
   }
-  if (effectiveTaskId !== undefined) {
+  if (relinkResult.isLinkageChanged) {
+    rpcUpdates.linked_task_id = relinkResult.canonicalPair.linked_task_id;
+    rpcUpdates.task_id = relinkResult.canonicalPair.task_id;
+  } else if (effectiveTaskId !== undefined) {
     rpcUpdates.linked_task_id = effectiveTaskId;
     rpcUpdates.task_id = effectiveTaskId;
   }

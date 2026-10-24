@@ -11,6 +11,10 @@ const { buildPermissionSet, hasPermission } = require('../../lib/permissions');
 const { checkAdvancementGate, PHASE_SEQUENCE, PHASE_STATUS_MAP } = require('../operations/service');
 const { notify } = require('../../services/notify');
 const { resolveEntityCode } = require('../../lib/entityResolver');
+const {
+  normalizeTaskAndParentAliases,
+  resolveAndAuthorizeTaskTarget,
+} = require('../../lib/taskAssignment');
 
 /**
  * List operations requests for the active entity.
@@ -249,19 +253,47 @@ const inFlightRequests = new Map();
  * @param {object} params.data
  * @returns {Promise<object>}
  */
-const createRequest = async ({ entityId, userId, data }) => {
+const createRequest = async ({ entityId, userId, user, data }) => {
   const reqType =
     data.type === 'wr_phase_transition' || data.request_type === 'wr_phase_transition'
       ? 'wr_phase_transition'
       : (data.type || data.request_type);
 
-  const targetWorkRequestId =
-    data.payload?.work_request_id ||
-    data.payload?.workRequestId ||
-    data.workRequestId ||
-    data.work_request_id;
+  const isFinancialOrDoc = ['billing', 'disbursement', 'transmittal'].includes(reqType);
 
-  const dedupeKey = `${entityId}:${userId}:${reqType}:${targetWorkRequestId || ''}:${data.linkedTaskId || ''}`;
+  let targetWorkRequestId = null;
+  let targetTaskId = null;
+
+  if (isFinancialOrDoc) {
+    const normalized = normalizeTaskAndParentAliases(data);
+    targetWorkRequestId = normalized.effectiveWrId !== undefined ? normalized.effectiveWrId : null;
+    targetTaskId = normalized.effectiveTaskId !== undefined ? normalized.effectiveTaskId : null;
+
+    if (targetTaskId) {
+      const authorized = await resolveAndAuthorizeTaskTarget({
+        entityId,
+        user,
+        userId,
+        targetTaskId,
+        targetWorkRequestId,
+        clientId: data.clientId || data.client_id,
+        allowNoTask: true,
+      });
+      targetWorkRequestId = authorized.effectiveWrId;
+    }
+  } else {
+    // Retain existing phase-transition semantics (Correction 5)
+    targetWorkRequestId =
+      data.payload?.work_request_id ||
+      data.payload?.workRequestId ||
+      data.workRequestId ||
+      data.work_request_id ||
+      null;
+    targetTaskId = data.linkedTaskId || data.linked_task_id || null;
+  }
+
+  const finalWrId = targetWorkRequestId;
+  const dedupeKey = `${entityId}:${userId}:${reqType}:${finalWrId || 'NONE'}:${targetTaskId || 'NONE'}`;
 
   if (inFlightRequests.has(dedupeKey)) {
     return inFlightRequests.get(dedupeKey);
@@ -280,8 +312,18 @@ const createRequest = async ({ entityId, userId, data }) => {
         .eq('status', 'pending')
         .gte('created_at', fiveSecondsAgo);
 
-      if (targetWorkRequestId) dupQuery = dupQuery.eq('work_request_id', targetWorkRequestId);
-      if (data.linkedTaskId) dupQuery = dupQuery.eq('linked_task_id', data.linkedTaskId);
+      // Require exact null filters for missing task AND missing parent in dedupe (Bug 1)
+      if (finalWrId) {
+        dupQuery = dupQuery.eq('work_request_id', finalWrId);
+      } else {
+        dupQuery = dupQuery.is('work_request_id', null);
+      }
+
+      if (targetTaskId) {
+        dupQuery = dupQuery.eq('linked_task_id', targetTaskId);
+      } else {
+        dupQuery = dupQuery.is('linked_task_id', null);
+      }
 
       const { data: existingDups } = await dupQuery.limit(1);
       if (existingDups && existingDups.length > 0) {
@@ -293,7 +335,7 @@ const createRequest = async ({ entityId, userId, data }) => {
       let targetWr = null;
 
       if (reqType === 'wr_phase_transition') {
-        if (!targetWorkRequestId) {
+        if (!finalWrId) {
           throw new AppError({
             statusCode: 400,
             title: 'Bad Request',
@@ -304,7 +346,7 @@ const createRequest = async ({ entityId, userId, data }) => {
         const { data: wr, error: wrErr } = await supabaseAdmin
           .from('work_requests')
           .select('id, title, entity_id, client_id, status, phase, requested_by')
-          .eq('id', targetWorkRequestId)
+          .eq('id', finalWrId)
           .is('deleted_at', null)
           .maybeSingle();
 
@@ -312,7 +354,7 @@ const createRequest = async ({ entityId, userId, data }) => {
           throw new AppError({
             statusCode: 404,
             title: 'Not Found',
-            detail: `Work request ${targetWorkRequestId} not found`,
+            detail: `Work request ${finalWrId} not found`,
           });
         }
 
@@ -349,7 +391,7 @@ const createRequest = async ({ entityId, userId, data }) => {
 
         // Validate advancement gate (§3.4)
         await checkAdvancementGate({
-          workRequestId: targetWorkRequestId,
+          workRequestId: finalWrId,
           fromPhase,
           toPhase,
         });
@@ -360,7 +402,7 @@ const createRequest = async ({ entityId, userId, data }) => {
           ? JSON.stringify({
               from_phase: fromPhase,
               to_phase: toPhase,
-              work_request_id: targetWorkRequestId,
+              work_request_id: finalWrId,
               user_notes: data.notes || null,
             })
           : (data.notes || null);
@@ -368,9 +410,9 @@ const createRequest = async ({ entityId, userId, data }) => {
       const row = {
         entity_id: entityId || (targetWr ? targetWr.entity_id : null),
         type: reqType,
-        work_request_id: targetWorkRequestId || null,
+        work_request_id: finalWrId || null,
         client_id: (targetWr ? targetWr.client_id : null) || data.clientId || data.client_id || null,
-        linked_task_id: data.linkedTaskId || data.linked_task_id || null,
+        linked_task_id: targetTaskId || null,
         requested_by: userId,
         amount: data.amount ?? null,
         status: 'pending',

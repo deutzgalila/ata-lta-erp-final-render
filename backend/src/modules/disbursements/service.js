@@ -31,6 +31,12 @@ const {
 } = require('../../lib/concurrency');
 const { resolveEntityCode } = require('../../lib/entityResolver');
 const {
+  normalizeTaskAndParentAliases,
+  resolveTrustedUser,
+  resolveAndAuthorizeTaskTarget,
+  authorizeTaskRelink,
+} = require('../../lib/taskAssignment');
+const {
   createReservation,
   getReservation,
   completeReservation,
@@ -107,13 +113,40 @@ const rejectGovernanceFields = (data) => {
       detail: 'Use the authorized workflow action to change voucher governance fields.',
     });
 };
-const validateReferenceScope = async (entityId, data, existing = null) => {
-  const wrId =
-    data.linkedWorkRequestId ??
-    data.workRequestId ??
-    data.work_request_id ??
-    existing?.linked_work_request_id;
-  const wrChanged = !existing || wrId !== existing.linked_work_request_id;
+const validateReferenceScope = async (
+  entityId,
+  data,
+  existing = null,
+  explicitWrId = undefined
+) => {
+  let wrId;
+  let wrChanged;
+  if (explicitWrId !== undefined) {
+    wrId = explicitWrId;
+    wrChanged =
+      !existing ||
+      wrId !== (existing?.linked_work_request_id ?? existing?.work_request_id ?? null);
+  } else {
+    const { effectiveWrId } = normalizeTaskAndParentAliases(data);
+    wrId =
+      effectiveWrId !== undefined
+        ? effectiveWrId
+        : (existing?.linked_work_request_id ?? existing?.work_request_id ?? null);
+    wrChanged =
+      !existing ||
+      (effectiveWrId !== undefined &&
+        effectiveWrId !== (existing?.linked_work_request_id ?? existing?.work_request_id ?? null));
+  }
+
+  if (wrChanged && !wrId) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Validation Error',
+      code: 'INVALID_WORK_REQUEST',
+      detail: 'Select an active work request in this entity.',
+    });
+  }
+
   const clientChanged = data.clientId !== undefined && data.clientId !== existing?.client_id;
   let workRequest = null;
   if (wrChanged || clientChanged) {
@@ -712,8 +745,10 @@ const listDisbursements = async ({ entityId, filters = {}, user }) => {
  * Create a new disbursement.
  * Every newly created voucher enters v2 Draft with review_ready = true.
  */
-const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
+const createDisbursement = async ({ entityId, entityCode, userId, user, data }) => {
   rejectGovernanceFields(data);
+  const effectiveUser = await resolveTrustedUser({ user, userId });
+
   // Reject client-supplied status forgery (AC-1, R1)
   if (data.status !== undefined && data.status !== null) {
     throw new AppError({
@@ -734,7 +769,32 @@ const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
     });
   }
 
-  await validateReferenceScope(entityId, data);
+  // Normalize aliases once across root data (Correction 3)
+  const { effectiveTaskId, effectiveWrId } = normalizeTaskAndParentAliases(data);
+
+  if (!effectiveWrId) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Validation Error',
+      code: 'INVALID_WORK_REQUEST',
+      detail: 'Select an active work request in this entity.',
+    });
+  }
+
+  // Authorize task target BEFORE receipt reservation claim! (F02, Correction 4, 7)
+  if (effectiveTaskId) {
+    await resolveAndAuthorizeTaskTarget({
+      entityId,
+      user: effectiveUser,
+      userId,
+      targetTaskId: effectiveTaskId,
+      targetWorkRequestId: effectiveWrId,
+      clientId: data.clientId,
+      allowNoTask: true,
+    });
+  }
+
+  await validateReferenceScope(entityId, data, null, effectiveWrId);
 
   // Atomically claim receipt reservation if receiptS3Key is supplied (R4 / AC-4)
   let receiptClaim = null;
@@ -763,53 +823,6 @@ const createDisbursement = async ({ entityId, entityCode, userId, data }) => {
 
   const initialStatus = 'Draft';
   const MAX_RETRIES = 5;
-
-  const effectiveTaskId = data.taskId || data.task_id || data.linkedTaskId || null;
-  const effectiveWrId =
-    data.linkedWorkRequestId || data.workRequestId || data.work_request_id || null;
-
-  // Validation: Task existence & WR association (UAT2-6/12)
-  if (effectiveTaskId) {
-    const { data: task, error: taskErr } = await supabaseAdmin
-      .from('tasks')
-      .select('id, work_request_id')
-      .eq('id', effectiveTaskId)
-      .maybeSingle();
-
-    if (taskErr || !task) {
-      if (data.receiptS3Key && receiptClaim) {
-        await releaseReservationByKey({
-          receiptS3Key: data.receiptS3Key,
-          userId,
-          entityId,
-          claimId: receiptClaim.claimId,
-        });
-      }
-      throw new AppError({
-        statusCode: 400,
-        title: 'Bad Request',
-        detail: `Linked task "${effectiveTaskId}" was not found`,
-        code: 'TASK_NOT_FOUND',
-      });
-    }
-
-    if (effectiveWrId && task.work_request_id !== effectiveWrId) {
-      if (data.receiptS3Key && receiptClaim) {
-        await releaseReservationByKey({
-          receiptS3Key: data.receiptS3Key,
-          userId,
-          entityId,
-          claimId: receiptClaim.claimId,
-        });
-      }
-      throw new AppError({
-        statusCode: 400,
-        title: 'Bad Request',
-        detail: 'Task does not belong to work request',
-        code: 'TASK_WR_MISMATCH',
-      });
-    }
-  }
 
   let receiptWriteMayHaveCommitted = false;
   try {
@@ -996,15 +1009,7 @@ const updateDisbursement = async ({ entityId, id, userId, data, user }) => {
   rejectGovernanceFields(data);
   const existing = await getDisbursementById({ entityId, id, user, internal: true });
 
-  let effectiveUser = user;
-  if (!effectiveUser && userId) {
-    const { data: u } = await supabaseAdmin
-      .from('users')
-      .select('id, name, role, departments')
-      .eq('id', userId)
-      .maybeSingle();
-    effectiveUser = u;
-  }
+  const effectiveUser = await resolveTrustedUser({ user, userId });
 
   const isAccountingUser =
     String(effectiveUser?.role || '').toLowerCase() === 'accounting' ||
@@ -1039,9 +1044,11 @@ const updateDisbursement = async ({ entityId, id, userId, data, user }) => {
     'employeeId',
     'linkedInvoiceId',
     'linkedWorkRequestId',
+    'linked_work_request_id',
     'workRequestId',
     'work_request_id',
     'linkedTaskId',
+    'linked_task_id',
     'taskId',
     'task_id',
     'linkedTransmittalId',
@@ -1092,51 +1099,42 @@ const updateDisbursement = async ({ entityId, id, userId, data, user }) => {
     });
   }
 
-  await validateReferenceScope(existing.entity_id, data, existing);
+  // Normalize aliases once across update payload (Correction 3)
+  const { effectiveTaskId: payloadTaskId, effectiveWrId: payloadWrId } =
+    normalizeTaskAndParentAliases(data);
 
-  const effectiveTaskId =
-    data.taskId !== undefined
-      ? data.taskId
-      : data.task_id !== undefined
-        ? data.task_id
-        : data.linkedTaskId !== undefined
-          ? data.linkedTaskId
-          : undefined;
-
-  const effectiveWrId =
-    data.linkedWorkRequestId !== undefined
-      ? data.linkedWorkRequestId
-      : data.workRequestId !== undefined
-        ? data.workRequestId
-        : data.work_request_id !== undefined
-          ? data.work_request_id
-          : existing.linked_work_request_id;
-
-  if (effectiveTaskId) {
-    const { data: task, error: taskErr } = await supabaseAdmin
-      .from('tasks')
-      .select('id, work_request_id')
-      .eq('id', effectiveTaskId)
-      .maybeSingle();
-
-    if (taskErr || !task) {
-      throw new AppError({
-        statusCode: 400,
-        title: 'Bad Request',
-        detail: `Linked task "${effectiveTaskId}" was not found`,
-        code: 'TASK_NOT_FOUND',
-      });
-    }
-
-    if (effectiveWrId && task.work_request_id !== effectiveWrId) {
-      throw new AppError({
-        statusCode: 400,
-        title: 'Bad Request',
-        detail: 'Task does not belong to work request',
-        code: 'TASK_WR_MISMATCH',
-      });
-    }
+  if (payloadWrId === null) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Validation Error',
+      code: 'INVALID_WORK_REQUEST',
+      detail: 'Select an active work request in this entity.',
+    });
   }
+
+  // Authorize relink / linkage change (Correction 1, 5)
+  const relinkResult = await authorizeTaskRelink({
+    entityId: existing.entity_id,
+    user: effectiveUser,
+    userId,
+    existing,
+    payloadTaskId,
+    payloadWrId,
+    clientId: data.clientId,
+  });
+
+  const effectiveWrId = relinkResult.isLinkageChanged
+    ? relinkResult.effectiveWrId
+    : payloadWrId !== undefined
+      ? payloadWrId
+      : existing.linked_work_request_id;
+  const effectiveTaskId = relinkResult.isLinkageChanged
+    ? relinkResult.effectiveTaskId
+    : payloadTaskId !== undefined
+      ? payloadTaskId
+      : undefined;
+
+  await validateReferenceScope(existing.entity_id, data, existing, effectiveWrId);
 
   // Handle receipt reservation claim & paired metadata
   let receiptReservationClaim = null;
@@ -1154,11 +1152,16 @@ const updateDisbursement = async ({ entityId, id, userId, data, user }) => {
   if (
     data.linkedWorkRequestId !== undefined ||
     data.workRequestId !== undefined ||
-    data.work_request_id !== undefined
+    data.work_request_id !== undefined ||
+    data.linked_work_request_id !== undefined ||
+    (relinkResult.isLinkageChanged && relinkResult.effectiveWrId !== existing.linked_work_request_id)
   ) {
     updates.linked_work_request_id = effectiveWrId;
   }
-  if (effectiveTaskId !== undefined) {
+  if (relinkResult.isLinkageChanged) {
+    updates.linked_task_id = relinkResult.canonicalPair.linked_task_id;
+    updates.task_id = relinkResult.canonicalPair.task_id;
+  } else if (effectiveTaskId !== undefined) {
     updates.linked_task_id = effectiveTaskId;
     updates.task_id = effectiveTaskId;
   }

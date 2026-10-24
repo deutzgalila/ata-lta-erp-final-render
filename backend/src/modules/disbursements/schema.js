@@ -32,6 +32,8 @@ const calendarDateSchema = z
     return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
   }, 'Date must be a valid calendar date');
 
+const uuidOrEmptySchema = z.union([z.string().uuid(), z.literal(''), z.null()]).optional();
+
 /**
  * Schema for creating a disbursement.
  */
@@ -41,16 +43,18 @@ const createDisbursementBaseSchema = z
     description: z.string().min(1).max(2000),
     amount: z.number().positive(),
     fundSource: z.enum(FUND_SOURCES),
-    clientId: z.string().uuid().optional().nullable(),
-    employeeId: z.string().uuid().optional().nullable(),
-    linkedInvoiceId: z.string().uuid().optional().nullable(),
-    linkedWorkRequestId: z.string().uuid().optional(),
-    workRequestId: z.string().uuid().optional(),
-    work_request_id: z.string().uuid().optional(),
-    taskId: z.string().uuid().optional().nullable(),
-    task_id: z.string().uuid().optional().nullable(),
-    linkedTaskId: z.string().uuid().optional().nullable(),
-    linkedTransmittalId: z.string().uuid().optional().nullable(),
+    clientId: uuidOrEmptySchema,
+    employeeId: uuidOrEmptySchema,
+    linkedInvoiceId: uuidOrEmptySchema,
+    linkedWorkRequestId: uuidOrEmptySchema,
+    linked_work_request_id: uuidOrEmptySchema,
+    workRequestId: uuidOrEmptySchema,
+    work_request_id: uuidOrEmptySchema,
+    taskId: uuidOrEmptySchema,
+    task_id: uuidOrEmptySchema,
+    linkedTaskId: uuidOrEmptySchema,
+    linked_task_id: uuidOrEmptySchema,
+    linkedTransmittalId: uuidOrEmptySchema,
     dueDate: z.string().optional().nullable(),
     notes: z.string().max(2000).optional().nullable(),
     receiptS3Key: z.string().max(500).optional().nullable(),
@@ -89,7 +93,12 @@ const createDisbursementBaseSchema = z
   .strict();
 
 const createDisbursementSchema = createDisbursementBaseSchema.superRefine((data, ctx) => {
-  if (!data.linkedWorkRequestId && !data.workRequestId && !data.work_request_id) {
+  if (
+    !data.linkedWorkRequestId &&
+    !data.linked_work_request_id &&
+    !data.workRequestId &&
+    !data.work_request_id
+  ) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'Work request ID is required (linkedWorkRequestId or workRequestId)',

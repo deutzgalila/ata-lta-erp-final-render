@@ -18,24 +18,40 @@ const lineItemSchema = z.object({
   type: z.enum(LINE_ITEM_TYPES).default('Professional Fee'),
 });
 
+const uuidOrEmptySchema = z.union([z.string().uuid(), z.literal(''), z.null()]).optional();
+
 /**
  * Schema for creating an invoice.
  */
-const createInvoiceSchema = z.object({
-  clientId: z.string().uuid(),
-  workRequestId: z.string().uuid(),
-  taskId: z.string().uuid().optional().nullable(),
-  task_id: z.string().uuid().optional().nullable(),
-  linkedTaskId: z.string().uuid().optional().nullable(),
-  linkedTransmittalId: z.string().uuid().optional().nullable(),
-  invoiceNumber: z.string().min(1).max(50),
-  issueDate: z.string().min(1),
-  dueDate: z.string().min(1),
-  status: z.string().max(50).optional(),
-  lineItems: z.array(lineItemSchema).min(1),
-  notes: z.string().max(2000).optional().nullable(),
-  terms: z.string().max(2000).optional().nullable(),
-});
+const createInvoiceSchema = z
+  .object({
+    clientId: z.string().uuid(),
+    workRequestId: z.string().uuid().optional(),
+    work_request_id: z.string().uuid().optional(),
+    linkedWorkRequestId: z.string().uuid().optional(),
+    linked_work_request_id: z.string().uuid().optional(),
+    taskId: uuidOrEmptySchema,
+    task_id: uuidOrEmptySchema,
+    linkedTaskId: uuidOrEmptySchema,
+    linked_task_id: uuidOrEmptySchema,
+    linkedTransmittalId: z.string().uuid().optional().nullable(),
+    invoiceNumber: z.string().min(1).max(50),
+    issueDate: z.string().min(1),
+    dueDate: z.string().min(1),
+    status: z.string().max(50).optional(),
+    lineItems: z.array(lineItemSchema).min(1),
+    notes: z.string().max(2000).optional().nullable(),
+    terms: z.string().max(2000).optional().nullable(),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.workRequestId && !data.work_request_id && !data.linkedWorkRequestId && !data.linked_work_request_id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['workRequestId'],
+        message: 'workRequestId is required',
+      });
+    }
+  });
 
 const printDetailsSchema = z
   .object({
@@ -67,11 +83,14 @@ const updateInvoiceSchema = z
   .object({
     printDetails: printDetailsSchema.optional(),
     clientId: z.string().uuid().optional(),
-    workRequestId: z.string().uuid().optional().nullable(),
-    work_request_id: z.string().uuid().optional().nullable(),
-    taskId: z.string().uuid().optional().nullable(),
-    task_id: z.string().uuid().optional().nullable(),
-    linkedTaskId: z.string().uuid().optional().nullable(),
+    workRequestId: uuidOrEmptySchema,
+    work_request_id: uuidOrEmptySchema,
+    linkedWorkRequestId: uuidOrEmptySchema,
+    linked_work_request_id: uuidOrEmptySchema,
+    taskId: uuidOrEmptySchema,
+    task_id: uuidOrEmptySchema,
+    linkedTaskId: uuidOrEmptySchema,
+    linked_task_id: uuidOrEmptySchema,
     linkedTransmittalId: z.string().uuid().optional().nullable(),
     invoiceNumber: z.string().min(1).max(50).optional(),
     issueDate: z.string().optional(),
