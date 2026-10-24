@@ -131,10 +131,10 @@ export function TransmittalFormModal({
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Tasks query for selected work request
-  const { data: tasksData = [] } = useWorkRequestTasks(workRequestId || undefined, {
+  const { data: tasksData } = useWorkRequestTasks(workRequestId || undefined, {
     enabled: isOpen && Boolean(workRequestId),
   });
-  const tasks = tasksData || [];
+  const tasks = React.useMemo(() => tasksData || [], [tasksData]);
 
   // Filter available tasks: For Documentation users, only tasks where caller is assigned
   const availableTasks = React.useMemo(() => {
@@ -293,8 +293,15 @@ export function TransmittalFormModal({
       newErrors.items = 'All document rows must have a valid description';
     }
 
-    if (isDocUser && !selectedTaskId) {
-      newErrors.selectedTaskId = 'Task selection is required for Documentation users';
+    if (isDocUser) {
+      if (!selectedTaskId) {
+        newErrors.selectedTaskId = 'Task selection is required for Documentation users';
+      } else {
+        const found = tasks.find((t) => t.id === selectedTaskId);
+        if (found && !isTaskAssignee(user, found)) {
+          newErrors.selectedTaskId = 'You are not assigned to this task';
+        }
+      }
     }
 
     if (Object.keys(newErrors).length > 0) {

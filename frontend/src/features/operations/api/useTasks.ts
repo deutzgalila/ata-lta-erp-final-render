@@ -30,14 +30,17 @@ export type {
 
 export function useWorkRequestTasks(
   workRequestId: string | undefined,
-  options?: { enabled?: boolean }
+  options?: { enabled?: boolean; entity?: string | null }
 ) {
   return useQuery({
-    queryKey: operationsKeys.tasks(workRequestId ?? ''),
+    queryKey: operationsKeys.tasks(workRequestId ?? '', options?.entity),
     queryFn: async () => {
       if (!workRequestId) throw new Error('Work request ID is required');
+      const searchParams = new URLSearchParams();
+      if (options?.entity) searchParams.append('entity', options.entity);
+      const queryStr = searchParams.toString();
       const res = await apiRequest<{ data: Task[] }>(
-        `/operations/work-requests/${workRequestId}/tasks`
+        `/operations/work-requests/${workRequestId}/tasks${queryStr ? `?${queryStr}` : ''}`
       );
       return res.data;
     },

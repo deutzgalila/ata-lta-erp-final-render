@@ -198,17 +198,46 @@ export function canLinkTransmittal(
 }
 
 /**
+ * Checks if a user has the authenticated Admin role (not email-only privilege).
+ * Standalone filtering and submission exemptions must align with backend authenticated role.
+ */
+export function isRoleAdmin(user: UserProfile | null | undefined): boolean {
+  if (!user) return false;
+  return String(user.role || '').trim().toLowerCase() === 'admin';
+}
+
+/**
+ * Checks if a task belongs to the specified work request, accounting for camelCase and snake_case API aliases.
+ * Fails closed if task is nullish or has missing parent IDs.
+ */
+export function isTaskOfWorkRequest(
+  task: Task | null | undefined,
+  workRequestId: string | null | undefined
+): boolean {
+  if (!task || !workRequestId) return false;
+  const parentId =
+    task.workRequestId ??
+    (task as { work_request_id?: string | null }).work_request_id ??
+    null;
+  if (!parentId || typeof parentId !== 'string') return false;
+  return parentId.trim().toLowerCase() === workRequestId.trim().toLowerCase();
+}
+
+
+/**
  * Request Invoice from Accounting:
  * Allowed for Operations, HR, Management, or assigned employee when invoice is needed.
+ * Strictly requires target-task assignment (isTaskAssignee). Parent/sibling WR fallback eliminated.
  * Non-Admin accounts with effective Documentation membership cannot request invoice billing.
  */
 export function canRequestInvoice(
   user: UserProfile | null | undefined,
   task: Task | null | undefined,
-  workRequest: WorkRequest | null | undefined,
-  tasks: Task[] = []
+  _workRequest?: WorkRequest | null | undefined,
+  _tasks: Task[] = []
 ): boolean {
   if (!user || !task) return false;
+  if (!isTaskAssignee(user, task)) return false;
   if (isUserAdmin(user)) return false; // Admin links directly
   const isAccounting = isUserAccounting(user);
   if (isAccounting) return false; // Accounting links directly
@@ -220,23 +249,25 @@ export function canRequestInvoice(
   const hasAllowedDept =
     (Array.isArray(user.departments) &&
       user.departments.some((d) => allowedDepts.includes(String(d).toLowerCase()))) ||
-    user.role === 'Manager' ||
+    ['manager', 'operations', 'hr'].includes(String(user.role || '').toLowerCase()) ||
     user.role === 'Staff';
 
-  return isTaskAssignee(user, task) || (hasAllowedDept && isWrTeamMember(user, workRequest, tasks));
+  return hasAllowedDept;
 }
 
 /**
  * Request Transmittal from Documentation:
  * Allowed for Operations, HR, Management, or assigned employee when transmittal is needed.
+ * Strictly requires target-task assignment (isTaskAssignee). Parent/sibling WR fallback eliminated.
  */
 export function canRequestTransmittal(
   user: UserProfile | null | undefined,
   task: Task | null | undefined,
-  workRequest: WorkRequest | null | undefined,
-  tasks: Task[] = []
+  _workRequest?: WorkRequest | null | undefined,
+  _tasks: Task[] = []
 ): boolean {
   if (!user || !task) return false;
+  if (!isTaskAssignee(user, task)) return false;
   if (isUserAdmin(user)) return false; // Admin links directly
   if (isUserDocumentation(user)) return false; // Documentation links directly
   if (isUserAccounting(user)) return false; // Accounting only uploads docs and links invoices on assigned billing tasks
@@ -245,10 +276,10 @@ export function canRequestTransmittal(
   const hasAllowedDept =
     (Array.isArray(user.departments) &&
       user.departments.some((d) => allowedDepts.includes(String(d).toLowerCase()))) ||
-    user.role === 'Manager' ||
+    ['manager', 'operations', 'hr'].includes(String(user.role || '').toLowerCase()) ||
     user.role === 'Staff';
 
-  return isTaskAssignee(user, task) || (hasAllowedDept && isWrTeamMember(user, workRequest, tasks));
+  return hasAllowedDept;
 }
 
 /**

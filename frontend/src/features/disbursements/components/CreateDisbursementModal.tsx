@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Upload, FileText, X, AlertCircle } from 'lucide-react';
 import { useSessionStore } from '@/lib/session';
 import { DISBURSEMENT_CATEGORIES, FUND_SOURCES } from '../api/schemas';
@@ -18,9 +18,15 @@ import { useCreateDisbursement, uploadReceiptFile } from '../api/useDisbursement
 import { apiRequest, ApiError } from '@/lib/api';
 import { useWorkRequests } from '@/features/operations/api/useWorkRequests';
 import { useWorkRequestTasks } from '@/features/operations/api/useTasks';
+import { operationsKeys } from '@/features/operations/api/queryKeys';
+import {
+  isTaskAssignee,
+  isRoleAdmin,
+  isTaskOfWorkRequest,
+} from '@/features/operations/lib/taskScope';
 import { useTeam } from '@/features/operations/api/useTeam';
 import type { ClientSummary } from '@/features/operations/api/useClients';
-import type { WorkRequest } from '@/features/operations/api/types';
+import type { WorkRequest, Task } from '@/features/operations/api/types';
 import type { CreateDisbursementInput, FundSource } from '../api/types';
 import { useLiveModalContext } from '../lib/useLiveModalContext';
 
@@ -141,6 +147,7 @@ export function CreateDisbursementModal({
     receiptFilename: string;
     targetWorkRequestId: string;
     targetClientId: string;
+    targetTaskId?: string | null;
     targetEntity: 'ATA' | 'LTA';
     targetGeneration: number;
   } | null>(null);
@@ -208,8 +215,10 @@ export function CreateDisbursementModal({
     return isTest ? isMocked : hasToken;
   }, [isOpen]);
 
+  const queryClient = useQueryClient();
   const activeEntity = useSessionStore((state) => state.activeEntity);
   const currentUser = useSessionStore((state) => state.user);
+  const isAdmin = isRoleAdmin(currentUser);
   const effectiveEntity = activeEntity !== 'ALL' ? activeEntity : undefined;
   const pendingCreateKey = `erp_disbursement_creation_pending:${currentUser?.id}:${activeEntity}`;
   useEffect(() => {
@@ -295,13 +304,7 @@ export function CreateDisbursementModal({
     }
   }, [isOpen, prefill, defaultWorkRequestId, defaultClientId]);
 
-  // WR-Task query (UAT2-12: populated dynamically from useWorkRequestTasks)
-  const { data: tasksData = [] } = useWorkRequestTasks(linkedWorkRequestId || undefined, {
-    enabled: canFetch && Boolean(linkedWorkRequestId),
-  });
-  const tasks = tasksData || [];
-
-  // Auto-detect client from selected work request
+  // Auto-detect client and target entity from selected work request
   const selectedWr = workRequests.find((wr) => wr.id === linkedWorkRequestId);
 
   const resolvedTargetEntity: 'ATA' | 'LTA' | undefined = React.useMemo(() => {
@@ -315,6 +318,27 @@ export function CreateDisbursementModal({
     return undefined;
   }, [activeEntity, selectedWr?.entity]);
 
+  // WR-Task query (UAT2-12: populated dynamically from useWorkRequestTasks with entity scoping)
+  const tasksQuery = useWorkRequestTasks(linkedWorkRequestId || undefined, {
+    enabled: canFetch && Boolean(linkedWorkRequestId),
+    entity: resolvedTargetEntity,
+  });
+
+  // Exclude placeholder data and tasks without matching parent work request
+  const tasks: Task[] = React.useMemo(() => {
+    if (tasksQuery.isPlaceholderData) return [];
+    const list = tasksQuery.data || [];
+    if (!linkedWorkRequestId) return [];
+    return list.filter((t) => isTaskOfWorkRequest(t, linkedWorkRequestId));
+  }, [tasksQuery.isPlaceholderData, tasksQuery.data, linkedWorkRequestId]);
+
+  // Standalone task options: non-admins only see tasks where they are assigned/co-assigned
+  const availableTasks = React.useMemo(() => {
+    if (!linkedWorkRequestId) return [];
+    if (isAdmin) return tasks;
+    return tasks.filter((t) => isTaskAssignee(currentUser, t));
+  }, [tasks, linkedWorkRequestId, isAdmin, currentUser]);
+
   const targetGenerationRef = React.useRef(0);
   const formSeed = JSON.stringify([
     prefill?.workRequestId, prefill?.clientId, prefill?.taskId,
@@ -323,6 +347,7 @@ export function CreateDisbursementModal({
   const liveTargetRef = React.useRef({
     workRequestId: linkedWorkRequestId,
     clientId,
+    taskId: selectedTaskId,
     entity: resolvedTargetEntity,
     file: receiptFile,
     formSeed,
@@ -335,6 +360,7 @@ export function CreateDisbursementModal({
     if (
       prev.workRequestId !== linkedWorkRequestId ||
       prev.clientId !== clientId ||
+      prev.taskId !== selectedTaskId ||
       prev.entity !== resolvedTargetEntity ||
       prev.file !== receiptFile ||
       prev.formSeed !== formSeed
@@ -343,6 +369,7 @@ export function CreateDisbursementModal({
       liveTargetRef.current = {
         workRequestId: linkedWorkRequestId,
         clientId,
+        taskId: selectedTaskId,
         entity: resolvedTargetEntity,
         file: receiptFile,
         formSeed,
@@ -350,7 +377,7 @@ export function CreateDisbursementModal({
       };
       setUploadedReceipt(null);
     }
-  }, [linkedWorkRequestId, clientId, resolvedTargetEntity, receiptFile, formSeed]);
+  }, [linkedWorkRequestId, clientId, selectedTaskId, resolvedTargetEntity, receiptFile, formSeed]);
 
   useEffect(() => {
     const isClientLockedByPrefill = Boolean(prefill?.clientId || defaultClientId);
@@ -385,6 +412,13 @@ export function CreateDisbursementModal({
     if (wrId !== linkedWorkRequestId) setUploadedReceipt(null);
     if (errors.linkedWorkRequestId) {
       setErrors((prev) => ({ ...prev, linkedWorkRequestId: '' }));
+    }
+    if (errors.selectedTaskId) {
+      setErrors((prev) => {
+        const copy = { ...prev };
+        delete copy.selectedTaskId;
+        return copy;
+      });
     }
     if (errors.receipt) {
       setErrors((prev) => {
@@ -436,6 +470,20 @@ export function CreateDisbursementModal({
       }
     }
 
+    if (selectedTaskId.trim()) {
+      const trimmedTask = selectedTaskId.trim();
+      if (tasksQuery.isLoading || (tasksQuery.isFetching && tasks.length === 0)) {
+        newErrors.selectedTaskId = 'Tasks are still loading. Please wait.';
+      } else {
+        const foundTask = tasks.find((t) => t.id === trimmedTask);
+        if (!foundTask || !isTaskOfWorkRequest(foundTask, linkedWorkRequestId)) {
+          newErrors.selectedTaskId = 'Selected task does not belong to the selected work request';
+        } else if (!isAdmin && !isTaskAssignee(currentUser, foundTask)) {
+          newErrors.selectedTaskId = 'You are not assigned to this task';
+        }
+      }
+    }
+
     if (employeeId.trim()) {
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       const isCurrentUser = Boolean(currentUser?.id && employeeId.trim() === currentUser.id);
@@ -484,6 +532,7 @@ export function CreateDisbursementModal({
 
   const doSubmit = async (bypassReceipt: boolean) => {
     if (isSubmittingRef.current || hasPendingCreate(pendingCreateKey)) return;
+    if (!validate()) return;
     isSubmittingRef.current = true;
     const currentAttemptId = ++attemptIdRef.current;
 
@@ -500,6 +549,7 @@ export function CreateDisbursementModal({
         live.generation === capturedTarget.generation &&
         live.workRequestId === capturedTarget.workRequestId &&
         live.clientId === capturedTarget.clientId &&
+        live.taskId === capturedTarget.taskId &&
         live.entity === capturedTarget.entity &&
         live.file === capturedTarget.file
       );
@@ -540,6 +590,7 @@ export function CreateDisbursementModal({
           uploadedReceipt.file === receiptFile &&
           uploadedReceipt.targetWorkRequestId === capturedTarget.workRequestId &&
           uploadedReceipt.targetClientId === capturedTarget.clientId &&
+          (uploadedReceipt as { targetTaskId?: string | null }).targetTaskId === capturedTarget.taskId &&
           uploadedReceipt.targetEntity === capturedTarget.entity &&
           uploadedReceipt.targetGeneration === capturedTarget.generation;
 
@@ -560,7 +611,18 @@ export function CreateDisbursementModal({
 
           setIsUploadingReceipt(true);
           try {
-            if (!isCurrent()) return;
+            if (!isCurrent()) {
+              return;
+            }
+
+            // Check assignment immediately before receipt upload
+            if (capturedTarget.taskId && !isAdmin) {
+              const preTask = tasks.find((t) => t.id === capturedTarget.taskId);
+              if (!preTask || !isTaskAssignee(currentUser, preTask)) {
+                setErrors((prev) => ({ ...prev, selectedTaskId: 'You are not assigned to this task' }));
+                return;
+              }
+            }
 
             const uploadResult = await uploadReceiptFile(
               receiptFile,
@@ -568,7 +630,34 @@ export function CreateDisbursementModal({
               capturedTarget.entity ? { entity: capturedTarget.entity } : undefined
             );
 
-            if (!isCurrent()) return;
+            if (!isCurrent()) {
+              return;
+            }
+
+            // Ensure assignment was not revoked during async upload before continuing with receipt
+            if (capturedTarget.taskId) {
+              const liveUser = useSessionStore.getState().user;
+              const liveIsAdmin = isRoleAdmin(liveUser);
+              if (!liveIsAdmin) {
+                const exactKey = operationsKeys.tasks(capturedTarget.workRequestId, capturedTarget.entity);
+                const qState = queryClient.getQueryState<Task[]>(exactKey);
+                if (!qState || qState.status !== 'success' || qState.isInvalidated || !Array.isArray(qState.data)) {
+                  setErrors((prev) => ({
+                    ...prev,
+                    selectedTaskId: 'Task assignment could not be verified. Please try again.',
+                  }));
+                  return;
+                }
+                const liveTask = qState.data.find((t) => t.id === capturedTarget.taskId);
+                if (!liveTask || !isTaskAssignee(liveUser, liveTask)) {
+                  setErrors((prev) => ({
+                    ...prev,
+                    selectedTaskId: 'You are not assigned to this task',
+                  }));
+                  return;
+                }
+              }
+            }
 
             setUploadedReceipt({
               file: receiptFile,
@@ -576,13 +665,16 @@ export function CreateDisbursementModal({
               receiptFilename: uploadResult.receiptFilename,
               targetWorkRequestId: capturedTarget.workRequestId,
               targetClientId: capturedTarget.clientId,
+              targetTaskId: capturedTarget.taskId,
               targetEntity: capturedTarget.entity!,
               targetGeneration: capturedTarget.generation,
             });
             resultingS3Key = uploadResult.receiptS3Key;
             resultingFilename = uploadResult.receiptFilename;
           } catch (err: unknown) {
-            if (!isCurrent()) return;
+            if (!isCurrent()) {
+              return;
+            }
             setIsUploadingReceipt(false);
             setUploadedReceipt(null);
             setErrors((prev) => ({
@@ -598,7 +690,41 @@ export function CreateDisbursementModal({
         }
       }
 
-      if (!isCurrent()) return;
+      if (!isCurrent()) {
+        return;
+      }
+
+      // Live assignment & eligibility check immediately before create after async receipt upload
+      if (capturedTarget.taskId) {
+        const liveUser = useSessionStore.getState().user;
+        const liveIsAdmin = isRoleAdmin(liveUser);
+        if (!liveIsAdmin) {
+          const exactKey = operationsKeys.tasks(capturedTarget.workRequestId, capturedTarget.entity);
+          const queryState = queryClient.getQueryState<Task[]>(exactKey);
+          if (!queryState || queryState.status !== 'success' || queryState.isInvalidated || !Array.isArray(queryState.data)) {
+            setErrors((prev) => ({
+              ...prev,
+              selectedTaskId: 'Task assignment could not be verified. Please try again.',
+            }));
+            return;
+          }
+          const liveTask = queryState.data.find((t) => t.id === capturedTarget.taskId);
+          if (!liveTask || !isTaskOfWorkRequest(liveTask, capturedTarget.workRequestId)) {
+            setErrors((prev) => ({
+              ...prev,
+              selectedTaskId: 'Selected task is no longer available in this work request',
+            }));
+            return;
+          }
+          if (!isTaskAssignee(liveUser, liveTask)) {
+            setErrors((prev) => ({
+              ...prev,
+              selectedTaskId: 'You are not assigned to this task',
+            }));
+            return;
+          }
+        }
+      }
 
       const effectiveCategory =
         category === 'Other' && customCategory.trim() ? customCategory.trim() : category;
@@ -609,7 +735,7 @@ export function CreateDisbursementModal({
         fundSource,
         linkedWorkRequestId: capturedTarget.workRequestId.trim(),
         clientId: capturedTarget.clientId ? capturedTarget.clientId.trim() : null,
-        linkedTaskId: selectedTaskId ? selectedTaskId.trim() : null,
+        linkedTaskId: capturedTarget.taskId ? capturedTarget.taskId.trim() : null,
         employeeId: currentUser?.id || null, // Locked to session user
         dueDate: dueDate ? dueDate : null,
         notes: notes.trim() ? notes.trim() : null,
@@ -773,7 +899,16 @@ export function CreateDisbursementModal({
               <label className="text-xs font-semibold text-[#1E293B]">Linked Task (Optional)</label>
               <select
                 value={selectedTaskId}
-                onChange={(e) => setSelectedTaskId(e.target.value)}
+                onChange={(e) => {
+                  setSelectedTaskId(e.target.value);
+                  if (errors.selectedTaskId) {
+                    setErrors((prev) => {
+                      const copy = { ...prev };
+                      delete copy.selectedTaskId;
+                      return copy;
+                    });
+                  }
+                }}
                 disabled={isTaskLocked || !linkedWorkRequestId}
                 className="w-full text-xs p-2 border rounded-[6px] bg-[#FFFFFF] border-[#E2E8F0] focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-[#F8FAFC] disabled:cursor-not-allowed"
                 data-testid="select-work-request-task"
@@ -783,12 +918,17 @@ export function CreateDisbursementModal({
                     ? 'Select a Work Request first...'
                     : 'None (No linked task)'}
                 </option>
-                {tasks.map((task) => (
+                {availableTasks.map((task) => (
                   <option key={task.id} value={task.id}>
                     {task.title}
                   </option>
                 ))}
               </select>
+              {errors.selectedTaskId && (
+                <span className="text-xs text-red-600 block" data-testid="error-selected-task">
+                  {errors.selectedTaskId}
+                </span>
+              )}
             </div>
           </div>
 

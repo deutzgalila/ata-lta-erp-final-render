@@ -20,12 +20,20 @@ import {
 import { useClients } from '@/features/operations/api/useClients';
 import { useWorkRequests } from '@/features/operations/api/useWorkRequests';
 import { useWorkRequestTasks } from '@/features/operations/api/useTasks';
+import { operationsKeys } from '@/features/operations/api/queryKeys';
+import {
+  isTaskAssignee,
+  isRoleAdmin,
+  isTaskOfWorkRequest,
+} from '@/features/operations/lib/taskScope';
 import { useInvoices } from '../api/useInvoices';
 import { createInvoiceSchema, LINE_ITEM_TYPES } from '../api/schemas';
 import { createInvoiceAction } from '../api/useBillingMutations';
 import { useSessionStore } from '@/lib/session';
 import { formatCurrency, getNextInvoiceNumber } from '../utils/formatters';
 import type { LineItemType, CreateLineItemInput } from '../api/types';
+import type { Task } from '@/features/operations/api/types';
+import { useQueryClient } from '@tanstack/react-query';
 
 /**
  * Frozen Financial Prefill Contract (UAT2-7-contract-side)
@@ -99,11 +107,31 @@ export function InvoiceCreateModal({
   );
   const workRequests = useMemo(() => workRequestsData?.data || [], [workRequestsData]);
 
-  // Work Request Tasks query (UAT2-6: disabled/empty until WR chosen)
-  const { data: tasksData } = useWorkRequestTasks(workRequestId || undefined, {
+  const queryClient = useQueryClient();
+  const currentUser = useSessionStore((state) => state.user);
+  const isAdmin = isRoleAdmin(currentUser);
+  const effectiveEntity = activeEntity !== 'ALL' ? activeEntity : undefined;
+
+  // Work Request Tasks query (UAT2-6: disabled/empty until WR chosen, entity-scoped)
+  const tasksQuery = useWorkRequestTasks(workRequestId || undefined, {
     enabled: isOpen && Boolean(workRequestId),
+    entity: effectiveEntity,
   });
-  const tasks = tasksData || [];
+
+  // Exclude placeholder data and tasks without matching parent work request
+  const tasks = useMemo(() => {
+    if (tasksQuery.isPlaceholderData) return [];
+    const list = tasksQuery.data || [];
+    if (!workRequestId) return [];
+    return list.filter((t) => isTaskOfWorkRequest(t, workRequestId));
+  }, [tasksQuery.isPlaceholderData, tasksQuery.data, workRequestId]);
+
+  // Standalone task options: non-admins only see tasks where they are assigned/co-assigned
+  const availableTasks = useMemo(() => {
+    if (!workRequestId) return [];
+    if (isAdmin) return tasks;
+    return tasks.filter((t) => isTaskAssignee(currentUser, t));
+  }, [tasks, workRequestId, isAdmin, currentUser]);
 
   // Existing Invoices for sequential number calculation
   const { data: existingInvoicesData } = useInvoices({ limit: 100 }, { enabled: isOpen });
@@ -219,6 +247,45 @@ export function InvoiceCreateModal({
     e.preventDefault();
     setFormError(null);
 
+    const trimmedTaskId = selectedTaskId ? selectedTaskId.trim() : '';
+
+    if (trimmedTaskId) {
+      if (tasksQuery.isLoading || (tasksQuery.isFetching && tasks.length === 0)) {
+        setFormError('Tasks are still loading. Please wait.');
+        return;
+      }
+      const foundTask = tasks.find((t) => t.id === trimmedTaskId);
+      if (!foundTask || !isTaskOfWorkRequest(foundTask, workRequestId)) {
+        setFormError('Selected task does not belong to the selected work request.');
+        return;
+      }
+      if (!isAdmin && !isTaskAssignee(currentUser, foundTask)) {
+        setFormError('You are not assigned to the selected task.');
+        return;
+      }
+
+      // Live verification of exact current scoped query
+      const liveUser = useSessionStore.getState().user;
+      const liveIsAdmin = isRoleAdmin(liveUser);
+      if (!liveIsAdmin) {
+        const exactKey = operationsKeys.tasks(workRequestId, effectiveEntity);
+        const queryState = queryClient.getQueryState<Task[]>(exactKey);
+        if (!queryState || queryState.status !== 'success' || queryState.isInvalidated || !Array.isArray(queryState.data)) {
+          setFormError('Task assignment could not be verified. Please try again.');
+          return;
+        }
+        const liveTask = queryState.data.find((t) => t.id === trimmedTaskId);
+        if (!liveTask || !isTaskOfWorkRequest(liveTask, workRequestId)) {
+          setFormError('Selected task is no longer available in this work request.');
+          return;
+        }
+        if (!isTaskAssignee(liveUser, liveTask)) {
+          setFormError('You are not assigned to the selected task.');
+          return;
+        }
+      }
+    }
+
     const parsedLineItems: CreateLineItemInput[] = lineItems.map((item) => ({
       description: item.description.trim(),
       amount: parseFloat(item.amount) || 0,
@@ -228,9 +295,9 @@ export function InvoiceCreateModal({
     const payload = {
       clientId,
       workRequestId,
-      linkedTaskId: !SUPPORT_TASK_ID_PAYLOAD ? selectedTaskId || null : undefined,
-      ...(SUPPORT_TASK_ID_PAYLOAD && selectedTaskId
-        ? { taskId: selectedTaskId, task_id: selectedTaskId }
+      linkedTaskId: !SUPPORT_TASK_ID_PAYLOAD ? (trimmedTaskId || null) : undefined,
+      ...(SUPPORT_TASK_ID_PAYLOAD && trimmedTaskId
+        ? { taskId: trimmedTaskId, task_id: trimmedTaskId }
         : {}),
       invoiceNumber: invoiceNumber.trim(),
       issueDate,
@@ -366,7 +433,7 @@ export function InvoiceCreateModal({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">None (No linked task)</SelectItem>
-                  {tasks.map((task) => (
+                  {availableTasks.map((task) => (
                     <SelectItem key={task.id} value={task.id}>
                       {task.title}
                     </SelectItem>
