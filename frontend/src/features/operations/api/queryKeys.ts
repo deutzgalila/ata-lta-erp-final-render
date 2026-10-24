@@ -20,7 +20,10 @@ export const operationsKeys = {
   detail: (id: string) => [...operationsKeys.workRequestDetails(), id] as const,
 
   // --- Tasks (Sub-resources of Work Request) ---
-  tasks: (wrId: string) => [...operationsKeys.workRequestDetail(wrId), 'tasks'] as const,
+  tasks: (wrId: string, entity?: string | null) =>
+    entity !== undefined && entity !== null
+      ? ([...operationsKeys.workRequestDetail(wrId), 'tasks', entity] as const)
+      : ([...operationsKeys.workRequestDetail(wrId), 'tasks'] as const),
   taskDetail: (wrId: string, taskId: string) =>
     [...operationsKeys.tasks(wrId), taskId] as const,
   taskRelated: (taskId: string, entity?: string | null) =>

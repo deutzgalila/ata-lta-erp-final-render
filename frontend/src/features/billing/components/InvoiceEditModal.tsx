@@ -17,15 +17,23 @@ import {
 import { useClients } from '@/features/operations/api/useClients';
 import { useWorkRequests } from '@/features/operations/api/useWorkRequests';
 import { useWorkRequestTasks } from '@/features/operations/api/useTasks';
+import { operationsKeys } from '@/features/operations/api/queryKeys';
+import {
+  isTaskAssignee,
+  isRoleAdmin,
+  isTaskOfWorkRequest,
+} from '@/features/operations/lib/taskScope';
+import type { Task } from '@/features/operations/api/types';
 import { LINE_ITEM_TYPES } from '../api/schemas';
 import { updateInvoiceAction } from '../api/useBillingMutations';
 import { formatCurrency, getStatusBadgeVariant } from '../utils/formatters';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   ConflictResolutionModal,
   isConcurrencyConflictError,
 } from '@/components/common/ConflictResolutionModal';
 import { useBlockingModalStore } from '@/features/operations/components/BlockingActionModal';
-import { apiRequest, queryClient, type ApiError } from '@/lib/api';
+import { apiRequest, type ApiError } from '@/lib/api';
 import { billingKeys } from '../api/queryKeys';
 import type { LineItemType, CreateLineItemInput, UpdateInvoiceInput, Invoice } from '../api/types';
 
@@ -51,7 +59,13 @@ export function InvoiceEditModal({
   onUpdated,
   inline = false,
 }: InvoiceEditModalProps) {
-  const isAdmin = useSessionStore((s) => s.user?.role === 'Admin');
+  const queryClient = useQueryClient();
+  const isAdmin = useSessionStore((s) => isRoleAdmin(s.user));
+  const currentUser = useSessionStore((state) => state.user);
+  const activeEntity = useSessionStore((state) => state.activeEntity);
+  const effectiveEntity = activeEntity !== 'ALL' ? activeEntity : undefined;
+  const originEntity = invoice?.entity_id || effectiveEntity;
+
   const canEditFinancials = isAdmin || invoice?.status === 'Draft';
   const [printDetails, setPrintDetails] = useState<InvoicePrintDetails>({});
   const [address, setAddress] = useState('');
@@ -60,6 +74,9 @@ export function InvoiceEditModal({
   const [clientId, setClientId] = useState('');
   const [workRequestId, setWorkRequestId] = useState('');
   const [selectedTaskId, setSelectedTaskId] = useState('');
+  const [originTaskId, setOriginTaskId] = useState('');
+  const [originWrId, setOriginWrId] = useState('');
+  const [storedLinkageError, setStoredLinkageError] = useState<string | null>(null);
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [issueDate, setIssueDate] = useState('');
   const [dueDate, setDueDate] = useState('');
@@ -67,6 +84,19 @@ export function InvoiceEditModal({
   const [terms, setTerms] = useState('');
   const [currentVersion, setCurrentVersion] = useState<number>(1);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Authoritative origin task query (independently scoped with exact entity/WR)
+  const originTasksQuery = useWorkRequestTasks(originWrId || undefined, {
+    enabled: isOpen && Boolean(originWrId && originTaskId),
+    entity: originEntity,
+  });
+
+  const originTask = useMemo(() => {
+    if (!originTaskId || !originWrId) return null;
+    if (originTasksQuery.isPlaceholderData) return null;
+    const list = originTasksQuery.data || [];
+    return list.find((t) => t.id === originTaskId) || null;
+  }, [originTaskId, originWrId, originTasksQuery.isPlaceholderData, originTasksQuery.data]);
 
   // Dynamic Line Items
   const [lineItems, setLineItems] = useState<EditableLineItem[]>([]);
@@ -85,7 +115,54 @@ export function InvoiceEditModal({
       setAddress(invoice.address ?? invoice.clients?.address ?? '');
       setClientId(invoice.client_id || '');
       setWorkRequestId(invoice.work_request_id || '');
-      setSelectedTaskId(invoice.linked_task_id || '');
+
+      // Preserve canonical task_id precedence over linked_task_id; detect malformed or conflicting IDs
+      const rawCanonical = (invoice as { task_id?: string | null }).task_id;
+      const rawLegacy =
+        invoice.linked_task_id ?? (invoice as { linkedTaskId?: string | null }).linkedTaskId ?? null;
+
+      const hasCanonical = rawCanonical !== undefined && rawCanonical !== null;
+      const hasLegacy = rawLegacy !== undefined && rawLegacy !== null;
+
+      let initialTaskId = '';
+      let initialLinkageError: string | null = null;
+
+      if (hasCanonical && hasLegacy) {
+        const c = String(rawCanonical).trim();
+        const l = String(rawLegacy).trim();
+        if (c && l && c !== l) {
+          initialLinkageError =
+            'Stored task linkage is corrupt: canonical task_id conflicts with legacy linked_task_id.';
+          initialTaskId = c;
+        } else if (c === '') {
+          initialLinkageError = 'Stored canonical task_id is malformed.';
+          initialTaskId = l;
+        } else {
+          initialTaskId = c;
+        }
+      } else if (hasCanonical) {
+        const c = String(rawCanonical).trim();
+        if (c === '') {
+          initialLinkageError = 'Stored canonical task_id is malformed.';
+        } else {
+          initialTaskId = c;
+        }
+      } else if (hasLegacy) {
+        const l = String(rawLegacy).trim();
+        if (l === '') {
+          initialLinkageError = 'Stored legacy linked_task_id is malformed.';
+        } else {
+          initialTaskId = l;
+        }
+      }
+
+      setSelectedTaskId(initialTaskId);
+      setOriginTaskId(initialTaskId);
+      const initialWrId =
+        invoice.work_request_id || (invoice as { workRequestId?: string }).workRequestId || '';
+      setOriginWrId(initialWrId);
+      setStoredLinkageError(initialLinkageError);
+
       setInvoiceNumber(invoice.invoice_number || '');
       setIssueDate(invoice.issue_date ? invoice.issue_date.slice(0, 10) : '');
       setDueDate(invoice.due_date ? invoice.due_date.slice(0, 10) : '');
@@ -116,6 +193,12 @@ export function InvoiceEditModal({
           },
         ]);
       }
+    } else if (!isOpen) {
+      setSelectedTaskId('');
+      setOriginTaskId('');
+      setOriginWrId('');
+      setStoredLinkageError(null);
+      setFormError(null);
     }
   }, [isOpen, invoice]);
 
@@ -147,18 +230,24 @@ export function InvoiceEditModal({
     return [];
   }, [workRequestsData]);
 
-  // Work Request Tasks query
-  const { data: tasksData } = useWorkRequestTasks(workRequestId || undefined, {
+
+  // Work Request Tasks query (entity-scoped, excludes placeholder data)
+  const tasksQuery = useWorkRequestTasks(workRequestId || undefined, {
     enabled: isOpen && Boolean(workRequestId),
+    entity: effectiveEntity,
   });
   const tasks = useMemo(() => {
-    if (!tasksData) return [];
-    if (Array.isArray(tasksData)) return tasksData;
-    if (Array.isArray((tasksData as unknown as { data: unknown[] }).data)) {
-      return (tasksData as unknown as { data: Array<{ id: string; title: string }> }).data;
-    }
-    return [];
-  }, [tasksData]);
+    if (tasksQuery.isPlaceholderData) return [];
+    const list = tasksQuery.data || [];
+    if (!workRequestId) return [];
+    return list.filter((t) => isTaskOfWorkRequest(t, workRequestId));
+  }, [tasksQuery.isPlaceholderData, tasksQuery.data, workRequestId]);
+
+  const availableTasks = useMemo(() => {
+    if (!workRequestId) return [];
+    if (isAdmin) return tasks;
+    return tasks.filter((t) => isTaskAssignee(currentUser, t));
+  }, [tasks, workRequestId, isAdmin, currentUser]);
 
   const handleClientChange = (newClientId: string) => {
     if (!newClientId) return;
@@ -307,6 +396,88 @@ export function InvoiceEditModal({
     if (totals.total < Number(invoice.amount_paid || 0)) {
       setFormError('Total amount cannot be less than payments already recorded.');
       return;
+    }
+
+    // Relink/unlink checks
+    const effectiveSelectedTask = selectedTaskId ? selectedTaskId.trim() : '';
+    const effectiveOriginTask = originTaskId ? originTaskId.trim() : '';
+    const effectiveWr = (workRequestId || '').trim();
+    const effectiveOriginWr = (originWrId || '').trim();
+
+    const isLinkageChanged =
+      effectiveSelectedTask !== effectiveOriginTask || effectiveWr !== effectiveOriginWr;
+
+    if (isLinkageChanged) {
+      if (storedLinkageError) {
+        setFormError(storedLinkageError);
+        return;
+      }
+
+      // 1. Authorize origin task detachment if an origin task was linked
+      if (effectiveOriginTask) {
+        if (!effectiveOriginWr) {
+          setFormError('Original work request is missing for the linked task.');
+          return;
+        }
+        const originKey = operationsKeys.tasks(effectiveOriginWr, originEntity);
+        const originState = queryClient.getQueryState<Task[]>(originKey);
+        if (
+          originTasksQuery.isLoading ||
+          originTasksQuery.isError ||
+          originTasksQuery.isPlaceholderData ||
+          !originState ||
+          originState.status !== 'success' ||
+          originState.isInvalidated ||
+          !Array.isArray(originState.data)
+        ) {
+          setFormError(
+            'Original linked task data is currently loading or unavailable. Please try again.'
+          );
+          return;
+        }
+        const liveOriginTask = originState.data.find((t) => t.id === effectiveOriginTask);
+        if (!liveOriginTask || !isTaskOfWorkRequest(liveOriginTask, effectiveOriginWr)) {
+          setFormError(
+            'Original linked task could not be verified or does not belong to the original work request.'
+          );
+          return;
+        }
+        if (!isAdmin && !isTaskAssignee(currentUser, liveOriginTask)) {
+          setFormError('You are not authorized to unlink or relink the existing task.');
+          return;
+        }
+      }
+
+      // 2. Authorize destination task attachment if a destination task is selected
+      if (effectiveSelectedTask) {
+        if (!effectiveWr) {
+          setFormError('Please select a work request for the destination task.');
+          return;
+        }
+        const destKey = operationsKeys.tasks(effectiveWr, effectiveEntity);
+        const destState = queryClient.getQueryState<Task[]>(destKey);
+        if (
+          tasksQuery.isLoading ||
+          tasksQuery.isError ||
+          tasksQuery.isPlaceholderData ||
+          !destState ||
+          destState.status !== 'success' ||
+          destState.isInvalidated ||
+          !Array.isArray(destState.data)
+        ) {
+          setFormError('Destination task data is currently loading or unavailable. Please try again.');
+          return;
+        }
+        const liveDestTask = destState.data.find((t) => t.id === effectiveSelectedTask);
+        if (!liveDestTask || !isTaskOfWorkRequest(liveDestTask, effectiveWr)) {
+          setFormError('Destination task does not belong to the selected work request.');
+          return;
+        }
+        if (!isAdmin && !isTaskAssignee(currentUser, liveDestTask)) {
+          setFormError('You are not assigned to the destination task.');
+          return;
+        }
+      }
     }
 
     const payload: UpdateInvoiceInput = {
@@ -523,10 +694,12 @@ export function InvoiceEditModal({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">None (No linked task)</SelectItem>
-                {selectedTaskId && !tasks.some((task) => task.id === selectedTaskId) && (
-                  <SelectItem value={selectedTaskId}>{selectedTaskId}</SelectItem>
+                {selectedTaskId && !availableTasks.some((task) => task.id === selectedTaskId) && (
+                  <SelectItem value={selectedTaskId}>
+                    {originTask?.title ? `${originTask.title} (Current)` : selectedTaskId}
+                  </SelectItem>
                 )}
-                {tasks.map((task) => (
+                {availableTasks.map((task) => (
                   <SelectItem key={task.id} value={task.id}>
                     {task.title}
                   </SelectItem>
