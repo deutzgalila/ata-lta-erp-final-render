@@ -62,6 +62,7 @@ export interface DisbursementAuditLog {
   action: string;
   actor_id?: string | null;
   actor_name?: string | null;
+  actor_role?: string | null;
   previous_status?: string | null;
   new_status?: string | null;
   details?: Record<string, unknown> | null;
@@ -157,6 +158,7 @@ export interface Disbursement {
   review_ready?: boolean;
   reviewReady?: boolean;
   funded_by_name?: string | null;
+  funded_by_role?: string | null;
   fundedByName?: string | null;
   payment_processed_by_name?: string | null;
   paymentProcessedByName?: string | null;
@@ -169,12 +171,16 @@ export interface Disbursement {
   requested_by_name?: string | null;
   requestedByName?: string | null;
   created_by_name?: string | null;
+  created_by_role?: string | null;
   createdByName?: string | null;
   approved_by_name?: string | null;
+  approved_by_role?: string | null;
   approvedByName?: string | null;
   released_by_name?: string | null;
+  released_by_role?: string | null;
   releasedByName?: string | null;
   rejected_by_name?: string | null;
+  rejected_by_role?: string | null;
   rejectedByName?: string | null;
   edited_by_accounting?: boolean | null;
 }

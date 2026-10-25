@@ -107,7 +107,7 @@ const mockDisbRejected: Disbursement = {
   rejected_at: '2026-10-25T09:30:00Z',
 };
 
-describe('Branch 04: Detail Pane Tabs & Eyeshare Inline Receipt Viewer', () => {
+describe('Branch 04: Detail Pane Tabs & Receipt Attachment Viewer', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     sessionStorage.clear();
@@ -440,10 +440,10 @@ describe('Branch 04: Detail Pane Tabs & Eyeshare Inline Receipt Viewer', () => {
 
       const timeline = screen.getByTestId('lifecycle-history-timeline');
       expect(timeline).toBeInTheDocument();
-      expect(within(timeline).getByText('Approved')).toBeInTheDocument();
-      expect(within(timeline).getByText('(Draft → Approved)')).toBeInTheDocument();
-      expect(within(timeline).getByText('Released')).toBeInTheDocument();
-      expect(within(timeline).getByText('(Funded → Released)')).toBeInTheDocument();
+      expect(within(timeline).getAllByText('Approved').length).toBeGreaterThan(0);
+      expect(within(timeline).getAllByTestId('disbursement-status-badge').map((badge) => badge.textContent)).toContain('Draft');
+      expect(within(timeline).getAllByText('Released').length).toBeGreaterThan(0);
+      expect(within(timeline).getAllByTestId('disbursement-status-badge').map((badge) => badge.textContent)).toContain('Funded');
     });
   });
 
@@ -467,73 +467,36 @@ describe('Branch 04: Detail Pane Tabs & Eyeshare Inline Receipt Viewer', () => {
       expect(screen.getByText('No receipt attached')).toBeInTheDocument();
     });
 
-    it('renders labeled toolbar actions with text + icons and targets ≥40px', async () => {
+    it('renders a compact attachment row with View and Download and no inline image', async () => {
       const { wrapper } = createHarness();
-      render(
-        <DisbursementDetailBody
-          isOpen
-          initialDisbursement={mockDisbWithImageReceipt}
-          onClose={vi.fn()}
-        />,
-        { wrapper }
-      );
-
-      await waitFor(() => {
-        expect(screen.getByRole('toolbar', { name: 'Receipt document controls' })).toBeInTheDocument();
-      });
-
-      expect(screen.getByRole('button', { name: /Zoom Out/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Zoom In/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Fit/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Rotate/i })).toBeInTheDocument();
-      expect(screen.getByRole('link', { name: /Open in new tab/i })).toBeInTheDocument();
-      expect(screen.getByRole('link', { name: /Download/i })).toBeInTheDocument();
-      expect(screen.getByTestId('btn-refresh-receipt')).toBeInTheDocument();
+      render(<DisbursementDetailBody isOpen initialDisbursement={mockDisbWithImageReceipt} onClose={vi.fn()} />, { wrapper });
+      await waitFor(() => expect(screen.getByTestId('btn-preview-receipt')).toBeEnabled());
+      expect(screen.getByTestId('receipt-file-name')).toHaveTextContent('taxi_receipt.png');
+      expect(screen.getByRole('link', { name: 'Download' })).toHaveAttribute('href', 'https://storage.test/receipts/taxi_receipt.png');
+      expect(screen.queryByRole('img')).not.toBeInTheDocument();
+      expect(screen.getByTestId('receipt-attachment-row')).not.toHaveTextContent('entities/');
+      fireEvent.click(screen.getByTestId('btn-preview-receipt'));
+      expect(await screen.findByTestId('doc-preview-image')).toHaveAttribute('src', 'https://storage.test/receipts/taxi_receipt.png');
+      expect(screen.queryByTestId('document-details-panel')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('comments-scroll-container')).not.toBeInTheDocument();
     });
 
-    it('executes zoom steps (50% to 300%), rotate (+90deg), and fit (resets to 100%)', async () => {
+    it('opens the canonical viewer, expands, returns to windowed mode and closes', async () => {
       const { wrapper } = createHarness();
-      render(
-        <DisbursementDetailBody
-          isOpen
-          initialDisbursement={mockDisbWithImageReceipt}
-          onClose={vi.fn()}
-        />,
-        { wrapper }
-      );
-
-      await waitFor(() => {
-        expect(screen.getByTestId('receipt-preview-image')).toBeInTheDocument();
-      });
-
-      const zoomInBtn = screen.getByRole('button', { name: /Zoom In/i });
-      const zoomOutBtn = screen.getByRole('button', { name: /Zoom Out/i });
-      const fitBtn = screen.getByRole('button', { name: /Fit/i });
-      const rotateBtn = screen.getByRole('button', { name: /Rotate/i });
-
-      // Initial zoom is 100%
-      expect(screen.getByText('100%')).toBeInTheDocument();
-
-      // Zoom In -> 125% -> 150%
-      fireEvent.click(zoomInBtn);
-      expect(screen.getByText('125%')).toBeInTheDocument();
-
-      fireEvent.click(zoomInBtn);
-      expect(screen.getByText('150%')).toBeInTheDocument();
-
-      // Zoom Out -> 125% -> 100%
-      fireEvent.click(zoomOutBtn);
-      expect(screen.getByText('125%')).toBeInTheDocument();
-
-      // Rotate (+90deg)
-      fireEvent.click(rotateBtn);
-
-      // Fit resets zoom to 100% and rotation to 0
-      fireEvent.click(fitBtn);
-      expect(screen.getByText('100%')).toBeInTheDocument();
+      render(<DisbursementDetailBody isOpen initialDisbursement={mockDisbWithImageReceipt} onClose={vi.fn()} />, { wrapper });
+      await waitFor(() => expect(screen.getByTestId('btn-preview-receipt')).toBeEnabled());
+      fireEvent.click(screen.getByTestId('btn-preview-receipt'));
+      const modal = await screen.findByTestId('document-viewer-modal');
+      fireEvent.click(screen.getByTestId('toggle-fullpage-preview'));
+      expect(modal).toHaveClass('w-screen');
+      fireEvent.click(screen.getByTestId('toggle-fullpage-preview'));
+      expect(modal).not.toHaveClass('w-screen');
+      fireEvent.click(within(modal).getAllByRole('button', { name: 'Close' })[0]!);
+      await waitFor(() => expect(screen.queryByTestId('document-viewer-modal')).not.toBeInTheDocument());
+      expect(screen.getByTestId('receipt-attachment-row')).toBeInTheDocument();
     });
 
-    it('renders PDF inline using <object> and <iframe> with fallback link', async () => {
+    it('opens PDF in the canonical modal viewer', async () => {
       const { wrapper } = createHarness();
       render(
         <DisbursementDetailBody
@@ -544,11 +507,9 @@ describe('Branch 04: Detail Pane Tabs & Eyeshare Inline Receipt Viewer', () => {
         { wrapper }
       );
 
-      await waitFor(() => {
-        expect(screen.getByTestId('receipt-pdf-frame')).toBeInTheDocument();
-      });
-
-      const iframe = screen.getByTestId('receipt-pdf-frame');
+      await waitFor(() => expect(screen.getByTestId('btn-preview-receipt')).toBeEnabled());
+      fireEvent.click(screen.getByTestId('btn-preview-receipt'));
+      const iframe = await screen.findByTestId('doc-preview-pdf');
       expect(iframe).toHaveAttribute('src', 'https://storage.test/receipts/official_invoice.pdf');
     });
   });
@@ -580,7 +541,7 @@ describe('Branch 04: Detail Pane Tabs & Eyeshare Inline Receipt Viewer', () => {
       expect(screen.getByTestId('tab-log')).toBeInTheDocument();
 
       await waitFor(() => {
-        expect(screen.getByTestId('receipt-preview-image')).toBeInTheDocument();
+        expect(screen.getByTestId('btn-preview-receipt')).toBeEnabled();
       });
     });
   });

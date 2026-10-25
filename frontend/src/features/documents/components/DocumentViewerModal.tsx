@@ -35,6 +35,7 @@ import {
   Maximize2,
   Minimize2,
   ExternalLink,
+  RefreshCw,
   Lock,
 } from 'lucide-react';
 import { documentKeys } from '../api/queryKeys';
@@ -82,6 +83,9 @@ export interface DocumentViewerModalProps {
   onUploadSuccess?: (doc: DmsDocument) => void;
   readOnly?: boolean;
   previewUrl?: string | null;
+  attachmentOnly?: boolean;
+  onRefreshPreview?: () => void | Promise<unknown>;
+  isRefreshingPreview?: boolean;
 }
 
 export function DocumentViewerModal({
@@ -94,6 +98,9 @@ export function DocumentViewerModal({
   onUploadSuccess,
   readOnly = false,
   previewUrl: propPreviewUrl,
+  attachmentOnly = false,
+  onRefreshPreview,
+  isRefreshingPreview = false,
 }: DocumentViewerModalProps) {
   const initialDoc = propDocument ?? propDoc ?? null;
   const workRequest = propWorkRequest ?? (propWorkRequests && propWorkRequests[0]) ?? null;
@@ -141,6 +148,10 @@ export function DocumentViewerModal({
   currentDocumentId.current = doc?.id;
   const [commentError, setCommentError] = useState<string | null>(null);
   const [isFullPage, setIsFullPage] = useState(false);
+  const [previewFailed, setPreviewFailed] = useState(false);
+  const [previewAttempt, setPreviewAttempt] = useState(0);
+
+  useEffect(() => { setPreviewFailed(false); }, [propPreviewUrl, isOpen]);
   const [newCommentText, setNewCommentText] = useState('');
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentText, setEditingCommentText] = useState('');
@@ -251,7 +262,7 @@ export function DocumentViewerModal({
   const uploadMutation = useUploadDocument();
 
   const isReadOnly =
-    readOnly ||
+    attachmentOnly || readOnly ||
     workRequest?.status === 'Cancelled' ||
     Boolean(workRequest?.archived) ||
     Boolean(doc?.archived);
@@ -277,6 +288,16 @@ export function DocumentViewerModal({
     !propPreviewUrl && (effectiveExternalUrl || parsedExternal.isGoogleDrive)
   );
   const downloadUrl = isExternal && !propPreviewUrl ? null : rawUrl;
+
+  const refreshPreview = async () => {
+    try {
+      await onRefreshPreview?.();
+      setPreviewAttempt((attempt) => attempt + 1);
+      setPreviewFailed(false);
+    } catch {
+      setPreviewFailed(true);
+    }
+  };
 
   // File Upload Handler (3-step signed upload)
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -361,6 +382,13 @@ export function DocumentViewerModal({
 
   // Determine Preview Component
   const renderPreview = () => {
+    if (attachmentOnly && previewFailed) return (
+      <div role="alert" data-testid="attachment-preview-error" className="space-y-3 p-6 text-center text-sm text-[#475569]">
+        <p>Unable to display this receipt. Refresh the preview or download the file.</p>
+        {onRefreshPreview && <Button type="button" variant="outline" size="sm" disabled={isRefreshingPreview}
+          onClick={() => void refreshPreview()}>Retry preview</Button>}
+      </div>
+    );
     if (!doc) {
       return (
         <div className="h-full flex flex-col items-center justify-center text-[#475569] p-8 space-y-3">
@@ -475,10 +503,12 @@ export function DocumentViewerModal({
       return (
         <div className="w-full h-full flex items-center justify-center p-4">
           <img
+            key={previewAttempt}
             src={previewUrl}
             alt={fileName}
             className="max-w-full max-h-full object-contain shadow-none rounded"
             data-testid="doc-preview-image"
+            onError={attachmentOnly ? () => setPreviewFailed(true) : undefined}
           />
         </div>
       );
@@ -560,6 +590,9 @@ export function DocumentViewerModal({
       <DialogContent
         className={contentClasses}
         data-testid="document-viewer-modal"
+        onEscapeKeyDown={(event) => {
+          if (isFullPage) { event.preventDefault(); setIsFullPage(false); }
+        }}
       >
         {isDenied ? (
           <div className="py-24 text-center space-y-3" data-testid="document-access-denied">
@@ -587,8 +620,8 @@ export function DocumentViewerModal({
         ) : (
           <>
             {/* Header */}
-            <DialogHeader className="px-6 py-3 border-b border-[#E2E8F0] flex flex-row items-center justify-between space-y-0">
-          <div className="flex items-center gap-2 min-w-0">
+            <DialogHeader className={`py-3 border-b border-[#E2E8F0] flex flex-row items-center justify-between space-y-0 ${attachmentOnly ? 'px-4 sm:px-6 flex-wrap gap-3 pr-10 sm:pr-12' : 'px-6'}`}>
+          <div className={`flex items-center gap-2 min-w-0 ${attachmentOnly ? 'flex-1 basis-48' : ''}`}>
             <DialogTitle className="text-base font-bold text-[#1E293B] truncate max-w-md">
               {fileName}
             </DialogTitle>
@@ -598,7 +631,10 @@ export function DocumentViewerModal({
               </Badge>
             )}
           </div>
-          <div className="flex items-center gap-2 pr-6">
+          <div className={`flex items-center gap-2 ${attachmentOnly ? 'flex-wrap' : 'pr-6'}`}>
+            {attachmentOnly && onRefreshPreview && <Button type="button" variant="outline" size="xs"
+              disabled={isRefreshingPreview} className="gap-1 text-xs" onClick={() => void refreshPreview()}>
+              <RefreshCw className="h-3.5 w-3.5" />Refresh</Button>}
             {(doc?.id || initialDoc?.id) && (
               <PresenceAvatars
                 domain="document"
@@ -684,14 +720,14 @@ export function DocumentViewerModal({
         )}
 
         {/* 2-Column Viewer & Comments Body */}
-        <div className="flex-1 flex overflow-hidden min-h-[520px]">
+        <div className={`flex-1 flex overflow-hidden ${attachmentOnly ? 'min-h-0' : 'min-h-[520px]'}`}>
           {/* Left: Document Preview */}
           <div className="flex-1 bg-[#FFFFFF] border-r border-[#E2E8F0] p-2 overflow-auto flex flex-col items-center justify-center">
             {renderPreview()}
           </div>
 
           {/* Right: Threaded Comments */}
-          <div className="w-80 sm:w-96 flex flex-col bg-white">
+          {!attachmentOnly && <div className="w-80 sm:w-96 flex flex-col bg-white">
             {/* Document Details Metadata Panel */}
             <div
               className="p-3 border-b border-[#E2E8F0] bg-[#FFFFFF] text-xs space-y-2 shrink-0"
@@ -885,7 +921,7 @@ export function DocumentViewerModal({
                   : 'Document edit permission is required to comment.'}
               </p>
             )}
-          </div>
+          </div>}
         </div>
 
         <DialogFooter className="px-6 py-2.5 border-t border-[#E2E8F0] bg-[#FFFFFF] flex items-center justify-end">
