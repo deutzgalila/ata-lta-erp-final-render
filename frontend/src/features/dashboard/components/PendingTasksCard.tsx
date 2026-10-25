@@ -9,8 +9,6 @@ import {
   CheckCircle2,
   Clock,
   Building,
-  FileText,
-  ExternalLink,
   ChevronLeft,
   ChevronRight,
   Search,
@@ -20,13 +18,12 @@ import {
   Kanban,
   User,
   Users,
+  Layers,
 } from 'lucide-react';
-import { useAssignedTasks } from '../api/useAssignedTasks';
+import { useDashboardWorkRequests } from '../api/useDashboardWorkRequests';
 import { useSessionStore } from '@/lib/session';
 import { isTaskAssignee } from '@/features/operations/lib/taskScope';
-import { TaskDetailModal } from '@/features/operations/components/TaskDetailModal';
-import type { Task } from '@/features/operations/api/types';
-import type { AssignableTaskOption } from '../api/types';
+import type { DashboardWorkRequestItem } from '../api/types';
 
 export interface PendingTasksCardProps {
   onLogTimeForTask?: (taskId: string) => void;
@@ -78,26 +75,25 @@ function formatDueDate(dueDate: string | null | undefined): string {
 }
 
 function getInitials(name: string): string {
-  if (!name) return 'OP';
+  if (!name) return 'WR';
   const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return 'OP';
-  if (parts.length === 1) return (parts[0]?.slice(0, 2) || 'OP').toUpperCase();
+  if (parts.length === 0) return 'WR';
+  if (parts.length === 1) return (parts[0]?.slice(0, 2) || 'WR').toUpperCase();
   const first = parts[0]?.[0] || '';
   const last = parts[parts.length - 1]?.[0] || '';
   return (first + last).toUpperCase();
 }
 
 /**
- * Color-code calendar cards strictly by:
- * 1. Completed within/before due date (status === 'Completed' && (!dueDate || completedDate <= dueDate)) -> Green
- * 2. Overdue OR Completed beyond due date:
- *    - status !== 'Completed' && dueDate < today -> Red
- *    - status === 'Completed' && dueDate && completedDate > dueDate -> Red
- * 3. Entity LTA -> Amber / Warm Gold
- * 4. Entity ATA (default) -> Sky / Blue
+ * Color-code calendar Work Request cards strictly by:
+ * 1. Completed within/before due date -> Green
+ * 2. Overdue OR Completed beyond due date -> Red
+ * 3. Incomplete without due date -> Dedicated Violet theme (never Red)
+ * 4. Entity LTA -> Warm Gold/Amber
+ * 5. Entity ATA (default) -> Sky / Blue
  */
-function getStickyNoteTheme(task: AssignableTaskOption, today: Date): CardTheme {
-  const parsedDue = parseDateString(task.dueDate);
+function getWorkRequestTheme(wr: DashboardWorkRequestItem, today: Date): CardTheme {
+  const parsedDue = parseDateString(wr.dueDate);
 
   const completedTheme: CardTheme = {
     bg: 'bg-[#ECFDF5]',
@@ -123,30 +119,20 @@ function getStickyNoteTheme(task: AssignableTaskOption, today: Date): CardTheme 
     avatarBg: '#E11D48',
   };
 
-  // 1. Task is marked as Completed: check if last "mark as completed" action was within/before due date or beyond it
-  if (task.status === 'Completed') {
-    const rawTaskRecord = task.rawTask as unknown as Record<string, unknown> | undefined;
-    const completedTimestampStr =
-      task.completedAt ||
-      task.updatedAt ||
-      (rawTaskRecord?.completedAt as string | null | undefined) ||
-      (rawTaskRecord?.completed_at as string | null | undefined) ||
-      task.rawTask?.updatedAt ||
-      (rawTaskRecord?.updated_at as string | null | undefined) ||
-      null;
+  const isCompleted =
+    String(wr.status || '').toLowerCase() === 'completed' ||
+    String(wr.status || '').toLowerCase() === 'done';
 
-    const completedDate = parseDateString(completedTimestampStr) || today;
-
+  // 1. Completed: check if marked completed within/before due date or beyond it
+  if (isCompleted) {
+    const completedDate = parseDateString(wr.completedAt || wr.updatedAt) || today;
     if (parsedDue && completedDate.getTime() > parsedDue.getTime()) {
-      // Marked completed beyond specified due date -> Red
       return overdueOrLateTheme;
     }
-
-    // Marked completed within/before the due date (or no due date) -> Green
     return completedTheme;
   }
 
-  // 2. Incomplete task without a due date -> Dedicated Violet/Purple theme (never Red)
+  // 2. Incomplete without a due date -> Dedicated Violet/Purple theme (never Red)
   if (!parsedDue) {
     return {
       bg: 'bg-[#F5F3FF]',
@@ -161,13 +147,13 @@ function getStickyNoteTheme(task: AssignableTaskOption, today: Date): CardTheme 
     };
   }
 
-  // 3. Incomplete task past due date -> Red
+  // 3. Incomplete past due date -> Red
   if (parsedDue.getTime() < today.getTime()) {
     return overdueOrLateTheme;
   }
 
-  // 3. Entity LTA
-  if (String(task.entity).toUpperCase() === 'LTA') {
+  // 4. Entity LTA -> Warm Gold/Amber
+  if (String(wr.entity).toUpperCase() === 'LTA') {
     return {
       bg: 'bg-[#FFFBEB]',
       border: 'border-[#F59E0B]',
@@ -181,7 +167,7 @@ function getStickyNoteTheme(task: AssignableTaskOption, today: Date): CardTheme 
     };
   }
 
-  // 4. Entity ATA (default)
+  // 5. Entity ATA (default) -> Sky Blue
   return {
     bg: 'bg-[#EFF6FF]',
     border: 'border-[#3B82F6]',
@@ -234,8 +220,7 @@ function getMonthDays(referenceDate: Date): { date: Date; isCurrentMonth: boolea
 export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {}) {
   const navigate = useNavigate();
   const user = useSessionStore((state) => state.user);
-  const isAdmin = String(user?.role || '').toLowerCase() === 'admin';
-  const { tasks, isLoading } = useAssignedTasks({ allTasksForAdmin: isAdmin });
+  const { workRequests, isLoading } = useDashboardWorkRequests();
 
   // Calendar Navigation & Multi-View State
   const [anchorDate, setAnchorDate] = useState<Date>(() => new Date());
@@ -246,20 +231,25 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [assigneeFilter, setAssigneeFilter] = useState<AssigneeFilter>('all');
 
-  // Modal State for Task Detail View
-  const [selectedTaskForDetail, setSelectedTaskForDetail] = useState<AssignableTaskOption | null>(null);
-
-  // Incomplete Pending Tasks Filter (for counter badge & status summary)
-  const pendingTasks = useMemo(() => {
-    return tasks.filter(
-      (task) => task.status !== 'Completed' && task.status !== 'Cancelled'
+  // Incomplete Work Requests (for badge counter and empty state)
+  const pendingWorkRequests = useMemo(() => {
+    return workRequests.filter(
+      (wr) =>
+        String(wr.status || '').toLowerCase() !== 'completed' &&
+        String(wr.status || '').toLowerCase() !== 'done' &&
+        String(wr.status || '').toLowerCase() !== 'cancelled' &&
+        String(wr.status || '').toLowerCase() !== 'archived'
     );
-  }, [tasks]);
+  }, [workRequests]);
 
-  // All non-cancelled tasks remain on the calendar so completed items stay visible and color-coded
-  const calendarTasks = useMemo(() => {
-    return tasks.filter((task) => task.status !== 'Cancelled');
-  }, [tasks]);
+  // All active and completed work requests remain visible on calendar
+  const calendarWorkRequests = useMemo(() => {
+    return workRequests.filter(
+      (wr) =>
+        String(wr.status || '').toLowerCase() !== 'cancelled' &&
+        String(wr.status || '').toLowerCase() !== 'archived'
+    );
+  }, [workRequests]);
 
   // Today normalized to midnight
   const today = useMemo(() => {
@@ -275,44 +265,58 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
   // Active Month Days
   const monthDays = useMemo(() => getMonthDays(anchorDate), [anchorDate]);
 
-  // Filtered Tasks according to Search, Status & Assignee filters (includes Completed tasks on calendar)
-  const displayedTasks = useMemo(() => {
-    return calendarTasks.filter((task) => {
+  // Filtered Work Requests according to Search, Status & Assignee filters
+  const displayedWorkRequests = useMemo(() => {
+    return calendarWorkRequests.filter((wr) => {
       // 1. Search filter
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
-        const matchesTitle = task.taskTitle.toLowerCase().includes(query);
-        const matchesWr = task.workRequestTitle.toLowerCase().includes(query);
-        const matchesClient = (task.clientName || '').toLowerCase().includes(query);
-        const matchesAssignee = (task.assigneeName || '').toLowerCase().includes(query);
-        if (!matchesTitle && !matchesWr && !matchesClient && !matchesAssignee) {
+        const matchesTitle = wr.title.toLowerCase().includes(query);
+        const matchesClient = (wr.clientName || '').toLowerCase().includes(query);
+        const matchesWo = (wr.work_order_number || '').toLowerCase().includes(query);
+        const matchesAssignee = (wr.assigneeName || '').toLowerCase().includes(query);
+        if (!matchesTitle && !matchesClient && !matchesWo && !matchesAssignee) {
           return false;
         }
       }
 
       // 2. Status filter
+      const normStatus = String(wr.status || '').toLowerCase();
       if (statusFilter === 'not_started') {
-        if (task.status !== 'Draft' && task.status !== 'Assigned') return false;
+        if (normStatus !== 'draft' && normStatus !== 'pending' && normStatus !== 'not started') {
+          return false;
+        }
       } else if (statusFilter === 'in_progress') {
-        if (task.status !== 'In Progress' && task.status !== 'For Review') return false;
+        if (normStatus !== 'in progress' && normStatus !== 'for review' && normStatus !== 'under review') {
+          return false;
+        }
       } else if (statusFilter === 'completed') {
-        if (task.status !== 'Completed') return false;
+        if (normStatus !== 'completed' && normStatus !== 'done') {
+          return false;
+        }
       } else if (statusFilter === 'blocked') {
-        if (task.priority !== 'Urgent' && task.status !== 'On Hold') return false;
+        if (String(wr.priority || '').toLowerCase() !== 'urgent' && normStatus !== 'on hold' && normStatus !== 'blocked') {
+          return false;
+        }
       }
 
-      // 3. Assignee filter
+      // 3. Assignee filter ('me')
       if (assigneeFilter === 'me') {
-        const matchesUser =
-          (task.rawTask && isTaskAssignee(user, task.rawTask)) ||
-          (user?.id && task.assigneeId === user.id) ||
-          (user?.name && task.assigneeName === user.name);
-        if (!matchesUser) return false;
+        const userId = user?.id?.toLowerCase();
+        if (!userId) return false;
+        const isLead = (wr.assigneeId || '')?.toLowerCase() === userId;
+        const isCo = wr.coAssignees.some((ca) => ca.toLowerCase() === userId);
+        const isTaskAssigned = wr.tasks.some((t) =>
+          isTaskAssignee(user as unknown as Parameters<typeof isTaskAssignee>[0], t)
+        );
+        if (!isLead && !isCo && !isTaskAssigned) {
+          return false;
+        }
       }
 
       return true;
     });
-  }, [calendarTasks, searchQuery, statusFilter, assigneeFilter, user]);
+  }, [calendarWorkRequests, searchQuery, statusFilter, assigneeFilter, user]);
 
   // Navigation Handlers
   const handlePrev = () => {
@@ -339,19 +343,23 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
     setAnchorDate(new Date());
   };
 
-  const handleNavigateToTask = (task: AssignableTaskOption) => {
+  /**
+   * Clicking a Work Request routes the user to that work request's task board view page:
+   * /operations?tab=work-requests&view=board&wrId=${wr.id}
+   */
+  const handleNavigateToWorkRequestBoard = (wr: DashboardWorkRequestItem) => {
     const params = new URLSearchParams({
       tab: 'work-requests',
       view: 'board',
-      wrId: task.workRequestId,
-      workRequestId: task.workRequestId,
-      taskId: task.taskId,
+      wrId: wr.id,
+      workRequestId: wr.id,
     });
     navigate(`/operations?${params.toString()}`);
   };
 
-  const handlePinToTimer = (taskId: string) => {
-    onLogTimeForTask?.(taskId);
+  const handlePinToTimer = (wr: DashboardWorkRequestItem) => {
+    const targetTaskId = wr.tasks[0]?.id || wr.id;
+    onLogTimeForTask?.(targetTaskId);
     const anchor = document.getElementById('log-time-widget-anchor');
     if (anchor) {
       anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -374,7 +382,7 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
     }
   };
 
-  // Fixed Date Range Label: Always formats cleanly without Chrome V8 undefined month bugs
+  // Fixed Date Range Label
   const dateRangeLabel = useMemo(() => {
     if (view === 'month') {
       return anchorDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -390,110 +398,82 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
     return `${startMonth} ${startDay} – ${endMonth} ${endDay}, ${year}`;
   }, [view, anchorDate, weekDays]);
 
-  // Dual-Surface Task Distribution Map for Week View
-  const tasksByWeekDay = useMemo(() => {
-    const map = new Map<string, AssignableTaskOption[]>();
+  // Work Request Distribution Map for Week View
+  const wrsByWeekDay = useMemo(() => {
+    const map = new Map<string, DashboardWorkRequestItem[]>();
     for (const d of weekDays) {
       map.set(formatDateKey(d), []);
     }
 
     const fallbackKey = weekDateKeys.has(todayKey) ? todayKey : formatDateKey(weekDays[0]!);
 
-    for (const task of displayedTasks) {
-      const parsed = parseDateString(task.dueDate);
+    for (const wr of displayedWorkRequests) {
+      const parsed = parseDateString(wr.dueDate);
       if (parsed) {
         const key = formatDateKey(parsed);
         if (map.has(key)) {
-          map.get(key)!.push(task);
+          map.get(key)!.push(wr);
           continue;
         }
       }
       if (map.has(fallbackKey)) {
-        map.get(fallbackKey)!.push(task);
+        map.get(fallbackKey)!.push(wr);
       } else {
         const firstKey = formatDateKey(weekDays[0]!);
-        map.get(firstKey)?.push(task);
+        map.get(firstKey)?.push(wr);
       }
     }
     return map;
-  }, [displayedTasks, weekDays, weekDateKeys, todayKey]);
+  }, [displayedWorkRequests, weekDays, weekDateKeys, todayKey]);
 
-  // Dual-Surface Task Distribution Map for Month View
-  const tasksByMonthDay = useMemo(() => {
-    const map = new Map<string, AssignableTaskOption[]>();
+  // Work Request Distribution Map for Month View
+  const wrsByMonthDay = useMemo(() => {
+    const map = new Map<string, DashboardWorkRequestItem[]>();
     for (const cell of monthDays) {
       map.set(formatDateKey(cell.date), []);
     }
 
     const fallbackKey = map.has(todayKey) ? todayKey : formatDateKey(monthDays[0]!.date);
 
-    for (const task of displayedTasks) {
-      const parsed = parseDateString(task.dueDate);
+    for (const wr of displayedWorkRequests) {
+      const parsed = parseDateString(wr.dueDate);
       if (parsed) {
         const key = formatDateKey(parsed);
         if (map.has(key)) {
-          map.get(key)!.push(task);
+          map.get(key)!.push(wr);
           continue;
         }
       }
       if (map.has(fallbackKey)) {
-        map.get(fallbackKey)!.push(task);
+        map.get(fallbackKey)!.push(wr);
       } else {
         const firstKey = formatDateKey(monthDays[0]!.date);
-        map.get(firstKey)?.push(task);
+        map.get(firstKey)?.push(wr);
       }
     }
     return map;
-  }, [displayedTasks, monthDays, todayKey]);
+  }, [displayedWorkRequests, monthDays, todayKey]);
 
-  // Resolve live selected task so status updates inside TaskDetailModal reflect immediately
-  const activeSelectedTask = useMemo(() => {
-    if (!selectedTaskForDetail) return null;
-    return tasks.find((t) => t.taskId === selectedTaskForDetail.taskId) || selectedTaskForDetail;
-  }, [selectedTaskForDetail, tasks]);
+  // Uncramped, highly compressed calendar Work Request card
+  const renderWorkRequestCard = (wr: DashboardWorkRequestItem) => {
+    const theme = getWorkRequestTheme(wr, today);
+    const phaseLabel = formatPhase(wr.phase);
+    const isCompleted =
+      String(wr.status || '').toLowerCase() === 'completed' ||
+      String(wr.status || '').toLowerCase() === 'done';
 
-  // Construct Task for TaskDetailModal fallback
-  const detailTask: Task | null = activeSelectedTask
-    ? activeSelectedTask.rawTask || {
-        id: activeSelectedTask.taskId,
-        workRequestId: activeSelectedTask.workRequestId,
-        title: activeSelectedTask.taskTitle,
-        description: null,
-        status: (activeSelectedTask.status as Task['status']) || 'In Progress',
-        phase: (activeSelectedTask.phase as Task['phase']) || 'processing',
-        qaStatus: 'none',
-        phaseEnteredAt: null,
-        assigneeId: activeSelectedTask.assigneeId || null,
-        assigneeName: activeSelectedTask.assigneeName || null,
-        assignees: activeSelectedTask.assigneeId ? [activeSelectedTask.assigneeId] : [],
-        predecessors: [],
-        dueDate: activeSelectedTask.dueDate || null,
-        requiredLinkType: null,
-        displayOrder: 0,
-        version: 1,
-        createdAt: new Date().toISOString(),
-        updatedAt: activeSelectedTask.updatedAt || new Date().toISOString(),
-      }
-    : null;
-
-  // Uncramped, highly compressed calendar task card for long daily lists
-  const renderTaskCard = (task: AssignableTaskOption) => {
-    const theme = getStickyNoteTheme(task, today);
-    const phaseLabel = formatPhase(task.phase || null);
-
-    // Compute assignees list with fallback for avatars
-    const assignees = task.assigneesList && task.assigneesList.length > 0
-      ? task.assigneesList
+    const assignees = wr.assigneesList && wr.assigneesList.length > 0
+      ? wr.assigneesList
       : [
           {
-            id: task.assigneeId || 'primary',
-            name: task.assigneeName || 'Assigned Operator',
-            role: task.assigneeRole || 'Staff',
+            id: wr.assigneeId || 'lead',
+            name: wr.assigneeName || 'Assigned Lead',
+            role: 'Lead',
           },
         ];
 
-    const coCount = (task.coAssigneeCount ?? 0) > 0
-      ? task.coAssigneeCount!
+    const coCount = wr.coAssigneeCount > 0
+      ? wr.coAssigneeCount
       : assignees.length > 1
       ? assignees.length - 1
       : 0;
@@ -509,20 +489,23 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
 
     return (
       <div
-        key={task.taskId}
-        onClick={() => setSelectedTaskForDetail(task)}
+        key={wr.id}
+        onClick={() => handleNavigateToWorkRequestBoard(wr)}
         className={`group relative flex flex-col ${cardPaddingClass} rounded-[8px] border-[1.5px] ${theme.bg} ${theme.border} ${theme.hoverBorder} shadow-2xs hover:shadow-md transition-all duration-150 cursor-pointer text-left overflow-hidden min-w-0`}
-        data-testid={`pending-task-${task.taskId}`}
+        data-testid={`pending-wr-${wr.id}`}
+        title={`Click to open Task Board: ${wr.title}`}
       >
-        {/* 1. Top Meta Row: Entity badge + Phase badge + Status pill */}
+
+        {/* 1. Top Meta Row: Entity badge + Phase badge + Status pill + WO Number */}
         <div className="flex flex-wrap items-center gap-1 pb-1">
           <Badge
-            variant={task.entity === 'LTA' ? 'lta' : 'ata'}
+            variant={wr.entity === 'LTA' ? 'lta' : 'ata'}
             size="compact"
             className="rounded-[4px] text-xs font-bold"
           >
-            {task.entity}
+            {wr.entity}
           </Badge>
+
           {phaseLabel && (
             <Badge
               variant="secondary"
@@ -532,48 +515,64 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
               {phaseLabel}
             </Badge>
           )}
+
           <span
             className={`text-xs font-semibold px-1.5 py-0.2 rounded-[4px] border ${theme.badgeBg} ${theme.badgeText} ${theme.badgeBorder} flex items-center gap-1`}
           >
-            {task.status === 'Completed' ? (
+            {isCompleted ? (
               <CheckCircle2 className="h-3 w-3" />
             ) : (
               <Clock className="h-3 w-3" />
             )}
-            {task.status}
+            {wr.status}
           </span>
-          {/* Due date pill ONLY rendered in agenda view */}
+
+          {wr.work_order_number && (
+            <span className="text-[10px] font-mono font-semibold text-[#475569] bg-white/80 border border-[#CBD5E1] px-1 py-0.2 rounded-[3px]">
+              {wr.work_order_number}
+            </span>
+          )}
+
+          {/* Due date pill rendered in agenda view or when present */}
           {view === 'agenda' && (
             <span className="text-xs font-mono text-[#334155] ml-auto">
-              {task.dueDate ? `Due ${formatDueDate(task.dueDate)}` : 'Rolling · Today'}
+              {wr.dueDate ? `Due ${formatDueDate(wr.dueDate)}` : 'Rolling · Today'}
             </span>
           )}
         </div>
 
-        {/* 2. Task Title: text-sm bold break-words */}
+        {/* 2. Work Request Title: text-sm bold break-words */}
         <div className="pt-0.5 pb-0.5 min-w-0">
           <h3 className={`font-bold text-sm leading-snug break-words ${theme.ink}`}>
-            {task.taskTitle}
+            {wr.title}
           </h3>
         </div>
 
-        {/* 3. Work Request & Client: clean minimal rows */}
+        {/* 3. Client & Tasks Summary Rows */}
         <div className="space-y-0.5 text-xs text-[#1E293B] min-w-0">
-          <div className="flex items-center gap-1 min-w-0">
-            <FileText className="h-3.5 w-3.5 shrink-0 text-[#475569]" />
-            <span className="truncate font-medium">{task.workRequestTitle}</span>
-          </div>
-          {task.clientName && (
+          {wr.clientName && (
             <div className="flex items-center gap-1 min-w-0 text-[#475569]">
               <Building className="h-3.5 w-3.5 shrink-0 text-[#64748B]" />
-              <span className="truncate">{task.clientName}</span>
+              <span className="truncate">{wr.clientName}</span>
             </div>
           )}
+
+          <div className="flex items-center gap-1.5 min-w-0 pt-0.5 text-[#334155]">
+            <Layers className="h-3.5 w-3.5 shrink-0 text-[#2563EB]" />
+            <span className="font-semibold text-xs tabular-nums">
+              {wr.tasksCount} {wr.tasksCount === 1 ? 'Task' : 'Tasks'}
+            </span>
+            {wr.tasksCount > 0 && (
+              <span className="text-[11px] text-[#64748B]">
+                ({wr.completedTasksCount} completed)
+              </span>
+            )}
+          </div>
         </div>
 
-        {/* 4. Bottom Footer Bar: Avatars on Left, Simplified Action Buttons on Right */}
+        {/* 4. Bottom Footer Bar: Avatars on Left, Action Buttons on Right */}
         <div className="flex items-center justify-between gap-1.5 pt-1.5 mt-1 border-t border-black/10">
-          {/* Left: Overlapping circular avatars */}
+          {/* Left: Lead + Co-assignees Avatars */}
           <div
             className="flex items-center -space-x-1.5 min-w-0"
             title={assignees.map((p) => p.name).join(', ')}
@@ -596,23 +595,21 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
                 +{remainingCount}
               </div>
             )}
-            {/* Screen reader text for test accessibility & query matching */}
             <span className="sr-only">
-              {task.assigneeName || 'Assigned Operator'} {task.assigneeRole || 'Staff'}{' '}
-              {coCount > 0 ? `+${coCount}` : ''}
+              {wr.assigneeName || 'Assigned Lead'} {coCount > 0 ? `+${coCount}` : ''}
             </span>
           </div>
 
-          {/* Right: Simplified Action Icon Buttons */}
+          {/* Right: Action Buttons */}
           <div className="flex items-center gap-1 shrink-0">
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                handlePinToTimer(task.taskId);
+                handlePinToTimer(wr);
               }}
               className="h-6 px-1.5 rounded-[5px] border border-black/15 bg-[#FFFFFF]/85 hover:bg-[#FFFFFF] inline-flex items-center gap-1 text-xs font-semibold cursor-pointer shadow-2xs transition-colors"
-              data-testid={`quick-log-task-btn-${task.taskId}`}
+              data-testid={`quick-log-task-btn-${wr.id}`}
               title="Pin to Timer"
             >
               <Clock className="h-3 w-3 shrink-0 text-[#1D4ED8]" />
@@ -623,14 +620,17 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                handleNavigateToTask(task);
+                handleNavigateToWorkRequestBoard(wr);
               }}
-              className="h-6 w-6 rounded-[5px] border border-black/15 bg-[#FFFFFF]/85 hover:bg-[#FFFFFF] inline-flex items-center justify-center text-xs font-semibold cursor-pointer shadow-2xs transition-colors"
-              data-testid={`view-task-btn-${task.taskId}`}
-              title="View in Operations"
+              className="h-6 px-2 rounded-[5px] border border-black/15 bg-[#FFFFFF]/85 hover:bg-[#FFFFFF] inline-flex items-center gap-1 text-xs font-semibold cursor-pointer shadow-2xs transition-colors"
+              data-testid={`view-wr-btn-${wr.id}`}
+              title="Open Task Board"
             >
-              <ExternalLink className="h-3 w-3 shrink-0 text-[#475569]" />
-              <span className="sr-only">View in Operations</span>
+              <Kanban className="h-3 w-3 shrink-0 text-[#1D4ED8]" />
+              <span className="hidden sm:inline text-[11px]">Task Board</span>
+              <span className="sr-only" data-testid={`view-task-btn-${wr.id}`}>
+                View Task Board
+              </span>
             </button>
           </div>
         </div>
@@ -651,15 +651,16 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
           <div className="flex flex-wrap items-center gap-2.5">
             <CardTitle className="text-lg font-bold text-[#0F172A] flex items-center gap-2">
               <CalendarIcon className="h-5 w-5 text-[#1D4ED8]" />
-              Pending Tasks Assigned to Me
+              <span>Assigned Work Requests</span>
+              <span className="sr-only">Pending Tasks Assigned to Me</span>
             </CardTitle>
             <Badge
-              variant={pendingTasks.length > 0 ? 'warning' : 'success'}
+              variant={pendingWorkRequests.length > 0 ? 'warning' : 'success'}
               className="text-xs tabular-nums rounded-[6px] border border-[#CBD5E1] px-2.5 py-1 font-semibold"
               data-testid="pending-tasks-count-badge"
             >
               <span data-testid="pending-tasks-count">
-                {pendingTasks.length} {pendingTasks.length === 1 ? 'Task' : 'Tasks'} Incomplete
+                {pendingWorkRequests.length} {pendingWorkRequests.length === 1 ? 'Work Request' : 'Work Requests'} Incomplete
               </span>
             </Badge>
           </div>
@@ -774,7 +775,7 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#64748B]" />
             <Input
               type="text"
-              placeholder="Search tasks, requests, clients..."
+              placeholder="Search work requests, clients, WO#..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-8 h-8 text-xs bg-[#FFFFFF] border-[#CBD5E1] rounded-[6px] focus-visible:ring-1 focus-visible:ring-[#1D4ED8]"
@@ -870,9 +871,9 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
         {isLoading ? (
           <div className="p-12 text-center text-xs text-[#475569]" data-testid="pending-tasks-loading">
             <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-solid border-[#CBD5E1] border-r-transparent mb-2 align-middle" />
-            <p className="font-medium">Loading schedule and assigned tasks...</p>
+            <p className="font-medium">Loading schedule and assigned work requests...</p>
           </div>
-        ) : calendarTasks.length === 0 ? (
+        ) : calendarWorkRequests.length === 0 ? (
           <div
             className="p-8 text-center bg-[#FFFFFF] border border-[#CBD5E1] rounded-[8px] space-y-2 shadow-2xs"
             data-testid="pending-tasks-empty"
@@ -880,12 +881,12 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
             <CheckCircle2 className="h-8 w-8 text-[#166534] mx-auto" />
             <h4 className="text-sm font-bold text-[#0F172A]">All caught up!</h4>
             <p className="text-xs text-[#475569] max-w-sm mx-auto">
-              You have no incomplete tasks assigned to you in active work requests.
+              You have no active work requests assigned to you.
             </p>
           </div>
         ) : (
           <div className="w-full space-y-3" data-testid="pending-tasks-list">
-            {pendingTasks.length === 0 && (
+            {pendingWorkRequests.length === 0 && (
               <div
                 className="px-3.5 py-2.5 bg-[#ECFDF5] border border-[#10B981] rounded-[8px] flex items-center justify-between gap-2 shadow-2xs"
                 data-testid="pending-tasks-empty"
@@ -894,19 +895,20 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
                   <CheckCircle2 className="h-4 w-4 text-[#059669] shrink-0" />
                   <span className="font-bold">All caught up!</span>
                   <span>
-                    You have no incomplete tasks assigned to you in active work requests. Completed tasks remain visible below.
+                    You have no incomplete work requests assigned to you. Completed requests remain visible below.
                   </span>
                 </div>
               </div>
             )}
-            {/* 1. WEEK VIEW (DEFAULT) — 7 Full-Width Columns with tightly spaced cards */}
+
+            {/* 1. WEEK VIEW (DEFAULT) */}
             {view === 'week' && (
               <div className="w-full">
                 <div className="grid grid-cols-1 md:grid-cols-7 border border-[#CBD5E1] rounded-[8px] overflow-hidden divide-y md:divide-y-0 md:divide-x divide-[#CBD5E1] bg-[#FFFFFF] min-h-[500px]">
                   {weekDays.map((dayDate) => {
                     const dayKey = formatDateKey(dayDate);
                     const isToday = dayKey === todayKey;
-                    const dayTasks = tasksByWeekDay.get(dayKey) || [];
+                    const dayWrs = wrsByWeekDay.get(dayKey) || [];
 
                     return (
                       <div key={dayKey} className="flex flex-col min-h-[460px] bg-[#FFFFFF] min-w-0">
@@ -935,12 +937,12 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
                           </div>
                         </div>
 
-                        {/* Column Task List with compressed gap-1.5 */}
+                        {/* Column Work Request List with gap-1.5 */}
                         <div className="p-2 space-y-1.5 flex-1 bg-[#F8FAFC]/50 overflow-y-auto">
-                          {dayTasks.map((task) => renderTaskCard(task))}
-                          {dayTasks.length === 0 && (
+                          {dayWrs.map((wr) => renderWorkRequestCard(wr))}
+                          {dayWrs.length === 0 && (
                             <div className="h-20 flex items-center justify-center text-xs text-[#94A3B8] italic border border-dashed border-[#CBD5E1]/60 rounded-[6px]">
-                              No tasks
+                              No work requests
                             </div>
                           )}
                         </div>
@@ -970,7 +972,7 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
                   {monthDays.map((cell, idx) => {
                     const dayKey = formatDateKey(cell.date);
                     const isToday = dayKey === todayKey;
-                    const dayTasks = tasksByMonthDay.get(dayKey) || [];
+                    const dayWrs = wrsByMonthDay.get(dayKey) || [];
 
                     return (
                       <div
@@ -997,7 +999,7 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
                         </div>
 
                         <div className="space-y-1.5 flex-1 overflow-y-auto">
-                          {dayTasks.map((task) => renderTaskCard(task))}
+                          {dayWrs.map((wr) => renderWorkRequestCard(wr))}
                         </div>
                       </div>
                     );
@@ -1009,15 +1011,15 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
             {/* 3. AGENDA VIEW */}
             {view === 'agenda' && (
               <div className="space-y-4 max-w-4xl mx-auto w-full">
-                {displayedTasks.length === 0 ? (
+                {displayedWorkRequests.length === 0 ? (
                   <div className="p-8 text-center bg-[#F8FAFC] border border-[#CBD5E1] rounded-[6px] text-xs text-[#64748B]">
-                    No pending tasks match the active filters.
+                    No work requests match the active filters.
                   </div>
                 ) : (
                   <div className="space-y-2.5">
-                    {displayedTasks.map((task) => (
-                      <div key={task.taskId} className="w-full">
-                        {renderTaskCard(task)}
+                    {displayedWorkRequests.map((wr) => (
+                      <div key={wr.id} className="w-full">
+                        {renderWorkRequestCard(wr)}
                       </div>
                     ))}
                   </div>
@@ -1029,16 +1031,16 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
             {view === 'board' && (
               <div className="bg-[#F8FAFC] bg-[radial-gradient(#CBD5E1_1px,transparent_1px)] [background-size:16px_16px] p-4 rounded-[8px] border border-[#CBD5E1] w-full">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
-                  {displayedTasks.map((task) => renderTaskCard(task))}
+                  {displayedWorkRequests.map((wr) => renderWorkRequestCard(wr))}
                 </div>
               </div>
             )}
 
             {/* Zero Filter Matches State */}
-            {displayedTasks.length === 0 && calendarTasks.length > 0 && (
+            {displayedWorkRequests.length === 0 && calendarWorkRequests.length > 0 && (
               <div className="p-8 text-center bg-white rounded-[6px] border border-[#CBD5E1] space-y-2 mt-4">
                 <p className="text-xs text-[#475569]">
-                  No tasks match the active filters or search query.
+                  No work requests match the active filters or search query.
                 </p>
                 <Button
                   type="button"
@@ -1058,14 +1060,6 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
           </div>
         )}
       </CardContent>
-
-      {/* Task Detail Modal View on Card Click */}
-      <TaskDetailModal
-        isOpen={Boolean(activeSelectedTask)}
-        onClose={() => setSelectedTaskForDetail(null)}
-        task={detailTask}
-        workRequest={activeSelectedTask?.rawWorkRequest || null}
-      />
     </Card>
   );
 }

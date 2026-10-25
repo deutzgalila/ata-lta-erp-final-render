@@ -298,7 +298,7 @@ describe('Dashboard Widgets (LogTimeWidget & DashboardPage)', () => {
       });
     });
 
-    it('renders assigned incomplete tasks with entity and phase badges, and filters out unassigned tasks', async () => {
+    it('renders assigned incomplete work requests with entity and phase badges, and filters out unassigned work requests', async () => {
       vi.spyOn(api, 'apiRequest').mockImplementation(async (path: string) => {
         if (path.includes('/operations/work-requests')) return sampleTasksResponse as never;
         return { data: [] } as never;
@@ -307,21 +307,21 @@ describe('Dashboard Widgets (LogTimeWidget & DashboardPage)', () => {
       render(<PendingTasksCard />, { wrapper: createWrapper() });
 
       expect(screen.getByTestId('pending-tasks-card')).toBeInTheDocument();
-      expect(screen.getByText('Pending Tasks Assigned to Me')).toBeInTheDocument();
+      expect(screen.getByText('Assigned Work Requests')).toBeInTheDocument();
 
-      // Assigned task should appear
-      const taskItem = await screen.findByTestId('pending-task-task-assigned-1');
-      expect(taskItem).toBeInTheDocument();
-      expect(screen.getByText('Gather BIR Form 2307')).toBeInTheDocument();
+      // Assigned Work Request should appear
+      const wrItem = await screen.findByTestId('pending-wr-wr-1');
+      expect(wrItem).toBeInTheDocument();
       expect(screen.getByText('Tax Compliance 2026')).toBeInTheDocument();
+      expect(screen.getByText('Acme Corp')).toBeInTheDocument();
       expect(screen.getByText('Processing')).toBeInTheDocument();
-      expect(screen.getByTestId('view-task-btn-task-assigned-1')).toBeInTheDocument();
+      expect(screen.getByTestId('view-wr-btn-wr-1')).toBeInTheDocument();
 
-      // Unassigned task should NOT appear
-      expect(screen.queryByTestId('pending-task-task-unassigned-2')).not.toBeInTheDocument();
+      // Only Work Request themselves are shown, not separate task cards
+      expect(screen.queryByTestId('pending-wr-wr-unassigned')).not.toBeInTheDocument();
     });
 
-    it('renders empty state when there are no incomplete tasks', async () => {
+    it('renders empty state when there are no incomplete work requests', async () => {
       vi.spyOn(api, 'apiRequest').mockImplementation(async (path: string) => {
         if (path.includes('/operations/work-requests')) {
           return {
@@ -329,6 +329,8 @@ describe('Dashboard Widgets (LogTimeWidget & DashboardPage)', () => {
               {
                 id: 'wr-empty',
                 title: 'Finished WR',
+                status: 'Completed',
+                assigned_to: 'user-worker',
                 tasks: [
                   {
                     id: 'task-completed-1',
@@ -350,51 +352,48 @@ describe('Dashboard Widgets (LogTimeWidget & DashboardPage)', () => {
         expect(screen.getByTestId('pending-tasks-empty')).toBeInTheDocument();
       });
       expect(screen.getByText('All caught up!')).toBeInTheDocument();
-      // Completed task remains visible on the calendar
-      expect(screen.getByTestId('pending-task-task-completed-1')).toBeInTheDocument();
+      // Completed work request remains visible on the calendar
+      expect(screen.getByTestId('pending-wr-wr-empty')).toBeInTheDocument();
     });
 
-    it('color-codes completed tasks green when completed on/before due date and red when completed beyond due date or overdue', async () => {
+    it('color-codes work requests green when completed on/before due date and red when completed beyond due date or overdue', async () => {
       vi.spyOn(api, 'apiRequest').mockImplementation(async (path: string) => {
         if (path.includes('/operations/work-requests')) {
           return {
             data: [
               {
-                id: 'wr-colors',
-                title: 'Schedule Color Rules WR',
-                tasks: [
-                  {
-                    id: 'task-completed-ontime',
-                    title: 'Completed On Time Task',
-                    assignee_id: 'user-worker',
-                    status: 'Completed',
-                    due_date: '2026-10-25',
-                    updated_at: '2026-10-20T10:00:00.000Z',
-                  },
-                  {
-                    id: 'task-completed-late',
-                    title: 'Completed Late Task',
-                    assignee_id: 'user-worker',
-                    status: 'Completed',
-                    due_date: '2026-10-15',
-                    updated_at: '2026-10-20T10:00:00.000Z',
-                  },
-                  {
-                    id: 'task-overdue-incomplete',
-                    title: 'Overdue Incomplete Task',
-                    assignee_id: 'user-worker',
-                    status: 'In Progress',
-                    due_date: '2020-01-01',
-                  },
-                  {
-                    id: 'task-no-due-date',
-                    title: 'Unscheduled Task Without Due Date',
-                    assignee_id: 'user-worker',
-                    status: 'In Progress',
-                    due_date: null,
-                  },
-                ],
+                id: 'wr-completed-ontime',
+                title: 'Completed On Time WR',
+                assigned_to: 'user-worker',
+                status: 'Completed',
+                due_date: '2026-10-25',
+                updated_at: '2026-10-20T10:00:00.000Z',
+                tasks: [],
+              },
+              {
+                id: 'wr-completed-late',
+                title: 'Completed Late WR',
+                assigned_to: 'user-worker',
+                status: 'Completed',
+                due_date: '2026-10-15',
+                updated_at: '2026-10-20T10:00:00.000Z',
+                tasks: [],
+              },
+              {
+                id: 'wr-overdue-incomplete',
+                title: 'Overdue Incomplete WR',
+                assigned_to: 'user-worker',
+                status: 'In Progress',
                 due_date: '2020-01-01',
+                tasks: [],
+              },
+              {
+                id: 'wr-no-due-date',
+                title: 'Unscheduled WR Without Due Date',
+                assigned_to: 'user-worker',
+                status: 'In Progress',
+                due_date: null,
+                tasks: [],
               },
             ],
           } as never;
@@ -404,10 +403,10 @@ describe('Dashboard Widgets (LogTimeWidget & DashboardPage)', () => {
 
       render(<PendingTasksCard />, { wrapper: createWrapper() });
 
-      const onTimeCard = await screen.findByTestId('pending-task-task-completed-ontime');
-      const lateCard = await screen.findByTestId('pending-task-task-completed-late');
-      const overdueCard = await screen.findByTestId('pending-task-task-overdue-incomplete');
-      const noDueCard = await screen.findByTestId('pending-task-task-no-due-date');
+      const onTimeCard = await screen.findByTestId('pending-wr-wr-completed-ontime');
+      const lateCard = await screen.findByTestId('pending-wr-wr-completed-late');
+      const overdueCard = await screen.findByTestId('pending-wr-wr-overdue-incomplete');
+      const noDueCard = await screen.findByTestId('pending-wr-wr-no-due-date');
 
       // Completed on/before due date -> Green
       expect(onTimeCard.className).toContain('bg-[#ECFDF5]');
@@ -421,7 +420,7 @@ describe('Dashboard Widgets (LogTimeWidget & DashboardPage)', () => {
       expect(overdueCard.className).toContain('bg-[#FFF1F2]');
       expect(overdueCard.className).toContain('border-[#F43F5E]');
 
-      // Task without due date -> Dedicated Violet theme (never Red)
+      // Work Request without due date -> Dedicated Violet theme (never Red)
       expect(noDueCard.className).toContain('bg-[#F5F3FF]');
       expect(noDueCard.className).toContain('border-[#8B5CF6]');
       expect(noDueCard.className).not.toContain('bg-[#FFF1F2]');

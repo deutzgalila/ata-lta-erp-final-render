@@ -64,21 +64,20 @@ export function DisbursementWorkspace({
           data-testid="disbursement-workspace-detail"
         >
           {detailCollapsed ? (
-            <div className="flex flex-col items-center py-2 px-1 h-full">
+            <div className="flex flex-col items-center py-2 px-1 h-full w-full">
               <Button
                 type="button"
                 variant="ghost"
-                size="sm"
                 onClick={onToggleDetail}
                 aria-expanded={false}
                 aria-controls="disbursement-detail-pane"
-                className="w-full py-2 px-1 text-xs font-semibold text-muted hover:text-ink hover:bg-hover/60 rounded-[4px] flex flex-col items-center gap-2 cursor-pointer transition-colors"
+                className="h-auto w-full py-3 px-1 text-xs font-semibold text-muted hover:text-ink hover:bg-hover/60 rounded-[4px] flex flex-col items-center gap-2.5 cursor-pointer transition-colors"
                 data-testid="disb-toggle-detail"
                 aria-label="Show details"
                 title="Show details"
               >
                 <PanelRightOpen className="h-4 w-4 text-primary shrink-0" />
-                <span className="[writing-mode:vertical-rl] text-xs font-semibold tracking-wide select-none">
+                <span className="[writing-mode:vertical-rl] text-[11px] font-semibold tracking-wider text-text-secondary uppercase select-none leading-normal">
                   Show details
                 </span>
               </Button>

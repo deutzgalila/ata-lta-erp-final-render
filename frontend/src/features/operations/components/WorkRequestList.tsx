@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Search,
   Filter,
@@ -93,8 +94,16 @@ export function WorkRequestList({
   // View mode: Table vs Compact Card List
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
 
-  // Side Peek state (UAT-GEN2)
-  const [peekWrId, setPeekWrId] = useState<string | null>(null);
+  // Side Peek state (UAT-GEN2), synced with URL search params
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlPeekWrId = searchParams.get('peekWrId');
+  const [peekWrId, setPeekWrId] = useState<string | null>(() => urlPeekWrId || null);
+
+  useEffect(() => {
+    if (urlPeekWrId && urlPeekWrId !== peekWrId) {
+      setPeekWrId(urlPeekWrId);
+    }
+  }, [urlPeekWrId, peekWrId]);
 
   // Filters State
   const [searchInput, setSearchInput] = useState('');
@@ -1259,7 +1268,19 @@ export function WorkRequestList({
       <WorkRequestSidePeek
         isOpen={Boolean(peekWrId)}
         workRequestId={peekWrId}
-        onClose={() => setPeekWrId(null)}
+        onClose={() => {
+          setPeekWrId(null);
+          if (searchParams.has('peekWrId')) {
+            setSearchParams(
+              (prev) => {
+                const next = new URLSearchParams(prev);
+                next.delete('peekWrId');
+                return next;
+              },
+              { replace: true }
+            );
+          }
+        }}
         onEdit={onEdit}
         onViewInBoard={onViewDetails}
       />

@@ -14,6 +14,7 @@ import {
   Plus,
   MoreVertical,
   Trash2,
+  PanelRightOpen,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -76,6 +77,7 @@ const PHASES: Array<{ id: Phase; label: string; number: number }> = [
 export interface PhaseKanbanBoardProps {
   initialWorkRequestId?: string;
   onEditWorkRequest?: (wr: WorkRequest) => void;
+  onBackToSidePeek?: (wrId: string) => void;
 }
 
 interface PhaseKanbanBoardInnerProps extends PhaseKanbanBoardProps {
@@ -86,6 +88,7 @@ interface PhaseKanbanBoardInnerProps extends PhaseKanbanBoardProps {
 function PhaseKanbanBoardInner({
   initialWorkRequestId,
   onEditWorkRequest,
+  onBackToSidePeek,
   searchParams,
   setSearchParams,
 }: PhaseKanbanBoardInnerProps) {
@@ -451,18 +454,20 @@ function PhaseKanbanBoardInner({
               <Badge variant={activeWr.entity === 'LTA' ? 'lta' : 'ata'} size="compact">
                 {activeWr.entity}
               </Badge>
-              <Badge
-                variant={
-                  activeWr.priority === 'Urgent'
-                    ? 'destructive'
-                    : activeWr.priority === 'High'
-                      ? 'warning'
-                      : 'secondary'
-                }
-                size="compact"
-              >
-                {activeWr.priority.endsWith('Priority') ? activeWr.priority : `${activeWr.priority} Priority`}
-              </Badge>
+              {activeWr.priority && (
+                <Badge
+                  variant={
+                    activeWr.priority === 'Urgent'
+                      ? 'destructive'
+                      : activeWr.priority === 'High'
+                        ? 'warning'
+                        : 'secondary'
+                  }
+                  size="compact"
+                >
+                  {activeWr.priority.endsWith('Priority') ? activeWr.priority : `${activeWr.priority} Priority`}
+                </Badge>
+              )}
               {(() => {
                 const phaseInfo = getPhaseBadgeInfo(activeWr.phase);
                 const statusInfo = getStatusBadgeInfo(activeWr.status);
@@ -501,6 +506,33 @@ function PhaseKanbanBoardInner({
 
         <div className="flex items-center gap-2">
           {effectiveWrId && <PresenceAvatars roomId={effectiveWrId} />}
+          {activeWr && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (onBackToSidePeek) {
+                  onBackToSidePeek(activeWr.id);
+                } else {
+                  setSearchParams((prev) => {
+                    const next = new URLSearchParams(prev);
+                    next.set('tab', 'work-requests');
+                    next.set('view', 'list');
+                    next.set('peekWrId', activeWr.id);
+                    next.delete('wrId');
+                    return next;
+                  });
+                }
+              }}
+              className="text-xs tracking-normal rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] text-[#1E293B] gap-1.5 cursor-pointer shadow-2xs"
+              data-testid="kanban-back-sidepeek-btn"
+              title="Go back to Work Request Side Peek"
+            >
+              <PanelRightOpen className="h-3.5 w-3.5 text-[#475569]" />
+              Work Request Details
+            </Button>
+          )}
           {activeWr && canEdit && activeWr.status !== 'Completed' && activeWr.phase !== 'completion' && (
             <Button
               type="button"
@@ -510,7 +542,7 @@ function PhaseKanbanBoardInner({
                 if (onEditWorkRequest) onEditWorkRequest(activeWr);
                 else setIsEditModalOpen(true);
               }}
-              className="text-xs tracking-normal rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] text-[#1E293B] gap-1.5"
+              className="text-xs tracking-normal rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] text-[#1E293B] gap-1.5 cursor-pointer shadow-2xs"
               data-testid="kanban-edit-wr-btn"
             >
               <Edit3 className="h-3.5 w-3.5 text-[#475569]" />

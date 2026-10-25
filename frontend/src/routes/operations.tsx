@@ -482,6 +482,16 @@ export default function OperationsPage() {
                 setEditingWr(wr);
                 setIsCreateModalOpen(true);
               }}
+              onBackToSidePeek={(wrId) => {
+                setSearchParams((prev) => {
+                  const next = new URLSearchParams(prev);
+                  next.set('tab', 'work-requests');
+                  next.set('view', 'list');
+                  next.set('peekWrId', wrId);
+                  next.delete('wrId');
+                  return next;
+                });
+              }}
             />
           )}
         </TabsContent>
