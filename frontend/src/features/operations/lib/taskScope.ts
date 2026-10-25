@@ -119,14 +119,11 @@ export function isManagerWithOperations(user: UserProfile | null | undefined): b
 
 /**
  * Only the assigned employee (or Admin) can mark task as In Progress or Complete.
- * Non-Admin Accounting users can only mutate status on 'billing' tasks assigned to them.
+ * Assignment grants status access regardless of department or required link type.
  */
 export function canMutateTaskStatus(user: UserProfile | null | undefined, task: Task | null | undefined): boolean {
   if (!user || !task) return false;
   if (isUserAdmin(user)) return true;
-  if (isUserAccounting(user)) {
-    return isTaskAssignee(user, task) && isBillingTask(task);
-  }
   return isTaskAssignee(user, task);
 }
 
