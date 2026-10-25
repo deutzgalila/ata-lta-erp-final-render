@@ -12,10 +12,12 @@ const { getSignedUploadUrl, getSignedDownloadUrl } = require('../../services/sto
 const auditService = require('../../services/auditService');
 const AppError = require('../../lib/AppError');
 const { getUserConcernedWorkRequestIds, fetchInPages } = require('../../lib/userScope');
-const { resolveTrustedUser } = require('../../lib/taskAssignment');
+const { resolveTrustedUser, isUserAssignedToTask } = require('../../lib/taskAssignment');
+const { buildPermissionSet, hasPermission } = require('../../lib/permissions');
 const {
   validateRecordProjectLinkage,
   filterValidProjectRecords,
+  resolveExistingStoredTaskId,
 } = require('../../lib/projectLinkage');
 
 const isDisbursementReceiptDoc = (d) => {
@@ -27,6 +29,16 @@ const isDisbursementReceiptDoc = (d) => {
   const docType = (d.document_type || '').toLowerCase();
   if (docType === 'disbursement_receipt' || docType === 'disbursement receipt') return true;
   return false;
+};
+
+// Task comments belong to the task's assignees, regardless of department.
+// Standalone documents retain the existing DMS edit rule.
+const canCommentOnDocument = async (document, user) => {
+  if (!user?.id) return false;
+  if (user.role === 'Admin') return true;
+  const taskId = resolveExistingStoredTaskId(document);
+  if (taskId) return isUserAssignedToTask(taskId, user.id);
+  return hasPermission(buildPermissionSet(user), 'dms:edit');
 };
 
 /**
@@ -393,7 +405,8 @@ const getDocumentById = async ({ entityId, id, user, internal = false }) => {
   }
 
   const [enriched] = await enrichDocuments([data]);
-  return enriched || data;
+  const document = enriched || data;
+  return internal ? document : { ...document, can_comment: await canCommentOnDocument(document, user) };
 };
 
 const resolveDocumentCaller = async ({ user, userId, caller, internal }) => {
@@ -743,7 +756,17 @@ const mutateDocumentComment = async ({ entityId, id, commentId, user, text, acti
       detail: 'Authentication required to mutate document comments',
     });
   }
-  await getDocumentById({ entityId, id, user, internal: false });
+  const document = await getDocumentById({ entityId, id, user, internal: false });
+  if (!document.can_comment) {
+    throw new AppError({
+      statusCode: 403,
+      title: 'Forbidden',
+      detail: document.linked_task_id
+        ? 'You must be assigned to this task to comment on its documents.'
+        : 'Document edit permission is required to comment.',
+      code: 'DOCUMENT_COMMENT_FORBIDDEN',
+    });
+  }
 
   const { data, error } = await supabaseAdmin.rpc('mutate_document_comment', {
     p_entity_id: entityId,
@@ -761,7 +784,7 @@ const mutateDocumentComment = async ({ entityId, id, commentId, user, text, acti
       detail: statusCode === 500 ? 'Failed to save document comment' : error.message,
     });
   }
-  return data;
+  return { ...data, can_comment: true };
 };
 const addDocumentComment = (params) => mutateDocumentComment({ ...params, action: 'add' });
 const updateDocumentComment = (params) => mutateDocumentComment({ ...params, action: 'edit' });
