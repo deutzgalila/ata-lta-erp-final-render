@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import { useSessionStore } from '@/lib/session';
@@ -161,6 +161,19 @@ describe('TaskDetailModal Document Linking & Query Invalidation', () => {
 
   const wrapper = ({ children }: { children: React.ReactNode }) =>
     React.createElement(QueryClientProvider, { client: queryClient }, children);
+
+  it.each(['taskAssignees', 'task_assignees'] as const)('identifies every co-assignee in the summary using %s names without the team directory', (key) => {
+    const task: Task = { ...mockTask, assignees: ['user-admin'], taskAssignees: [],
+      [key]: ['co-one', 'co-two'].map((userId, index) => ({ taskId: mockTask.id, userId,
+        assignedBy: null, assignedAt: null, userName: ['Twinkle Marquez', 'Alexandra Long Surname'][index] })) };
+    render(<TaskDetailModal isOpen onClose={vi.fn()} task={task} workRequest={mockWr} />, { wrapper });
+    const summary = screen.getByTestId('task-co-assignees');
+    expect(within(summary).getByText('Twinkle Marquez')).toBeInTheDocument();
+    expect(within(summary).getByText('Alexandra Long Surname')).toBeInTheDocument();
+    expect(within(summary).getAllByRole('listitem')).toHaveLength(2);
+    expect(summary).not.toHaveTextContent('Lorein Wong');
+    expect(screen.queryByText(/\+2 co-assignees/)).not.toBeInTheDocument();
+  });
 
   it('passes defaultTaskId={task.id} to DocumentUploadModal when opening upload modal from task', async () => {
     render(
