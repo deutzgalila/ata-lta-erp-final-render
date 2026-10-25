@@ -17,7 +17,6 @@ import { DISBURSEMENT_CATEGORIES, FUND_SOURCES } from '../api/schemas';
 import {
   useCreateDisbursement,
   uploadReceiptFile,
-  normalizeReceiptMimeType,
   isValidReceiptMimeType,
 } from '../api/useDisbursements';
 import { apiRequest, ApiError } from '@/lib/api';

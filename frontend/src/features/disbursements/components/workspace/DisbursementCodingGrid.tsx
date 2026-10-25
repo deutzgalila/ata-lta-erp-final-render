@@ -291,7 +291,7 @@ export function DisbursementCodingGrid({
 
   const effectiveWrOrder =
     disbursement?.linked_work_request_order_number ||
-    linkedWrDetail?.work_order_number ||
+    (linkedWrDetail as { work_order_number?: string | null } | undefined)?.work_order_number ||
     null;
   const effectiveWrName =
     disbursement?.linked_work_request_name ||

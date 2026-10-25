@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   normalizeReceiptMimeType,
   isValidReceiptMimeType,
@@ -123,7 +123,7 @@ describe('Receipt MIME Normalization & DMS Isolation', () => {
 
     it('passes entity header when entity is provided in options', async () => {
       let capturedHeaders: Record<string, string> = {};
-      global.fetch = vi.fn().mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      global.fetch = vi.fn().mockImplementation(async (_input: RequestInfo | URL, init?: RequestInit) => {
         const headers = init?.headers as Record<string, string> || {};
         capturedHeaders = { ...headers };
         return {

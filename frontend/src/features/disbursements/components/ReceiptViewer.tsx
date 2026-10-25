@@ -90,7 +90,7 @@ export function ReceiptViewer({
       created_at: new Date().toISOString(),
       work_request_title: workRequestTitle || undefined,
       comments: [],
-    } as DmsDocument;
+    } as unknown as DmsDocument;
   }, [receiptData?.url, receiptData?.contentType, fileName, isPdf, receiptS3Key, workRequestTitle]);
 
   const handleZoomIn = () => {
