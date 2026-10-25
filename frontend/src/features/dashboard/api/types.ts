@@ -264,3 +264,28 @@ export interface AssignableTaskOption {
   rawTask?: Task;
   rawWorkRequest?: WorkRequest;
 }
+
+export interface DashboardWorkRequestItem {
+  id: string;
+  title: string;
+  work_order_number?: string | null;
+  entity: string;
+  status: string;
+  phase: string | null;
+  clientId?: string | null;
+  clientName?: string | null;
+  assigneeId?: string | null;
+  assigneeName?: string | null;
+  assigneeRole?: string | null;
+  coAssignees: string[];
+  coAssigneeCount: number;
+  dueDate: string | null;
+  updatedAt: string | null;
+  completedAt?: string | null;
+  priority: string | null;
+  tasksCount: number;
+  completedTasksCount: number;
+  tasks: Task[];
+  rawWorkRequest: WorkRequest;
+  assigneesList: Array<{ id: string; name: string; role?: string }>;
+}

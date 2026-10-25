@@ -269,6 +269,8 @@ export interface WorkRequest {
   assigned_to_name?: string | null;
   coAssignees: string[];
   dueDate: string | null;
+  work_order_number?: string | null;
+  workOrderNumber?: string | null;
   createdAt: string;
   updatedAt: string;
   version: number;

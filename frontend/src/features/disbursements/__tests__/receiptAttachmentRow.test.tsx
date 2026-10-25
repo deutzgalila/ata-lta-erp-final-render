@@ -23,7 +23,7 @@ describe('Receipt attachment row', () => {
     expect(screen.getByTestId('receipt-file-name')).toHaveTextContent('client-receipt.png');
     expect(screen.getByTestId('receipt-viewer-container').textContent).not.toContain('entities/');
     expect(screen.getByTestId('receipt-viewer-container').textContent).not.toContain('aaaaaaaa');
-    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    expect(screen.getByRole('img')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Download' })).toHaveAttribute(
       'download',
       'client-receipt.png'

@@ -111,9 +111,8 @@ export function DisbursementsTable({
       if (selectedId && disbursements.some((d) => d.id === selectedId)) {
         return;
       }
-      const firstDisbursement = disbursements[0];
-      if (firstDisbursement?.id) {
-        onSelectDisbursement(firstDisbursement.id);
+      if (disbursements[0]) {
+        onSelectDisbursement(disbursements[0].id);
       }
     }
   }, [disbursements, activeEntity, isLoading, selectedId, onSelectDisbursement]);

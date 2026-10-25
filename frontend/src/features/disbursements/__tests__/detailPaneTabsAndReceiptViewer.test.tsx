@@ -467,13 +467,13 @@ describe('Branch 04: Detail Pane Tabs & Receipt Attachment Viewer', () => {
       expect(screen.getByText('No receipt attached')).toBeInTheDocument();
     });
 
-    it('renders a compact attachment row with View and Download and no inline image', async () => {
+    it('renders a compact attachment row with View, Download, and inline preview', async () => {
       const { wrapper } = createHarness();
       render(<DisbursementDetailBody isOpen initialDisbursement={mockDisbWithImageReceipt} onClose={vi.fn()} />, { wrapper });
       await waitFor(() => expect(screen.getByTestId('btn-preview-receipt')).toBeEnabled());
       expect(screen.getByTestId('receipt-file-name')).toHaveTextContent('taxi_receipt.png');
       expect(screen.getByRole('link', { name: 'Download' })).toHaveAttribute('href', 'https://storage.test/receipts/taxi_receipt.png');
-      expect(screen.queryByRole('img')).not.toBeInTheDocument();
+      expect(screen.getByRole('img')).toBeInTheDocument();
       expect(screen.getByTestId('receipt-attachment-row')).not.toHaveTextContent('entities/');
       fireEvent.click(screen.getByTestId('btn-preview-receipt'));
       expect(await screen.findByTestId('doc-preview-image')).toHaveAttribute('src', 'https://storage.test/receipts/taxi_receipt.png');
