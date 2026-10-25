@@ -138,9 +138,20 @@ export interface ChecklistItem {
   completed: boolean;
   assigneeId?: string | null;
   assigneeName?: string | null;
-  dependsOn?: string | null;
+  dependsOn?: string | string[] | null;
   periodYear?: string | null;
   timeLogs?: TaskTimeLog[];
+}
+
+export interface ChecklistItemInput {
+  id?: string | null;
+  text: string;
+  completed?: boolean;
+  category?: string | null;
+  assigneeId?: string | null;
+  assigneeName?: string | null;
+  dependsOn?: string | string[] | null;
+  periodYear?: string | null;
 }
 
 export interface ChecklistItemData {
@@ -465,6 +476,7 @@ export interface CreatePhaseTaskInput {
   dueDate?: string | null;
   requiredLinkType?: string | null;
   required_link_type?: string | null;
+  checklist?: ChecklistItemInput[];
 }
 
 export type PhaseTaskInput = CreatePhaseTaskInput;
@@ -512,13 +524,7 @@ export interface CreateTaskInput {
   assignees?: string[];
   dueDate?: string | null;
   displayOrder?: number;
-  checklist?: Array<{
-    text: string;
-    category?: string | null;
-    completed?: boolean;
-    assigneeId?: string | null;
-    periodYear?: string | null;
-  }>;
+  checklist?: ChecklistItemInput[];
   timeLogs?: Array<{
     date: string;
     hours: number;
@@ -543,14 +549,7 @@ export interface UpdateTaskInput {
   dueDate?: string | null;
   displayOrder?: number;
   expectedVersion?: number;
-  checklist?: Array<{
-    id?: string | null;
-    text: string;
-    category?: string | null;
-    completed?: boolean;
-    assigneeId?: string | null;
-    periodYear?: string | null;
-  }>;
+  checklist?: ChecklistItemInput[];
   timeLogs?: Array<{
     date: string;
     hours: number;

@@ -27,6 +27,7 @@ import {
 } from '../api/useWorkRequests';
 import { useTaskMutations } from '../api/useTasks';
 import { operationsKeys } from '../api/queryKeys';
+import { toChecklistInput } from '../utils/checklist';
 import { validateDependencies } from '../utils/dependencyValidator';
 import { parseTaskDelimiterInput } from '../hooks/useTokenizer';
 import { useSessionStore } from '@/lib/session';
@@ -38,11 +39,6 @@ import type {
   UpdateWorkRequestInput,
   PhaseTaskInput,
 } from '../api/types';
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-function isValidUUID(id?: string | null): boolean {
-  return typeof id === 'string' && UUID_REGEX.test(id);
-}
 
 export interface WorkRequestModalProps {
   isOpen: boolean;
@@ -161,8 +157,10 @@ export function WorkRequestModal({
               text: c.text,
               completed: c.completed,
               category: (c.category as 'subtask' | 'document') || 'subtask',
-              periodYear: c.periodYear ? parseInt(c.periodYear, 10) : null,
-              dependsOn: typeof c.dependsOn === 'string' ? c.dependsOn : null,
+              periodYear: c.periodYear ?? null,
+              dependsOn: c.dependsOn ?? null,
+              assigneeId: c.assigneeId,
+              assigneeName: c.assigneeName,
             })),
           }))
         );
@@ -465,14 +463,7 @@ export function WorkRequestModal({
                   predecessors: initialPredecessors,
                   dueDate: t.dueDate || null,
                   requiredLinkType: t.requiredLinkType || null,
-                  checklist: t.checklist
-                    ?.filter((c) => c.text.trim())
-                    .map((c) => ({
-                      text: c.text.trim(),
-                      completed: c.completed,
-                      category: c.category,
-                      periodYear: c.periodYear ? String(c.periodYear) : null,
-                    })),
+                  checklist: t.checklist?.filter((c) => c.text.trim()).map(toChecklistInput),
                 },
               });
 
@@ -516,14 +507,7 @@ export function WorkRequestModal({
                   predecessors: resolvePredecessors(t.dependsOn),
                   dueDate: t.dueDate || null,
                   requiredLinkType: t.requiredLinkType || null,
-                  checklist: t.checklist?.map((c) => ({
-                    id: isValidUUID(c.id) ? c.id : undefined,
-                    text: c.text,
-                    completed: c.completed,
-                    category: c.category,
-                    periodYear: c.periodYear ? String(c.periodYear) : null,
-                    dependsOn: c.dependsOn || null,
-                  })),
+                  checklist: t.checklist?.filter((c) => c.text.trim()).map(toChecklistInput),
                 },
               });
             }
@@ -548,14 +532,7 @@ export function WorkRequestModal({
                   predecessors: finalPredecessors,
                   dueDate: item.task.dueDate || null,
                   requiredLinkType: item.task.requiredLinkType || null,
-                  checklist: item.task.checklist?.map((c) => ({
-                    id: isValidUUID(c.id) ? c.id : undefined,
-                    text: c.text,
-                    completed: c.completed,
-                    category: c.category,
-                    periodYear: c.periodYear ? String(c.periodYear) : null,
-                    dependsOn: c.dependsOn || null,
-                  })),
+                  checklist: item.task.checklist?.filter((c) => c.text.trim()).map(toChecklistInput),
                 },
               });
             }
@@ -574,14 +551,7 @@ export function WorkRequestModal({
               ...t.coAssignees,
             ];
 
-            const taskInput: PhaseTaskInput & {
-              checklist?: Array<{
-                text: string;
-                completed?: boolean;
-                category?: string | null;
-                periodYear?: string | null;
-              }>;
-            } = {
+            const taskInput: PhaseTaskInput = {
               title: t.title.trim(),
               description: t.description?.trim() || null,
               local_id: t.localId,
@@ -589,12 +559,7 @@ export function WorkRequestModal({
               depends_on: t.dependsOn || undefined,
               dueDate: t.dueDate || null,
               requiredLinkType: t.requiredLinkType || null,
-              checklist: t.checklist?.filter((c) => c.text?.trim()).map((c) => ({
-                text: c.text.trim(),
-                completed: c.completed,
-                category: c.category || null,
-                periodYear: c.periodYear ? String(c.periodYear) : null,
-              })),
+              checklist: t.checklist?.filter((c) => c.text?.trim()).map(toChecklistInput),
             };
 
             if (t.phase === 'processing') {
@@ -618,60 +583,7 @@ export function WorkRequestModal({
               processing: { tasks: procTasks },
             },
           };
-          const savedWr = await createWorkRequest(createPayload);
-
-          // Persist checklist/subtasks for newly created tasks if any
-          const tasksWithChecklist = tasks.filter(
-            (t) => t.title.trim() && t.checklist && t.checklist.some((c) => c.text.trim())
-          );
-
-          if (tasksWithChecklist.length > 0 && savedWr?.id) {
-            const createdTasks = [
-              ...(savedWr.tasks || []),
-              ...(savedWr.phases?.pre_processing?.tasks || []),
-              ...(savedWr.phases?.processing?.tasks || []),
-            ];
-
-            for (const t of tasksWithChecklist) {
-              const matchedTask = createdTasks.find((ct) => {
-                const ctLocal = ct as unknown as { localId?: string; local_id?: string };
-                return (
-                  (ctLocal.localId && ctLocal.localId === t.localId) ||
-                  (ctLocal.local_id && ctLocal.local_id === t.localId) ||
-                  ct.title?.trim() === t.title.trim()
-                );
-              });
-
-              if (matchedTask?.id) {
-                const validChecklist = t.checklist!
-                  .filter((c) => c.text.trim())
-                  .map((c) => ({
-                    id: c.id,
-                    text: c.text.trim(),
-                    completed: c.completed,
-                    category: c.category,
-                    periodYear: c.periodYear ? String(c.periodYear) : null,
-                    dependsOn: c.dependsOn || null,
-                  }));
-
-                if (validChecklist.length > 0) {
-                  try {
-                    await updateTask({
-                      workRequestId: savedWr.id,
-                      taskId: matchedTask.id,
-                      data: {
-                        checklist: validChecklist,
-                      },
-                    });
-                  } catch (chkErr) {
-                    console.error('Failed to save task checklist:', chkErr);
-                  }
-                }
-              }
-            }
-          }
-
-          return savedWr;
+          return createWorkRequest(createPayload);
         }
       },
       successTitle: isEditMode ? 'Work Request Updated' : 'Work Request Created',

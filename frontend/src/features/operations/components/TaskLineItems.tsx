@@ -33,8 +33,10 @@ export interface ChecklistItemData {
   text: string;
   completed: boolean;
   category?: 'subtask' | 'document';
-  periodYear?: number | null;
-  dependsOn?: string | null;
+  periodYear?: number | string | null;
+  dependsOn?: string | string[] | null;
+  assigneeId?: string | null;
+  assigneeName?: string | null;
 }
 
 export interface TaskItemData {
@@ -695,7 +697,7 @@ export function TaskLineItems({
                             item.dependsOn &&
                             task.checklist?.some(
                               (other) =>
-                                other.id === item.dependsOn && !other.completed
+                                [item.dependsOn].flat().includes(other.id) && !other.completed
                             );
 
                           return (
@@ -757,6 +759,7 @@ export function TaskLineItems({
                                     updatedChecklist[ci] = {
                                       ...targetItem,
                                       category: nextCat,
+                                      periodYear: nextCat === 'document' ? targetItem.periodYear ?? new Date().getFullYear() : targetItem.periodYear,
                                     };
                                     handleUpdateTask(index, 'checklist', updatedChecklist);
                                   }

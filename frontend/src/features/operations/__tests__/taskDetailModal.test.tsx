@@ -315,6 +315,54 @@ describe('TaskDetailModal Document Linking & Query Invalidation', () => {
     expect(screen.getByTestId('task-detail-type-badge')).toHaveTextContent('Documents');
   });
 
+  it('preserves checklist metadata in the actual task update request', async () => {
+    const item = {
+      id: 'a3512c21-578d-4194-82d9-ea56c4b367fe', text: 'Tax certificate', completed: false,
+      category: 'document', periodYear: '2025/2026', assigneeId: 'owner-id', assigneeName: 'Filing owner',
+      dependsOn: ['prerequisite-a', 'prerequisite-b'], timeLogs: [{ id: 'history', date: '2026-10-01', hours: 1 }],
+    };
+    let live = { ...mockTask, checklist: [item] };
+    const updates: Array<Record<string, unknown>> = [];
+    vi.mocked(global.fetch).mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/operations/work-requests/wr-888/tasks/task-777')) {
+        if (init?.method === 'PUT') {
+          const body = JSON.parse(String(init.body));
+          updates.push(body);
+          live = { ...live, ...body, version: live.version + 1 };
+        }
+        return new Response(JSON.stringify({ data: live }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
+    });
+    render(<TaskDetailModal isOpen onClose={vi.fn()} task={live} workRequest={mockWr} />, { wrapper });
+    const input = screen.getByLabelText('New checklist item');
+    await waitFor(() => expect(input).toBeEnabled());
+    fireEvent.change(input, { target: { value: 'Review filing' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(updates).toHaveLength(1));
+    expect(updates[0]).toMatchObject({ expectedVersion: 1, checklist: [
+      { id: item.id, text: item.text, completed: false, category: 'document', periodYear: '2025/2026',
+        assigneeId: 'owner-id', assigneeName: 'Filing owner', dependsOn: ['prerequisite-a', 'prerequisite-b'] },
+      { text: 'Review filing', category: 'subtask' },
+    ] });
+    expect((updates[0]?.checklist as Array<Record<string, unknown>>)[0]).not.toHaveProperty('timeLogs');
+  });
+
+  it('shows a failed checklist read and prevents adding against fallback task data', async () => {
+    vi.mocked(global.fetch).mockImplementation(async (input) => {
+      if (String(input).endsWith('/operations/work-requests/wr-888/tasks/task-777')) {
+        return new Response(JSON.stringify({ title: 'Database Error', detail: 'Unable to load task checklist' }), { status: 500 });
+      }
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
+    });
+    render(<TaskDetailModal isOpen onClose={vi.fn()} task={mockTask} workRequest={mockWr} />, { wrapper });
+    expect(await screen.findByText('Unable to load checklist. Retry before making changes.')).toBeInTheDocument();
+    expect(screen.getByLabelText('New checklist item')).toBeDisabled();
+    expect(screen.queryByText('No checklist items yet.')).not.toBeInTheDocument();
+    expect(vi.mocked(global.fetch).mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false);
+  });
+
   it('locks task actions when task phase does not match active work request phase and unlocks when rerouted back', () => {
     // 1. Task is in pre_processing, but WR has moved to processing -> locked
     const { rerender } = render(
