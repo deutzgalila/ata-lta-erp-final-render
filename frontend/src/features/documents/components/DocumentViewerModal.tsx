@@ -255,6 +255,8 @@ export function DocumentViewerModal({
     workRequest?.status === 'Cancelled' ||
     Boolean(workRequest?.archived) ||
     Boolean(doc?.archived);
+  const canComment = !isReadOnly && !isDocError && !isDocPlaceholder &&
+    liveDoc?.id === doc?.id && liveDoc?.can_comment === true;
 
   // File attributes (original name takes precedence for user display)
   const fileName =
@@ -314,7 +316,7 @@ export function DocumentViewerModal({
 
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!doc || !newCommentText.trim() || isReadOnly || sending.current || addComment.isPending) return;
+    if (!doc || !newCommentText.trim() || !canComment || sending.current || addComment.isPending) return;
     const id = doc.id;
     const submitted = newCommentText;
     sending.current = true;
@@ -332,7 +334,7 @@ export function DocumentViewerModal({
   };
 
   const handleSaveEditComment = async (commentId: string) => {
-    if (!doc || !editingCommentText.trim() || isReadOnly || editComment.isPending) return;
+    if (!doc || !editingCommentText.trim() || !canComment || editComment.isPending) return;
     const id = doc.id;
     setCommentError(null);
     try {
@@ -347,7 +349,7 @@ export function DocumentViewerModal({
   };
 
   const handleDeleteComment = async (commentId: string) => {
-    if (!doc || isReadOnly || deleteComment.isPending) return;
+    if (!doc || !canComment || deleteComment.isPending) return;
     const id = doc.id;
     setCommentError(null);
     try {
@@ -812,7 +814,7 @@ export function DocumentViewerModal({
                         </p>
                       )}
 
-                      {!isReadOnly && !isEditing && Boolean(comment.id) && (isAuthor || isAdmin) && (
+                      {canComment && !isEditing && Boolean(comment.id) && (isAuthor || isAdmin) && (
                         <div className="flex justify-end gap-2 pt-1 border-t border-[#E2E8F0] text-xs text-[#475569]">
                           {isAuthor && <button
                             type="button"
@@ -846,7 +848,7 @@ export function DocumentViewerModal({
 
             {commentError && <p role="alert" className="px-3 py-2 text-xs text-rose-700">{commentError}</p>}
             {/* Add Comment Box */}
-            {!isReadOnly && (
+            {canComment && (
               <form onSubmit={handleAddComment} className="p-3 border-t border-[#E2E8F0] space-y-2">
                 <textarea
                   maxLength={4000}
@@ -875,6 +877,13 @@ export function DocumentViewerModal({
                   </Button>
                 </div>
               </form>
+            )}
+            {!isReadOnly && liveDoc?.can_comment === false && (
+              <p className="p-3 text-xs text-[#475569]">
+                {doc?.linked_task_id || doc?.linkedTaskId
+                  ? 'Only task assignees and admins can comment on this document.'
+                  : 'Document edit permission is required to comment.'}
+              </p>
             )}
           </div>
         </div>

@@ -9,6 +9,7 @@ import { useSessionStore } from '@/lib/session';
 // Mock TanStack hooks from useDocuments
 const mockMutateAsyncComment = vi.fn();
 const mockMutateAsyncUpload = vi.fn();
+let mockCommentDoc: DmsDocument | undefined;
 let mockDownloadError: Error | null = null;
 const mockRetryDownload = vi.fn();
 let mockDownloadData: { url: string; fileName: string; contentType?: string } | undefined = {
@@ -23,7 +24,7 @@ vi.mock('../api/useDocuments', () => ({
     refetch: mockRetryDownload,
     isLoading: false,
   }),
-  useDocumentDetail: () => ({ data: undefined }),
+  useDocumentDetail: () => ({ data: mockCommentDoc }),
   useEditDocumentComment: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeleteDocumentComment: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useAddDocumentComment: () => ({
@@ -44,6 +45,7 @@ describe('DocumentViewerModal (UAT2-14)', () => {
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
     vi.restoreAllMocks();
+    mockCommentDoc = undefined;
     mockDownloadError = null;
     mockRetryDownload.mockReset();
     mockMutateAsyncComment.mockReset();
@@ -322,6 +324,7 @@ describe('DocumentViewerModal (UAT2-14)', () => {
   });
 
   it('handles comments: displays existing and posts new comment', async () => {
+    mockCommentDoc = { ...baseDoc, can_comment: true };
     mockMutateAsyncComment.mockResolvedValueOnce({
       ...baseDoc,
       comments: [

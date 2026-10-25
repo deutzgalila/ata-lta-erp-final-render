@@ -545,8 +545,8 @@ export function TaskDetailModal({
     if (Array.isArray(task?.assignees)) {
       task.assignees.forEach((id) => ids.add(id));
     }
-    if (Array.isArray(task?.taskAssignees)) {
-      task.taskAssignees.forEach((ta) => {
+    for (const assignments of [task?.taskAssignees, task?.task_assignees]) {
+      assignments?.forEach((ta) => {
         const uId = ta.userId || ta.user_id;
         if (uId) ids.add(uId);
       });
@@ -579,10 +579,12 @@ export function TaskDetailModal({
 
     currentAssigneeIds.forEach((id) => {
       const found = teamList.find((m) => m.id === id);
+      const assignment = [...(task.taskAssignees || []), ...(task.task_assignees || [])]
+        .find((member) => (member.userId || member.user_id) === id);
       const isLead = id === leadId;
       members.push({
         id,
-        name: found?.name || (isLead && task.assigneeName ? task.assigneeName : `Staff (${id.slice(0, 8)})`),
+        name: found?.name || assignment?.userName || (isLead && task.assigneeName ? task.assigneeName : `Staff (${id.slice(0, 8)})`),
         role: found?.role,
         isLead,
       });
@@ -1106,10 +1108,15 @@ export function TaskDetailModal({
                   <User className="h-3.5 w-3.5 text-[#475569] shrink-0" />
                   <span className="truncate">{task.assigneeName || 'Unassigned'}</span>
                 </div>
-                {assignedTeamMembers.length > 1 && (
-                  <span className="text-xs text-[#475569] font-medium mt-0.5 block truncate">
-                    +{assignedTeamMembers.length - 1} co-assignee{assignedTeamMembers.length > 2 ? 's' : ''}
-                  </span>
+                {assignedTeamMembers.some((member) => !member.isLead) && (
+                  <div className="text-xs text-[#475569] mt-1" data-testid="task-co-assignees">
+                    <span className="font-medium">Co-assignees</span>
+                    <ul className="mt-0.5 space-y-0.5">
+                      {assignedTeamMembers.filter((member) => !member.isLead).map((member) => (
+                        <li key={member.id} className="break-words">{member.name}</li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
               </div>
 
