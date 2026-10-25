@@ -386,7 +386,15 @@ export function TaskDetailModal({
 
   // Mutations
   const createTimeEntryMutation = useCreateTimeEntry();
-  const { updateTask } = useTaskMutations(task?.workRequestId || '');
+  const { updateTask, updateMutation } = useTaskMutations(task?.workRequestId || '');
+  const checklistReady = !isTaskError && !isTaskPlaceholder && liveTask?.id === task?.id && Array.isArray(liveTask?.checklist);
+  const uncheckedChecklistCount = task?.checklist?.filter((item) => !item.completed).length ?? 0;
+  const checklistCompletionBlocked = !checklistReady || isTaskFetching || updateMutation.isPending || uncheckedChecklistCount > 0;
+  const checklistCompletionReason = !checklistReady || isTaskFetching
+    ? 'Wait for the checklist to load successfully before completing this task.'
+    : updateMutation.isPending
+      ? 'Wait for checklist changes to finish saving.'
+      : `Check all checklist items first (${uncheckedChecklistCount} remaining).`;
 
   const permissions = useSessionStore((state) => state.permissions);
   const isAdmin = isUserAdmin(currentUser);
@@ -731,6 +739,7 @@ export function TaskDetailModal({
   // Handle setting task status (UAT2-9-frontend, Task B.5)
   const handleSetTaskStatus = async (nextStatus: TaskStatus) => {
     if (!task || !task.workRequestId) return;
+    if (nextStatus === 'Completed' && checklistCompletionBlocked) return;
 
     try {
       await runBlockingAction({
@@ -1041,12 +1050,14 @@ export function TaskDetailModal({
                     type="button"
                     variant="default"
                     size="sm"
-                    disabled={isPhaseBlocked || isPrereqBlocked}
+                    disabled={isPhaseBlocked || isPrereqBlocked || checklistCompletionBlocked}
                     title={
                       isPhaseBlocked
                         ? phaseBlockedTooltip
                         : isPrereqBlocked
                         ? prereqBlockedTooltip
+                        : checklistCompletionBlocked
+                        ? checklistCompletionReason
                         : undefined
                     }
                     onClick={() => handleSetTaskStatus('Completed')}

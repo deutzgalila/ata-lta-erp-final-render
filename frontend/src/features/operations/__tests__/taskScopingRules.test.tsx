@@ -358,6 +358,9 @@ describe('TaskDetailModal UI Scoping Integration', () => {
     const onTaskUpdated = vi.fn();
     const originalFetch = vi.mocked(global.fetch).getMockImplementation()!;
     const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+      if ((!init?.method || init.method === 'GET') && String(input).endsWith('/operations/work-requests/wr-scope-1/tasks/task-scope-1')) {
+        return new Response(JSON.stringify({ data: { ...task, checklist: [] } }), { status: 200 });
+      }
       if (init?.method === 'PATCH') {
         return new Response(JSON.stringify({ data: { ...task, status: nextStatus } }), { status: 200 });
       }
@@ -365,6 +368,7 @@ describe('TaskDetailModal UI Scoping Integration', () => {
     });
     render(<TaskDetailModal isOpen onClose={vi.fn()} task={task} workRequest={mockWr} onTaskUpdated={onTaskUpdated} />,
       { wrapper: createWrapper() });
+    await waitFor(() => expect(screen.getByTestId('task-toggle-status-btn')).toBeEnabled());
     if (status === 'Assigned') {
       expect(screen.getByTestId('task-status-inprogress-btn')).toBeEnabled();
       expect(screen.getByTestId('task-toggle-status-btn')).toBeEnabled();
@@ -441,7 +445,7 @@ describe('TaskDetailModal UI Scoping Integration', () => {
         patchedData = JSON.parse(String(init.body));
         return new Response(JSON.stringify({ data: { ...mockTask, status: 'Completed' } }), { status: 200 });
       }
-      return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      return new Response(JSON.stringify({ data: url.endsWith('/operations/work-requests/wr-scope-1/tasks/task-scope-1') ? { ...mockTask, checklist: [] } : [] }), { status: 200 });
     });
 
     render(
@@ -462,7 +466,8 @@ describe('TaskDetailModal UI Scoping Integration', () => {
     expect(screen.getByTestId('link-disbursement-btn')).toBeInTheDocument();
     expect(screen.getByTestId('link-transmittal-btn')).toBeInTheDocument();
 
-    // Trigger Admin status change
+    // Trigger Admin status change after the authoritative checklist read.
+    await waitFor(() => expect(screen.getByTestId('task-toggle-status-btn')).toBeEnabled());
     fireEvent.click(screen.getByTestId('task-toggle-status-btn'));
     await waitFor(() => {
       expect(patchedData).toEqual({ status: 'Completed' });

@@ -389,6 +389,57 @@ describe('TaskDetailModal Document Linking & Query Invalidation', () => {
     }
   });
 
+  it('keeps Mark Completed disabled until the last checklist tick is saved', async () => {
+    const item = { id: 'a3512c21-578d-4194-82d9-ea56c4b367fe', text: 'Verify records', category: 'subtask', completed: false };
+    let live = { ...mockTask, checklist: [item] };
+    let finishSave!: () => void;
+    vi.mocked(global.fetch).mockImplementation(async (input, init) => {
+      if (String(input).endsWith('/operations/work-requests/wr-888/tasks/task-777')) {
+        if (init?.method === 'PUT') {
+          await new Promise<void>((resolve) => { finishSave = resolve; });
+          live = { ...live, checklist: [{ ...item, completed: true }], version: 2 };
+        }
+        return new Response(JSON.stringify({ data: live }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
+    });
+    render(<TaskDetailModal isOpen onClose={vi.fn()} task={live} workRequest={mockWr} />, { wrapper });
+    const mark = screen.getByRole('button', { name: 'Mark Completed' });
+    const checkbox = await screen.findByRole('checkbox', { name: item.text });
+    await waitFor(() => expect(checkbox).toBeEnabled());
+    expect(mark).toBeDisabled();
+    expect(mark).toHaveAttribute('title', 'Check all checklist items first (1 remaining).');
+    fireEvent.click(checkbox);
+    await waitFor(() => expect(finishSave).toBeTypeOf('function'));
+    expect(mark).toBeDisabled();
+    finishSave();
+    await waitFor(() => expect(mark).toBeEnabled());
+    expect(screen.getByRole('checkbox', { name: item.text })).toBeChecked();
+  });
+
+  it('allows completing a successfully loaded task with no checklist items', async () => {
+    vi.mocked(global.fetch).mockImplementation(async (input) => new Response(JSON.stringify({
+      data: String(input).endsWith('/operations/work-requests/wr-888/tasks/task-777') ? { ...mockTask, checklist: [] } : [],
+    }), { status: 200 }));
+    render(<TaskDetailModal isOpen onClose={vi.fn()} task={mockTask} workRequest={mockWr} />, { wrapper });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Mark Completed' })).toBeEnabled());
+  });
+
+  it('keeps Mark Completed disabled after a failed final checklist tick', async () => {
+    const live = { ...mockTask, checklist: [{ id: 'a3512c21-578d-4194-82d9-ea56c4b367fe', text: 'Verify records', completed: false }] };
+    vi.mocked(global.fetch).mockImplementation(async (input, init) => {
+      if (init?.method === 'PUT') return new Response(JSON.stringify({ title: 'Save failed', detail: 'Unable to save checklist' }), { status: 500 });
+      return new Response(JSON.stringify({ data: String(input).endsWith('/operations/work-requests/wr-888/tasks/task-777') ? live : [] }), { status: 200 });
+    });
+    render(<TaskDetailModal isOpen onClose={vi.fn()} task={live} workRequest={mockWr} />, { wrapper });
+    const checkbox = await screen.findByRole('checkbox', { name: 'Verify records' });
+    await waitFor(() => expect(checkbox).toBeEnabled());
+    fireEvent.click(checkbox);
+    await screen.findByRole('alert');
+    expect(screen.getByRole('button', { name: 'Mark Completed' })).toBeDisabled();
+    expect(checkbox).not.toBeChecked();
+  });
+
   it('shows a failed checklist read and prevents adding against fallback task data', async () => {
     vi.mocked(global.fetch).mockImplementation(async (input) => {
       if (String(input).endsWith('/operations/work-requests/wr-888/tasks/task-777')) {
@@ -400,10 +451,15 @@ describe('TaskDetailModal Document Linking & Query Invalidation', () => {
     expect(await screen.findByText('Unable to load checklist. Retry before making changes.')).toBeInTheDocument();
     expect(screen.getByLabelText('New checklist item')).toBeDisabled();
     expect(screen.queryByText('No checklist items yet.')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mark Completed' })).toBeDisabled();
     expect(vi.mocked(global.fetch).mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false);
   });
 
-  it('locks task actions when task phase does not match active work request phase and unlocks when rerouted back', () => {
+  it('locks task actions when task phase does not match active work request phase and unlocks when rerouted back', async () => {
+    vi.mocked(global.fetch).mockImplementation(async (input) => new Response(JSON.stringify({
+      data: String(input).endsWith('/operations/work-requests/wr-888/tasks/task-777')
+        ? { ...mockTask, phase: 'pre_processing', checklist: [] } : [],
+    }), { status: 200 }));
     // 1. Task is in pre_processing, but WR has moved to processing -> locked
     const { rerender } = render(
       <TaskDetailModal
@@ -445,7 +501,7 @@ describe('TaskDetailModal Document Linking & Query Invalidation', () => {
     );
     expect(screen.queryByTestId('phase-locked-banner')).toBeNull();
     expect(screen.getByText('Active Phase')).toBeInTheDocument();
-    expect(screen.getByTestId('task-toggle-status-btn')).not.toBeDisabled();
+    await waitFor(() => expect(screen.getByTestId('task-toggle-status-btn')).not.toBeDisabled());
     expect(screen.getByTestId('task-upload-doc-btn')).not.toBeDisabled();
   });
 });
