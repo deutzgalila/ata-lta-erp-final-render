@@ -95,6 +95,7 @@ export function WorkRequestModal({
   const [entity, setEntity] = useState<'ATA' | 'LTA'>('ATA');
   const [clientId, setClientId] = useState<string>('');
   const [priority, setPriority] = useState<Priority>('Normal');
+  const [dueDateError, setDueDateError] = useState<string | null>(null);
   const [dueDate, setDueDate] = useState<string>('');
   const [assignedTo, setAssignedTo] = useState<string | null>(null);
   const [coAssignees, setCoAssignees] = useState<string[]>([]);
@@ -179,6 +180,7 @@ export function WorkRequestModal({
     }
     setManagerError(null);
     setTitleError(null);
+    setDueDateError(null);
     setIsDirty(false);
   }, [workRequest, activeSessionEntity]);
 
@@ -317,6 +319,12 @@ export function WorkRequestModal({
       return;
     }
     setTitleError(null);
+
+    if (!isEditMode && !dueDate) {
+      setDueDateError('Due date is required');
+      return;
+    }
+    setDueDateError(null);
 
     // 2. Mandatory Manager Validation
     if (!assignedTo) {
@@ -590,7 +598,7 @@ export function WorkRequestModal({
             clientId: clientId || null,
             entity,
             priority,
-            dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+            dueDate: new Date(dueDate).toISOString(),
             assignedTo,
             coAssignees,
             phases: {
@@ -859,19 +867,28 @@ export function WorkRequestModal({
 
             {/* Due Date */}
             <div className="space-y-1">
-              <label className="text-xs tracking-normal font-bold text-[#1E293B]">Due Date</label>
+              <label className="text-xs tracking-normal font-bold text-[#1E293B]">Due Date{!isEditMode && ' *'}</label>
               <DateInput
                 type="date"
                 aria-label="Work request due date"
+                required={!isEditMode}
+                aria-invalid={Boolean(dueDateError)}
+                aria-describedby={dueDateError ? 'wr-due-date-error' : undefined}
                 disabled={isCompleted}
                 value={dueDate}
                 onValueChange={(value) => {
                   setDueDate(value);
+                  setDueDateError(null);
                   setIsDirty(true);
                 }}
                 className="h-9 text-xs rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B]"
                 data-testid="wr-modal-due-date"
               />
+              {dueDateError && (
+                <p id="wr-due-date-error" role="alert" className="text-xs text-[#DC2626]">
+                  {dueDateError}
+                </p>
+              )}
             </div>
           </div>
 
@@ -915,7 +932,7 @@ export function WorkRequestModal({
               }}
               placeholder="Scope summary, special requirements, client instructions..."
               rows={2}
-              className="w-full text-xs tabular-nums p-2.5 border-[#E2E8F0] rounded-[6px] bg-[#FFFFFF] text-[#1E293B] placeholder:text-[#475569] focus:outline-none focus:ring-1 focus:ring-[#1D4ED8]"
+              className="resize-none w-full text-xs tabular-nums p-2.5 border-[#E2E8F0] rounded-[6px] bg-[#FFFFFF] text-[#1E293B] placeholder:text-[#475569] focus:outline-none focus:ring-1 focus:ring-[#1D4ED8]"
             />
           </div>
 

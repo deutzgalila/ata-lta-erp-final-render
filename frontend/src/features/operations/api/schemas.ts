@@ -192,6 +192,15 @@ export const createWorkRequestPhasesSchema = z.object({
 // 3. Work Request Schemas (Create & Update)
 // ============================================================================
 
+const workRequestDueDateSchema = z.string({
+  required_error: 'Due date is required',
+  invalid_type_error: 'Due date is required',
+}).min(1, 'Due date is required').pipe(
+  z.union([z.string().date(), z.string().datetime({ offset: true })], {
+    errorMap: () => ({ message: 'Due date must be a valid date or ISO timestamp' }),
+  })
+);
+
 export const createWorkRequestSchema = z.object({
   title: z.string().min(1, 'Title is required').max(255),
   description: z.string().max(2000).optional().nullable(),
@@ -202,7 +211,7 @@ export const createWorkRequestSchema = z.object({
   requestedBy: z.string().uuid().optional(),
   assignedTo: nullableUuid,
   coAssignees: z.array(z.string()).optional().default([]),
-  dueDate: z.string().optional().nullable(),
+  dueDate: workRequestDueDateSchema,
   priority: priorityEnum.optional().default('Normal'),
   idempotency_key: z.string().optional().nullable(),
   idempotencyKey: z.string().optional().nullable(),
@@ -213,6 +222,7 @@ export const updateWorkRequestSchema = createWorkRequestSchema
   .omit({ phases: true })
   .partial()
   .extend({
+    dueDate: workRequestDueDateSchema.optional().nullable(),
     archived: z.boolean().optional(),
     status: workRequestStatusEnum.optional(),
     expectedVersion: z.number().int().positive().optional(),
@@ -396,11 +406,14 @@ export const generateRetainerTemplateSchema = z.object({
       assigned_to: nullableUuid,
       coAssignees: z.array(z.string()).optional(),
       co_assignees: z.array(z.string()).optional(),
-      dueDate: z.string().optional().nullable(),
-      due_date: z.string().optional().nullable(),
+      dueDate: workRequestDueDateSchema.optional(),
+      due_date: workRequestDueDateSchema.optional(),
       tasks: z.array(generateRetainerTemplateTaskOverrideSchema).optional(),
     })
     .optional(),
+}).refine((data) => Boolean(data.overrides?.dueDate || data.overrides?.due_date), {
+  message: 'Due date is required',
+  path: ['overrides', 'dueDate'],
 });
 
 // ============================================================================

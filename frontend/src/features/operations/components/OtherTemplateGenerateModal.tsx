@@ -206,6 +206,11 @@ export function OtherTemplateGenerateModal({
       return;
     }
 
+    if (!dueDate) {
+      setError('Due date is required to generate work requests.');
+      return;
+    }
+
     // Strict task assignee scoping check
     if (unmappedTasks.length > 0) {
       setError(
@@ -224,7 +229,7 @@ export function OtherTemplateGenerateModal({
           overrides: {
             clientId,
             priority,
-            dueDate: dueDate || undefined,
+            dueDate,
             assignedTo,
             coAssignees,
             description: description.trim() || undefined,
@@ -413,7 +418,7 @@ export function OtherTemplateGenerateModal({
             <div className="space-y-1">
               <label className="text-xs tracking-normal text-[#475569] flex items-center gap-1">
                 <Calendar className="h-3 w-3 text-[#475569]" />
-                <span>Due Date (Optional)</span>
+                <span>Due Date *</span>
               </label>
               <DateInput
                 type="date"
@@ -421,6 +426,7 @@ export function OtherTemplateGenerateModal({
                 onValueChange={(val) => setDueDate(val)}
                 className="h-9 bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px] tabular-nums text-xs text-[#1E293B]"
                 aria-label="Due Date"
+                required
                 data-testid="other-template-due-date-input"
               />
             </div>
@@ -436,7 +442,7 @@ export function OtherTemplateGenerateModal({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Scope details, custom instructions, or client background..."
-              className="w-full rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] p-2.5 text-xs text-[#1E293B] placeholder:text-[#475569] focus:outline-none focus:ring-1 focus:ring-[#1D4ED8]"
+              className="resize-none w-full rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] p-2.5 text-xs text-[#1E293B] placeholder:text-[#475569] focus:outline-none focus:ring-1 focus:ring-[#1D4ED8]"
               data-testid="other-template-description-textarea"
             />
           </div>

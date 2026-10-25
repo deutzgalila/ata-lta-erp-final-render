@@ -1403,7 +1403,7 @@ export function TaskDetailModal({
                   <textarea
                     value={descText}
                     onChange={(e) => setDescText(e.target.value)}
-                    className="w-full p-2.5 border-[#E2E8F0] bg-[#FFFFFF] rounded-[6px] text-xs text-[#1E293B] placeholder:text-[#475569] focus:outline-none focus:ring-1 focus:ring-[#1D4ED8] min-h-[80px]"
+                    className="resize-none w-full p-2.5 border-[#E2E8F0] bg-[#FFFFFF] rounded-[6px] text-xs text-[#1E293B] placeholder:text-[#475569] focus:outline-none focus:ring-1 focus:ring-[#1D4ED8] min-h-[80px]"
                     placeholder="Enter task description or instructions..."
                     data-testid="task-description-textarea"
                   />

@@ -623,7 +623,7 @@ export function TaskLineItems({
                       data-testid={`task-add-checklist-btn-${task.localId}`}
                     >
                       <Plus className="h-3 w-3 text-[#1E293B]" />
-                      <span>+ Subtask</span>
+                      <span>Subtask</span>
                     </Button>
                   )}
                 </div>
@@ -645,7 +645,7 @@ export function TaskLineItems({
                       placeholder="Add details, instructions, or acceptance criteria (paste a list — we'll split it)..."
                       disabled={disabled}
                       rows={2}
-                      className="w-full text-xs p-2 border-[#E2E8F0] rounded-[6px] bg-[#FFFFFF] text-[#1E293B] placeholder:text-[#475569] focus:outline-none focus:ring-1 focus:ring-[#1D4ED8]"
+                      className="resize-none w-full text-xs p-2 border-[#E2E8F0] rounded-[6px] bg-[#FFFFFF] text-[#1E293B] placeholder:text-[#475569] focus:outline-none focus:ring-1 focus:ring-[#1D4ED8]"
                     />
                   </div>
 

@@ -488,14 +488,15 @@ export interface CreateWorkRequestInput {
   requestedBy?: string;
   assignedTo?: string | null;
   coAssignees?: string[];
-  dueDate?: string | null;
+  dueDate: string;
   priority?: Priority;
   idempotency_key?: string | null;
   idempotencyKey?: string | null;
   phases?: CreateWorkRequestPhasesInput | null;
 }
 
-export interface UpdateWorkRequestInput extends Partial<Omit<CreateWorkRequestInput, 'phases'>> {
+export interface UpdateWorkRequestInput extends Partial<Omit<CreateWorkRequestInput, 'phases' | 'dueDate'>> {
+  dueDate?: string | null;
   archived?: boolean;
   status?: WorkRequestStatus;
   expectedVersion?: number;

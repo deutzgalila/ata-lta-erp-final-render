@@ -275,6 +275,7 @@ describe('Clients UI Components & RBAC Integration', () => {
       expect(screen.getByTestId('client-detail-name')).toHaveTextContent('Megaworld Prime Corp');
       expect(screen.getByTestId('client-detail-tin')).toHaveTextContent('111-222-333-000');
       expect(screen.getByTestId('client-detail-rdo')).toHaveTextContent('RDO 044');
+      expect(screen.getByTestId('client-detail-modal')).not.toHaveTextContent('Version:');
       expect(screen.getByTestId('client-detail-retainer-badge')).toBeInTheDocument();
     });
 

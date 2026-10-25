@@ -6,7 +6,6 @@ import {
   Layers,
   Edit3,
   CreditCard,
-  Hash,
 } from 'lucide-react';
 import {
   Dialog,
@@ -243,18 +242,14 @@ export function ClientDetailModal({
         )}
 
         {/* Metadata Footer */}
-        <div className="pt-2 border-t border-[#E2E8F0] flex items-center justify-between text-xs text-[#475569]">
+        <div className="pt-2 border-t border-[#E2E8F0] flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between text-xs text-[#475569]">
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">
               <Calendar className="h-3 w-3 text-[#475569]" />
               Registered: {new Date(client.createdAt).toLocaleDateString()}
             </span>
-            <span className="flex items-center gap-1">
-              <Hash className="h-3 w-3 text-[#475569]" />
-              Version: {client.version}
-            </span>
           </div>
-          <div>ID: {client.id}</div>
+          <div className="break-all">ID: {client.id}</div>
         </div>
 
         <DialogFooter className="flex items-center justify-between gap-2 pt-2 border-t border-[#E2E8F0]">
