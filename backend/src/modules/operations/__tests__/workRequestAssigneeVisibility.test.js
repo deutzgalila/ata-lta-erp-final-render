@@ -295,6 +295,40 @@ describe('SPEC-DASHBOARD-ASSIGNED-TASKS-REALTIME-001 §R1: Backend Multi-Assigne
       expect(result.data).toHaveLength(0);
     });
 
+    it('restricts managers to work requests they are added to (excludes unassigned manager)', async () => {
+      const managerUser = {
+        id: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+        email: 'manager@ata-lta.ph',
+        name: 'Manager User',
+        role: 'Manager',
+        entities: ['ATA'],
+      };
+      registerUser(managerUser);
+
+      // Unassigned manager cannot see WR_ID
+      const excludedResult = await listWorkRequests({
+        entityId: ENTITY_ID,
+        user: managerUser,
+        includeTasks: true,
+      });
+      expect(excludedResult.data).toHaveLength(0);
+
+      // Added manager as co_assignee can see WR_ID
+      const currentWr = mockTables.work_requests.get(WR_ID);
+      mockTables.work_requests.set(WR_ID, {
+        ...currentWr,
+        co_assignees: [managerUser.id],
+      });
+
+      const includedResult = await listWorkRequests({
+        entityId: ENTITY_ID,
+        user: managerUser,
+        includeTasks: true,
+      });
+      expect(includedResult.data).toHaveLength(1);
+      expect(includedResult.data[0].id).toBe(WR_ID);
+    });
+
     it('does NOT embed tasks or phases when includeTasks is false', async () => {
       const result = await listWorkRequests({
         entityId: ENTITY_ID,
