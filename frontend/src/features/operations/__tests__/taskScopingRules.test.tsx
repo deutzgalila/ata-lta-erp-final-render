@@ -142,6 +142,17 @@ describe('Task Scoping Utility Unit Tests (taskScope.ts)', () => {
     expect(canMutateTaskStatus(userAccountingTeam, mockTask)).toBe(false);
   });
 
+  it.each([null, 'billing', 'invoice', 'document', 'disbursement', 'transmittal'])(
+    'allows Accounting primary and co-assignees to update status for task type %s',
+    (requiredLinkType) => {
+      const accounting = { ...userAccountingTeam, id: 'emp-assigned-1' };
+      const task = { ...mockTask, requiredLinkType } as Task;
+      expect(canMutateTaskStatus(accounting, task)).toBe(true);
+      expect(canMutateTaskStatus({ ...accounting, id: 'emp-assigned-2', role: 'Accounting', departments: [] }, task)).toBe(true);
+      expect(canMutateTaskStatus(userAccountingTeam, task)).toBe(false);
+    }
+  );
+
   it('requires assignment for time logging, including Admins', () => {
     expect(canLogTaskTime(userAssignedStaff, mockTask)).toBe(true);
     expect(canLogTaskTime(userAdmin, mockTask)).toBe(false);
@@ -330,6 +341,63 @@ describe('TaskDetailModal UI Scoping Integration', () => {
     expect(complete).toHaveTextContent('Mark Completed');
     expect(start.parentElement).toBe(complete.parentElement);
   });
+
+  it.each([
+    ['primary', 'Assigned', 'In Progress', 'task-status-inprogress-btn'],
+    ['primary', 'Assigned', 'Completed', 'task-toggle-status-btn'],
+    ['co-assignee', 'Assigned', 'In Progress', 'task-status-inprogress-btn'],
+    ['co-assignee', 'In Progress', 'Completed', 'task-toggle-status-btn'],
+    ['primary', 'Completed', 'In Progress', 'task-toggle-status-btn'],
+  ] as const)('Accounting %s changes a regular task from %s to %s', async (assignment, status, nextStatus, buttonId) => {
+    useSessionStore.getState().setSession({
+      user: { ...userAccountingTeam, id: assignment === 'primary' ? 'emp-assigned-1' : 'emp-assigned-2' },
+      permissions: ['workflow:view'],
+      activeEntity: 'ATA',
+    });
+    const task = { ...mockTask, status, requiredLinkType: null };
+    const onTaskUpdated = vi.fn();
+    const originalFetch = vi.mocked(global.fetch).getMockImplementation()!;
+    const fetchSpy = vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+      if (init?.method === 'PATCH') {
+        return new Response(JSON.stringify({ data: { ...task, status: nextStatus } }), { status: 200 });
+      }
+      return originalFetch(input, init);
+    });
+    render(<TaskDetailModal isOpen onClose={vi.fn()} task={task} workRequest={mockWr} onTaskUpdated={onTaskUpdated} />,
+      { wrapper: createWrapper() });
+    if (status === 'Assigned') {
+      expect(screen.getByTestId('task-status-inprogress-btn')).toBeEnabled();
+      expect(screen.getByTestId('task-toggle-status-btn')).toBeEnabled();
+    }
+    fireEvent.click(screen.getByTestId(buttonId));
+    await waitFor(() => expect(onTaskUpdated).toHaveBeenCalledWith(expect.objectContaining({ status: nextStatus })));
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining('/operations/work-requests/wr-scope-1/tasks/task-scope-1'),
+      expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ status: nextStatus }) })
+    );
+    expect(screen.queryByTestId('edit-task-description-btn')).not.toBeInTheDocument();
+  });
+
+  it.each(['unassigned', 'completed work request', 'inactive phase'] as const)(
+    'preserves Accounting status restrictions for %s', (condition) => {
+      useSessionStore.getState().setSession({
+        user: { ...userAccountingTeam, id: condition === 'unassigned' ? userAccountingTeam.id : 'emp-assigned-1' },
+        permissions: ['workflow:view'],
+        activeEntity: 'ATA',
+      });
+      const wr = { ...mockWr, ...(condition === 'completed work request' ? { status: 'Completed' as const } : {}),
+        ...(condition === 'inactive phase' ? { phase: 'pre_processing' as const } : {}) };
+      render(<TaskDetailModal isOpen onClose={vi.fn()} task={{ ...mockTask, status: 'Assigned' }} workRequest={wr} />,
+        { wrapper: createWrapper() });
+      if (condition === 'inactive phase') {
+        expect(screen.getByTestId('task-status-inprogress-btn')).toBeDisabled();
+        expect(screen.getByTestId('task-toggle-status-btn')).toBeDisabled();
+      } else {
+        expect(screen.queryByTestId('task-status-inprogress-btn')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('task-toggle-status-btn')).not.toBeInTheDocument();
+      }
+    }
+  );
 
   it('HIDES status, log time, and upload buttons for unassigned manager', async () => {
     useSessionStore.getState().setSession({
