@@ -18,6 +18,8 @@
 export interface TimeEntry {
   id: string;
   userId: string;
+  userName?: string | null;
+  userRole?: string | null;
   taskId: string;
   entryDate: string; // YYYY-MM-DD
   durationMinutes: number; // 1 - 1440
@@ -29,6 +31,8 @@ export interface TimeEntry {
 export interface RawTimeEntryApi {
   id: string;
   user_id: string;
+  user_name?: string | null;
+  user_role?: string | null;
   task_id: string;
   entry_date: string;
   duration_minutes: number;

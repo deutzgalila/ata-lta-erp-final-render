@@ -57,6 +57,8 @@ export const updateTimeEntrySchema = z.object({
 export const rawTimeEntryApiSchema = z.object({
   id: z.string(),
   user_id: z.string(),
+  user_name: z.string().nullable().optional(),
+  user_role: z.string().nullable().optional(),
   task_id: z.string(),
   entry_date: z.string(),
   duration_minutes: z.number().int(),

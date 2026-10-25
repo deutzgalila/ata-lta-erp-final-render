@@ -162,6 +162,86 @@ describe('TaskDetailModal Document Linking & Query Invalidation', () => {
   const wrapper = ({ children }: { children: React.ReactNode }) =>
     React.createElement(QueryClientProvider, { client: queryClient }, children);
 
+  it.each([
+    ['user-admin', ['timelog:edit_own'], true],
+    ['coworker', ['timelog:edit_own'], false],
+    ['coworker', ['timelog:edit_all'], true],
+    ['user-admin', [], false],
+    ['coworker', ['timelog:*'], true],
+  ] as const)('scopes inline actions for logger %s and permissions %j', async (loggerId, grants, visible) => {
+    useSessionStore.setState({ permissions: new Set(['workflow:view', 'timelog:view', ...grants]) });
+    vi.mocked(global.fetch).mockImplementation(async (url) => new Response(JSON.stringify({
+      data: String(url).includes('/time-entries') ? [{ id: 'permission-entry', user_id: loggerId,
+        user_name: 'Maria Reyes', user_role: 'Staff', task_id: mockTask.id, entry_date: '2026-09-20',
+        duration_minutes: 60, note: 'Full work note', created_at: '2026-09-21T01:30:00Z', updated_at: '2026-09-21T01:30:00Z' }] : [],
+    }), { status: 200 }));
+    render(<TaskDetailModal isOpen onClose={vi.fn()} task={mockTask} workRequest={mockWr} />, { wrapper });
+    const row = await screen.findByTestId('time-entry-item-permission-entry');
+    expect(within(row).queryByRole('button', { name: 'Edit' }) !== null).toBe(visible);
+    expect(within(row).queryByRole('button', { name: 'Delete' }) !== null).toBe(visible);
+  });
+
+  it('keeps a deletion failure visible after the optimistic row is restored', async () => {
+    useSessionStore.setState({ permissions: new Set(['workflow:view', 'timelog:view', 'timelog:edit_own']) });
+    vi.mocked(global.fetch).mockImplementation(async (url, options) => {
+      if (options?.method === 'DELETE') return new Response(JSON.stringify({ title: 'Forbidden', detail: 'Deletion denied.' }), { status: 403 });
+      return new Response(JSON.stringify({ data: String(url).includes('/time-entries') ? [{
+        id: 'delete-entry', user_id: 'user-admin', task_id: mockTask.id, entry_date: '2026-09-20',
+        duration_minutes: 60, note: 'Retained note', created_at: '2026-09-21T01:30:00Z', updated_at: '2026-09-21T01:30:00Z',
+      }] : [] }), { status: 200 });
+    });
+    render(<TaskDetailModal isOpen onClose={vi.fn()} task={mockTask} workRequest={mockWr} />, { wrapper });
+    const row = await screen.findByTestId('time-entry-item-delete-entry');
+    fireEvent.click(within(row).getByRole('button', { name: 'Delete' }));
+    fireEvent.click(within(row).getByRole('button', { name: 'Confirm Delete' }));
+    await waitFor(() => expect(screen.getByText('Deletion denied.')).toHaveAttribute('role', 'alert'));
+    expect(await screen.findByTestId('time-entry-item-delete-entry')).toHaveTextContent('Retained note');
+  });
+
+  it('lets duration clear completely and submit 60 without a leading zero', async () => {
+    useSessionStore.setState({ permissions: new Set(['workflow:view', 'timelog:create', 'timelog:view']) });
+    const writes: Record<string, unknown>[] = [];
+    vi.mocked(global.fetch).mockImplementation(async (_url, options) => {
+      if (options?.method === 'POST') {
+        const body = JSON.parse(String(options.body));
+        writes.push(body);
+        return new Response(JSON.stringify({ data: { id: 'new-entry', user_id: 'user-admin',
+          ...body, created_at: '2026-10-01T01:00:00Z', updated_at: '2026-10-01T01:00:00Z' } }), { status: 201 });
+      }
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
+    });
+    render(<TaskDetailModal isOpen onClose={vi.fn()} task={mockTask} workRequest={mockWr} />, { wrapper });
+    fireEvent.click(screen.getByTestId('open-log-time-btn'));
+    const input = screen.getByTestId('log-time-minutes-input') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '' } });
+    expect(input.value).toBe('');
+    expect(input.validity.valueMissing).toBe(true);
+    fireEvent.change(input, { target: { value: '60' } });
+    expect(input.value).toBe('60');
+    expect(input.checkValidity()).toBe(true);
+    fireEvent.click(screen.getByTestId('log-time-submit-btn'));
+    await waitFor(() => expect(writes).toHaveLength(1));
+    expect(writes[0]?.duration_minutes).toBe(60);
+  });
+
+  it('accepts every whole-minute duration and rejects out-of-range or fractional values', () => {
+    useSessionStore.setState({ permissions: new Set(['workflow:view', 'timelog:create', 'timelog:view']) });
+    render(<TaskDetailModal isOpen onClose={vi.fn()} task={mockTask} workRequest={mockWr} />, { wrapper });
+    fireEvent.click(screen.getByTestId('open-log-time-btn'));
+    const input = screen.getByTestId('log-time-minutes-input') as HTMLInputElement;
+    for (const minutes of [1, 15, 30, 56, 60, 61, 120, 1440]) {
+      fireEvent.change(input, { target: { value: String(minutes) } });
+      expect(input.checkValidity(), `${minutes} minutes`).toBe(true);
+    }
+    for (const minutes of [0, -1, 1.5, 1441]) {
+      fireEvent.change(input, { target: { value: String(minutes) } });
+      expect(input.checkValidity(), `${minutes} minutes`).toBe(false);
+    }
+    fireEvent.click(screen.getByRole('button', { name: '60m' }));
+    expect(input.value).toBe('60');
+    expect(input.checkValidity()).toBe(true);
+  });
+
   it.each(['taskAssignees', 'task_assignees'] as const)('identifies every co-assignee in the summary using %s names without the team directory', (key) => {
     const task: Task = { ...mockTask, assignees: ['user-admin'], taskAssignees: [],
       [key]: ['co-one', 'co-two'].map((userId, index) => ({ taskId: mockTask.id, userId,
