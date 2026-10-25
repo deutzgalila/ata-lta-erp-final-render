@@ -414,6 +414,7 @@ describe('/v1/operations-requests', () => {
       .set('Authorization', `Bearer ${managerToken}`)
       .set('X-Active-Entity', 'ATA')
       .send({
+        dueDate: '2026-12-31',
         clientId: CLIENT_ID,
         title: 'Manager Project Request',
         phases: {

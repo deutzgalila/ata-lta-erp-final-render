@@ -103,6 +103,7 @@ describe('Task requiredLinkType Schema & Service Support', () => {
 
     it('preserves requiredLinkType through createWorkRequestSchema phases', () => {
       const parsed = createWorkRequestSchema.parse({
+        dueDate: '2026-12-31',
         title: 'WR with Linked Tasks',
         phases: {
           pre_processing: {
@@ -129,6 +130,7 @@ describe('Task requiredLinkType Schema & Service Support', () => {
       const parsedGen = generateRetainerTemplateSchema.parse({
         period_label: '2026-Q1',
         overrides: {
+          dueDate: '2026-12-31',
           assignedTo: MANAGER_ID,
           tasks: [
             { local_id: 't_1', requiredLinkType: 'billing' },
@@ -147,6 +149,7 @@ describe('Task requiredLinkType Schema & Service Support', () => {
         entityId: ENTITY_ID,
         user: managerUser,
         data: {
+          dueDate: '2026-12-31',
           title: 'Graph Creation Test WR',
           clientId: CLIENT_ID,
           assignedTo: MANAGER_ID,
@@ -246,6 +249,7 @@ describe('Task requiredLinkType Schema & Service Support', () => {
         data: {
           period_label: '2026-10',
           overrides: {
+            dueDate: '2026-12-31',
             assignedTo: MANAGER_ID,
             coAssignees: [STAFF_ID],
             tasks: [
@@ -328,6 +332,7 @@ describe('Task requiredLinkType Schema & Service Support', () => {
         entityId: ENTITY_ID,
         user: managerUser,
         data: {
+          dueDate: '2026-12-31',
           title: 'Phase Lock Test WR',
           clientId: CLIENT_ID,
           assignedTo: MANAGER_ID,
@@ -459,6 +464,7 @@ describe('Task requiredLinkType Schema & Service Support', () => {
         entityId: ENTITY_ID,
         user: managerUser,
         data: {
+          dueDate: '2026-12-31',
           title: 'Accounting Time Log Scope WR',
           clientId: CLIENT_ID,
           assignedTo: MANAGER_ID,

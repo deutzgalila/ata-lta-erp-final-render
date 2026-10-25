@@ -75,6 +75,7 @@ describe('Track 1 Parallel Remediation Backend Test Suite', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
         .send({
+          dueDate: '2026-12-31',
           title: 'WR for Checklist Sort Test',
           clientId: client.id,
           entity: 'ATA',
@@ -137,6 +138,7 @@ describe('Track 1 Parallel Remediation Backend Test Suite', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
         .send({
+          dueDate: '2026-12-31',
           title: 'WR with Deduplicated Co-Assignees',
           clientId: client.id,
           entity: 'ATA',
@@ -189,6 +191,7 @@ describe('Track 1 Parallel Remediation Backend Test Suite', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
         .send({
+          dueDate: '2026-12-31',
           title: 'WR Invalid Cross-Phase Graph',
           clientId: client.id,
           entity: 'ATA',
@@ -224,6 +227,7 @@ describe('Track 1 Parallel Remediation Backend Test Suite', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
         .send({
+          dueDate: '2026-12-31',
           title: 'WR Valid Forward Cross-Phase Graph',
           clientId: client.id,
           entity: 'ATA',
@@ -256,7 +260,7 @@ describe('Track 1 Parallel Remediation Backend Test Suite', () => {
         .post('/v1/work-requests')
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
-        .send({ title: 'WR for Task Dependency Test', clientId: client.id, entity: 'ATA' })
+        .send({ dueDate: '2026-12-31', title: 'WR for Task Dependency Test', clientId: client.id, entity: 'ATA' })
         .expect(201);
 
       const wrId = wrRes.body.data.id;
@@ -291,7 +295,7 @@ describe('Track 1 Parallel Remediation Backend Test Suite', () => {
         .post('/v1/work-requests')
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
-        .send({ title: 'WR for createTask Dependency Test', clientId: client.id, entity: 'ATA' })
+        .send({ dueDate: '2026-12-31', title: 'WR for createTask Dependency Test', clientId: client.id, entity: 'ATA' })
         .expect(201);
 
       const wrId = wrRes.body.data.id;
@@ -324,7 +328,7 @@ describe('Track 1 Parallel Remediation Backend Test Suite', () => {
         .post('/v1/work-requests')
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
-        .send({ title: 'WR Lock Test', clientId: client.id, entity: 'ATA' })
+        .send({ dueDate: '2026-12-31', title: 'WR Lock Test', clientId: client.id, entity: 'ATA' })
         .expect(201);
 
       const wrId = wrRes.body.data.id;
@@ -375,7 +379,7 @@ describe('Track 1 Parallel Remediation Backend Test Suite', () => {
         .post('/v1/work-requests')
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
-        .send({ title: 'WR for Billing Direct Approval', clientId: client.id, entity: 'ATA' })
+        .send({ dueDate: '2026-12-31', title: 'WR for Billing Direct Approval', clientId: client.id, entity: 'ATA' })
         .expect(201);
 
       const invRes = await request(app)
@@ -422,7 +426,7 @@ describe('Track 1 Parallel Remediation Backend Test Suite', () => {
         .post('/v1/work-requests')
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
-        .send({ title: 'WR for Staff Billing Test', clientId: client.id, entity: 'ATA' })
+        .send({ dueDate: '2026-12-31', title: 'WR for Staff Billing Test', clientId: client.id, entity: 'ATA' })
         .expect(201);
 
       const invRes = await request(app)
@@ -459,7 +463,7 @@ describe('Track 1 Parallel Remediation Backend Test Suite', () => {
         .post('/v1/work-requests')
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
-        .send({ title: 'WR for Disbursement Test', clientId: client.id, entity: 'ATA' })
+        .send({ dueDate: '2026-12-31', title: 'WR for Disbursement Test', clientId: client.id, entity: 'ATA' })
         .expect(201);
 
       // Create a draft disbursement as Admin
@@ -506,7 +510,7 @@ describe('Track 1 Parallel Remediation Backend Test Suite', () => {
         .post('/v1/work-requests')
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
-        .send({ title: 'WR for Staff Disb Test', clientId: client.id, entity: 'ATA' })
+        .send({ dueDate: '2026-12-31', title: 'WR for Staff Disb Test', clientId: client.id, entity: 'ATA' })
         .expect(201);
 
       const disbRes = await request(app)
