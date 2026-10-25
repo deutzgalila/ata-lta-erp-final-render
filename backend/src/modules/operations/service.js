@@ -81,6 +81,32 @@ const resolveEntityCode = async (id) => {
   return data.code;
 };
 
+const validateWorkRequestClientEntity = async (clientId, entityId) => {
+  if (!clientId) return;
+
+  const { data: client, error } = await supabaseAdmin
+    .from('clients')
+    .select('entity_id')
+    .eq('id', clientId)
+    .maybeSingle();
+
+  if (error) {
+    throw new AppError({
+      statusCode: 500,
+      title: 'Database Error',
+      detail: 'Unable to validate work request client',
+    });
+  }
+  if (!client || client.entity_id !== entityId) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Validation Error',
+      detail: 'Client must belong to the work request operating entity',
+      code: 'CLIENT_ENTITY_MISMATCH',
+    });
+  }
+};
+
 const toApiWorkRequest = (row, entityCode) => ({
   id: row.id,
   entity: entityCode,
@@ -1472,6 +1498,7 @@ const createWorkRequest = async ({ entityId, data, user }) => {
       detail: `dueDate: ${dueDateResult.error.issues[0].message}`,
     });
   }
+  await validateWorkRequestClientEntity(data.clientId, entityId);
   const reqBy = data.requestedBy || user?.id;
   const titleClean = (data.title || '').trim();
   const dedupeKey = `${entityId}:${reqBy || ''}:${data.clientId || ''}:${titleClean}`;
@@ -1730,6 +1757,12 @@ const updateWorkRequest = async ({ id, entityId, data, user }) => {
         });
       }
     }
+  }
+
+  // The persisted work request owns its entity, including cross-entity lookups
+  // from consolidated view. A request header cannot move it to another entity.
+  if (data.clientId) {
+    await validateWorkRequestClientEntity(data.clientId, await resolveEntityId(existing.entity));
   }
 
   const updates = {
