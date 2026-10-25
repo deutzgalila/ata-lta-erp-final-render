@@ -28,6 +28,7 @@ beforeEach(async () => {
   resetMock();
   seedDefaults();
   jest.clearAllMocks();
+  const accountingId = '22222222-2222-4222-8222-222222222222';
   mockTables.clients.set(clientId, { id: clientId, entity_id: 'ent-ata', name: 'Manila Trading' });
   mockTables.work_requests.set(wrId, {
     id: wrId,
@@ -35,6 +36,7 @@ beforeEach(async () => {
     client_id: clientId,
     title: 'Audit',
     status: 'In Progress',
+    co_assignees: [accountingId],
   });
   admin = registerUser({
     name: 'Maria Santos',
@@ -43,6 +45,7 @@ beforeEach(async () => {
     entities: ['ATA', 'LTA'],
   });
   accounting = registerUser({
+    id: accountingId,
     name: 'Accountant',
     email: 'acct@example.test',
     role: 'Accounting',
@@ -108,8 +111,20 @@ it.each([
 it.each(['ATA', 'LTA'])(
   'uses the voucher entity for storage and branding when active entity is ALL (%s)',
   async (entity) => {
+    const ltaClientId = '11111111-1111-1111-1111-111111111112';
+    const ltaWrId = '33333333-3333-3333-3333-333333333334';
+    mockTables.clients.set(ltaClientId, { id: ltaClientId, entity_id: 'ent-lta', name: 'LTA Manila Trading' });
+    mockTables.work_requests.set(ltaWrId, {
+      id: ltaWrId,
+      entity_id: 'ent-lta',
+      client_id: ltaClientId,
+      title: 'LTA Audit',
+      status: 'In Progress',
+    });
     Object.assign(mockTables.disbursements.get(voucher.id), {
       entity_id: entity === 'ATA' ? 'ent-ata' : 'ent-lta',
+      client_id: entity === 'ATA' ? clientId : ltaClientId,
+      linked_work_request_id: entity === 'ATA' ? wrId : ltaWrId,
       disbursement_number: `${entity}-100`,
     });
     await api('get', `/v1/disbursements/${voucher.id}/pdf`, admin, 'ALL').expect(200);
