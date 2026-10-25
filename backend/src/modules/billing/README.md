@@ -63,7 +63,26 @@ Regenerating the same invoice and branding variant replaces the existing object 
 
 Migration `000067_invoice_statement_details_admin_edit.js` adds invoice `print_details` (JSONB) and extends the existing atomic invoice update. Apply this migration before enabling the new billing statement editor. Administrators may correct released invoices; non-admin financial edits still require Draft. Version checks and row locking precede line-item mutation. Totals below recorded payments are rejected, and paid/partially-paid status follows recalculated balances.
 
-`PATCH /invoices/:id` accepts admin-only `printDetails` fields `clientName`, `clientTin`, `paymentDate`, `cash`, `checkNumber`, `bankBranch`, `notedBy`, `preparedBy`, `receivedBy`, together with `expectedVersion`. These are statement snapshots, not payment ledger updates or changes to master clients. Empty strings deliberately clear printed fields.
+`PATCH /invoices/:id` accepts admin-only `printDetails` fields `clientName`, `clientTin`, `paymentDate`, `cash`, `checkNumber`, `bankBranch`, `notedBy`, `preparedBy`, `receivedBy`, together with `expectedVersion`. These are statement snapshots, not payment ledger updates or changes to master clients.
+
+#### Canonical Payment Properties and Precedence
+Canonical payment properties stored and exposed by the API are `method`, `reference`, `payment_date`, and `amount`.
+- For backwards compatibility with legacy document inputs and historical payloads, `payment_method` and `reference_number` are supported as fallbacks within statement and document formatting helpers. Payment recording writes (`POST /v1/invoices/:id/payments`) continue to strictly require canonical write keys (`method`, `reference`, `amount`, `date`); legacy aliases are document-input compatibility fallbacks only, not newly accepted payment-write request keys.
+- Precedence: Canonical non-nullish values always take precedence over legacy aliases. Explicit canonical empty strings (`""`) remain empty and do not fall back.
+- Method layout semantics:
+  - **Cash (`method === 'Cash'`):** amount in cash slot; check number and bank branch remain blank.
+  - **Check (`method === 'Check'`):** reference in check number slot; cash amount and bank branch remain blank.
+  - **Bank Transfer & Other:** amount in cash slot, reference in check number slot, method name in bank branch slot.
+  - **No method / empty:** no cash amount, check number, or bank branch is inferred.
+
+#### Sparse Print Overrides and Reset Semantics
+- Submitted `printDetails` replaces the previous `print_details` object atomically.
+- **Sparse missing-key fallback:** Any field omitted from `print_details` automatically resolves to its live calculated record default (`details.key ?? auto.key`).
+- **Intentional blanks:** Setting a field to an explicit empty string (`""`) is preserved as an intentional blank override and will not revert to the default.
+- **Reset to automatic:** Submitting `{}` clears all custom overrides and restores live automatic defaults without mutating ledger or workflow identities.
+
+#### Fail-Fast Child Reads
+In `getInvoiceById`, errors from querying `invoice_line_items` or `invoice_payments` throw a 500 `AppError` (`FAILED_LINE_ITEMS_READ` or `FAILED_PAYMENTS_READ`). Both PDF generation (`/pdf`) and payment voucher generation (`/voucher`) rely on `getInvoiceById` and fail fast before rendering or uploading when child reads fail, preventing misleading "unpaid" states or incomplete PDF generation.
 
 `GET /invoices/:id/pdf?includeCompanyDetails=false` omits company name/logo and uses the generic statement layout. Omitting the parameter preserves branding. The PDF uses `statementDocument.js`, equivalent to the frontend statement builder; keep both renderers synchronized. Logos are embedded from backend assets. PDFs keep A4 padding and omit browser headers/footers, and each branding variant uses its documented stable storage key.
 

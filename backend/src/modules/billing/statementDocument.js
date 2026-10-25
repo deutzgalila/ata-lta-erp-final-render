@@ -2,21 +2,23 @@
 // PDF page margins differ from browser printing; pdfService disables headers/footers.
 'use strict';
 Object.defineProperty(exports, '__esModule', { value: true });
-exports.STATEMENT_CSS = void 0;
-exports.getInvoicePrintDetails = getInvoicePrintDetails;
-exports.buildStatementDocument = buildStatementDocument;
-const esc = (v) =>
-  String(v ?? '')
+
+function esc(v) {
+  return String(v ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
-const formatPHP = (n) =>
-  `₱${(Number(n) || 0).toLocaleString('en-US', {
+}
+
+function formatPHP(n) {
+  return `₱${(Number(n) || 0).toLocaleString('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
-const formatDate = (dateStr) => {
+}
+
+function formatDate(dateStr) {
   if (!dateStr) return '';
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return String(dateStr);
@@ -25,25 +27,89 @@ const formatDate = (dateStr) => {
     day: 'numeric',
     year: 'numeric',
   });
-};
+}
+
+function resolvePaymentProperties(p) {
+  if (!p) return null;
+  const method =
+    p.method !== undefined && p.method !== null
+      ? String(p.method)
+      : p.payment_method !== undefined && p.payment_method !== null
+        ? String(p.payment_method)
+        : '';
+  const reference =
+    p.reference !== undefined && p.reference !== null
+      ? String(p.reference)
+      : p.reference_number !== undefined && p.reference_number !== null
+        ? String(p.reference_number)
+        : '';
+  const payment_date = p.payment_date ? formatDate(p.payment_date) : '';
+  const amount = p.amount;
+  return { method, reference, payment_date, amount };
+}
+
+function getAutomaticPaymentDetails(payment) {
+  const resolved = resolvePaymentProperties(payment);
+  if (!resolved || !resolved.method) {
+    return {
+      paymentDate: resolved?.payment_date ?? '',
+      cash: '',
+      checkNumber: '',
+      bankBranch: '',
+    };
+  }
+  if (resolved.method === 'Cash') {
+    return {
+      paymentDate: resolved.payment_date,
+      cash:
+        resolved.amount !== undefined && resolved.amount !== null
+          ? formatPHP(resolved.amount)
+          : '',
+      checkNumber: '',
+      bankBranch: '',
+    };
+  }
+  if (resolved.method === 'Check') {
+    return {
+      paymentDate: resolved.payment_date,
+      cash: '',
+      checkNumber: resolved.reference || '',
+      bankBranch: '',
+    };
+  }
+  return {
+    paymentDate: resolved.payment_date,
+    cash:
+      resolved.amount !== undefined && resolved.amount !== null
+        ? formatPHP(resolved.amount)
+        : '',
+    checkNumber: resolved.reference || '',
+    bankBranch: resolved.method,
+  };
+}
+
 function getInvoicePrintDetails(inv) {
-  const payment = inv.payments?.[0];
+  const auto = getAutomaticPaymentDetails(inv.payments?.[0]);
   return {
     clientName: inv.clients?.name ?? '',
     clientTin: inv.clients?.tin ?? '',
-    paymentDate: payment?.payment_date ? formatDate(payment.payment_date) : '',
-    cash: payment && payment.payment_method !== 'Check' ? formatPHP(payment.amount) : '',
-    checkNumber: payment?.reference_number ?? '',
-    bankBranch:
-      payment && !['Cash', 'Check'].includes(payment.payment_method ?? '')
-        ? (payment.payment_method ?? '')
-        : '',
+    paymentDate: auto.paymentDate,
+    cash: auto.cash,
+    checkNumber: auto.checkNumber,
+    bankBranch: auto.bankBranch,
     notedBy: 'HENRY WONG',
     preparedBy: '',
     receivedBy: '',
     ...inv.print_details,
   };
 }
+
+exports.STATEMENT_CSS = void 0;
+exports.esc = esc;
+exports.resolvePaymentProperties = resolvePaymentProperties;
+exports.getAutomaticPaymentDetails = getAutomaticPaymentDetails;
+exports.getInvoicePrintDetails = getInvoicePrintDetails;
+exports.buildStatementDocument = buildStatementDocument;
 exports.STATEMENT_CSS = `
 * { box-sizing: border-box; }
 /* Use actual page margins for consistent PDF spacing on every sheet. */
@@ -126,29 +192,11 @@ function buildStatementDocument(inv, options = {}) {
   const entity = inv.entity_code === 'LTA' ? 'LTA' : 'ATA';
   const companyName =
     entity === 'ATA' ? 'A.T.A. BUSINESS CONSULTANCY' : 'LTA BUSINESS MANAGEMENT CORP';
-  let dateVal = '';
-  let cashVal = '';
-  let checkVal = '';
-  let bankVal = '';
-  const payments = inv.payments || [];
-  if (payments.length > 0 && payments[0]) {
-    const p = payments[0];
-    if (p.payment_date) dateVal = formatDate(p.payment_date);
-    if (p.payment_method === 'Cash') {
-      cashVal = formatPHP(p.amount);
-    } else if (p.payment_method === 'Check') {
-      checkVal = p.reference_number || '';
-      bankVal = '';
-    } else if (p.payment_method) {
-      cashVal = formatPHP(p.amount);
-      checkVal = p.reference_number || '';
-      bankVal = p.payment_method;
-    }
-  }
-  dateVal = details.paymentDate ?? dateVal;
-  cashVal = details.cash ?? cashVal;
-  checkVal = details.checkNumber ?? checkVal;
-  bankVal = details.bankBranch ?? bankVal;
+  const auto = getAutomaticPaymentDetails(inv.payments?.[0]);
+  const dateVal = details.paymentDate ?? auto.paymentDate;
+  const cashVal = details.cash ?? auto.cash;
+  const checkVal = details.checkNumber ?? auto.checkNumber;
+  const bankVal = details.bankBranch ?? auto.bankBranch;
   let headerHtml;
   if (!includeCompanyDetails) {
     headerHtml =

@@ -9,7 +9,12 @@
 const { supabaseAdmin } = require('../../services/supabaseClient');
 const { uploadBuffer } = require('../../services/storageService');
 const { generatePdf } = require('../../services/pdfService');
-const { buildStatementDocument, STATEMENT_CSS } = require('./statementDocument');
+const {
+  buildStatementDocument,
+  STATEMENT_CSS,
+  resolvePaymentProperties,
+  esc,
+} = require('./statementDocument');
 const fs = require('fs');
 const path = require('path');
 const auditService = require('../../services/auditService');
@@ -342,18 +347,36 @@ const getInvoiceById = async ({
   }
 
   // Fetch line items
-  const { data: lineItems } = await supabaseAdmin
+  const { data: lineItems, error: lineItemsError } = await supabaseAdmin
     .from('invoice_line_items')
     .select('*')
     .eq('invoice_id', id)
     .order('sort_order', { ascending: true });
 
+  if (lineItemsError) {
+    throw new AppError({
+      statusCode: 500,
+      title: 'Database Error',
+      detail: `Failed to retrieve line items for invoice ${id}`,
+      code: 'FAILED_LINE_ITEMS_READ',
+    });
+  }
+
   // Fetch payments
-  const { data: payments } = await supabaseAdmin
+  const { data: payments, error: paymentsError } = await supabaseAdmin
     .from('invoice_payments')
     .select('*')
     .eq('invoice_id', id)
     .order('payment_date', { ascending: false });
+
+  if (paymentsError) {
+    throw new AppError({
+      statusCode: 500,
+      title: 'Database Error',
+      detail: `Failed to retrieve payments for invoice ${id}`,
+      code: 'FAILED_PAYMENTS_READ',
+    });
+  }
 
   // Fetch parent Work Request and creator (Task A.3)
   let workRequestInfo = null;
@@ -949,17 +972,22 @@ const buildVoucherHtml = (invoice, entityId) => {
     entityId === 'ATA' ? 'Amaya Tan & Associates' : 'LTA — Lanting Tan & Associates';
 
   const paymentRows = (invoice.payments || [])
-    .map(
-      (p, idx) => `
+    .map((p, idx) => {
+      const resolved = resolvePaymentProperties(p);
+      const dateVal = p.payment_date || resolved?.payment_date || '-';
+      const methodVal = resolved?.method || '-';
+      const refVal = resolved?.reference || '-';
+      const amountVal = Number(resolved?.amount ?? p.amount ?? 0);
+      return `
     <tr>
       <td>${idx + 1}</td>
-      <td>${p.payment_date}</td>
-      <td>${p.method}</td>
-      <td>${p.reference || '-'}</td>
-      <td style="text-align: right;">₱${Number(p.amount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+      <td>${esc(dateVal)}</td>
+      <td>${esc(methodVal)}</td>
+      <td>${esc(refVal)}</td>
+      <td style="text-align: right;">₱${amountVal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
     </tr>
-  `
-    )
+  `;
+    })
     .join('');
 
   return `<!DOCTYPE html>

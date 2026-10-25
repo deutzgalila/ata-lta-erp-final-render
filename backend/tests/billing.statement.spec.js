@@ -19,7 +19,11 @@ const {
 } = require('./fixtures/supabaseMock');
 const { generatePdf } = require('../src/services/pdfService');
 const { uploadBuffer } = require('../src/services/storageService');
-const { buildStatementDocument } = require('../src/modules/billing/statementDocument');
+const {
+  buildStatementDocument,
+  getInvoicePrintDetails,
+  resolvePaymentProperties,
+} = require('../src/modules/billing/statementDocument');
 const clientId = '11111111-1111-1111-1111-111111111111';
 const workRequestId = '33333333-3333-3333-3333-333333333333';
 let admin, accounting, invoice;
@@ -38,15 +42,18 @@ beforeEach(async () => {
     name: 'Manila Trading',
     address: 'Manila',
   });
+  const accountingId = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa';
   mockTables.work_requests.set(workRequestId, {
     id: workRequestId,
     entity_id: 'ent-ata',
     client_id: clientId,
     title: 'Audit',
     status: 'In Progress',
+    co_assignees: [accountingId],
   });
   admin = registerUser({ email: 'admin@example.test', role: 'Admin', entities: ['ATA'] });
   accounting = registerUser({
+    id: accountingId,
     email: 'accounting@example.test',
     role: 'Accounting',
     entities: ['ATA'],
@@ -225,3 +232,198 @@ it.each(['ATA', 'LTA'])(
     }
   }
 );
+describe('STATEMENT-DETAILS-20261025 canonical payments, overrides, and fail-fast child queries', () => {
+  const pay = (data) =>
+    request(app)
+      .post(`/v1/invoices/${invoice.id}/payments`)
+      .set('Authorization', `Bearer ${admin}`)
+      .set('X-Active-Entity', 'ATA')
+      .send(data);
+
+  it.each([
+    ['Cash', 'REF-1', '₱500.00', '', ''],
+    ['Check', 'CHK-8899', '', 'CHK-8899', ''],
+    ['Bank Transfer', 'BT-4455', '₱500.00', 'BT-4455', 'Bank Transfer'],
+  ])(
+    'exercises canonical %s payment and verifies details and statement document agreement',
+    async (method, reference, expectedCash, expectedCheck, expectedBank) => {
+      await pay({ amount: 500, method, reference, date: '2026-10-25' }).expect(201);
+      const res = await request(app)
+        .get(`/v1/invoices/${invoice.id}`)
+        .set('Authorization', `Bearer ${admin}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(200);
+
+      const d = getInvoicePrintDetails(res.body.data);
+      expect(d.cash).toBe(expectedCash);
+      expect(d.checkNumber).toBe(expectedCheck);
+      expect(d.bankBranch).toBe(expectedBank);
+      expect(d.paymentDate).toBeTruthy();
+
+      const doc = buildStatementDocument(res.body.data);
+      if (expectedCheck) {
+        expect(doc).toContain(expectedCheck);
+      }
+      if (expectedCash) {
+        expect(doc).toContain(expectedCash);
+      }
+    }
+  );
+
+  it('preserves empty method handling with no inferred cash, check, or bank', async () => {
+    const inv = {
+      ...invoice,
+      payments: [{ amount: 500, method: '', reference: 'REF', payment_date: '2026-10-25' }],
+    };
+    const details = getInvoicePrintDetails(inv);
+    expect(details.cash).toBe('');
+    expect(details.checkNumber).toBe('');
+    expect(details.bankBranch).toBe('');
+    expect(details.paymentDate).toBeTruthy();
+  });
+
+  it('supports legacy alias fallbacks and enforces canonical non-nullish precedence', () => {
+    // Canonical Check beats legacy alias
+    const inv = {
+      ...invoice,
+      payments: [
+        {
+          amount: 500,
+          method: 'Check',
+          reference: 'CANONICAL-CHK',
+          payment_method: 'Cash',
+          reference_number: 'LEGACY-REF',
+          payment_date: '2026-10-25',
+        },
+      ],
+    };
+    const d1 = getInvoicePrintDetails(inv);
+    expect(d1.cash).toBe('');
+    expect(d1.checkNumber).toBe('CANONICAL-CHK');
+    expect(resolvePaymentProperties(inv.payments[0]).method).toBe('Check');
+    expect(resolvePaymentProperties(inv.payments[0]).reference).toBe('CANONICAL-CHK');
+
+    // Legacy fallback used when canonical is omitted
+    const legacyOnly = {
+      ...invoice,
+      payments: [
+        {
+          amount: 500,
+          payment_method: 'Check',
+          reference_number: 'LEGACY-CHK',
+          payment_date: '2026-10-25',
+        },
+      ],
+    };
+    const d2 = getInvoicePrintDetails(legacyOnly);
+    expect(d2.cash).toBe('');
+    expect(d2.checkNumber).toBe('LEGACY-CHK');
+
+    // Explicit empty string wins over legacy alias
+    const explicitEmpty = {
+      ...invoice,
+      payments: [
+        {
+          amount: 500,
+          method: '',
+          reference: '',
+          payment_method: 'Check',
+          reference_number: 'LEGACY-CHK',
+          payment_date: '2026-10-25',
+        },
+      ],
+    };
+    const d3 = getInvoicePrintDetails(explicitEmpty);
+    expect(d3.cash).toBe('');
+    expect(d3.checkNumber).toBe('');
+  });
+
+  it('handles sparse overrides, deliberate blanks, and resetting to automatic defaults', async () => {
+    // Set custom override and intentional blank
+    await api(admin)
+      .send({
+        printDetails: { paymentDate: '', checkNumber: 'CUSTOM-CHK', preparedBy: 'Auditor A' },
+        expectedVersion: invoice.version,
+      })
+      .expect(200);
+
+    await pay({ amount: 500, method: 'Check', reference: 'AUTO-CHK', date: '2026-10-25' }).expect(201);
+
+    let res = await request(app)
+      .get(`/v1/invoices/${invoice.id}`)
+      .set('Authorization', `Bearer ${admin}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+
+    let d = getInvoicePrintDetails(res.body.data);
+    expect(d.paymentDate).toBe('');
+    expect(d.checkNumber).toBe('CUSTOM-CHK');
+    expect(d.preparedBy).toBe('Auditor A');
+
+    // Reset to automatic with empty object {}
+    await api(admin)
+      .send({
+        printDetails: {},
+        expectedVersion: res.body.data.version,
+      })
+      .expect(200);
+
+    res = await request(app)
+      .get(`/v1/invoices/${invoice.id}`)
+      .set('Authorization', `Bearer ${admin}`)
+      .set('X-Active-Entity', 'ATA')
+      .expect(200);
+
+    d = getInvoicePrintDetails(res.body.data);
+    expect(d.paymentDate).toBeTruthy();
+    expect(d.checkNumber).toBe('AUTO-CHK');
+    expect(d.preparedBy).toBe('');
+    expect(d.notedBy).toBe('HENRY WONG');
+  });
+
+  it.each([
+    ['invoice_payments', ''],
+    ['invoice_payments', '/pdf'],
+    ['invoice_payments', '/voucher'],
+    ['invoice_line_items', ''],
+    ['invoice_line_items', '/pdf'],
+    ['invoice_line_items', '/voucher'],
+  ])(
+    'rejects child-query failure on %s for endpoint %s before renderer or storage',
+    async (table, suffix) => {
+      const originalFrom = require('../src/services/supabaseClient').supabaseAdmin.from.bind(
+        require('../src/services/supabaseClient').supabaseAdmin
+      );
+      const fromSpy = jest
+        .spyOn(require('../src/services/supabaseClient').supabaseAdmin, 'from')
+        .mockImplementation((t) =>
+          t !== table
+            ? originalFrom(t)
+            : {
+                select() {
+                  return this;
+                },
+                eq() {
+                  return this;
+                },
+                async order() {
+                  return { data: null, error: { message: `Simulated error in ${table}` } };
+                },
+              }
+        );
+
+      try {
+        await request(app)
+          .get(`/v1/invoices/${invoice.id}${suffix}`)
+          .set('Authorization', `Bearer ${admin}`)
+          .set('X-Active-Entity', 'ATA')
+          .expect(500);
+
+        expect(generatePdf).not.toHaveBeenCalled();
+        expect(uploadBuffer).not.toHaveBeenCalled();
+      } finally {
+        fromSpy.mockRestore();
+      }
+    }
+  );
+});
