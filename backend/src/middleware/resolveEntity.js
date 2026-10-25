@@ -179,6 +179,24 @@ function resolveEntity(options = {}) {
                     if (transmittal?.entity_id) {
                       resolvedUUID = transmittal.entity_id;
                       resolvedCode = await resolveEntityCode(transmittal.entity_id);
+                    } else {
+                      // Document confirmations, mutations, and comments have no clientId body.
+                      const { data: doc, error: docParamErr } = await supabaseAdmin
+                        .from('documents')
+                        .select('entity_id')
+                        .eq('id', routeParamId)
+                        .maybeSingle();
+                      if (docParamErr) {
+                        throw new AppError({
+                          statusCode: 500,
+                          title: 'Database Error',
+                          detail: 'Unable to resolve entity for document',
+                        });
+                      }
+                      if (doc?.entity_id) {
+                        resolvedUUID = doc.entity_id;
+                        resolvedCode = await resolveEntityCode(doc.entity_id);
+                      }
                     }
                   }
                 }

@@ -152,6 +152,7 @@ const confirmUpload = async (req, res, next) => {
     const data = await service.confirmUpload({
       entityId: req.activeEntity,
       id: req.params.id,
+      userId: req.user?.id,
       user: req.user,
     });
     res.json({ data });

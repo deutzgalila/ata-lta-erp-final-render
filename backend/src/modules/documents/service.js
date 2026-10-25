@@ -597,13 +597,17 @@ const confirmUpload = async ({ entityId, id, userId, user, caller, internal = fa
     });
   }
 
+  const effectiveUserId = userId || effectiveUser?.id || null;
+  const updatePayload = {
+    status: 'active',
+    upload_date: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    ...(effectiveUserId ? { updated_by: effectiveUserId } : {}),
+  };
+
   const { data: updated, error } = await supabaseAdmin
     .from('documents')
-    .update({
-      status: 'active',
-      upload_date: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq('id', id)
     .eq('entity_id', entityId)
     .select()
