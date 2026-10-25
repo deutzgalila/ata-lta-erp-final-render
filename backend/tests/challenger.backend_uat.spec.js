@@ -79,7 +79,7 @@ describe('Adversarial Challenger Suite: Backend UAT Remediation', () => {
         .post('/v1/work-requests')
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
-        .send({ title: 'Completed Lock Test WR', clientId: client.id, entity: 'ATA' })
+        .send({ dueDate: '2026-12-31', title: 'Completed Lock Test WR', clientId: client.id, entity: 'ATA' })
         .expect(201);
       completedWr = wrRes.body.data;
 
@@ -212,7 +212,7 @@ describe('Adversarial Challenger Suite: Backend UAT Remediation', () => {
         .post('/v1/work-requests')
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
-        .send({ title: 'Phase Gate Test WR', clientId: client.id, entity: 'ATA' })
+        .send({ dueDate: '2026-12-31', title: 'Phase Gate Test WR', clientId: client.id, entity: 'ATA' })
         .expect(201);
       wr = wrRes.body.data;
 
@@ -566,7 +566,7 @@ describe('Adversarial Challenger Suite: Backend UAT Remediation', () => {
         .post('/v1/work-requests')
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
-        .send({ title: 'Task Status Assignee Test WR', clientId: client.id, entity: 'ATA' })
+        .send({ dueDate: '2026-12-31', title: 'Task Status Assignee Test WR', clientId: client.id, entity: 'ATA' })
         .expect(201);
       wr = wrRes.body.data;
 
@@ -666,7 +666,7 @@ describe('Adversarial Challenger Suite: Backend UAT Remediation', () => {
         .post('/v1/work-requests')
         .set('Authorization', `Bearer ${adminToken}`)
         .set('X-Active-Entity', 'ATA')
-        .send({ title: 'Related Route WR', clientId: client.id, entity: 'ATA' })
+        .send({ dueDate: '2026-12-31', title: 'Related Route WR', clientId: client.id, entity: 'ATA' })
         .expect(201);
       wr = wrRes.body.data;
 

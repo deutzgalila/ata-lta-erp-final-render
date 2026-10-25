@@ -5,6 +5,7 @@
 
 const { supabaseAdmin } = require('../../services/supabaseClient');
 const AppError = require('../../lib/AppError');
+const { workRequestDueDateSchema } = require('./schema');
 const { concurrencyConflict, resolveExpectedVersion } = require('../../lib/concurrency');
 const { randomUUID } = require('crypto');
 const { tokenizeTask } = require('../../lib/tokenizer');
@@ -1462,6 +1463,15 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
 };
 
 const createWorkRequest = async ({ entityId, data, user }) => {
+  const dueDateResult = workRequestDueDateSchema.safeParse(data.dueDate);
+  if (!dueDateResult.success) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Validation Error',
+      code: 'VALIDATION_ERROR',
+      detail: `dueDate: ${dueDateResult.error.issues[0].message}`,
+    });
+  }
   const reqBy = data.requestedBy || user?.id;
   const titleClean = (data.title || '').trim();
   const dedupeKey = `${entityId}:${reqBy || ''}:${data.clientId || ''}:${titleClean}`;

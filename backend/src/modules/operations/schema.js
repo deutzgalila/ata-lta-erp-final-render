@@ -79,6 +79,15 @@ const phasesSchema = z
   })
   .passthrough();
 
+const workRequestDueDateSchema = z.string({
+  required_error: 'Due date is required',
+  invalid_type_error: 'Due date is required',
+}).min(1, 'Due date is required').pipe(
+  z.union([z.string().date(), z.string().datetime({ offset: true })], {
+    errorMap: () => ({ message: 'Due date must be a valid date or ISO timestamp' }),
+  })
+);
+
 const createWorkRequestSchema = z.object({
   title: z.string().min(1).max(255),
   description: z.string().optional().nullable(),
@@ -92,7 +101,7 @@ const createWorkRequestSchema = z.object({
     z.string().uuid().nullable().optional()
   ),
   coAssignees: z.array(z.string()).optional().default([]),
-  dueDate: z.string().optional().nullable(),
+  dueDate: workRequestDueDateSchema,
   priority: z.string().max(50).optional(),
   idempotency_key: z.string().optional().nullable(),
   idempotencyKey: z.string().optional().nullable(),
@@ -124,6 +133,7 @@ const WR_STATUSES = [
 ];
 
 const updateWorkRequestSchema = createWorkRequestSchema.partial().extend({
+  dueDate: workRequestDueDateSchema.optional().nullable(),
   archived: z.boolean().optional(),
   status: z.enum(WR_STATUSES).optional(),
   // OCC guard (Spec 2.2 / R-10): update applies only if the stored version matches.
@@ -257,11 +267,14 @@ const generateRetainerTemplateSchema = z.object({
       assigned_to: nullableUuid,
       coAssignees: z.array(z.string().uuid()).optional(),
       co_assignees: z.array(z.string().uuid()).optional(),
-      dueDate: z.string().optional().nullable(),
-      due_date: z.string().optional().nullable(),
+      dueDate: workRequestDueDateSchema.optional(),
+      due_date: workRequestDueDateSchema.optional(),
       tasks: z.array(generateTaskOverrideSchema).optional(),
     })
     .optional(),
+}).refine((data) => Boolean(data.overrides?.dueDate || data.overrides?.due_date), {
+  message: 'Due date is required',
+  path: ['overrides', 'dueDate'],
 });
 
 const groundWorkerSchema = z.object({
@@ -322,6 +335,7 @@ const rerouteSchema = z
   });
 
 module.exports = {
+  workRequestDueDateSchema,
   phaseTaskSchema,
   createWorkRequestSchema,
   updateWorkRequestSchema,
