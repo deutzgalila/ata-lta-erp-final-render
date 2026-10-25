@@ -74,6 +74,7 @@ import {
 import { runBlockingAction } from './BlockingActionModal';
 import { operationsKeys } from '../api/queryKeys';
 import { TaskChecklist } from './TaskChecklist';
+import { TaskTimeEntry } from './TaskTimeEntry';
 import { toChecklistInput } from '../utils/checklist';
 import { getPhaseBadgeInfo } from '../lib/statusBadges';
 import { TaskTypeSelect, TaskTypeBadge } from '../lib/taskTypes';
@@ -336,10 +337,13 @@ export function TaskDetailModal({
 
   // Time logging form state
   const [logDate, setLogDate] = useState(() => workDate());
-  const [logMinutes, setLogMinutes] = useState<number>(30);
+  const [logMinutes, setLogMinutes] = useState('30');
   const [logNote, setLogNote] = useState('');
   const [showLogForm, setShowLogForm] = useState(false);
   const [logError, setLogError] = useState<string | null>(null);
+  const [timeEntryError, setTimeEntryError] = useState<string | null>(null);
+
+  useEffect(() => { setTimeEntryError(null); }, [effectiveTaskId, isOpen]);
 
   // Selected document for preview
   const [selectedDoc, setSelectedDoc] = useState<DmsDocument | null>(null);
@@ -832,7 +836,8 @@ export function TaskDetailModal({
     e.preventDefault();
     if (!task) return;
     if (createTimeEntryMutation.isPending) return;
-    if (!Number.isInteger(logMinutes) || logMinutes < 1 || logMinutes > 1440) {
+    const durationMinutes = Number(logMinutes);
+    if (!logMinutes.trim() || !Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 1440) {
       setLogError('Duration must be an integer between 1 and 1440 minutes.');
       return;
     }
@@ -846,7 +851,7 @@ export function TaskDetailModal({
       await createTimeEntryMutation.mutateAsync({
         taskId: task.id,
         entryDate: logDate || workDate(),
-        durationMinutes: Number(logMinutes),
+        durationMinutes,
         note: logNote.trim() || undefined,
       });
 
@@ -1856,13 +1861,15 @@ export function TaskDetailModal({
                       <label className="text-xs font-bold uppercase text-[#475569] block mb-1">
                         Duration (Minutes)
                       </label>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <Input
                           type="number"
+                          aria-label="Duration in minutes"
                           min={1}
-                          step={5}
+                          max={1440}
+                          step={1}
                           value={logMinutes}
-                          onChange={(e) => setLogMinutes(Number(e.target.value))}
+                          onChange={(e) => setLogMinutes(e.target.value)}
                           className="h-8 text-xs bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px] w-24"
                           required
                           data-testid="log-time-minutes-input"
@@ -1872,9 +1879,9 @@ export function TaskDetailModal({
                             <button
                               key={preset}
                               type="button"
-                              onClick={() => setLogMinutes(preset)}
+                              onClick={() => setLogMinutes(String(preset))}
                               className={`px-2 py-0.5 rounded-[6px] text-xs  border transition-colors ${
-                                logMinutes === preset
+                                Number(logMinutes) === preset
                                   ? 'bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs border-[#E2E8F0] font-bold'
                                   : 'bg-[#FFFFFF] text-[#1E293B] border-[#E2E8F0] hover:bg-[#E2E8F0]'
                               }`}
@@ -1925,6 +1932,7 @@ export function TaskDetailModal({
               )}
 
               {/* Time Entries List */}
+              {timeEntryError && <p role="alert" className="text-xs text-[#DC2626]">{timeEntryError}</p>}
               {isLoadingTime ? (
                 <div className="p-3 text-center text-xs text-[#475569] bg-[#F8FAFC] rounded-[8px] border-[#E2E8F0]">
                   Loading time entries...
@@ -1937,28 +1945,16 @@ export function TaskDetailModal({
                 <div className="border-[#E2E8F0] rounded-[6px] overflow-hidden bg-[#FFFFFF]">
                   <div className="divide-y divide-[#CBD5E1] max-h-48 overflow-y-auto">
                     {timeEntries.map((entry) => (
-                      <div
+                      <TaskTimeEntry
                         key={entry.id}
-                        className="p-2.5 flex items-center justify-between text-xs hover:bg-[#F8FAFC] transition-colors"
-                        data-testid={`time-entry-item-${entry.id}`}
-                      >
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-[#1E293B]">
-                              {formatHours(entry.durationMinutes)}
-                            </span>
-                            <span className="text-xs text-[#475569]">
-                              {entry.entryDate}
-                            </span>
-                          </div>
-                          {entry.note && (
-                            <p className="text-xs text-[#475569] line-clamp-1">{entry.note}</p>
-                          )}
-                        </div>
-                        <Badge variant="outline" size="compact" className="text-xs rounded-[8px] border-[#E2E8F0]">
-                          {entry.durationMinutes} min
-                        </Badge>
-                      </div>
+                        onDeleteError={setTimeEntryError}
+                        entry={{ ...entry,
+                          userName: entry.userName || (entry.userId === currentUser?.id ? currentUser.name : null),
+                          userRole: entry.userRole || (entry.userId === currentUser?.id ? currentUser.role : null),
+                        }}
+                        canManage={hasPermission(permissions, 'timelog:edit_all') ||
+                          (entry.userId === currentUser?.id && hasPermission(permissions, 'timelog:edit_own'))}
+                      />
                     ))}
                   </div>
                 </div>
