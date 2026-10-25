@@ -122,6 +122,77 @@ describe('Checklist persistence and failed reads', () => {
     expect([...mockTables.task_checklists.values()]).toEqual(before);
   });
 
+  describe('Task completion requires a checked checklist', () => {
+    it.each([
+      () => path(), () => `/v1/operations/tasks/${task.id}`,
+      () => `/v1/work-requests/${wr.id}/tasks/${task.id}`, () => `/v1/tasks/${task.id}`,
+    ])('rejects completion through route alias %# while any item is unchecked', async (route) => {
+      const res = await authorized(request(app).patch(route())).send({ status: 'Completed' }).expect(409);
+      expect(res.body.code).toBe('TASK_CHECKLIST_INCOMPLETE');
+      expect(mockTables.tasks.get(task.id)).toMatchObject({ status: 'Draft', version: 1 });
+    });
+
+    it('allows completion after every saved checklist item is checked', async () => {
+      prerequisite.completed = true;
+      doc.completed = true;
+      const res = await authorized(request(app).patch(path())).send({ status: 'Completed' }).expect(200);
+      expect(res.body.data.status).toBe('Completed');
+    });
+
+    it('allows a task without checklist items to be completed', async () => {
+      mockTables.task_checklists.clear();
+      await authorized(request(app).patch(path())).send({ status: 'Completed' }).expect(200);
+    });
+
+    it('still allows starting work while checklist items are incomplete', async () => {
+      await authorized(request(app).patch(path())).send({ status: 'In Progress' }).expect(200);
+    });
+
+    it('does not accept an unsaved checked snapshot as proof of completion', async () => {
+      const res = await authorized(request(app).put(path())).send({ status: 'Completed', checklist: [
+        { id: prerequisite.id, text: prerequisite.text, completed: true },
+        { id: doc.id, text: doc.text, completed: true },
+      ] }).expect(409);
+      expect(res.body.code).toBe('TASK_CHECKLIST_INCOMPLETE');
+      expect(mockTables.task_checklists.get(prerequisite.id).completed).toBe(false);
+    });
+
+    it('rejects adding an unchecked item in the same request that completes the task', async () => {
+      prerequisite.completed = true;
+      doc.completed = true;
+      await authorized(request(app).put(path())).send({ status: 'Completed', checklist: [
+        { id: prerequisite.id, text: prerequisite.text, completed: true },
+        { id: doc.id, text: doc.text, completed: true }, { text: 'New unfinished item', completed: false },
+      ] }).expect(409);
+      expect(mockTables.tasks.get(task.id).status).toBe('Draft');
+    });
+
+    it('does not mark a task complete if its checklist could not be read', async () => {
+      failChecklistReads();
+      await authorized(request(app).patch(path())).send({ status: 'Completed' }).expect(500);
+      expect(mockTables.tasks.get(task.id)).toMatchObject({ status: 'Draft', version: 1 });
+    });
+
+    it('rejects completion when a concurrent checklist edit changes the task version', async () => {
+      prerequisite.completed = true;
+      doc.completed = true;
+      const original = supabaseAdmin.from;
+      jest.spyOn(supabaseAdmin, 'from').mockImplementation((name) => {
+        const query = original(name);
+        if (name === 'tasks') {
+          const update = query.update;
+          query.update = (fields) => {
+            if (fields.status === 'Completed') { task.version = 2; prerequisite.completed = false; }
+            return update(fields);
+          };
+        }
+        return query;
+      });
+      await authorized(request(app).patch(path())).send({ status: 'Completed' }).expect(409);
+      expect(mockTables.tasks.get(task.id).status).toBe('Draft');
+    });
+  });
+
   describe('Checklist content and completion permissions', () => {
     const staff = (assigned = true, departments = ['Operations']) => {
       const id = randomUUID();

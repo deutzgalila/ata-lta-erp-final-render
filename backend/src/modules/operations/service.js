@@ -2691,7 +2691,13 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user, 
   }
 
   // Read before updating the task so a checklist read failure cannot partially save it.
-  const checklistRows = editsChecklist || completesChecklist ? await readChecklistRows(taskId) : undefined;
+  const checklistRows = editsChecklist || completesChecklist || targetStatus === 'Completed'
+    ? await readChecklistRows(taskId) : undefined;
+  if (targetStatus === 'Completed' &&
+      (checklistRows.some((item) => !item.completed) || data.checklist?.some((item) => !item.completed))) {
+    throw new AppError({ statusCode: 409, title: 'Incomplete Checklist',
+      detail: 'Check all checklist items before marking this task completed.', code: 'TASK_CHECKLIST_INCOMPLETE' });
+  }
   if (completesChecklist) {
     const byId = new Map(checklistRows.map((item) => [item.id, item]));
     const completed = new Map(checklistRows.map((item) => [item.id, item.completed]));
@@ -2742,7 +2748,8 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user, 
   // OCC (Spec 2.2 / R-10): version-guard the update when the client declares
   // the version it read; zero matching rows become a 409 conflict.
   // Always bump task version on update so CDC consumers receive monotonically increasing versions.
-  const expectedVersion = resolveExpectedVersion(data);
+  // Completion also guards the version read with the checklist for older clients.
+  const expectedVersion = resolveExpectedVersion(data) ?? (targetStatus === 'Completed' ? existing.version || 1 : null);
   updates.version = (existing.version || 1) + 1;
 
   // B2.5: Immediately prior to writing task completion, re-verify prerequisite tasks remain in Completed status
