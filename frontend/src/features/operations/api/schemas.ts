@@ -255,6 +255,10 @@ export const updateTaskSchema = createTaskSchema
     // Explicitly reject any attempt to mutate task phase (Rule R5 / TASK_PHASE_IMMUTABLE)
     phase: z.never({ invalid_type_error: 'Task phase is immutable once created' }).optional(),
     expectedVersion: z.number().int().positive().optional(),
+    checklistCompletions: z.array(z.object({
+      id: z.string().uuid(),
+      completed: z.boolean(),
+    }).strict()).min(1).optional(),
   });
 
 // ============================================================================

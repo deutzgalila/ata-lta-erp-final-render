@@ -221,6 +221,11 @@ export function isRoleAdmin(user: UserProfile | null | undefined): boolean {
   return String(user.role || '').trim().toLowerCase() === 'admin';
 }
 
+/** Checklist content belongs to authenticated Managers and Admins. */
+export function isChecklistEditor(user: UserProfile | null | undefined): boolean {
+  return user?.role === 'Admin' || user?.role === 'Manager';
+}
+
 /**
  * Checks if a task belongs to the specified work request, accounting for camelCase and snake_case API aliases.
  * Fails closed if task is nullish or has missing parent IDs.
