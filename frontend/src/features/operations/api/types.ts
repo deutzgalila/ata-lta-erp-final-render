@@ -218,6 +218,7 @@ export interface Task {
   checklist?: ChecklistItem[];
   timeLogs?: TaskTimeLog[];
   taskDocuments?: TaskDocumentAttachment[];
+  hasDocuments?: boolean;
   createdAt: string;
   updatedAt: string;
 }
