@@ -18,6 +18,17 @@ const {
   filterValidProjectRecords,
 } = require('../../lib/projectLinkage');
 
+const isDisbursementReceiptDoc = (d) => {
+  if (!d) return false;
+  const path = (d.storage_path || '').toLowerCase();
+  if (path.includes('/disbursements/receipts/') || path.includes('/disbursements/')) return true;
+  const cat = (d.category || '').toLowerCase();
+  if (['receipt', 'receipts', 'disbursement', 'disbursement_receipt'].includes(cat)) return true;
+  const docType = (d.document_type || '').toLowerCase();
+  if (docType === 'disbursement_receipt' || docType === 'disbursement receipt') return true;
+  return false;
+};
+
 /**
  * Sanitize a file name for safe storage.
  * @param {string} fileName - Original file name
@@ -167,6 +178,11 @@ const listDocuments = async ({ entityId, filters = {}, user }) => {
       q = q.eq('archived', false);
     }
 
+    // Exclude disbursement receipts from DMS documents views
+    q = q
+      .not('storage_path', 'ilike', '%/disbursements/receipts/%')
+      .not('storage_path', 'ilike', '%/disbursements/%');
+
     if (category) q = q.eq('category', category);
     if (status) q = q.eq('status', status);
     if (lifecycle) q = q.eq('document_lifecycle', lifecycle);
@@ -189,9 +205,11 @@ const listDocuments = async ({ entityId, filters = {}, user }) => {
     concernedWrIds,
   });
 
-  const total = validRows.length;
+  const visibleRows = (validRows || []).filter((d) => !isDisbursementReceiptDoc(d));
+
+  const total = visibleRows.length;
   const offset = (page - 1) * limit;
-  const rows = validRows.slice(offset, offset + limit);
+  const rows = visibleRows.slice(offset, offset + limit);
 
   const enriched = await enrichDocuments(rows);
 
@@ -560,6 +578,12 @@ const countDocuments = async ({ entityId, user }) => {
     if (entityId && entityId !== 'ALL') {
       q = q.eq('entity_id', entityId);
     }
+
+    // Exclude disbursement receipts from DMS documents views
+    q = q
+      .not('storage_path', 'ilike', '%/disbursements/receipts/%')
+      .not('storage_path', 'ilike', '%/disbursements/%');
+
     return q.order('created_at', { ascending: false });
   };
 
@@ -571,8 +595,10 @@ const countDocuments = async ({ entityId, user }) => {
     concernedWrIds,
   });
 
-  const activeCount = validRows.filter((d) => !d.archived).length;
-  const archivedCount = validRows.filter((d) => d.archived).length;
+  const visibleRows = (validRows || []).filter((d) => !isDisbursementReceiptDoc(d));
+
+  const activeCount = visibleRows.filter((d) => !d.archived).length;
+  const archivedCount = visibleRows.filter((d) => d.archived).length;
 
   return { active: activeCount, archived: archivedCount };
 };

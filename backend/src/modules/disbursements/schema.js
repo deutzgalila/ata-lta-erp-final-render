@@ -263,9 +263,16 @@ const archiveDisbursementSchema = z
  */
 const createReceiptUploadSchema = z.object({
   filename: z.string().trim().min(1, 'Filename is required').max(255),
-  contentType: z.enum(['application/pdf', 'image/png', 'image/jpeg'], {
+  contentType: z.preprocess((val) => {
+    if (typeof val === 'string') {
+      const lower = val.trim().toLowerCase();
+      if (lower === 'image/jpg' || lower === 'image/pjpeg') return 'image/jpeg';
+      return lower;
+    }
+    return val;
+  }, z.enum(['application/pdf', 'image/png', 'image/jpeg'], {
     errorMap: () => ({ message: 'contentType must be application/pdf, image/png, or image/jpeg' }),
-  }),
+  })),
   size: z
     .number()
     .int()

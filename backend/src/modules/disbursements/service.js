@@ -1967,7 +1967,16 @@ const completeReceiptUpload = async ({ entityId, uploadId, userId, user: _user }
 };
 
 const getReceiptUrl = async ({ entityId, id, userId: _userId, user }) => {
-  const voucher = await getDisbursementById({ entityId, id, user });
+  let voucher;
+  try {
+    voucher = await getDisbursementById({ entityId, id, user });
+  } catch (err) {
+    if (err.statusCode === 404 && entityId && entityId !== 'ALL') {
+      voucher = await getDisbursementById({ entityId: 'ALL', id, user });
+    } else {
+      throw err;
+    }
+  }
 
   // Case 1: No supporting document attached
   if (!voucher.receipt_s3_key && !voucher.receipt_filename) {
@@ -2015,7 +2024,16 @@ const generateDisbursementPdf = async ({
   noLogo = false,
   includeCompanyDetails = true,
 }) => {
-  const voucher = await getDisbursementById({ entityId, id, user });
+  let voucher;
+  try {
+    voucher = await getDisbursementById({ entityId, id, user });
+  } catch (err) {
+    if (err.statusCode === 404 && entityId && entityId !== 'ALL') {
+      voucher = await getDisbursementById({ entityId: 'ALL', id, user });
+    } else {
+      throw err;
+    }
+  }
   const code = voucher.entity_code;
   let body = buildDisbursementDocument(voucher, { noLogo, includeCompanyDetails });
   if (includeCompanyDetails && !noLogo) {
