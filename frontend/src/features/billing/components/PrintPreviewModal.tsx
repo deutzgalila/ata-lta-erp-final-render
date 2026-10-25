@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Printer, Download, Lock, Pencil, X } from 'lucide-react';
+import { Printer, Download, Lock, Pencil, X, AlertTriangle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -107,6 +108,49 @@ export function PrintPreviewModal({
           >
             Close
           </Button>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  if (isInvoiceError && !isDenied) {
+    return (
+      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <DialogContent
+          className="max-w-md p-6 border-[#E2E8F0] bg-[#FFFFFF] shadow-float text-center space-y-3 rounded-[12px]"
+          data-testid="print-preview-error"
+        >
+          <div className="w-12 h-12 rounded-full bg-red-50 mx-auto flex items-center justify-center">
+            <AlertTriangle className="w-6 h-6 text-red-600" />
+          </div>
+          <div className="space-y-1">
+            <DialogTitle className="text-base font-bold text-[#1E293B]">
+              Unable to Load Print Preview
+            </DialogTitle>
+            <DialogDescription className="text-xs text-[#475569] max-w-xs mx-auto">
+              Could not retrieve invoice details from the server to generate statement preview.
+            </DialogDescription>
+          </div>
+          <div className="flex items-center justify-center gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onClose}
+              className="text-xs"
+              data-testid="print-preview-error-close-btn"
+            >
+              Close
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => void refetch()}
+              className="text-xs"
+              data-testid="print-preview-error-retry-btn"
+            >
+              Retry
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     );

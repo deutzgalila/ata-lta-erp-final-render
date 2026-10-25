@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useClients } from '@/features/operations/api/useClients';
+import { useClients, type ClientSummary } from '@/features/operations/api/useClients';
 import { useWorkRequests } from '@/features/operations/api/useWorkRequests';
 import { useWorkRequestTasks } from '@/features/operations/api/useTasks';
 import { operationsKeys } from '@/features/operations/api/queryKeys';
@@ -111,7 +111,7 @@ export function InvoiceEditModal({
   // Initialize/reset form from invoice prop
   useEffect(() => {
     if (isOpen && invoice) {
-      setPrintDetails(getInvoicePrintDetails(invoice));
+      setPrintDetails(invoice.print_details ? { ...invoice.print_details } : {});
       setAddress(invoice.address ?? invoice.clients?.address ?? '');
       setClientId(invoice.client_id || '');
       setWorkRequestId(invoice.work_request_id || '');
@@ -119,7 +119,9 @@ export function InvoiceEditModal({
       // Preserve canonical task_id precedence over linked_task_id; detect malformed or conflicting IDs
       const rawCanonical = (invoice as { task_id?: string | null }).task_id;
       const rawLegacy =
-        invoice.linked_task_id ?? (invoice as { linkedTaskId?: string | null }).linkedTaskId ?? null;
+        invoice.linked_task_id ??
+        (invoice as { linkedTaskId?: string | null }).linkedTaskId ??
+        null;
 
       const hasCanonical = rawCanonical !== undefined && rawCanonical !== null;
       const hasLegacy = rawLegacy !== undefined && rawLegacy !== null;
@@ -208,10 +210,19 @@ export function InvoiceEditModal({
     if (!clientsData) return [];
     if (Array.isArray(clientsData)) return clientsData;
     if (Array.isArray((clientsData as unknown as { data: unknown[] }).data)) {
-      return (clientsData as unknown as { data: Array<{ id: string; name: string }> }).data;
+      return (clientsData as unknown as { data: ClientSummary[] }).data;
     }
     return [];
   }, [clientsData]);
+
+  const automaticDetails = useMemo(() => {
+    if (!invoice) return {};
+    const selectedClient =
+      clientId === invoice.client_id
+        ? invoice.clients
+        : (clients.find((client) => client.id === clientId) ?? null);
+    return getInvoicePrintDetails({ ...invoice, clients: selectedClient, print_details: {} });
+  }, [invoice, clientId, clients]);
 
   const { data: workRequestsData } = useWorkRequests(
     { clientId: clientId || undefined },
@@ -229,7 +240,6 @@ export function InvoiceEditModal({
     }
     return [];
   }, [workRequestsData]);
-
 
   // Work Request Tasks query (entity-scoped, excludes placeholder data)
   const tasksQuery = useWorkRequestTasks(workRequestId || undefined, {
@@ -252,8 +262,6 @@ export function InvoiceEditModal({
   const handleClientChange = (newClientId: string) => {
     if (!newClientId) return;
     if (isAdmin && newClientId !== clientId) {
-      const selected = clients.find((c) => c.id === newClientId);
-      setPrintDetails((prev) => ({ ...prev, clientName: selected?.name ?? '', clientTin: '' }));
       setAddress('');
     }
     setClientId(newClientId);
@@ -465,7 +473,9 @@ export function InvoiceEditModal({
           destState.isInvalidated ||
           !Array.isArray(destState.data)
         ) {
-          setFormError('Destination task data is currently loading or unavailable. Please try again.');
+          setFormError(
+            'Destination task data is currently loading or unavailable. Please try again.'
+          );
           return;
         }
         const liveDestTask = destState.data.find((t) => t.id === effectiveSelectedTask);
@@ -777,9 +787,7 @@ export function InvoiceEditModal({
               <h4 className="text-xs font-bold text-[#1E293B] uppercase tracking-wide">
                 Line Items
               </h4>
-              <p className="text-xs text-[#475569]">
-                At least 1 item required. Total = Subtotal.
-              </p>
+              <p className="text-xs text-[#475569]">At least 1 item required. Total = Subtotal.</p>
             </div>
             <Button
               type="button"
@@ -802,9 +810,7 @@ export function InvoiceEditModal({
                 className="flex items-center gap-2 p-2.5 bg-[#F8FAFC] border-[#E2E8F0] rounded-[6px]"
                 data-testid={`line-item-row-${index}`}
               >
-                <span className="text-xs text-[#475569] w-4 text-center">
-                  {index + 1}
-                </span>
+                <span className="text-xs text-[#475569] w-4 text-center">{index + 1}</span>
 
                 {/* Description */}
                 <div className="flex-1">
@@ -940,7 +946,11 @@ export function InvoiceEditModal({
                 onChange={(e) => setAddress(e.target.value)}
               />
             </label>
-            <InvoicePrintDetailsFields value={printDetails} onChange={setPrintDetails} />
+            <InvoicePrintDetailsFields
+              value={printDetails}
+              automaticValues={automaticDetails}
+              onChange={setPrintDetails}
+            />
           </>
         )}
         {/* 3. Notes & Terms */}

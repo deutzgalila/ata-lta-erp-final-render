@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -82,6 +82,9 @@ export function DisbursementEditModal({
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
   const [printDetails, setPrintDetails] = useState<DisbursementPrintDetails>({});
+  const automaticDetails = useMemo(() => {
+    return disbursement ? getDisbursementPrintDetails({ ...disbursement, print_details: {} }) : {};
+  }, [disbursement]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [conflict, setConflict] = useState(false);
@@ -107,7 +110,7 @@ export function DisbursementEditModal({
     setFundSource(disbursement.fund_source || disbursement.fundSource || 'Firm Fund');
     setDueDate((disbursement.due_date || disbursement.dueDate || '').slice(0, 10));
     setNotes(disbursement.notes || '');
-    setPrintDetails(getDisbursementPrintDetails(disbursement));
+    setPrintDetails(disbursement.print_details ? { ...disbursement.print_details } : {});
     setError('');
     setConflict(false);
   }, [isOpen, disbursement, contextKey]);
@@ -158,7 +161,7 @@ export function DisbursementEditModal({
         payload.notes = notes.trim() || null;
       }
 
-      if (isAdmin && Object.keys(printDetails).length > 0) {
+      if (isAdmin) {
         payload.printDetails = printDetails;
       }
 
@@ -311,21 +314,66 @@ export function DisbursementEditModal({
         <fieldset className="border-t border-[#E2E8F0] pt-3 space-y-3">
           <legend className="text-sm font-semibold">Printed voucher details</legend>
           <p className="text-xs text-[#475569]">
-            These values appear on the document. Use Edit Payment Details to correct the recorded
-            payment.
+            These overrides affect the printed document. Use automatic restores the current value
+            without changing recorded payments or approval and release identities.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {printFields.map(([key, label]) => (
-              <label key={key} className="text-sm space-y-1">
-                {label}
-                <Input
-                  aria-label={label}
-                  value={printDetails[key] ?? ''}
-                  maxLength={500}
-                  onChange={(e) => setPrintDetails({ ...printDetails, [key]: e.target.value })}
-                />
-              </label>
-            ))}
+            {printFields.map(([key, label]) => {
+              const isOverridden = Object.prototype.hasOwnProperty.call(printDetails, key);
+              const inputValue = isOverridden
+                ? (printDetails[key] ?? '')
+                : (automaticDetails[key] ?? '');
+              return (
+                <div key={key} className="text-sm space-y-1">
+                  <div className="flex min-h-11 sm:min-h-8 flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span>{label}</span>
+                      <span
+                        className={`text-xs px-1.5 py-0.5 rounded font-normal ${
+                          !isOverridden
+                            ? 'bg-slate-100 text-slate-600'
+                            : printDetails[key] === ''
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-blue-100 text-blue-800'
+                        }`}
+                      >
+                        {!isOverridden
+                          ? 'Automatic'
+                          : printDetails[key] === ''
+                            ? 'Blank'
+                            : 'Custom'}
+                      </span>
+                    </div>
+                    {isOverridden && (
+                      <button
+                        type="button"
+                        aria-label={`Use automatic for ${label}`}
+                        title={`Use automatic for ${label}`}
+                        onClick={() => {
+                          setPrintDetails((prev) => {
+                            const next = { ...prev };
+                            delete next[key];
+                            return next;
+                          });
+                        }}
+                        className="min-h-11 sm:min-h-8 px-2 text-xs text-blue-700 hover:text-blue-800 underline font-normal cursor-pointer rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"
+                      >
+                        Use automatic
+                      </button>
+                    )}
+                  </div>
+                  <Input
+                    aria-label={label}
+                    value={inputValue}
+                    maxLength={500}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setPrintDetails((prev) => ({ ...prev, [key]: val }));
+                    }}
+                  />
+                </div>
+              );
+            })}
           </div>
         </fieldset>
         <div className="flex justify-end gap-2">
