@@ -564,7 +564,7 @@ const enrichDisbursementExtras = async (rows = []) => {
   if (distinctUserIds.length > 0) {
     const { data: users } = await supabaseAdmin
       .from('users')
-      .select('id, name')
+      .select('id, name, role')
       .in('id', distinctUserIds);
     userMap = new Map((users || []).map((u) => [u.id, u]));
   }
@@ -582,6 +582,7 @@ const enrichDisbursementExtras = async (rows = []) => {
       new_status: h.new_status,
       actor_id: h.actor_id,
       actor_name: userMap.get(h.actor_id)?.name || null,
+      actor_role: userMap.get(h.actor_id)?.role || null,
       timestamp: h.created_at,
       created_at: h.created_at,
       from_status: h.old_status,
@@ -598,10 +599,15 @@ const enrichDisbursementExtras = async (rows = []) => {
       employee_name: userMap.get(row.employee_id)?.name || null,
       requested_by_name: userMap.get(row.requested_by)?.name || null,
       created_by_name: userMap.get(row.created_by)?.name || null,
+      created_by_role: userMap.get(row.created_by)?.role || null,
       approved_by_name: userMap.get(row.approved_by)?.name || null,
+      approved_by_role: userMap.get(row.approved_by)?.role || null,
       released_by_name: userMap.get(row.released_by)?.name || null,
+      released_by_role: userMap.get(row.released_by)?.role || null,
       rejected_by_name: userMap.get(row.rejected_by)?.name || null,
+      rejected_by_role: userMap.get(row.rejected_by)?.role || null,
       funded_by_name: userMap.get(row.funded_by)?.name || null,
+      funded_by_role: userMap.get(row.funded_by)?.role || null,
       edited_by_accounting: editedByAccounting,
       lifecycle_history: historyItems,
     };

@@ -90,6 +90,14 @@ Creates a new disbursement record.
 ---
 
 ### 2.3 `GET /v1/disbursements/:id`
+
+Lifecycle history entries include nullable `actor_name` and `actor_role` fields,
+resolved from the current actor profile. Missing profiles preserve the original
+history with null identity fields. Legacy summary fields include nullable
+`created_by_role`, `approved_by_role`, `funded_by_role`, `released_by_role`, and
+`rejected_by_role`. List and detail responses share this enrichment; existing
+voucher visibility and entity restrictions still apply. Audit actions and stored
+event details are unchanged.
 Retrieves a single disbursement record with audit log and attachments.
 
 - **Guards:** Authenticated, `disbursement:view`.
