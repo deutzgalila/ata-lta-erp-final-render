@@ -230,7 +230,7 @@ const toApiTask = (
         completed: c.completed,
         assigneeId: c.assignee_id || null,
         assigneeName: c.assignee_name || null,
-        dependsOn: Array.isArray(c.depends_on) ? c.depends_on[0] || null : c.depends_on || null,
+        dependsOn: c.depends_on || null,
         periodYear: c.period_year || null,
         timeLogs: itemLogs.map((t) => ({
           id: t.id,
@@ -393,7 +393,6 @@ const loadTaskExtras = async (taskIds, knownPredIds = null) => {
       .from('task_checklists')
       .select('*')
       .in('task_id', taskIds)
-      .order('sort_order', { ascending: true })
       .order('created_at', { ascending: true }),
     supabaseAdmin.from('task_time_logs').select('*').in('task_id', taskIds),
     loadTaskLinkedDocuments(taskIds),
@@ -407,6 +406,14 @@ const loadTaskExtras = async (taskIds, knownPredIds = null) => {
   }
 
   const results = await Promise.all(queries);
+  if (results[0].error) {
+    throw new AppError({
+      statusCode: 500,
+      title: 'Database Error',
+      detail: 'Unable to load task checklist',
+      code: 'TASK_CHECKLIST_READ_FAILED',
+    });
+  }
   const clRows = results[0].data;
   const legacyRows = results[1].data;
   const canonicalResult = results[4];
@@ -1256,12 +1263,8 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
             completed: Boolean(item.completed),
             assignee_id: item.assigneeId || item.assignee_id || null,
             assignee_name: item.assigneeName || item.assignee_name || null,
-            period_year: item.periodYear
-              ? parseInt(item.periodYear, 10)
-              : item.period_year
-                ? parseInt(item.period_year, 10)
-                : null,
-            depends_on: item.dependsOn || item.depends_on || null,
+            period_year: item.periodYear ?? item.period_year ?? null,
+            depends_on: [item.dependsOn ?? item.depends_on ?? []].flat().filter(isValidUUID),
             created_at: now,
           });
         }
@@ -2262,15 +2265,38 @@ const createTask = async ({ workRequestId, entityId, data, user: _user }) => {
   return getTaskById({ workRequestId, taskId: id, entityId, internal: true });
 };
 
-const upsertChecklist = async (taskId, checklist) => {
-  const { data: existingRows, error: readError } = await supabaseAdmin.from('task_checklists')
-    .select('id').eq('task_id', taskId);
-  if (readError) throw new AppError({ statusCode: 500, title: 'Database Error', detail: readError.message });
+const readChecklistRows = async (taskId) => {
+  const { data, error } = await supabaseAdmin.from('task_checklists')
+    .select('*').eq('task_id', taskId);
+  if (error) throw new AppError({ statusCode: 500, title: 'Database Error', detail: 'Unable to load task checklist', code: 'TASK_CHECKLIST_READ_FAILED' });
+  return data || [];
+};
+
+const upsertChecklist = async (taskId, checklist, currentRows) => {
+  const existingRows = currentRows ?? await readChecklistRows(taskId);
   const existingIds = new Set((existingRows || []).map((row) => row.id));
+  const existingById = new Map((existingRows || []).map((row) => [row.id, row]));
+  // Older clients may submit only text/completion. Omission must not erase metadata;
+  // explicit null (or [] for dependencies) still clears a field.
+  const items = checklist.map((item) => {
+    const existing = existingById.get(item.id) || {};
+    const value = (camel, snake = camel, fallback = null) =>
+      item[camel] !== undefined ? item[camel]
+        : item[snake] !== undefined ? item[snake]
+          : existing[snake] !== undefined ? existing[snake] : fallback;
+    return {
+      ...item,
+      category: value('category', 'category', 'subtask'),
+      assigneeId: value('assigneeId', 'assignee_id'),
+      assigneeName: value('assigneeName', 'assignee_name'),
+      dependsOn: value('dependsOn', 'depends_on', []),
+      periodYear: value('periodYear', 'period_year'),
+    };
+  });
 
   // Map temporary checklist IDs to new valid UUIDs to resolve dependsOn dependencies
   const chkIdMap = new Map();
-  checklist.forEach((item) => {
+  items.forEach((item) => {
     if (item.id) {
       const newId = isValidUUID(item.id) ? item.id : randomUUID();
       chkIdMap.set(item.id, newId);
@@ -2278,7 +2304,7 @@ const upsertChecklist = async (taskId, checklist) => {
   });
 
   const missingUserIds = new Set();
-  checklist.forEach((item) => {
+  items.forEach((item) => {
     if (item.assigneeId && (!item.assigneeName || isValidUUID(item.assigneeName))) {
       missingUserIds.add(item.assigneeId);
     }
@@ -2293,7 +2319,7 @@ const upsertChecklist = async (taskId, checklist) => {
     userNameMap = new Map((userRows || []).map((u) => [u.id, u.name]));
   }
 
-  const rows = checklist.map((item) => {
+  const rows = items.map((item) => {
     let dependsOn = Array.isArray(item.dependsOn)
       ? item.dependsOn
       : item.dependsOn
@@ -2634,6 +2660,8 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user, 
     }
   }
 
+  // Read before updating the task so a checklist read failure cannot partially save it.
+  const checklistRows = data.checklist !== undefined ? await readChecklistRows(taskId) : undefined;
   let assigneeName = data.assigneeName !== undefined ? data.assigneeName : existing.assigneeName;
   const assigneeId = data.assigneeId !== undefined ? data.assigneeId : existing.assigneeId;
   if (assigneeId === null) {
@@ -2755,7 +2783,7 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user, 
   }
 
   if (data.checklist !== undefined) {
-    await upsertChecklist(taskId, data.checklist);
+    await upsertChecklist(taskId, data.checklist, checklistRows);
   }
   // Never replace employee-owned history from an echoed task/checklist snapshot.
 
