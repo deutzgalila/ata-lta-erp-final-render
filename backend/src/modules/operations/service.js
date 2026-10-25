@@ -36,6 +36,14 @@ const isValidUUID = (v) =>
 const isManager = (user) =>
   user?.role === 'Manager' && user?.role !== 'Admin';
 
+const canEditChecklist = (user) => ['Admin', 'Manager'].includes(user?.role);
+const assertChecklistEditor = (user) => {
+  if (user && !canEditChecklist(user)) {
+    throw new AppError({ statusCode: 403, title: 'Forbidden',
+      detail: 'Only managers and admins may edit checklist content.', code: 'CHECKLIST_EDIT_FORBIDDEN' });
+  }
+};
+
 const VALID_TRANSITIONS = {
   Draft: ['Pre-processing', 'In Progress', 'Processing', 'Cancelled'],
   'Pre-processing': ['Processing', 'In Progress', 'For Review', 'Cancelled'],
@@ -834,6 +842,9 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
 
   const rawPhases = data.phases || {};
   const validPhases = ['pre_processing', 'processing'];
+  if (Object.values(rawPhases).some((phase) => Array.isArray(phase?.tasks) && phase.tasks.some((task) => task.checklist?.length))) {
+    assertChecklistEditor(user);
+  }
 
   // Check if any tasks were passed in invalid phases (quality_assurance, completion, etc.)
   for (const phaseKey of Object.keys(rawPhases)) {
@@ -2101,6 +2112,7 @@ const getTaskById = async ({
 };
 
 const createTask = async ({ workRequestId, entityId, data, user: _user }) => {
+  if (data.checklist?.length) assertChecklistEditor(_user);
   const { data: wr } = await supabaseAdmin
     .from('work_requests')
     .select('phase, status')
@@ -2495,6 +2507,24 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user, 
   const isProcessingTask = existing.phase === 'processing';
   const targetStatus = data.status;
 
+  const editsChecklist = data.checklist !== undefined;
+  const completesChecklist = data.checklistCompletions !== undefined;
+  if (editsChecklist) assertChecklistEditor(effectiveUser);
+  if (completesChecklist) {
+    if (Object.keys(data).some((key) => !['checklistCompletions', 'expectedVersion'].includes(key))) {
+      throw new AppError({ statusCode: 400, title: 'Bad Request',
+        detail: 'Checklist completion updates may contain only item IDs, completion flags and expectedVersion.' });
+    }
+    if (!isInternal && !canEditChecklist(effectiveUser) && !await isUserAssignedToTask(taskId, effectiveUser.id)) {
+      throw new AppError({ statusCode: 403, title: 'Forbidden',
+        detail: 'Only task assignees, managers and admins may check checklist items.', code: 'CHECKLIST_COMPLETION_FORBIDDEN' });
+    }
+  }
+  if (completesChecklist && parentWr?.phase && existing.phase && parentWr.phase !== existing.phase) {
+    throw new AppError({ statusCode: 409, title: 'Conflict',
+      detail: 'Checklist changes are locked outside the active work request phase.', code: 'WORK_REQUEST_PHASE_NOT_ACTIVE' });
+  }
+
   // Prerequisite Gates (Rule R5 & Spec §3.2):
   // A processing task cannot transition out of Draft or Assigned
   // (e.g. to In Progress, For Review, Completed) while ANY active (non-Cancelled)
@@ -2661,7 +2691,25 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user, 
   }
 
   // Read before updating the task so a checklist read failure cannot partially save it.
-  const checklistRows = data.checklist !== undefined ? await readChecklistRows(taskId) : undefined;
+  const checklistRows = editsChecklist || completesChecklist ? await readChecklistRows(taskId) : undefined;
+  if (completesChecklist) {
+    const byId = new Map(checklistRows.map((item) => [item.id, item]));
+    const completed = new Map(checklistRows.map((item) => [item.id, item.completed]));
+    for (const item of data.checklistCompletions) {
+      if (!byId.has(item.id)) {
+        throw new AppError({ statusCode: 404, title: 'Not Found',
+          detail: 'Checklist item does not belong to this task.', code: 'CHECKLIST_ITEM_NOT_FOUND' });
+      }
+      completed.set(item.id, item.completed);
+    }
+    for (const item of data.checklistCompletions) {
+      const dependencies = [byId.get(item.id).depends_on || []].flat();
+      if (item.completed && dependencies.some((id) => !completed.get(id))) {
+        throw new AppError({ statusCode: 409, title: 'Conflict',
+          detail: 'Complete prerequisite checklist items first.', code: 'CHECKLIST_PREREQUISITE' });
+      }
+    }
+  }
   let assigneeName = data.assigneeName !== undefined ? data.assigneeName : existing.assigneeName;
   const assigneeId = data.assigneeId !== undefined ? data.assigneeId : existing.assigneeId;
   if (assigneeId === null) {
@@ -2784,6 +2832,13 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user, 
 
   if (data.checklist !== undefined) {
     await upsertChecklist(taskId, data.checklist, checklistRows);
+  }
+  if (completesChecklist) {
+    for (const item of data.checklistCompletions) {
+      const { error: completionError } = await supabaseAdmin.from('task_checklists')
+        .update({ completed: item.completed }).eq('id', item.id).eq('task_id', taskId);
+      if (completionError) throw new AppError({ statusCode: 500, title: 'Database Error', detail: 'Unable to save checklist completion' });
+    }
   }
   // Never replace employee-owned history from an echoed task/checklist snapshot.
 

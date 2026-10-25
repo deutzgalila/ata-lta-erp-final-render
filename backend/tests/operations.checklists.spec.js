@@ -122,6 +122,105 @@ describe('Checklist persistence and failed reads', () => {
     expect([...mockTables.task_checklists.values()]).toEqual(before);
   });
 
+  describe('Checklist content and completion permissions', () => {
+    const staff = (assigned = true, departments = ['Operations']) => {
+      const id = randomUUID();
+      const staffToken = registerUser({ id, role: 'Operations', name: 'Assigned worker', departments,
+        entities: ['ATA'], email: `${id}@example.test` });
+      wr.assigned_to = id;
+      if (assigned) task.assignee_id = id;
+      return { id, token: staffToken };
+    };
+    const update = (authToken, body, method = 'put', target = path()) => request(app)[method](target)
+      .set('Authorization', `Bearer ${authToken}`).set('X-Active-Entity', 'ATA').send(body);
+
+    it.each(['put', 'patch'])('allows an assigned worker to check and uncheck items through %s without changing metadata', async (method) => {
+      const worker = staff();
+      const before = { ...doc };
+      await update(worker.token, { checklistCompletions: [{ id: prerequisite.id, completed: true }], expectedVersion: 1 }, method).expect(200);
+      expect(mockTables.task_checklists.get(prerequisite.id).completed).toBe(true);
+      await update(worker.token, { checklistCompletions: [{ id: prerequisite.id, completed: false }], expectedVersion: 2 }, method).expect(200);
+      expect(mockTables.task_checklists.get(prerequisite.id).completed).toBe(false);
+      expect(mockTables.task_checklists.get(doc.id)).toEqual(before);
+    });
+
+    it('allows co-assignees from the task join table to check an item', async () => {
+      const worker = staff(false);
+      const assignment = { id: randomUUID(), task_id: task.id, user_id: worker.id };
+      mockTables.task_assignees.set(assignment.id, assignment);
+      await update(worker.token, { checklistCompletions: [{ id: prerequisite.id, completed: true }] }).expect(200);
+      expect(mockTables.task_checklists.get(prerequisite.id).completed).toBe(true);
+    });
+
+    it.each([['Operations'], ['Management']])('blocks non-assignees even with %s department access', async (department) => {
+      const worker = staff(false, [department]);
+      await update(worker.token, { checklistCompletions: [{ id: prerequisite.id, completed: true }] }).expect(403);
+      expect(mockTables.task_checklists.get(prerequisite.id).completed).toBe(false);
+    });
+
+    it.each([['Operations'], ['Management']])('blocks content edits by assigned workers with %s access', async (department) => {
+      const worker = staff(true, [department]);
+      await update(worker.token, { checklist: [{ id: doc.id, text: 'Changed content', completed: true }] }).expect(403);
+      expect(mockTables.task_checklists.get(doc.id).text).toBe(doc.text);
+      expect(mockTables.task_checklists.size).toBe(2);
+    });
+
+    it.each(['Admin', 'Manager'])('allows %s to edit checklist text and clear an optional year', async (role) => {
+      const id = randomUUID();
+      const editorToken = registerUser({ id, role, departments: ['Management'], entities: ['ATA'], email: `${id}@example.test` });
+      wr.assigned_to = id;
+      await update(editorToken, { checklist: [
+        { id: prerequisite.id, text: prerequisite.text, completed: false },
+        { id: doc.id, text: 'Updated document title', category: 'document', periodYear: null, completed: false },
+      ] }).expect(200);
+      expect(mockTables.task_checklists.get(doc.id)).toMatchObject({ text: 'Updated document title', period_year: null });
+    });
+
+    it('rejects content smuggled into a completion update', async () => {
+      const worker = staff();
+      await update(worker.token, { checklistCompletions: [{ id: prerequisite.id, completed: true, text: 'Changed' }] }).expect(400);
+      expect(mockTables.task_checklists.get(prerequisite.id).completed).toBe(false);
+    });
+
+    it('rejects checklist items from another task', async () => {
+      const worker = staff();
+      await update(worker.token, { checklistCompletions: [{ id: randomUUID(), completed: true }] }).expect(404);
+      expect(mockTables.tasks.get(task.id).version).toBe(1);
+    });
+
+    it('rejects completion until prerequisites are complete', async () => {
+      const worker = staff();
+      const res = await update(worker.token, { checklistCompletions: [{ id: doc.id, completed: true }] }).expect(409);
+      expect(res.body.code).toBe('CHECKLIST_PREREQUISITE');
+      expect(mockTables.task_checklists.get(doc.id).completed).toBe(false);
+    });
+
+    it('keeps completed work requests and past phases locked', async () => {
+      const worker = staff();
+      wr.status = 'Completed';
+      await update(worker.token, { checklistCompletions: [{ id: prerequisite.id, completed: true }] }).expect(400);
+      wr.status = 'Processing';
+      wr.phase = 'processing';
+      await update(worker.token, { checklistCompletions: [{ id: prerequisite.id, completed: true }] }).expect(409);
+      expect(mockTables.task_checklists.get(prerequisite.id).completed).toBe(false);
+    });
+
+    it('does not bump versions or update completions after a failed checklist read', async () => {
+      const worker = staff();
+      failChecklistReads();
+      await update(worker.token, { checklistCompletions: [{ id: prerequisite.id, completed: true }] }).expect(500);
+      expect(mockTables.tasks.get(task.id).version).toBe(1);
+      expect(mockTables.task_checklists.get(prerequisite.id).completed).toBe(false);
+    });
+
+    it('prevents non-editors from creating tasks with checklist content', async () => {
+      const worker = staff(true, ['Management']);
+      await update(worker.token, { title: 'New task', checklist: [{ text: 'New content', completed: false }] },
+        'post', `/v1/operations/work-requests/${wr.id}/tasks`).expect(403);
+      expect(mockTables.tasks.size).toBe(1);
+    });
+  });
+
   it('creates same-title tasks with their own checklist IDs, document periods and prerequisites', async () => {
     const clientId = randomUUID();
     mockTables.clients.set(clientId, { id: clientId, entity_id: 'ent-ata', name: 'Filing client', deleted_at: null });
@@ -146,5 +245,123 @@ describe('Checklist persistence and failed reads', () => {
     const saved = await authorized(request(app).get(`/v1/operations/work-requests/${res.body.data.id}`)).expect(200);
     expect(saved.body.data.tasks.find((item) => item.id === pre.id).checklist.find((item) => item.id === secondId))
       .toMatchObject({ periodYear: '2025/2026', dependsOn: [firstId], category: 'document' });
+  });
+
+  describe('checklist roles and completion-only updates', () => {
+    const become = (role, assigned = true, departments) => {
+      const id = randomUUID();
+      token = registerUser({ id, role, name: 'Checklist user', email: `${id}@example.test`, entities: ['ATA'], departments });
+      // Visibility alone is not task assignment.
+      wr.assigned_to = id;
+      if (assigned) task.assignee_id = id;
+      return id;
+    };
+    const complete = (items = [{ id: prerequisite.id, completed: true }], version = 1) =>
+      authorized(request(app).put(path())).send({ checklistCompletions: items, expectedVersion: version });
+
+    it.each(['primary', 'co-assignee'])('allows a task %s to tick and untick without changing content', async (assignment) => {
+      const id = become('Operations', assignment === 'primary');
+      if (assignment === 'co-assignee') {
+        mockTables.task_assignees.set('co-assignee', { id: 'co-assignee', task_id: task.id, user_id: id });
+      }
+      await complete().expect(200);
+      expect(mockTables.task_checklists.get(prerequisite.id).completed).toBe(true);
+      expect(mockTables.task_checklists.get(doc.id)).toEqual(doc);
+      expect(mockTables.task_checklists.size).toBe(2);
+      await complete([{ id: prerequisite.id, completed: false }], 2).expect(200);
+      expect(mockTables.task_checklists.get(prerequisite.id).completed).toBe(false);
+    });
+
+    it.each(['Operations', 'Accounting', 'Documentation', 'HR'])('denies checklist content edits by assigned %s staff', async (role) => {
+      become(role);
+      const res = await authorized(request(app).put(path())).send({ checklist: [{ id: doc.id, text: 'Changed text', completed: true }] }).expect(403);
+      expect(res.body.detail).toMatch(/status|managers and admins/i);
+      expect(mockTables.task_checklists.get(doc.id).text).toBe(doc.text);
+      expect(mockTables.task_checklists.size).toBe(2);
+    });
+
+    it('denies content edits even when a non-manager has workflow:edit', async () => {
+      become('Staff', true, ['Management']);
+      const res = await authorized(request(app).put(path())).send({ checklist: [] }).expect(403);
+      expect(res.body.code).toBe('CHECKLIST_EDIT_FORBIDDEN');
+      expect(mockTables.task_checklists.size).toBe(2);
+    });
+
+    it.each(['Admin', 'Manager'])('allows an authenticated %s to edit text, classification and optional year', async (role) => {
+      become(role, false);
+      await authorized(request(app).put(path())).send({ checklist: [
+        { id: prerequisite.id, text: prerequisite.text, completed: false },
+        { id: doc.id, text: 'Updated certificate', category: 'document', periodYear: null, completed: false },
+      ] }).expect(200);
+      expect(mockTables.task_checklists.get(doc.id)).toMatchObject({ text: 'Updated certificate', period_year: null, category: 'document' });
+    });
+
+    it('denies completion for a parent work request member who is not assigned to the task', async () => {
+      become('Operations', false);
+      await complete().expect(403);
+      expect(mockTables.task_checklists.get(prerequisite.id).completed).toBe(false);
+    });
+
+    it('denies completion for an unassigned non-manager with workflow:edit', async () => {
+      become('Staff', false, ['Management']);
+      const res = await complete().expect(403);
+      expect(res.body.code).toBe('CHECKLIST_COMPLETION_FORBIDDEN');
+    });
+
+    it('rejects metadata hidden in a completion update', async () => {
+      become('Operations');
+      await complete([{ id: prerequisite.id, completed: true, text: 'Unauthorized edit' }]).expect(400);
+      expect(mockTables.task_checklists.get(prerequisite.id).completed).toBe(false);
+    });
+
+    it('rejects duplicate checklist IDs', async () => {
+      become('Operations');
+      await complete([{ id: prerequisite.id, completed: true }, { id: prerequisite.id, completed: false }]).expect(400);
+    });
+
+    it('rejects checklist items from another task without applying earlier changes', async () => {
+      become('Operations');
+      const res = await complete([{ id: prerequisite.id, completed: true }, { id: randomUUID(), completed: true }]).expect(404);
+      expect(res.body.code).toBe('CHECKLIST_ITEM_NOT_FOUND');
+      expect(mockTables.task_checklists.get(prerequisite.id).completed).toBe(false);
+    });
+
+    it('enforces prerequisites before completion', async () => {
+      become('Operations');
+      const res = await complete([{ id: doc.id, completed: true }]).expect(409);
+      expect(res.body.code).toBe('CHECKLIST_PREREQUISITE');
+      await complete().expect(200);
+      await complete([{ id: doc.id, completed: true }], 2).expect(200);
+      expect(mockTables.task_checklists.get(doc.id).completed).toBe(true);
+    });
+
+    it.each(['Completed', 'past phase'])('keeps %s work locked', async (state) => {
+      become('Operations');
+      if (state === 'Completed') wr.status = 'Completed';
+      else wr.phase = 'processing';
+      await complete().expect(state === 'Completed' ? 400 : 409);
+      expect(mockTables.task_checklists.get(prerequisite.id).completed).toBe(false);
+    });
+
+    it('keeps stale completion writes from changing current data', async () => {
+      become('Operations');
+      task.version = 2;
+      await complete().expect(409);
+      expect(mockTables.task_checklists.get(prerequisite.id).completed).toBe(false);
+    });
+
+    it('fails closed on a checklist read failure', async () => {
+      become('Operations');
+      failChecklistReads();
+      await complete().expect(500);
+      expect(mockTables.tasks.get(task.id).version).toBe(1);
+    });
+
+    it('prevents checklist content creation through the task creation API', async () => {
+      become('Operations');
+      await authorized(request(app).post(`/v1/operations/work-requests/${wr.id}/tasks`))
+        .send({ title: 'New task', checklist: [{ text: 'Unauthorized checklist' }] }).expect(403);
+      expect(mockTables.tasks.size).toBe(1);
+    });
   });
 });
