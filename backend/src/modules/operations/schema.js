@@ -162,6 +162,11 @@ const updateTaskSchema = createTaskSchema
     phase: z.any().optional(),
     // OCC guard (Spec 2.2 / R-10): update applies only if the stored version matches.
     expectedVersion: z.number().int().positive().optional(),
+    checklistCompletions: z.array(z.object({
+      id: z.string().uuid(),
+      completed: z.boolean(),
+    }).strict()).min(1).refine((items) => new Set(items.map((item) => item.id)).size === items.length,
+      'Checklist item IDs must be unique').optional(),
   })
   .superRefine((data, ctx) => {
     if (data.phase !== undefined) {
