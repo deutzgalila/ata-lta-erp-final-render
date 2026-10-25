@@ -550,6 +550,7 @@ export interface UpdateTaskInput {
   displayOrder?: number;
   expectedVersion?: number;
   checklist?: ChecklistItemInput[];
+  checklistCompletions?: Array<{ id: string; completed: boolean }>;
   timeLogs?: Array<{
     date: string;
     hours: number;

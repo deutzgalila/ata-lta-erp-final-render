@@ -67,6 +67,8 @@ import {
   canRequestInvoice,
   canRequestTransmittal,
   isUserAdmin,
+  isTaskAssignee,
+  isChecklistEditor,
   filterTaskRelatedRecords,
 } from '../lib/taskScope';
 import { runBlockingAction } from './BlockingActionModal';
@@ -390,6 +392,8 @@ export function TaskDetailModal({
   const isAdmin = isUserAdmin(currentUser);
   const isCompletedWr = workRequest?.status === 'Completed';
   const canEdit = !isCompletedWr && hasPermission(permissions, 'workflow:edit');
+  const canEditChecklist = canEdit && isChecklistEditor(currentUser);
+  const canCompleteChecklist = !isCompletedWr && (isChecklistEditor(currentUser) || isTaskAssignee(currentUser, task));
 
   // Task description editing state (OA.5)
   const [isEditingDesc, setIsEditingDesc] = useState(false);
@@ -1397,7 +1401,8 @@ export function TaskDetailModal({
             <TaskChecklist
               key={task.id}
               items={task.checklist || []}
-              canEdit={canEdit}
+              canEdit={canEditChecklist}
+              canComplete={canCompleteChecklist}
               ready={!isTaskError && !isTaskPlaceholder && liveTask?.id === task.id && Array.isArray(liveTask.checklist)}
               loading={isTaskFetching || isTaskPlaceholder}
               loadError={isTaskError}
@@ -1405,13 +1410,23 @@ export function TaskDetailModal({
               disabledReason={isPhaseBlocked ? phaseBlockedTooltip : undefined}
               onRetry={() => { void refetchTask(); }}
               onChange={async (items) => {
-                if (isTaskError || isTaskPlaceholder || !Array.isArray(liveTask?.checklist) || !canEdit || isPhaseBlocked) {
+                if (isTaskError || isTaskPlaceholder || !Array.isArray(liveTask?.checklist) || !canEditChecklist || isPhaseBlocked) {
                   throw new Error('Reload the checklist before making changes.');
                 }
                 const updated = await updateTask({
                   workRequestId: task.workRequestId,
                   taskId: task.id,
                   data: { checklist: items.map(toChecklistInput), expectedVersion: task.version },
+                });
+                if (updated) onTaskUpdated?.(updated);
+              }}
+              onToggle={async (id, completed) => {
+                if (isTaskError || isTaskPlaceholder || !Array.isArray(liveTask?.checklist) || !canCompleteChecklist || isPhaseBlocked) {
+                  throw new Error('Reload the checklist before making changes.');
+                }
+                const updated = await updateTask({
+                  workRequestId: task.workRequestId, taskId: task.id,
+                  data: { checklistCompletions: [{ id, completed }], expectedVersion: task.version },
                 });
                 if (updated) onTaskUpdated?.(updated);
               }}

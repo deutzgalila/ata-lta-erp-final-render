@@ -349,6 +349,46 @@ describe('TaskDetailModal Document Linking & Query Invalidation', () => {
     expect((updates[0]?.checklist as Array<Record<string, unknown>>)[0]).not.toHaveProperty('timeLogs');
   });
 
+  it.each([
+    ['Admin', true, true], ['Manager', true, true], ['Operations', true, false], ['Operations', false, false],
+  ] as const)('separates %s checklist editing from completion (assigned=%s)', async (role, assigned, editor) => {
+    const item = { id: 'a3512c21-578d-4194-82d9-ea56c4b367fe', text: 'Company records', category: 'document', completed: false, periodYear: null };
+    const userId = assigned ? 'user-admin' : 'unassigned-viewer';
+    useSessionStore.getState().setSession({
+      user: { id: userId, role, name: 'Checklist user', email: 'worker@example.test', departments: ['Operations'], entities: ['ATA'] },
+      permissions: ['workflow:view', 'workflow:edit'], activeEntity: 'ATA',
+    });
+    let live = { ...mockTask, checklist: [item] };
+    const updates: Array<Record<string, unknown>> = [];
+    vi.mocked(global.fetch).mockImplementation(async (input, init) => {
+      if (String(input).endsWith('/operations/work-requests/wr-888/tasks/task-777')) {
+        if (init?.method === 'PUT') {
+          const body = JSON.parse(String(init.body));
+          updates.push(body);
+          live = { ...live, checklist: [{ ...item, completed: true }], version: live.version + 1 };
+        }
+        return new Response(JSON.stringify({ data: live }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ data: [] }), { status: 200 });
+    });
+    render(<TaskDetailModal isOpen onClose={vi.fn()} task={live} workRequest={mockWr} />, { wrapper });
+    await screen.findByText('Checklist (0/1)');
+    const edit = screen.queryByRole('button', { name: 'Edit checklist item Company records' });
+    if (editor) expect(edit).toBeInTheDocument(); else expect(edit).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Document year for Company records')).not.toBeInTheDocument();
+    const checkbox = screen.getByRole('checkbox', { name: item.text });
+    if (assigned || editor) {
+      await waitFor(() => expect(checkbox).toBeEnabled());
+      fireEvent.click(checkbox);
+      await waitFor(() => expect(updates).toHaveLength(1));
+      expect(updates[0]).toEqual({ expectedVersion: 1, checklistCompletions: [{ id: item.id, completed: true }] });
+      expect(updates[0]).not.toHaveProperty('checklist');
+    } else {
+      expect(checkbox).toBeDisabled();
+      expect(updates).toHaveLength(0);
+    }
+  });
+
   it('shows a failed checklist read and prevents adding against fallback task data', async () => {
     vi.mocked(global.fetch).mockImplementation(async (input) => {
       if (String(input).endsWith('/operations/work-requests/wr-888/tasks/task-777')) {

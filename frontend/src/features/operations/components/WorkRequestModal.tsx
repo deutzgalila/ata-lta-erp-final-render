@@ -28,6 +28,7 @@ import {
 import { useTaskMutations } from '../api/useTasks';
 import { operationsKeys } from '../api/queryKeys';
 import { toChecklistInput } from '../utils/checklist';
+import { isChecklistEditor } from '../lib/taskScope';
 import { validateDependencies } from '../utils/dependencyValidator';
 import { parseTaskDelimiterInput } from '../hooks/useTokenizer';
 import { useSessionStore } from '@/lib/session';
@@ -79,6 +80,9 @@ export function WorkRequestModal({
   const isEditMode = Boolean(workRequest?.id);
   const isCompleted = workRequest?.status === 'Completed';
   const activeSessionEntity = useSessionStore((state) => state.activeEntity);
+
+  const user = useSessionStore((state) => state.user);
+  const checklistEditable = isChecklistEditor(user);
 
   // Queries
   const { data: team = [] } = useTeam();
@@ -463,7 +467,7 @@ export function WorkRequestModal({
                   predecessors: initialPredecessors,
                   dueDate: t.dueDate || null,
                   requiredLinkType: t.requiredLinkType || null,
-                  checklist: t.checklist?.filter((c) => c.text.trim()).map(toChecklistInput),
+                  checklist: checklistEditable ? t.checklist?.filter((c) => c.text.trim()).map(toChecklistInput) : undefined,
                 },
               });
 
@@ -507,7 +511,7 @@ export function WorkRequestModal({
                   predecessors: resolvePredecessors(t.dependsOn),
                   dueDate: t.dueDate || null,
                   requiredLinkType: t.requiredLinkType || null,
-                  checklist: t.checklist?.filter((c) => c.text.trim()).map(toChecklistInput),
+                  checklist: checklistEditable ? t.checklist?.filter((c) => c.text.trim()).map(toChecklistInput) : undefined,
                 },
               });
             }
@@ -532,7 +536,7 @@ export function WorkRequestModal({
                   predecessors: finalPredecessors,
                   dueDate: item.task.dueDate || null,
                   requiredLinkType: item.task.requiredLinkType || null,
-                  checklist: item.task.checklist?.filter((c) => c.text.trim()).map(toChecklistInput),
+                  checklist: checklistEditable ? item.task.checklist?.filter((c) => c.text.trim()).map(toChecklistInput) : undefined,
                 },
               });
             }
@@ -559,7 +563,7 @@ export function WorkRequestModal({
               depends_on: t.dependsOn || undefined,
               dueDate: t.dueDate || null,
               requiredLinkType: t.requiredLinkType || null,
-              checklist: t.checklist?.filter((c) => c.text?.trim()).map(toChecklistInput),
+              checklist: checklistEditable ? t.checklist?.filter((c) => c.text?.trim()).map(toChecklistInput) : undefined,
             };
 
             if (t.phase === 'processing') {
@@ -877,6 +881,7 @@ export function WorkRequestModal({
             projectTeam={projectTeam}
             disabled={isCompleted}
             isEditMode={isEditMode}
+            checklistEditable={checklistEditable}
             defaultPhase={workRequest?.phase === 'processing' ? 'processing' : 'pre_processing'}
           />
           </fieldset>

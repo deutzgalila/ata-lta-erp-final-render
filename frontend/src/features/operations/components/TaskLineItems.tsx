@@ -60,6 +60,7 @@ export interface TaskLineItemsProps {
   projectTeam: TeamMember[];
   disabled?: boolean;
   isEditMode?: boolean;
+  checklistEditable?: boolean;
   defaultPhase?: CreatablePhase;
 }
 
@@ -69,8 +70,11 @@ export function TaskLineItems({
   projectTeam,
   disabled = false,
   isEditMode = false,
+  checklistEditable = true,
   defaultPhase,
 }: TaskLineItemsProps) {
+  const checklistDisabled = disabled || !checklistEditable;
+  const [yearFields, setYearFields] = useState<Set<string>>(() => new Set());
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [activeDepDropdown, setActiveDepDropdown] = useState<string | null>(null);
 
@@ -598,7 +602,7 @@ export function TaskLineItems({
                     </Button>
                   ) : null}
 
-                  {!disabled && (
+                  {!checklistDisabled && (
                     <Button
                       type="button"
                       variant="ghost"
@@ -658,7 +662,7 @@ export function TaskLineItems({
                         <CheckSquare className="h-3.5 w-3.5 text-[#1E293B]" />
                         Checklist & Subtasks ({task.checklist?.length || 0})
                       </span>
-                      {!disabled && (
+                      {!checklistDisabled && (
                         <Button
                           type="button"
                           variant="outline"
@@ -709,7 +713,7 @@ export function TaskLineItems({
                               <input
                                 type="checkbox"
                                 checked={item.completed}
-                                disabled={disabled || Boolean(isBlocked)}
+                                disabled={checklistDisabled || Boolean(isBlocked)}
                                 onChange={(e) => {
                                   const updatedChecklist = [...(task.checklist || [])];
                                   const targetItem = updatedChecklist[ci];
@@ -728,7 +732,7 @@ export function TaskLineItems({
                               <input
                                 type="text"
                                 value={item.text}
-                                disabled={disabled}
+                                disabled={checklistDisabled}
                                 onChange={(e) => {
                                   const updatedChecklist = [...(task.checklist || [])];
                                   const targetItem = updatedChecklist[ci];
@@ -747,7 +751,7 @@ export function TaskLineItems({
                               {/* Category toggle: Doc vs Subtask */}
                               <button
                                 type="button"
-                                disabled={disabled}
+                                disabled={checklistDisabled}
                                 onClick={() => {
                                   const updatedChecklist = [...(task.checklist || [])];
                                   const targetItem = updatedChecklist[ci];
@@ -759,15 +763,14 @@ export function TaskLineItems({
                                     updatedChecklist[ci] = {
                                       ...targetItem,
                                       category: nextCat,
-                                      periodYear: nextCat === 'document' ? targetItem.periodYear ?? new Date().getFullYear() : targetItem.periodYear,
                                     };
                                     handleUpdateTask(index, 'checklist', updatedChecklist);
                                   }
                                 }}
-                                className="px-1.5 py-0.5 text-xs rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B] hover:bg-[#F8FAFC]"
+                                className={`px-1.5 py-0.5 text-xs rounded-[6px] border ${item.category === 'document' ? 'border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]' : 'border-[#BBF7D0] bg-[#F0FDF4] text-[#166534]'}`}
                               >
                                 {item.category === 'document' ? (
-                                  <span className="flex items-center gap-1 text-[#1E293B]">
+                                  <span className="flex items-center gap-1">
                                     <FileText className="h-2.5 w-2.5" /> Doc
                                   </span>
                                 ) : (
@@ -776,11 +779,22 @@ export function TaskLineItems({
                               </button>
 
                               {/* Period Year (if document) */}
-                              {item.category === 'document' && (
+                              {item.category === 'document' && !item.periodYear && !yearFields.has(item.id) && !checklistDisabled && (
+                                <button type="button" className="text-xs text-[#475569]"
+                                  onClick={() => setYearFields((current) => new Set([...current, item.id]))}>+ Year</button>
+                              )}
+                              {item.category === 'document' && (Boolean(item.periodYear) || yearFields.has(item.id)) && (
                                 <input
                                   type="number"
-                                  value={item.periodYear || new Date().getFullYear()}
-                                  disabled={disabled}
+                                  value={item.periodYear ?? ''}
+                                  aria-label={`Document year for ${item.text || 'new checklist item'}`}
+                                  placeholder="Year"
+                                  onBlur={(event) => {
+                                    if (!event.target.value) setYearFields((current) => {
+                                      const next = new Set(current); next.delete(item.id); return next;
+                                    });
+                                  }}
+                                  disabled={checklistDisabled}
                                   onChange={(e) => {
                                     const updatedChecklist = [...(task.checklist || [])];
                                     const targetItem = updatedChecklist[ci];
@@ -811,7 +825,7 @@ export function TaskLineItems({
                               )}
 
                               {/* Remove checklist item */}
-                              {!disabled && (
+                              {!checklistDisabled && (
                                 <button
                                   type="button"
                                   onClick={() => {
