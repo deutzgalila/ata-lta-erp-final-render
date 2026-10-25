@@ -134,47 +134,47 @@ export function AdminApprovalModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isSubmitting && onClose()}>
       <DialogContent className="max-w-md p-6 space-y-4" data-testid="admin-approval-modal">
         <DialogHeader>
-          <DialogTitle className="text-base font-bold text-[#1E293B] flex items-center gap-2">
-            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+          <DialogTitle className="text-base font-bold text-ink flex items-center gap-2">
+            <CheckCircle2 className="h-5 w-5 text-success" />
             <span>Admin Budget Approval</span>
           </DialogTitle>
-          <DialogDescription className="text-xs text-[#475569]">
+          <DialogDescription className="text-xs text-muted">
             Authorize budget for disbursement{' '}
-            <span className="tabular-nums font-semibold text-[#1E293B]">{disbNumber}</span>. Budget
+            <span className="tabular-nums font-semibold text-ink">{disbNumber}</span>. Budget
             authorization advances this request to{' '}
-            <strong className="text-[#1E40AF]">Approved</strong> status for payment instrument
+            <strong className="text-primary-hover">Approved</strong> status for payment instrument
             preparation by Accounting.
           </DialogDescription>
         </DialogHeader>
 
         {/* Financial Summary Card */}
-        <div className="p-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[6px] text-xs space-y-1.5">
+        <div className="p-3 bg-canvas border border-border rounded-[6px] text-xs space-y-1.5">
           <div className="flex justify-between items-center">
-            <span className="text-[#475569]">Authorized Amount:</span>
-            <span className="font-bold text-[#1E293B] text-sm" data-testid="approval-amount">
+            <span className="text-muted">Authorized Amount:</span>
+            <span className="font-bold text-ink text-sm" data-testid="approval-amount">
               ₱{disbursement.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
             </span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-[#475569]">Fund Source:</span>
-            <span className="font-semibold text-[#1E293B]">
+            <span className="text-muted">Fund Source:</span>
+            <span className="font-semibold text-ink">
               {disbursement.fund_source || disbursement.fundSource}
             </span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-[#475569]">Category:</span>
-            <span className="font-medium text-[#1E293B]">{disbursement.category}</span>
+            <span className="text-muted">Category:</span>
+            <span className="font-medium text-ink">{disbursement.category}</span>
           </div>
-          <div className="pt-1 border-t border-[#E2E8F0] text-[#475569] line-clamp-2">
-            <span className="text-[#475569]">Purpose: </span>
+          <div className="pt-1 border-t border-border text-muted line-clamp-2">
+            <span className="text-muted">Purpose: </span>
             {disbursement.description}
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3" data-testid="admin-approval-form">
-          <div className="p-3 bg-[#EFF6FF]/80 border border-[#93C5FD] rounded-[6px] text-xs text-[#1E3A8A] space-y-1">
-            <span className="font-semibold block text-[#1E40AF]">Budget Authorization Notice:</span>
-            <p className="text-xs text-[#1E40AF]">
+          <div className="p-3 bg-primary-light/80 border border-blue-300 rounded-[6px] text-xs text-primary-hover space-y-1">
+            <span className="font-semibold block text-primary-hover">Budget Authorization Notice:</span>
+            <p className="text-xs text-primary-hover">
               Authorizing this expense confirms budget availability. In compliance with separation
               of duties, payment instruments are recorded separately during the subsequent Funding
               stage.
@@ -183,20 +183,20 @@ export function AdminApprovalModal({
 
           {error && (
             <div
-              className="p-2.5 bg-rose-50 border border-rose-200 rounded-[6px] text-xs text-rose-800 flex items-center gap-1.5"
+              className="p-2.5 bg-danger-surface border border-danger-border rounded-[6px] text-xs text-danger flex items-center gap-1.5"
               role="alert"
             >
-              <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+              <AlertCircle className="h-4 w-4 text-danger-solid shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           {isReturnedDraft && (
             <div
-              className="p-2.5 bg-orange-50 border border-orange-200 rounded-[6px] text-xs text-orange-800 flex items-center gap-1.5"
+              className="p-2.5 bg-warning-surface border border-warning-border rounded-[6px] text-xs text-warning flex items-center gap-1.5"
               data-testid="returned-draft-warning"
             >
-              <AlertCircle className="h-4 w-4 text-orange-600 shrink-0" />
+              <AlertCircle className="h-4 w-4 text-warning shrink-0" />
               <span>
                 Voucher was returned for correction. Requester must edit and resubmit before budget
                 authorization.
@@ -220,7 +220,7 @@ export function AdminApprovalModal({
               type="submit"
               size="sm"
               disabled={!canSubmit}
-              className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              className="text-xs bg-success hover:bg-success text-inverse font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               data-testid="btn-confirm-approve"
             >
               <CheckCircle2 className="h-3.5 w-3.5 mr-1" />

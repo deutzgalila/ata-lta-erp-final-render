@@ -60,6 +60,8 @@ All foreground/background pairs are mathematically measured in sRGB and OKLCH (`
 | **Focus Ring** | `--color-focus` / `--color-accent` | `#1D4ED8` | `2px solid #1D4ED8` with `2px` offset (replaces Brutalist hazard red focus). |
 | **Entity ATA** | `--color-ata` | `#1E3A8A` | Deep Institutional Navy (**10.36:1** w/ white; badge `#EFF6FF` bg / `#1E3A8A` text / `#93C5FD` border). |
 | **Entity LTA** | `--color-lta` / `--color-entity-lta` | `#0369A1` | Corporate Cerulean (**5.93:1** w/ white; badge `#F0F9FF` bg / `#075985` text / `#7DD3FC` border). |
+| **Document Viewer Well** | `--color-viewer-bg` / `--viewer-bg` | `#F1F5F9` | Recessed document/receipt viewer background well (`var(--slate-100)`). |
+| **Deadline Track** | `--color-deadline-track` / `--deadline-track` | `#E2E8F0` | Neutral track for overdue / payment urgency progress bar (`var(--slate-200)`). |
 
 ### Semantic Status Ramps (`>=15°` OKLCH Hue Separation from Accent `264.4°`)
 | Status Role | Surface Token | Text Token | Border Token | Measured Contrast |
@@ -73,9 +75,9 @@ All foreground/background pairs are mathematically measured in sRGB and OKLCH (`
 
 ## 2. Typography & Numeric Discipline (Middle-Aged Friendly & Jakob's Law)
 
-- **Primary UI & Body Sans (`--font-sans`)**: `'Inter', 'Geist Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif` (locally bundled via `@fontsource/inter` and `@fontsource/geist-sans`).
-- **Monospace Telemetry & IDs (`--font-mono`)**: `'JetBrains Mono', 'Geist Mono', ui-monospace, SFMono-Regular, monospace` (locally bundled via `@fontsource/jetbrains-mono` and `@fontsource/geist-mono`).
-- **Display / Editorial Sign-In (`--font-display`)**: `'Inter', 'Geist Sans', system-ui, sans-serif` (clean `600–700` weight; no aggressive `Archivo Black` uppercase shouting).
+- **Primary UI & Body Sans (`--font-sans`)**: `'Geist Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif` (locally bundled via `@fontsource/geist-sans` and `@fontsource/inter`).
+- **Monospace Telemetry & IDs (`--font-mono`)**: `'Geist Mono', 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace` (locally bundled via `@fontsource/geist-mono` and `@fontsource/jetbrains-mono`).
+- **Display / Editorial Sign-In (`--font-display`)**: `'Geist Sans', 'Inter', system-ui, sans-serif` (clean `600–700` weight; no aggressive `Archivo Black` uppercase shouting).
 - **Scale & Hierarchy**:
   - **Module Title (`h1`)**: `24px` (`1.5rem`) / `32px` line-height, `font-semibold` (`600`) or `font-bold` (`700`), `-0.02em` tracking, `#0F172A`, natural sentence/title case (never forced all-caps).
   - **Section / Dialog Title (`h2`, `h3`)**: `16px–18px` / `24px`, `font-semibold` (`600`), `-0.015em` tracking, `#0F172A`.
@@ -127,3 +129,19 @@ All foreground/background pairs are mathematically measured in sRGB and OKLCH (`
    - **KPI Summary Bands**: Retained from Brutalist's consistent grid layout, softened with `rounded-[8px] border border-[#CBD5E1] bg-[#FFFFFF] shadow-card` cards, `12px` medium labels (`#475569`), `24px–28px` `tabular-nums` figures (`#0F172A`), and semantic top accent borders (`border-t-2 border-t-[#D97706]` / `border-warning-border` or `border-t-[#DC2626]` when `attention={true}`).
    - **Tables**: `rounded-[8px] border border-[#CBD5E1] bg-[#FFFFFF] shadow-card overflow-hidden`, `#F1F5F9` header with `border-b border-[#CBD5E1]`, `12px` sentence-case/semibold column headers (`#334155`), `13px` body cells (`#0F172A`), `border-b border-[#E2E8F0]` row dividers, `#F1F5F9` hover, and right-aligned `tabular-nums` monetary/count columns.
    - **Modals & Drawers**: `rounded-[12px] border border-[#CBD5E1] bg-[#FFFFFF] shadow-float overscroll-contain` with `bg-slate-950/30` overlay scrim.
+
+---
+
+## 5. Workspace & Multi-Pane Dimensions (eyeshare-Style Split Workflow)
+
+- **Row Heights (Dense Accounting Ledger)**:
+  - `--row-height-compact`: `40px` (dense data queue rows)
+  - `--row-height-default`: `48px` (comfortable standard rows)
+- **Pane Dimensions (eyeshare-Style Split Workspace)**:
+  - `--pane-rail-width`: `200px` (left action & batch processing rail)
+  - `--pane-detail-width`: `480px` (docked right invoice/disbursement detail & audit drawer)
+  - `--pane-detail-collapsed`: `48px` (collapsed right rail handle)
+- **Document Viewer & Telemetry**:
+  - `--viewer-bg` (`--color-viewer-bg`): `var(--slate-100)` (`#F1F5F9`) (recessed invoice document viewer well)
+  - `--deadline-track` (`--color-deadline-track`): `var(--slate-200)` (`#E2E8F0`) (overdue/urgency deadline bar track)
+

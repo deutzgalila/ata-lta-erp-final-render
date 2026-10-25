@@ -119,17 +119,17 @@ export function EditPaymentDetailsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="space-y-4 border-[#E2E8F0] border p-6 shadow-float rounded-[12px] bg-[#FFFFFF] max-w-md"
+      <DialogContent className="space-y-4 border-border border p-6 shadow-float rounded-[12px] bg-surface max-w-md"
         data-testid="edit-payment-details-modal"
       >
         <DialogHeader>
-          <DialogTitle className="text-base font-bold text-[#1E293B] flex items-center gap-2">
-            <Pencil className="h-4 w-4 text-purple-600" />
+          <DialogTitle className="text-base font-bold text-ink flex items-center gap-2">
+            <Pencil className="h-4 w-4 text-primary" />
             <span>Correct Payment Details</span>
           </DialogTitle>
-          <DialogDescription className="text-xs text-[#475569]">
+          <DialogDescription className="text-xs text-muted">
             Update release payment information for voucher{' '}
-            <span className="font-semibold text-[#1E293B]">
+            <span className="font-semibold text-ink">
               {disbNumber}
             </span>
             . Lifecycle status, authorization timestamps, and audit history remain unchanged.
@@ -139,8 +139,8 @@ export function EditPaymentDetailsModal({
         <form onSubmit={handleSubmit} className="space-y-3" data-testid="edit-payment-details-form">
           {/* Payment Method */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#1E293B]">
-              Payment Method <span className="text-red-500">*</span>
+            <label className="text-xs font-semibold text-ink">
+              Payment Method <span className="text-danger-solid">*</span>
             </label>
             <select
               value={method}
@@ -148,8 +148,8 @@ export function EditPaymentDetailsModal({
                 setMethod(e.target.value);
                 if (errors.method) setErrors((prev) => ({ ...prev, method: '' }));
               }}
-              className={`w-full text-xs p-2 border rounded-[6px] bg-white border-[#E2E8F0] focus:outline-none focus:ring-1 focus:ring-purple-500 ${
-                errors.method ? 'border-red-500' : ''
+              className={`w-full text-xs p-2 border rounded-[6px] bg-surface border-border focus:outline-none focus:ring-1 focus:ring-primary ${
+                errors.method ? 'border-danger-solid' : ''
               }`}
               data-testid="select-edit-payment-method"
             >
@@ -160,13 +160,13 @@ export function EditPaymentDetailsModal({
               <option value="Other">Other</option>
             </select>
             {errors.method && (
-              <span className="text-xs text-red-600 block">{errors.method}</span>
+              <span className="text-xs text-danger-solid block">{errors.method}</span>
             )}
           </div>
 
           {/* Reference */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#1E293B]">
+            <label className="text-xs font-semibold text-ink">
               Payment Reference / Check Number (Optional)
             </label>
             <Input
@@ -181,7 +181,7 @@ export function EditPaymentDetailsModal({
 
           {/* Bank */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#1E293B]">
+            <label className="text-xs font-semibold text-ink">
               Bank / Institution (Optional)
             </label>
             <Input
@@ -196,8 +196,8 @@ export function EditPaymentDetailsModal({
 
           {/* Date */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#1E293B]">
-              Payment Date <span className="text-red-500">*</span>
+            <label className="text-xs font-semibold text-ink">
+              Payment Date <span className="text-danger-solid">*</span>
             </label>
             <DateInput
               aria-label="Payment date"
@@ -211,7 +211,7 @@ export function EditPaymentDetailsModal({
               data-testid="input-edit-payment-date"
             />
             {errors.date && (
-              <span className="text-xs text-red-600 block">{errors.date}</span>
+              <span className="text-xs text-danger-solid block">{errors.date}</span>
             )}
           </div>
 
@@ -229,7 +229,7 @@ export function EditPaymentDetailsModal({
             <Button
               type="submit"
               size="sm"
-              className="text-xs bg-purple-600 hover:bg-purple-700 text-white font-medium"
+              className="text-xs bg-primary hover:bg-primary-hover text-inverse font-medium"
               data-testid="btn-save-payment-details"
             >
               <DollarSign className="h-3.5 w-3.5 mr-1" />

@@ -1031,16 +1031,43 @@ export async function requestReceiptUploadReservation(
 }
 
 /**
+ * Normalize and validate receipt MIME types.
+ * Supports PDF, PNG, and JPEG (including .jpg/.jpeg extension and image/pjpeg variants).
+ */
+export function normalizeReceiptMimeType(mimeType: string, filename?: string): string {
+  const normalized = (mimeType || '').trim().toLowerCase();
+  if (normalized === 'application/pdf') return 'application/pdf';
+  if (normalized === 'image/png') return 'image/png';
+  if (normalized === 'image/jpeg' || normalized === 'image/jpg' || normalized === 'image/pjpeg') {
+    return 'image/jpeg';
+  }
+  if (filename) {
+    const ext = filename.split('.').pop()?.toLowerCase();
+    if (ext === 'pdf') return 'application/pdf';
+    if (ext === 'png') return 'image/png';
+    if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+  }
+  return normalized;
+}
+
+export function isValidReceiptMimeType(mimeType: string, filename?: string): boolean {
+  const normalized = normalizeReceiptMimeType(mimeType, filename);
+  return ['application/pdf', 'image/png', 'image/jpeg'].includes(normalized);
+}
+
+/**
  * Upload binary file to pre-signed URL via PUT.
  */
 export async function uploadReceiptBinary(
   uploadUrl: string,
-  file: File
+  file: File,
+  contentType?: string
 ): Promise<void> {
+  const resolvedContentType = contentType || normalizeReceiptMimeType(file.type, file.name);
   const response = await fetch(uploadUrl, {
     method: 'PUT',
     headers: {
-      'Content-Type': file.type,
+      'Content-Type': resolvedContentType,
     },
     body: file,
   });
@@ -1094,13 +1121,14 @@ export async function uploadReceiptFile(
       ? isCurrentOrOptions
       : options;
 
-  if (!['application/pdf', 'image/png', 'image/jpeg'].includes(file.type)) {
+  if (!isValidReceiptMimeType(file.type, file.name)) {
     throw new Error('Only PDF, PNG, and JPEG files are allowed');
   }
   if (file.size > 10 * 1024 * 1024) {
     throw new Error('File size cannot exceed 10 MiB');
   }
 
+  const normalizedContentType = normalizeReceiptMimeType(file.type, file.name);
   const targetEntity = resolveAndValidateReceiptEntity(entityOpt);
 
   if (!isCurrent()) throw new Error('Receipt form changed. Select the receipt again.');
@@ -1108,14 +1136,14 @@ export async function uploadReceiptFile(
   const reservation = await requestReceiptUploadReservation(
     {
       filename: file.name,
-      contentType: file.type,
+      contentType: normalizedContentType,
       size: file.size,
     },
     { entity: targetEntity }
   );
 
   if (!isCurrent()) throw new Error('Receipt form changed. Select the receipt again.');
-  await uploadReceiptBinary(reservation.uploadUrl, file);
+  await uploadReceiptBinary(reservation.uploadUrl, file, normalizedContentType);
   if (!isCurrent()) throw new Error('Receipt form changed. Select the receipt again.');
   const completed = await completeReceiptUpload(
     reservation.uploadId,
@@ -1134,7 +1162,7 @@ export async function uploadReceiptFile(
  */
 export function useDisbursementReceiptUrl(
   id: string | undefined,
-  options?: { enabled?: boolean }
+  options?: { enabled?: boolean; entity?: string }
 ) {
   return useQuery({
     queryKey: disbursementKeys.receiptUrl(id ?? ''),
@@ -1143,8 +1171,13 @@ export function useDisbursementReceiptUrl(
       if (isTestWithoutMock()) {
         return null;
       }
+      const headers: Record<string, string> = {};
+      if (options?.entity) {
+        headers['X-Active-Entity'] = options.entity;
+      }
       const res = await apiRequest<{ data: ReceiptUrlData }>(
-        `/disbursements/${id}/receipt-url`
+        `/disbursements/${id}/receipt-url`,
+        { headers }
       );
       return res.data;
     },

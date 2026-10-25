@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CreateDisbursementModal } from '../components/CreateDisbursementModal';
@@ -869,8 +869,232 @@ describe('Disbursements UI Components & Integration', () => {
       });
 
       // Check clicking a row
-      fireEvent.click(screen.getByTestId('disbursement-row-disb-101'));
+      const row101 = screen.getByTestId('disbursement-row-disb-101');
+      fireEvent.click(row101);
       expect(onSelect).toHaveBeenCalledWith('disb-101');
+      expect(row101).toHaveAttribute('aria-selected', 'true');
+      expect(row101).toHaveClass('bg-selected');
+    });
+
+    it('exposes valid ARIA grid semantics with grid role, row roles, and columnheader/gridcell roles', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({
+          data: mockDisbursements,
+          meta: { total: 3, page: 1, limit: 20 },
+        }),
+      });
+
+      const { wrapper } = createHarness();
+      render(<DisbursementsTable onSelectDisbursement={vi.fn()} />, { wrapper });
+
+      const grid = await screen.findByRole('grid', { name: 'Disbursement vouchers' });
+      expect(grid).toBeInTheDocument();
+      expect(grid).toHaveAttribute('data-testid', 'disbursements-table');
+
+      await waitFor(() => {
+        expect(screen.getByTestId('disbursement-row-disb-101')).toBeInTheDocument();
+      });
+
+      const rows = within(grid).getAllByRole('row');
+      expect(rows.length).toBe(4); // 1 header row + 3 data rows
+
+      const columnHeaders = within(grid).getAllByRole('columnheader');
+      expect(columnHeaders.length).toBeGreaterThanOrEqual(9);
+
+      const gridCells = within(grid).getAllByRole('gridcell');
+      expect(gridCells.length).toBeGreaterThan(0);
+    });
+
+    it('supports roving tabindex and keyboard navigation with Arrow keys, Home, and End', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({
+          data: mockDisbursements,
+          meta: { total: 3, page: 1, limit: 20 },
+        }),
+      });
+
+      const { wrapper } = createHarness();
+      const onSelect = vi.fn();
+
+      render(
+        <DisbursementsTable onSelectDisbursement={onSelect} />,
+        { wrapper }
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('disbursement-row-disb-101')).toBeInTheDocument();
+      });
+
+      const row101 = screen.getByTestId('disbursement-row-disb-101');
+      const row102 = screen.getByTestId('disbursement-row-disb-102');
+      const row103 = screen.getByTestId('disbursement-row-disb-103');
+
+      // Initial state: first row has tabIndex=0, others -1
+      expect(row101).toHaveAttribute('tabIndex', '0');
+      expect(row102).toHaveAttribute('tabIndex', '-1');
+      expect(row103).toHaveAttribute('tabIndex', '-1');
+
+      row101.focus();
+      expect(document.activeElement).toBe(row101);
+
+      // ArrowDown moves focus to next row and updates roving tabindex
+      fireEvent.keyDown(row101, { key: 'ArrowDown' });
+      expect(document.activeElement).toBe(row102);
+      expect(row101).toHaveAttribute('tabIndex', '-1');
+      expect(row102).toHaveAttribute('tabIndex', '0');
+
+      // End moves focus to the last row
+      fireEvent.keyDown(row102, { key: 'End' });
+      expect(document.activeElement).toBe(row103);
+      expect(row103).toHaveAttribute('tabIndex', '0');
+      expect(row102).toHaveAttribute('tabIndex', '-1');
+
+      // Home moves focus to the first row
+      fireEvent.keyDown(row103, { key: 'Home' });
+      expect(document.activeElement).toBe(row101);
+      expect(row101).toHaveAttribute('tabIndex', '0');
+      expect(row103).toHaveAttribute('tabIndex', '-1');
+
+      // Enter selects focused row
+      fireEvent.keyDown(row101, { key: 'Enter' });
+      expect(onSelect).toHaveBeenCalledWith('disb-101');
+
+      // Space selects row 102
+      row102.focus();
+      fireEvent.keyDown(row102, { key: ' ' });
+      expect(onSelect).toHaveBeenCalledWith('disb-102');
+    });
+
+    it('does not intercept Enter or Space when bubbling from inner control buttons', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({
+          data: mockDisbursements,
+          meta: { total: 3, page: 1, limit: 20 },
+        }),
+      });
+
+      const { wrapper } = createHarness();
+      const onSelect = vi.fn();
+
+      render(<DisbursementsTable onSelectDisbursement={onSelect} />, { wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('view-action-disb-101')).toBeInTheDocument();
+      });
+
+      const actionBtn = screen.getByTestId('view-action-disb-101');
+      actionBtn.focus();
+
+      // Trigger Enter on inner button
+      const keyEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+      actionBtn.dispatchEvent(keyEvent);
+
+      // Event should NOT be defaultPrevented by handleRowKeyDown
+      expect(keyEvent.defaultPrevented).toBe(false);
+    });
+
+    it('renders deadline indicators for items with and without due dates', async () => {
+      const today = new Date();
+      const pastDate = new Date(today);
+      pastDate.setDate(today.getDate() - 3);
+      const futureDate = new Date(today);
+      futureDate.setDate(today.getDate() + 5);
+
+      const formatLocalDate = (d: Date) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+      const itemsWithDeadlines: Disbursement[] = [
+        {
+          ...mockDisbursements[0]!,
+          id: 'disb-nodate',
+          due_date: null,
+        },
+        {
+          ...mockDisbursements[1]!,
+          id: 'disb-overdue',
+          due_date: formatLocalDate(pastDate),
+        },
+        {
+          ...mockDisbursements[2]!,
+          id: 'disb-future',
+          due_date: formatLocalDate(futureDate),
+        },
+      ];
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({
+          data: itemsWithDeadlines,
+          meta: { total: 3, page: 1, limit: 20 },
+        }),
+      });
+
+      const { wrapper } = createHarness();
+      render(<DisbursementsTable onSelectDisbursement={vi.fn()} />, { wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('deadline-indicator-disb-nodate')).toHaveTextContent('—');
+        expect(screen.getByTestId('deadline-indicator-disb-overdue')).toHaveTextContent('Overdue 3d');
+        expect(screen.getByTestId('deadline-indicator-disb-future')).toHaveTextContent('Due in 5d');
+      });
+    });
+
+    it('renders skeleton loading rows with row height when loading', () => {
+      // Create harness with unsettled query
+      global.fetch = vi.fn().mockImplementation(() => new Promise(() => {}));
+      const { wrapper } = createHarness();
+      render(<DisbursementsTable onSelectDisbursement={vi.fn()} />, { wrapper });
+
+      const loadingContainer = screen.getByTestId('table-loading');
+      expect(loadingContainer).toBeInTheDocument();
+      expect(loadingContainer).toHaveAttribute('aria-busy', 'true');
+      const skeletonRows = within(loadingContainer).getAllByRole('row');
+      expect(skeletonRows.length).toBe(5);
+      skeletonRows.forEach((row) => {
+        expect(row).toHaveClass('h-[var(--row-height-default,48px)]');
+      });
+    });
+
+    it('renders tokenized error state when fetch fails', async () => {
+      global.fetch = vi.fn().mockRejectedValue(new Error('Network error: 500'));
+      const { wrapper } = createHarness();
+      render(<DisbursementsTable onSelectDisbursement={vi.fn()} />, { wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('table-error')).toBeInTheDocument();
+        expect(screen.getByText('Failed to load disbursements')).toBeInTheDocument();
+        expect(screen.getByTestId('table-retry-btn')).toBeInTheDocument();
+      });
+    });
+
+    it('renders tokenized empty state when no vouchers exist', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: async () => ({
+          data: [],
+          meta: { total: 0, page: 1, limit: 20 },
+        }),
+      });
+      const { wrapper } = createHarness();
+      render(<DisbursementsTable onSelectDisbursement={vi.fn()} />, { wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('table-empty')).toBeInTheDocument();
+        expect(screen.getByText('No disbursements found')).toBeInTheDocument();
+      });
     });
 
     it('renders DisbursementStatusBadge with proper test attributes', () => {
@@ -891,12 +1115,12 @@ describe('Disbursements UI Components & Integration', () => {
 
     it('renders all lifecycle badges with corresponding styling', () => {
       const statusExpectations = [
-        { status: 'Submitted', expectedClasses: ['bg-[#EFF6FF]', 'text-[#1E40AF]', 'border-[#93C5FD]'] },
-        { status: 'Pending Admin Approval', expectedClasses: ['bg-[#FEFCE8]', 'text-[#854D0E]', 'border-[#FDE047]'] },
-        { status: 'Archived', expectedClasses: ['bg-[#F1F5F9]', 'text-[#475569]', 'border-[#CBD5E1]'] },
-        { status: 'Released', expectedClasses: ['bg-[#F0F9FF]', 'text-[#075985]', 'border-[#7DD3FC]'] },
-        { status: 'Funded', expectedClasses: ['bg-[#F0FDF4]', 'text-[#166534]', 'border-[#86EFAC]'] },
-        { status: 'Rejected', expectedClasses: ['bg-[#FEF2F2]', 'text-[#991B1B]', 'border-[#FCA5A5]'] },
+        { status: 'Submitted', expectedClasses: ['bg-primary-light', 'text-primary-hover', 'border-blue-300'] },
+        { status: 'Pending Admin Approval', expectedClasses: ['bg-warning-surface', 'text-warning', 'border-warning-border'] },
+        { status: 'Archived', expectedClasses: ['bg-sidebar', 'text-muted', 'border-border'] },
+        { status: 'Released', expectedClasses: ['bg-info-surface', 'text-info', 'border-info-border'] },
+        { status: 'Funded', expectedClasses: ['bg-success-surface', 'text-success', 'border-success-border'] },
+        { status: 'Rejected', expectedClasses: ['bg-danger-surface', 'text-danger', 'border-danger-border'] },
       ] as const;
 
       statusExpectations.forEach(({ status, expectedClasses }) => {
@@ -937,7 +1161,7 @@ describe('Disbursements UI Components & Integration', () => {
       const banner = screen.getByTestId('modified-by-accounting-banner');
       expect(banner).toBeInTheDocument();
       expect(banner).toHaveTextContent(/Modified by Accounting/i);
-      expect(screen.getByText('SEC Annual Filing 2026')).toBeInTheDocument();
+      expect(screen.getAllByText('SEC Annual Filing 2026').length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText(/Maria Santos/)).toBeInTheDocument();
     });
 

@@ -12,43 +12,43 @@ export interface DisbursementStatusBadgeProps {
 const statusStyles: Record<string, { label: string; className: string }> = {
   Draft: {
     label: 'Draft',
-    className: 'bg-[#F8FAFC] text-[#334155] border-[#E2E8F0] hover:bg-[#F8FAFC]',
+    className: 'bg-canvas text-text-secondary border-border hover:bg-canvas',
   },
   Submitted: {
     label: 'Submitted',
-    className: 'bg-[#EFF6FF] text-[#1E40AF] border-[#93C5FD] hover:bg-[#EFF6FF]',
+    className: 'bg-primary-light text-primary-hover border-blue-300 hover:bg-primary-light',
   },
   Pending: {
     label: 'Pending',
-    className: 'bg-[#FEFCE8] text-[#854D0E] border-[#FDE047] hover:bg-[#FEFCE8]',
+    className: 'bg-warning-surface text-warning border-warning-border hover:bg-warning-surface',
   },
   'Pending Admin Approval': {
     label: 'Pending Admin Approval',
-    className: 'bg-[#FEFCE8] text-[#854D0E] border-[#FDE047] hover:bg-[#FEFCE8]',
+    className: 'bg-warning-surface text-warning border-warning-border hover:bg-warning-surface',
   },
   Approved: {
     label: 'Approved',
-    className: 'bg-[#EFF6FF] text-[#1E40AF] border-[#93C5FD] hover:bg-[#EFF6FF]',
+    className: 'bg-primary-light text-primary-hover border-blue-300 hover:bg-primary-light',
   },
   Released: {
     label: 'Released',
-    className: 'bg-[#F0F9FF] text-[#075985] border-[#7DD3FC] hover:bg-[#F0F9FF]',
+    className: 'bg-info-surface text-info border-info-border hover:bg-info-surface',
   },
   Funded: {
     label: 'Funded',
-    className: 'bg-[#F0FDF4] text-[#166534] border-[#86EFAC] hover:bg-[#F0FDF4]',
+    className: 'bg-success-surface text-success border-success-border hover:bg-success-surface',
   },
   Rejected: {
     label: 'Rejected',
-    className: 'bg-[#FEF2F2] text-[#991B1B] border-[#FCA5A5] hover:bg-[#FEF2F2]',
+    className: 'bg-danger-surface text-danger border-danger-border hover:bg-danger-surface',
   },
   Archived: {
     label: 'Archived',
-    className: 'bg-[#F1F5F9] text-[#475569] border-[#CBD5E1] hover:bg-[#F1F5F9]',
+    className: 'bg-sidebar text-muted border-border hover:bg-sidebar',
   },
   Cancelled: {
     label: 'Cancelled',
-    className: 'bg-[#F8FAFC] text-[#475569] border-[#E2E8F0] hover:bg-[#F8FAFC]',
+    className: 'bg-canvas text-muted border-border hover:bg-canvas',
   },
 };
 
@@ -59,7 +59,7 @@ export const DisbursementStatusBadge: React.FC<DisbursementStatusBadgeProps> = (
 }) => {
   const config = statusStyles[status] || {
     label: status,
-    className: 'bg-[#F8FAFC] text-[#334155] border-[#E2E8F0]',
+    className: 'bg-canvas text-text-secondary border-border',
   };
 
   return (
@@ -80,7 +80,7 @@ export const DisbursementStatusBadge: React.FC<DisbursementStatusBadgeProps> = (
         <Badge
           variant="outline"
           data-testid="badge-needs-correction"
-          className="bg-[#FEF2F2] text-[#991B1B] border-[#FCA5A5] font-medium text-xs px-2 py-0.5 rounded-[6px]"
+          className="bg-danger-surface text-danger border-danger-border font-medium text-xs px-2 py-0.5 rounded-[6px]"
           title="Returned for correction — must be edited and saved before approval"
         >
           Needs Correction

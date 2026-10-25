@@ -188,12 +188,12 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
   if (!canAccessQueue) {
     return (
       <div
-        className="p-8 text-center bg-[#F8FAFC] border border-[#E2E8F0] rounded-[12px] space-y-2"
+        className="p-8 text-center bg-canvas border border-border rounded-[12px] space-y-2"
         data-testid="admin-approval-queue-unauthorized"
       >
-        <ShieldAlert className="h-8 w-8 text-amber-600 mx-auto" />
-        <h3 className="text-sm font-bold text-[#1E293B]">Access Restricted</h3>
-        <p className="text-xs text-[#475569]">
+        <ShieldAlert className="h-8 w-8 text-warning mx-auto" />
+        <h3 className="text-sm font-bold text-ink">Access Restricted</h3>
+        <p className="text-xs text-muted">
           The pending approvals queue is restricted to Admin and Accounting roles.
         </p>
       </div>
@@ -205,7 +205,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
       {(isErrorInitial || isErrorRelease || isErrorFunding) && (
         <div
           role="alert"
-          className="rounded border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900"
+          className="rounded border border-warning-border bg-warning-surface p-3 text-xs text-warning"
         >
           The queue could not be refreshed. Review current records before taking action.
           <Button
@@ -225,18 +225,18 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
       {/* Header bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-bold text-[#1E293B] flex items-center gap-2">
-            <Clock className="h-5 w-5 text-amber-600" />
+          <h2 className="text-base font-bold text-ink flex items-center gap-2">
+            <Clock className="h-5 w-5 text-warning" />
             {isAdmin ? 'Admin Approval Queue' : 'Accounting Funds Tracking'}
           </h2>
-          <p className="text-xs text-[#475569] mt-0.5">
+          <p className="text-xs text-muted mt-0.5">
             {isAdmin
               ? 'Review and authorize pending disbursement requests and sanction released payments.'
               : 'Track funded vouchers across authorized entities and prepare payment instruments for approved requests.'}
           </p>
         </div>
         <div className="relative w-full sm:w-64">
-          <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-[#475569]" />
+          <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted" />
           <Input
             type="text"
             placeholder={isAdmin ? 'Search pending vouchers...' : 'Search vouchers...'}
@@ -250,7 +250,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
 
       {/* Queue Segmentation Sub-tabs */}
       <div
-        className="flex items-center gap-1.5 p-1 bg-[#F8FAFC] rounded-[8px] border border-[#E2E8F0] text-xs w-full overflow-x-auto whitespace-nowrap"
+        className="flex items-center gap-1.5 p-1 bg-sidebar rounded-[8px] border border-border text-xs w-full overflow-x-auto whitespace-nowrap"
         data-testid="queue-segmentation-tabs"
       >
         {isAdmin && (
@@ -259,8 +259,8 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
             onClick={() => setSegment('all')}
             className={`px-3 py-1 rounded-[6px] font-medium transition-[background-color,border-color,color,box-shadow] ${
               segment === 'all'
-                ? 'bg-[#FFFFFF] text-[#1E40AF] shadow-2xs font-semibold'
-                : 'text-[#475569] hover:text-[#1E293B]'
+                ? 'bg-surface text-primary-hover shadow-2xs font-semibold'
+                : 'text-muted hover:text-ink'
             }`}
             data-testid="queue-subtab-all"
           >
@@ -273,8 +273,8 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
             onClick={() => setSegment('initial_requests')}
             className={`px-3 py-1 rounded-[6px] font-medium transition-[background-color,border-color,color,box-shadow] ${
               segment === 'initial_requests'
-                ? 'bg-[#FFFFFF] text-[#1E40AF] shadow-2xs font-semibold'
-                : 'text-[#475569] hover:text-[#1E293B]'
+                ? 'bg-surface text-primary-hover shadow-2xs font-semibold'
+                : 'text-muted hover:text-ink'
             }`}
             data-testid="queue-subtab-initial"
           >
@@ -286,8 +286,8 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
           onClick={() => setSegment('payment_releases')}
           className={`px-3 py-1 rounded-[6px] font-medium transition-[background-color,border-color,color,box-shadow] ${
             segment === 'payment_releases'
-              ? 'bg-[#FFFFFF] text-[#1E40AF] shadow-2xs font-semibold'
-              : 'text-[#475569] hover:text-[#1E293B]'
+              ? 'bg-surface text-primary-hover shadow-2xs font-semibold'
+              : 'text-muted hover:text-ink'
           }`}
           data-testid="queue-subtab-payment-releases"
         >
@@ -300,8 +300,8 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
           onClick={() => setSegment('ready_for_funding')}
           className={`px-3 py-1 rounded-[6px] font-medium transition-[background-color,border-color,color,box-shadow] ${
             segment === 'ready_for_funding'
-              ? 'bg-[#FFFFFF] text-[#1E40AF] shadow-2xs font-semibold'
-              : 'text-[#475569] hover:text-[#1E293B]'
+              ? 'bg-surface text-primary-hover shadow-2xs font-semibold'
+              : 'text-muted hover:text-ink'
           }`}
           data-testid="queue-subtab-funding"
         >
@@ -311,20 +311,20 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
 
       {/* Loading state */}
       {isLoading ? (
-        <div className="p-8 text-center text-xs text-[#475569]" data-testid="pending-queue-loading">
+        <div className="p-8 text-center text-xs text-muted" data-testid="pending-queue-loading">
           Loading approval items...
         </div>
       ) : filteredItems.length === 0 ? (
         /* Empty state */
         <div
-          className="p-10 text-center bg-[#F8FAFC] border border-[#E2E8F0] rounded-[8px]"
+          className="p-10 text-center bg-canvas border border-border rounded-[8px]"
           data-testid="pending-queue-empty"
         >
-          <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto mb-3" />
-          <h3 className="text-sm font-bold text-[#1E293B]">
+          <CheckCircle2 className="h-10 w-10 text-success mx-auto mb-3" />
+          <h3 className="text-sm font-bold text-ink">
             {isAdmin ? 'Queue is Clear' : 'No Vouchers in Queue'}
           </h3>
-          <p className="text-xs text-[#475569] mt-1">
+          <p className="text-xs text-muted mt-1">
             {isAdmin
               ? 'There are no pending disbursements requiring administrative action.'
               : 'There are no vouchers currently in this tracking queue.'}
@@ -349,53 +349,53 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
             return (
               <div
                 key={item.id}
-                className="p-4 bg-[#FFFFFF] border border-[#E2E8F0] rounded-[6px] hover:border-[#E2E8F0] transition-colors shadow-none space-y-3"
+                className="p-4 bg-surface border border-border rounded-[6px] hover:border-border transition-colors shadow-none space-y-3"
                 data-testid={`pending-item-${item.id}`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-[#1E293B]">{disbNumber}</span>
+                      <span className="text-xs font-bold text-ink">{disbNumber}</span>
                       <DisbursementStatusBadge
                         status={item.status}
                         reviewReady={item.review_ready}
                       />
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-[6px] bg-[#F8FAFC] text-[#475569]">
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-[6px] bg-canvas text-muted">
                         {item.category}
                       </span>
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-[6px] bg-[#F8FAFC] text-[#1E293B]">
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-[6px] bg-canvas text-ink">
                         {item.fund_source || item.fundSource}
                       </span>
                     </div>
-                    <p className="text-xs text-[#1E293B] font-medium line-clamp-2">
+                    <p className="text-xs text-ink font-medium line-clamp-2">
                       {item.description}
                     </p>
                   </div>
 
                   <div className="text-right shrink-0">
                     <span
-                      className="text-sm font-bold text-[#1E293B] block"
+                      className="text-sm font-bold text-ink block"
                       data-testid={`item-amount-${item.id}`}
                     >
                       ₱{item.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                     </span>
-                    <span className="text-xs tabular-nums text-[#475569]">
+                    <span className="text-xs tabular-nums text-muted">
                       {new Date(item.created_at || item.createdAt || '').toLocaleDateString()}
                     </span>
                   </div>
                 </div>
 
                 {/* Metadata strip */}
-                <div className="flex flex-wrap items-center gap-4 text-xs text-[#475569] pt-1 border-t border-[#E2E8F0]">
+                <div className="flex flex-wrap items-center gap-4 text-xs text-muted pt-1 border-t border-border">
                   <span className="flex items-center gap-1">
-                    <Building className="h-3 w-3 text-[#475569]" />
+                    <Building className="h-3 w-3 text-muted" />
                     {clientName}
                   </span>
                   {(item.linked_work_request_name ||
                     item.linked_work_request_order_number ||
                     workRequestId) && (
                     <span className="flex items-center gap-1">
-                      <FileText className="h-3 w-3 text-[#475569]" />
+                      <FileText className="h-3 w-3 text-muted" />
                       WR:{' '}
                       <span className="tabular-nums" data-testid={`pending-item-wr-${item.id}`}>
                         {item.linked_work_request_order_number && item.linked_work_request_name
@@ -417,7 +417,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
                     item.created_by ||
                     item.createdBy) && (
                     <span className="flex items-center gap-1">
-                      <User className="h-3 w-3 text-[#475569]" />
+                      <User className="h-3 w-3 text-muted" />
                       {item.employee_name ||
                         item.employeeName ||
                         item.requested_by_name ||
@@ -431,7 +431,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
                     </span>
                   )}
                   {(item.receipt_filename || item.receiptFilename) && (
-                    <span className="flex items-center gap-1 text-[#1E293B]">
+                    <span className="flex items-center gap-1 text-ink">
                       <Receipt className="h-3 w-3" />
                       {item.receipt_filename || item.receiptFilename}
                     </span>
@@ -441,16 +441,16 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
                 {/* Duty Separation & Readiness Notices */}
                 {isReturnedDraft && (
                   <div
-                    className="flex items-center gap-1.5 text-xs font-medium text-orange-800 bg-orange-50 px-2.5 py-1 rounded border border-orange-200"
+                    className="flex items-center gap-1.5 text-xs font-medium text-warning bg-warning-surface px-2.5 py-1 rounded border border-warning-border"
                     data-testid={`needs-correction-notice-${item.id}`}
                   >
-                    <AlertCircle className="h-3.5 w-3.5 text-orange-600 shrink-0" />
+                    <AlertCircle className="h-3.5 w-3.5 text-warning shrink-0" />
                     <span>Awaiting Requester Correction</span>
                   </div>
                 )}
 
                 {/* Actions */}
-                <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E2E8F0]">
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
                   {onSelectDisbursement && (
                     <Button
                       type="button"
@@ -471,7 +471,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
                       variant="default"
                       size="sm"
                       onClick={() => setFundingItem(item)}
-                      className="text-xs h-7 bg-[#1D4ED8] hover:bg-[#1E40AF] text-white font-medium"
+                      className="text-xs h-7 bg-primary hover:bg-primary-hover text-inverse font-medium"
                       data-testid={`fund-btn-${item.id}`}
                     >
                       <DollarSign className="h-3.5 w-3.5 mr-1" />
@@ -487,10 +487,10 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
                         variant="outline"
                         size="sm"
                         onClick={() => setRejectingItem(item)}
-                        className="text-xs h-7 text-rose-600 border-rose-200 hover:bg-rose-50"
+                        className="text-xs h-7 text-danger border-danger-border hover:bg-danger-surface"
                         data-testid={`reject-btn-${item.id}`}
                       >
-                        <XCircle className="h-3.5 w-3.5 mr-1 text-rose-600" />
+                        <XCircle className="h-3.5 w-3.5 mr-1 text-danger-solid" />
                         Reject
                       </Button>
                       {item.status === 'Funded' ? (
@@ -500,7 +500,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
                           size="sm"
                           title="Release payment funds"
                           onClick={() => setReleasingItem(item)}
-                          className="text-xs h-7 bg-[#1D4ED8] hover:bg-[#1E40AF] text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="text-xs h-7 bg-primary hover:bg-primary-hover text-inverse font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                           data-testid={`release-btn-${item.id}`}
                         >
                           <DollarSign className="h-3.5 w-3.5 mr-1" />
@@ -514,7 +514,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
                           disabled={cannotApprove}
                           title={approveTitle}
                           onClick={() => handleApprove(item)}
-                          className="text-xs h-7 bg-emerald-600 hover:bg-emerald-700 text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="text-xs h-7 bg-success hover:bg-success text-inverse font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                           data-testid={`approve-btn-${item.id}`}
                         >
                           <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
@@ -533,7 +533,7 @@ export function AdminApprovalQueue({ onSelectDisbursement }: AdminApprovalQueueP
       {/* Pagination Controls */}
       {filteredItems.length > pageSize && (
         <div
-          className="flex items-center justify-between px-2 pt-2 text-xs text-[#475569] border-t border-[#E2E8F0]"
+          className="flex items-center justify-between px-2 pt-2 text-xs text-muted border-t border-border"
           data-testid="queue-pagination-bar"
         >
           <span data-testid="queue-page-info">

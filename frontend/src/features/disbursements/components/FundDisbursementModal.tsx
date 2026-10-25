@@ -178,48 +178,48 @@ export function FundDisbursementModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-md p-6 space-y-4" data-testid="fund-disbursement-modal">
         <DialogHeader>
-          <DialogTitle className="text-base font-bold text-[#1E293B] flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-purple-600" />
+          <DialogTitle className="text-base font-bold text-ink flex items-center gap-2">
+            <DollarSign className="h-5 w-5 text-primary" />
             <span>Prepare Payment Instrument (Fund Voucher)</span>
           </DialogTitle>
-          <DialogDescription className="text-xs text-[#475569]">
+          <DialogDescription className="text-xs text-muted">
             Record and verify payment details for voucher{' '}
-            <span className="tabular-nums font-semibold text-[#1E293B]">{disbNumber}</span>. This
-            transitions the voucher to <strong className="text-purple-700">Funded</strong> status,
+            <span className="tabular-nums font-semibold text-ink">{disbNumber}</span>. This
+            transitions the voucher to <strong className="text-success">Funded</strong> status,
             awaiting final Admin release.
           </DialogDescription>
         </DialogHeader>
 
         {/* Voucher summary */}
-        <div className="p-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[6px] text-xs space-y-1">
+        <div className="p-3 bg-canvas border border-border rounded-[6px] text-xs space-y-1">
           <div className="flex justify-between items-center">
-            <span className="text-[#475569]">Authorized Amount:</span>
-            <span className="font-bold text-[#1E293B] text-sm" data-testid="fund-amount">
+            <span className="text-muted">Authorized Amount:</span>
+            <span className="font-bold text-ink text-sm" data-testid="fund-amount">
               ₱{disbursement.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
             </span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-[#475569]">Fund Source:</span>
-            <span className="font-semibold text-[#1E40AF]">
+            <span className="text-muted">Fund Source:</span>
+            <span className="font-semibold text-primary-hover">
               {disbursement.fund_source || disbursement.fundSource}
             </span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-[#475569]">Category:</span>
-            <span className="text-[#1E293B]">{disbursement.category}</span>
+            <span className="text-muted">Category:</span>
+            <span className="text-ink">{disbursement.category}</span>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3" data-testid="fund-disbursement-form">
           {/* Payment Method */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#1E293B] flex items-center gap-1">
-              Payment Method <span className="text-rose-500">*</span>
+            <label className="text-xs font-semibold text-ink flex items-center gap-1">
+              Payment Method <span className="text-danger-solid">*</span>
             </label>
             <select
               value={method}
               onChange={(e) => setMethod(e.target.value)}
-              className="w-full text-xs p-2 border rounded-[6px] bg-[#FFFFFF] border-[#E2E8F0] focus:outline-none focus:ring-1 focus:ring-[#1D4ED8]"
+              className="w-full text-xs p-2 border rounded-[6px] bg-surface border-border focus:outline-none focus:ring-1 focus:ring-primary"
               data-testid="select-fund-method"
             >
               <option value="Bank Transfer">Bank Transfer</option>
@@ -230,7 +230,7 @@ export function FundDisbursementModal({
             </select>
             {errors.method && (
               <p
-                className="text-xs text-rose-600 flex items-center gap-1"
+                className="text-xs text-danger-solid flex items-center gap-1"
                 data-testid="error-fund-method"
               >
                 <AlertCircle className="h-3 w-3" />
@@ -241,9 +241,9 @@ export function FundDisbursementModal({
 
           {/* Bank / Institution / Cash Source */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#1E293B] flex items-center gap-1">
+            <label className="text-xs font-semibold text-ink flex items-center gap-1">
               {method === 'Cash' ? 'Cash Source / Box' : 'Bank / Institution'}{' '}
-              <span className="text-rose-500">*</span>
+              <span className="text-danger-solid">*</span>
             </label>
             <Input
               type="text"
@@ -258,7 +258,7 @@ export function FundDisbursementModal({
             />
             {errors.bank && (
               <p
-                className="text-xs text-rose-600 flex items-center gap-1"
+                className="text-xs text-danger-solid flex items-center gap-1"
                 data-testid="error-fund-bank"
               >
                 <AlertCircle className="h-3 w-3" />
@@ -269,9 +269,9 @@ export function FundDisbursementModal({
 
           {/* Payment Reference / Check Number */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#1E293B] flex items-center gap-1">
+            <label className="text-xs font-semibold text-ink flex items-center gap-1">
               {method === 'Cash' ? 'Cash Receipt / Voucher #' : 'Payment Reference / Check #'}{' '}
-              <span className="text-rose-500">*</span>
+              <span className="text-danger-solid">*</span>
             </label>
             <Input
               type="text"
@@ -286,7 +286,7 @@ export function FundDisbursementModal({
             />
             {errors.reference && (
               <p
-                className="text-xs text-rose-600 flex items-center gap-1"
+                className="text-xs text-danger-solid flex items-center gap-1"
                 data-testid="error-fund-reference"
               >
                 <AlertCircle className="h-3 w-3" />
@@ -297,8 +297,8 @@ export function FundDisbursementModal({
 
           {/* Payment Date */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#1E293B] flex items-center gap-1">
-              Payment Preparation Date <span className="text-rose-500">*</span>
+            <label className="text-xs font-semibold text-ink flex items-center gap-1">
+              Payment Preparation Date <span className="text-danger-solid">*</span>
             </label>
             <DateInput
               aria-label="Payment date"
@@ -309,7 +309,7 @@ export function FundDisbursementModal({
             />
             {errors.date && (
               <p
-                className="text-xs text-rose-600 flex items-center gap-1"
+                className="text-xs text-danger-solid flex items-center gap-1"
                 data-testid="error-fund-date"
               >
                 <AlertCircle className="h-3 w-3" />
@@ -334,7 +334,7 @@ export function FundDisbursementModal({
               variant="default"
               size="sm"
               disabled={isPending || isSubmitting || isInvalidLifecycle || isMissingVersion}
-              className="text-xs font-semibold bg-[#1D4ED8] hover:bg-[#1E40AF] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              className="text-xs font-semibold bg-primary hover:bg-primary-hover text-inverse disabled:opacity-50 disabled:cursor-not-allowed"
               data-testid="btn-confirm-fund"
             >
               {isPending || isSubmitting ? 'Saving...' : 'Confirm Payment Instrument'}

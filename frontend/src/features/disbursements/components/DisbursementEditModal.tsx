@@ -1,12 +1,17 @@
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DateInput } from '@/components/ui/date-input';
+import { Upload } from 'lucide-react';
 import { useSessionStore } from '@/lib/session';
 import { apiRequest } from '@/lib/api';
 import { useQueryClient } from '@tanstack/react-query';
-import { useUpdateDisbursement } from '../api/useDisbursements';
+import {
+  useUpdateDisbursement,
+  uploadReceiptFile,
+  isValidReceiptMimeType,
+} from '../api/useDisbursements';
 import { disbursementKeys } from '../api/queryKeys';
 import { isConcurrencyConflictError } from '@/components/common/ConflictResolutionModal';
 import { useBlockingModalStore } from '@/features/operations/components/BlockingActionModal';
@@ -81,10 +86,11 @@ export function DisbursementEditModal({
   const [fundSource, setFundSource] = useState<FundSource>('Firm Fund');
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptFilename, setReceiptFilename] = useState<string>('');
+  const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [printDetails, setPrintDetails] = useState<DisbursementPrintDetails>({});
-  const automaticDetails = useMemo(() => {
-    return disbursement ? getDisbursementPrintDetails({ ...disbursement, print_details: {} }) : {};
-  }, [disbursement]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [conflict, setConflict] = useState(false);
@@ -110,7 +116,11 @@ export function DisbursementEditModal({
     setFundSource(disbursement.fund_source || disbursement.fundSource || 'Firm Fund');
     setDueDate((disbursement.due_date || disbursement.dueDate || '').slice(0, 10));
     setNotes(disbursement.notes || '');
-    setPrintDetails(disbursement.print_details ? { ...disbursement.print_details } : {});
+    setReceiptFile(null);
+    setReceiptFilename(disbursement.receipt_filename || disbursement.receiptFilename || '');
+    setIsUploadingReceipt(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setPrintDetails(getDisbursementPrintDetails(disbursement));
     setError('');
     setConflict(false);
   }, [isOpen, disbursement, contextKey]);
@@ -159,9 +169,25 @@ export function DisbursementEditModal({
         payload.fundSource = fundSource;
         payload.dueDate = dueDate || null;
         payload.notes = notes.trim() || null;
+
+        if (receiptFile) {
+          setIsUploadingReceipt(true);
+          const rawEntity =
+            disbursement.entity_code ||
+            (disbursement as unknown as { entityCode?: string }).entityCode ||
+            (disbursement as unknown as { entity?: string }).entity ||
+            'ATA';
+          const targetEntity: 'ATA' | 'LTA' = rawEntity === 'LTA' ? 'LTA' : 'ATA';
+          const uploadResult = await uploadReceiptFile(receiptFile, () => !isStale(), {
+            entity: targetEntity,
+          });
+          if (isStale()) return;
+          payload.receiptS3Key = uploadResult.receiptS3Key;
+          payload.receiptFilename = uploadResult.receiptFilename;
+        }
       }
 
-      if (isAdmin) {
+      if (isAdmin && Object.keys(printDetails).length > 0) {
         payload.printDetails = printDetails;
       }
 
@@ -185,6 +211,7 @@ export function DisbursementEditModal({
       if (!isStale()) {
         isSubmittingRef.current = false;
         setSaving(false);
+        setIsUploadingReceipt(false);
       }
     }
   };
@@ -222,7 +249,7 @@ export function DisbursementEditModal({
 
       {!isFinancialEditable && (
         <div
-          className="p-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[6px] text-xs text-[#1E293B] mb-2"
+          className="p-3 bg-canvas border border-border rounded-[6px] text-xs text-ink mb-2"
           data-testid="edit-print-only-banner"
         >
           <strong>Print Customization Mode:</strong> Financial fields are locked for this workflow
@@ -232,7 +259,7 @@ export function DisbursementEditModal({
 
       <form onSubmit={save} className="space-y-4" noValidate>
         {error && (
-          <div role="alert" className="text-sm text-red-700">
+          <div role="alert" className="text-sm text-danger">
             {error}
             {conflict && (
               <Button type="button" variant="outline" size="sm" onClick={loadLatest}>
@@ -268,7 +295,7 @@ export function DisbursementEditModal({
             Description
             <textarea
               aria-label="Description"
-              className="w-full border border-[#E2E8F0] rounded-[6px] p-2 disabled:bg-[#F8FAFC] disabled:text-[#475569]"
+              className="w-full border border-border rounded-[6px] p-2 disabled:bg-canvas disabled:text-muted"
               rows={3}
               maxLength={2000}
               disabled={!isFinancialEditable}
@@ -280,7 +307,7 @@ export function DisbursementEditModal({
             Fund source
             <select
               aria-label="Fund source"
-              className="w-full border border-[#E2E8F0] rounded-[6px] p-2 disabled:bg-[#F8FAFC] disabled:text-[#475569]"
+              className="w-full border border-border rounded-[6px] p-2 disabled:bg-canvas disabled:text-muted"
               value={fundSource}
               disabled={!isFinancialEditable}
               onChange={(e) => setFundSource(e.target.value as FundSource)}
@@ -302,7 +329,7 @@ export function DisbursementEditModal({
             Notes
             <textarea
               aria-label="Notes"
-              className="w-full border border-[#E2E8F0] rounded-[6px] p-2 disabled:bg-[#F8FAFC] disabled:text-[#475569]"
+              className="w-full border border-border rounded-[6px] p-2 disabled:bg-canvas disabled:text-muted"
               rows={2}
               maxLength={2000}
               disabled={!isFinancialEditable}
@@ -310,70 +337,73 @@ export function DisbursementEditModal({
               onChange={(e) => setNotes(e.target.value)}
             />
           </label>
+          {isFinancialEditable && (
+            <div className="space-y-1 sm:col-span-2">
+              <label className="text-sm font-semibold text-ink">
+                Receipt Attachment
+              </label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+                disabled={saving || isUploadingReceipt}
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    if (!isValidReceiptMimeType(file.type, file.name)) {
+                      setError('Only PDF, PNG, and JPEG files are allowed');
+                      return;
+                    }
+                    if (file.size > 10 * 1024 * 1024) {
+                      setError('File size cannot exceed 10 MiB');
+                      return;
+                    }
+                    setReceiptFile(file);
+                    setReceiptFilename(file.name);
+                    setError('');
+                  }
+                }}
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={saving || isUploadingReceipt}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-xs flex items-center gap-1.5"
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  <span>{receiptFilename ? 'Change Receipt' : 'Upload Receipt'}</span>
+                </Button>
+                {receiptFilename && (
+                  <span className="text-xs text-muted truncate max-w-xs font-mono">
+                    {receiptFilename}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
-        <fieldset className="border-t border-[#E2E8F0] pt-3 space-y-3">
+        <fieldset className="border-t border-border pt-3 space-y-3">
           <legend className="text-sm font-semibold">Printed voucher details</legend>
-          <p className="text-xs text-[#475569]">
-            These overrides affect the printed document. Use automatic restores the current value
-            without changing recorded payments or approval and release identities.
+          <p className="text-xs text-muted">
+            These values appear on the document. Use Edit Payment Details to correct the recorded
+            payment.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {printFields.map(([key, label]) => {
-              const isOverridden = Object.prototype.hasOwnProperty.call(printDetails, key);
-              const inputValue = isOverridden
-                ? (printDetails[key] ?? '')
-                : (automaticDetails[key] ?? '');
-              return (
-                <div key={key} className="text-sm space-y-1">
-                  <div className="flex min-h-11 sm:min-h-8 flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span>{label}</span>
-                      <span
-                        className={`text-xs px-1.5 py-0.5 rounded font-normal ${
-                          !isOverridden
-                            ? 'bg-slate-100 text-slate-600'
-                            : printDetails[key] === ''
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-blue-100 text-blue-800'
-                        }`}
-                      >
-                        {!isOverridden
-                          ? 'Automatic'
-                          : printDetails[key] === ''
-                            ? 'Blank'
-                            : 'Custom'}
-                      </span>
-                    </div>
-                    {isOverridden && (
-                      <button
-                        type="button"
-                        aria-label={`Use automatic for ${label}`}
-                        title={`Use automatic for ${label}`}
-                        onClick={() => {
-                          setPrintDetails((prev) => {
-                            const next = { ...prev };
-                            delete next[key];
-                            return next;
-                          });
-                        }}
-                        className="min-h-11 sm:min-h-8 px-2 text-xs text-blue-700 hover:text-blue-800 underline font-normal cursor-pointer rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"
-                      >
-                        Use automatic
-                      </button>
-                    )}
-                  </div>
-                  <Input
-                    aria-label={label}
-                    value={inputValue}
-                    maxLength={500}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setPrintDetails((prev) => ({ ...prev, [key]: val }));
-                    }}
-                  />
-                </div>
-              );
-            })}
+            {printFields.map(([key, label]) => (
+              <label key={key} className="text-sm space-y-1">
+                {label}
+                <Input
+                  aria-label={label}
+                  value={printDetails[key] ?? ''}
+                  maxLength={500}
+                  onChange={(e) => setPrintDetails({ ...printDetails, [key]: e.target.value })}
+                />
+              </label>
+            ))}
           </div>
         </fieldset>
         <div className="flex justify-end gap-2">
@@ -389,7 +419,7 @@ export function DisbursementEditModal({
   );
   return inline ? (
     <section
-      className="bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px] p-4 space-y-3"
+      className="bg-surface border-border rounded-[6px] p-4 space-y-3"
       data-testid="disbursement-inline-editor"
     >
       {content}

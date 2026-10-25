@@ -81,6 +81,7 @@ export interface DocumentViewerModalProps {
   workRequests?: ViewerWorkRequest[] | null;
   onUploadSuccess?: (doc: DmsDocument) => void;
   readOnly?: boolean;
+  previewUrl?: string | null;
 }
 
 export function DocumentViewerModal({
@@ -92,6 +93,7 @@ export function DocumentViewerModal({
   workRequests: propWorkRequests,
   onUploadSuccess,
   readOnly = false,
+  previewUrl: propPreviewUrl,
 }: DocumentViewerModalProps) {
   const initialDoc = propDocument ?? propDoc ?? null;
   const workRequest = propWorkRequest ?? (propWorkRequests && propWorkRequests[0]) ?? null;
@@ -266,14 +268,13 @@ export function DocumentViewerModal({
     (doc?.external_url && doc.external_url.trim()) ||
     (doc?.externalUrl && doc.externalUrl.trim()) ||
     null;
-  const rawUrl = effectiveExternalUrl || downloadData?.url || null;
+  const rawUrl = propPreviewUrl || effectiveExternalUrl || downloadData?.url || null;
   const parsedExternal = parseExternalUrl(rawUrl || '', fileName);
   const previewUrl = parsedExternal.isGoogleDrive ? parsedExternal.previewUrl : rawUrl;
   const isExternal = Boolean(
-    effectiveExternalUrl ||
-    parsedExternal.isGoogleDrive
+    !propPreviewUrl && (effectiveExternalUrl || parsedExternal.isGoogleDrive)
   );
-  const downloadUrl = isExternal ? null : rawUrl;
+  const downloadUrl = isExternal && !propPreviewUrl ? null : rawUrl;
 
   // File Upload Handler (3-step signed upload)
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {

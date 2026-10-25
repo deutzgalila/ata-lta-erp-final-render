@@ -38,6 +38,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { DmsDocument } from '../api/types';
+import { isDisbursementReceiptDocument } from '../api/useDocuments';
 import {
   CATEGORY_LABELS,
   LIFECYCLE_LABELS,
@@ -81,7 +82,9 @@ export function DocumentTable({
   canEdit = false,
   canDelete = false,
 }: DocumentTableProps) {
-  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const visibleDocuments = documents.filter((doc) => !isDisbursementReceiptDocument(doc));
+  const effectiveTotal = Math.min(total, visibleDocuments.length > 0 ? total : 0);
+  const totalPages = Math.max(1, Math.ceil(effectiveTotal / limit));
 
   if (isLoading) {
     return (
@@ -94,7 +97,7 @@ export function DocumentTable({
     );
   }
 
-  if (documents.length === 0) {
+  if (visibleDocuments.length === 0) {
     return (
       <div
         className="rounded-[8px] border-[#E2E8F0] bg-white p-12 text-center"
@@ -128,7 +131,7 @@ export function DocumentTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {documents.map((doc) => {
+            {visibleDocuments.map((doc) => {
               const displayName = doc.original_name || doc.file_name;
               const cat = doc.category || 'OTHER';
               const lifecycle = doc.document_lifecycle || 'collected';

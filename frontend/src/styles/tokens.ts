@@ -99,6 +99,10 @@ export const colors = {
   yellow: '#854D0E',
   cyan: '#075985',
   red: '#DC2626',
+
+  // Workspace & Viewer Tokens
+  viewerBg: '#F1F5F9',
+  deadlineTrack: '#E2E8F0',
 } as const;
 
 export const typography = {
@@ -132,6 +136,21 @@ export const spacing = {
   panePaddingY: '24px',
   sidebarWidth: '232px',
   sidebarCollapsedWidth: '56px',
+  rowHeightCompact: '40px',
+  rowHeightDefault: '48px',
+  paneDetailWidth: '480px',
+  paneDetailCollapsed: '48px',
+  paneRailWidth: '200px',
+} as const;
+
+export const workspace = {
+  rowHeightCompact: '40px',
+  rowHeightDefault: '48px',
+  paneDetailWidth: '480px',
+  paneDetailCollapsed: '48px',
+  paneRailWidth: '200px',
+  viewerBg: '#F1F5F9',
+  deadlineTrack: '#E2E8F0',
 } as const;
 
 export const radii = {
@@ -259,6 +278,15 @@ export const rawCssTokens: Record<string, string> = {
   '--spacing-xl': '32px',
   '--sidebar-width': '232px',
   '--sidebar-collapsed-width': '56px',
+  '--row-height-compact': '40px',
+  '--row-height-default': '48px',
+  '--pane-detail-width': '480px',
+  '--pane-detail-collapsed': '48px',
+  '--pane-rail-width': '128px',
+  '--viewer-bg': 'var(--slate-100)',
+  '--deadline-track': 'var(--slate-200)',
+  '--color-viewer-bg': 'var(--slate-100)',
+  '--color-deadline-track': 'var(--slate-200)',
   '--shadow-soft': '0px 1px 2px 0px rgba(15, 23, 42, 0.04)',
   '--shadow-card': '0px 0px 0px 1px rgba(15, 23, 42, 0.04), 0px 1px 2px -1px rgba(15, 23, 42, 0.05), 0px 2px 4px 0px rgba(15, 23, 42, 0.03)',
   '--shadow-float': '0px 0px 0px 1px rgba(15, 23, 42, 0.06), 0px 10px 25px -5px rgba(15, 23, 42, 0.08), 0px 4px 10px -2px rgba(15, 23, 42, 0.04)',
@@ -279,6 +307,7 @@ export const designTokens = {
   colors,
   typography,
   spacing,
+  workspace,
   radii,
   shadows,
   transitions,

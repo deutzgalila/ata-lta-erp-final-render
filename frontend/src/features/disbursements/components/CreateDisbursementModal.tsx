@@ -14,7 +14,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Upload, FileText, X, AlertCircle } from 'lucide-react';
 import { useSessionStore } from '@/lib/session';
 import { DISBURSEMENT_CATEGORIES, FUND_SOURCES } from '../api/schemas';
-import { useCreateDisbursement, uploadReceiptFile } from '../api/useDisbursements';
+import {
+  useCreateDisbursement,
+  uploadReceiptFile,
+  normalizeReceiptMimeType,
+  isValidReceiptMimeType,
+} from '../api/useDisbursements';
 import { apiRequest, ApiError } from '@/lib/api';
 import { useWorkRequests } from '@/features/operations/api/useWorkRequests';
 import { useWorkRequestTasks } from '@/features/operations/api/useTasks';
@@ -172,7 +177,7 @@ export function CreateDisbursementModal({
 
   const handleSelectFile = (file: File) => {
     if (isUploadingReceipt || isPending) return;
-    if (!['application/pdf', 'image/png', 'image/jpeg'].includes(file.type)) {
+    if (!isValidReceiptMimeType(file.type, file.name)) {
       setErrors((prev) => ({ ...prev, receipt: 'Only PDF, PNG, and JPEG files are allowed' }));
       return;
     }
@@ -264,13 +269,37 @@ export function CreateDisbursementModal({
   }, [workRequestsData]);
 
   // Filter available work requests by clientId when client is locked or prefilled (Contract Rule 3)
+  // and scope by activeEntity when not ALL, while preserving the explicitly requested/default WR
   const availableWorkRequests = React.useMemo(() => {
     const lockedClientId = prefill?.clientId || defaultClientId;
+    const preservedWrId = prefill?.workRequestId || defaultWorkRequestId || linkedWorkRequestId;
+    let list = workRequests;
     if (lockedClientId) {
-      return workRequests.filter((wr) => (wr.client_id || wr.clientId) === lockedClientId);
+      list = list.filter((wr) => (wr.client_id || wr.clientId) === lockedClientId || wr.id === preservedWrId);
     }
-    return workRequests;
-  }, [workRequests, prefill?.clientId, defaultClientId]);
+    if (activeEntity && activeEntity !== 'ALL') {
+      list = list.filter((wr) => {
+        if (preservedWrId && wr.id === preservedWrId) return true;
+        const wrEntity =
+          wr.entity ||
+          (wr as unknown as { entity_code?: string }).entity_code ||
+          (wr as unknown as { entityCode?: string }).entityCode;
+        if (wrEntity && (wrEntity === 'ATA' || wrEntity === 'LTA')) {
+          return wrEntity === activeEntity;
+        }
+        return true;
+      });
+    }
+    return list;
+  }, [
+    workRequests,
+    prefill?.clientId,
+    defaultClientId,
+    prefill?.workRequestId,
+    defaultWorkRequestId,
+    linkedWorkRequestId,
+    activeEntity,
+  ]);
 
   // Synchronize prefill contract and defaults on modal open, reset on close
   useEffect(() => {
@@ -600,7 +629,7 @@ export function CreateDisbursementModal({
           resultingFilename = uploadedReceipt.receiptFilename;
         } else if (receiptFile) {
           // Validate MIME and size before upload
-          if (!['application/pdf', 'image/png', 'image/jpeg'].includes(receiptFile.type)) {
+          if (!isValidReceiptMimeType(receiptFile.type, receiptFile.name)) {
             setErrors((prev) => ({ ...prev, receipt: 'Only PDF, PNG, and JPEG files are allowed' }));
             return;
           }
@@ -800,12 +829,12 @@ export function CreateDisbursementModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
-        className="max-h-[90vh] space-y-4 overflow-y-auto border p-6 border-[#E2E8F0] shadow-float rounded-[12px] bg-[#FFFFFF] max-w-lg"
+        className="max-h-[90vh] space-y-4 overflow-y-auto border p-6 border-border shadow-float rounded-[12px] bg-surface max-w-lg"
         data-testid="create-disbursement-modal"
       >
         <DialogHeader>
-          <DialogTitle className="text-lg font-bold text-[#1E293B]">{modalTitle}</DialogTitle>
-          <DialogDescription className="text-xs text-[#475569]">
+          <DialogTitle className="text-lg font-bold text-ink">{modalTitle}</DialogTitle>
+          <DialogDescription className="text-xs text-muted">
             Submit a new expense or reimbursement voucher. New vouchers enter Draft status awaiting
             administrative budget authorization.
           </DialogDescription>
@@ -845,7 +874,7 @@ export function CreateDisbursementModal({
 
           {/* Work Request Dropdown (UAT2-12: eliminates manual WR-id input) */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#1E293B]">
+            <label className="text-xs font-semibold text-ink">
               Linked Work Request <span className="text-red-500">*</span>
             </label>
             <div className="space-y-1.5">
@@ -857,7 +886,7 @@ export function CreateDisbursementModal({
                 }
                 onChange={(e) => handleSelectWorkRequest(e.target.value)}
                 disabled={isWrLocked}
-                className="w-full text-xs p-2 border rounded-[6px] bg-[#FFFFFF] border-[#E2E8F0] focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-[#F8FAFC] disabled:cursor-not-allowed"
+                className="w-full text-xs p-2 border rounded-[6px] bg-surface border-border focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-canvas disabled:cursor-not-allowed"
                 data-testid="select-work-request"
               >
                 <option value="">Select Work Request...</option>
@@ -878,7 +907,7 @@ export function CreateDisbursementModal({
           {/* Associated Client (Auto-Detected, Read-Only) & Linked Task */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#1E293B]">
+              <label className="text-xs font-semibold text-ink">
                 Associated Client (Auto-Detected)
               </label>
               <Input
@@ -890,13 +919,13 @@ export function CreateDisbursementModal({
                   (clientId ? `Client Associated (${clientId.slice(0, 8)})` : '')
                 }
                 placeholder="Auto-detected from Work Request"
-                className="bg-[#F8FAFC] text-[#1E293B] cursor-not-allowed text-xs disabled:opacity-80"
+                className="bg-canvas text-ink cursor-not-allowed text-xs disabled:opacity-80"
                 data-testid="display-client-name"
               />
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#1E293B]">Linked Task (Optional)</label>
+              <label className="text-xs font-semibold text-ink">Linked Task (Optional)</label>
               <select
                 value={selectedTaskId}
                 onChange={(e) => {
@@ -910,7 +939,7 @@ export function CreateDisbursementModal({
                   }
                 }}
                 disabled={isTaskLocked || !linkedWorkRequestId}
-                className="w-full text-xs p-2 border rounded-[6px] bg-[#FFFFFF] border-[#E2E8F0] focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-[#F8FAFC] disabled:cursor-not-allowed"
+                className="w-full text-xs p-2 border rounded-[6px] bg-surface border-border focus:outline-none focus:ring-1 focus:ring-primary disabled:bg-canvas disabled:cursor-not-allowed"
                 data-testid="select-work-request-task"
               >
                 <option value="">
@@ -935,13 +964,13 @@ export function CreateDisbursementModal({
           {/* Category & Fund Source */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#1E293B]">
+              <label className="text-xs font-semibold text-ink">
                 Category <span className="text-red-500">*</span>
               </label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full text-xs p-2 border rounded-[6px] bg-[#FFFFFF] border-[#E2E8F0] focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full text-xs p-2 border rounded-[6px] bg-surface border-border focus:outline-none focus:ring-1 focus:ring-primary"
                 data-testid="select-category"
               >
                 {DISBURSEMENT_CATEGORIES.map((cat) => (
@@ -966,13 +995,13 @@ export function CreateDisbursementModal({
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#1E293B]">
+              <label className="text-xs font-semibold text-ink">
                 Fund Source <span className="text-red-500">*</span>
               </label>
               <select
                 value={fundSource}
                 onChange={(e) => setFundSource(e.target.value as FundSource)}
-                className="w-full text-xs p-2 border rounded-[6px] bg-[#FFFFFF] border-[#E2E8F0] focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full text-xs p-2 border rounded-[6px] bg-surface border-border focus:outline-none focus:ring-1 focus:ring-primary"
                 data-testid="select-fund-source"
               >
                 {FUND_SOURCES.map((src) => (
@@ -987,7 +1016,7 @@ export function CreateDisbursementModal({
           {/* Amount & Due Date */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#1E293B]">
+              <label className="text-xs font-semibold text-ink">
                 Amount (PHP) <span className="text-red-500">*</span>
               </label>
               <Input
@@ -1014,7 +1043,7 @@ export function CreateDisbursementModal({
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#1E293B]">Due Date</label>
+              <label className="text-xs font-semibold text-ink">Due Date</label>
               <DateInput
                 aria-label="Disbursement due date"
                 type="date"
@@ -1027,20 +1056,20 @@ export function CreateDisbursementModal({
 
           {/* Locked Requester Display */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#1E293B]">Requester</label>
+            <label className="text-xs font-semibold text-ink">Requester</label>
             <div
-              className="w-full text-xs p-2.5 border rounded-[6px] bg-[#F8FAFC] text-[#1E293B] border-[#E2E8F0] flex items-center justify-between"
+              className="w-full text-xs p-2.5 border rounded-[6px] bg-canvas text-ink border-border flex items-center justify-between"
               data-testid="requester-locked-display"
             >
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-[#1E293B]">
+                <span className="font-semibold text-ink">
                   {currentUser?.name || 'Authenticated Staff'}
                 </span>
-                <span className="text-xs text-[#475569]">
+                <span className="text-xs text-muted">
                   ({currentUser?.email || 'session user'})
                 </span>
               </div>
-              <span className="text-xs font-semibold text-[#475569] px-2 py-0.5 rounded bg-[#E2E8F0]">
+              <span className="text-xs font-semibold text-muted px-2 py-0.5 rounded bg-hover">
                 Session Locked
               </span>
             </div>
@@ -1065,7 +1094,7 @@ export function CreateDisbursementModal({
 
           {/* Description */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#1E293B]">
+            <label className="text-xs font-semibold text-ink">
               Description / Expense Purpose <span className="text-red-500">*</span>
             </label>
             <textarea
@@ -1076,8 +1105,8 @@ export function CreateDisbursementModal({
                 if (errors.description) setErrors((prev) => ({ ...prev, description: '' }));
               }}
               placeholder="e.g. BIR filing documentary stamp tax and notarization fees"
-              className={`w-full text-xs p-2.5 border rounded-[6px] bg-[#FFFFFF] text-[#1E293B] resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                errors.description ? 'border-red-500' : 'border-[#E2E8F0]'
+              className={`w-full text-xs p-2.5 border rounded-[6px] bg-surface text-ink resize-none focus:outline-none focus:ring-1 focus:ring-primary ${
+                errors.description ? 'border-red-500' : 'border-border'
               }`}
               data-testid="textarea-description"
             />
@@ -1090,7 +1119,7 @@ export function CreateDisbursementModal({
 
           {/* Notes */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#1E293B]">
+            <label className="text-xs font-semibold text-ink">
               Internal Notes (Optional)
             </label>
             <textarea
@@ -1098,14 +1127,14 @@ export function CreateDisbursementModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Additional internal remarks or references..."
-              className="w-full text-xs p-2 border rounded-[6px] bg-[#FFFFFF] border-[#E2E8F0] resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full text-xs p-2 border rounded-[6px] bg-surface border-border resize-none focus:outline-none focus:ring-1 focus:ring-primary"
               data-testid="textarea-notes"
             />
           </div>
 
           {/* Receipt Attachment */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#1E293B]">Receipt Attachment</label>
+            <label className="text-xs font-semibold text-ink">Receipt Attachment</label>
             <input
               ref={fileInputRef}
               type="file"
@@ -1133,17 +1162,17 @@ export function CreateDisbursementModal({
               }}
               className={`border-2 border-dashed rounded-[6px] p-4 text-center transition-colors cursor-pointer ${
                 isDragging
-                  ? 'border-blue-500 bg-[#F8FAFC]'
-                  : 'border-[#E2E8F0] hover:border-[#E2E8F0] bg-[#F8FAFC]/50'
+                  ? 'border-primary bg-canvas'
+                  : 'border-border hover:border-border bg-canvas/50'
               }`}
               data-testid="receipt-dropzone"
             >
               {receiptFile || receiptFilename ? (
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 truncate">
-                    <FileText className="h-4 w-4 text-[#1E293B] shrink-0" />
+                    <FileText className="h-4 w-4 text-ink shrink-0" />
                     <span
-                      className="text-xs font-medium text-[#1E293B] truncate"
+                      className="text-xs font-medium text-ink truncate"
                       data-testid="receipt-attached-filename"
                     >
                       {receiptFile?.name || receiptFilename}
@@ -1167,7 +1196,7 @@ export function CreateDisbursementModal({
                         return copy;
                       });
                     }}
-                    className="h-6 w-6 p-0 text-[#475569] hover:text-[#475569] cursor-pointer"
+                    className="h-6 w-6 p-0 text-muted hover:text-muted cursor-pointer"
                     data-testid="remove-receipt-btn"
                   >
                     <X className="h-3.5 w-3.5" />
@@ -1175,11 +1204,11 @@ export function CreateDisbursementModal({
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-2">
-                  <Upload className="h-6 w-6 text-[#475569] mb-1" />
-                  <p className="text-xs font-medium text-[#1E293B]">
+                  <Upload className="h-6 w-6 text-muted mb-1" />
+                  <p className="text-xs font-medium text-ink">
                     Drag and drop receipt here, or browse
                   </p>
-                  <p className="text-xs text-[#475569] mt-0.5">PDF, PNG, JPG up to 10MB</p>
+                  <p className="text-xs text-muted mt-0.5">PDF, PNG, JPG up to 10MB</p>
                 </div>
               )}
             </div>
@@ -1207,7 +1236,7 @@ export function CreateDisbursementModal({
               size="sm"
               disabled={isPending || isUploadingReceipt || needsCreateReview}
               data-testid="submit-create-disbursement-btn"
-              className="text-xs font-semibold bg-[#1D4ED8] hover:bg-[#1E40AF] text-white shadow-2xs"
+              className="text-xs font-semibold bg-primary hover:bg-primary-hover text-inverse shadow-2xs"
             >
               {isUploadingReceipt
                 ? 'Uploading Receipt...'
@@ -1222,15 +1251,15 @@ export function CreateDisbursementModal({
       {/* In-App Non-Blocking Confirmation for Missing Supporting Document */}
       <Dialog open={isNoReceiptConfirmOpen} onOpenChange={setIsNoReceiptConfirmOpen}>
         <DialogContent
-          className="border-[#E2E8F0] border p-6 shadow-float rounded-[12px] bg-[#FFFFFF] space-y-3 max-w-md"
+          className="border-border border p-6 shadow-float rounded-[12px] bg-surface space-y-3 max-w-md"
           data-testid="no-receipt-confirm-dialog"
         >
           <DialogHeader>
-            <DialogTitle className="text-base font-bold text-[#1E293B] flex items-center gap-2">
+            <DialogTitle className="text-base font-bold text-ink flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-amber-500" />
               <span>No Supporting Document Attached</span>
             </DialogTitle>
-            <DialogDescription className="text-xs text-[#475569]">
+            <DialogDescription className="text-xs text-muted">
               No supporting document attached. Create this voucher anyway?
             </DialogDescription>
           </DialogHeader>
@@ -1252,7 +1281,7 @@ export function CreateDisbursementModal({
                 setIsNoReceiptConfirmOpen(false);
                 doSubmit(true);
               }}
-              className="text-xs bg-[#1D4ED8] hover:bg-[#1E40AF] text-white shadow-2xs font-medium cursor-pointer"
+              className="text-xs bg-primary hover:bg-primary-hover text-inverse shadow-2xs font-medium cursor-pointer"
               data-testid="btn-confirm-no-receipt"
             >
               Create Anyway

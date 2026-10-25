@@ -129,78 +129,78 @@ export function ReleaseFundsModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isSubmitting && onClose()}>
       <DialogContent className="max-w-md p-6 space-y-4" data-testid="release-funds-modal">
         <DialogHeader>
-          <DialogTitle className="text-base font-bold text-[#1E293B] flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-purple-600" />
+          <DialogTitle className="text-base font-bold text-ink flex items-center gap-2">
+            <DollarSign className="h-5 w-5 text-primary" />
             <span>Sanction Payment Release</span>
           </DialogTitle>
-          <DialogDescription className="text-xs text-[#475569]">
+          <DialogDescription className="text-xs text-muted">
             Confirm and sanction actual payment handover / check release for voucher{' '}
-            <span className="tabular-nums font-semibold text-[#1E293B]">{disbNumber}</span>.
+            <span className="tabular-nums font-semibold text-ink">{disbNumber}</span>.
             Sanctioning release records actual execution and handover to the recipient.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-3" data-testid="release-funds-form">
-          <div className="p-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-[6px] text-xs space-y-1">
+          <div className="p-3 bg-canvas border border-border rounded-[6px] text-xs space-y-1">
             <div className="flex justify-between">
-              <span className="text-[#475569]">Amount to Release:</span>
-              <span className="font-bold text-[#1E293B]" data-testid="release-amount">
+              <span className="text-muted">Amount to Release:</span>
+              <span className="font-bold text-ink" data-testid="release-amount">
                 ₱{disbursement.amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-[#475569]">Fund Source:</span>
-              <span className="font-semibold text-[#1E293B]">
+              <span className="text-muted">Fund Source:</span>
+              <span className="font-semibold text-ink">
                 {disbursement.fund_source || disbursement.fundSource}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-[#475569]">Category:</span>
-              <span className="font-medium text-[#1E293B]">{disbursement.category}</span>
+              <span className="text-muted">Category:</span>
+              <span className="font-medium text-ink">{disbursement.category}</span>
             </div>
           </div>
 
           {/* Prepared payment instrument details (read-only) */}
-          <div className="p-3 bg-purple-50/60 border border-purple-200 rounded-[6px] space-y-2 text-xs">
-            <div className="flex items-center gap-1.5 font-semibold text-purple-900">
-              <CreditCard className="h-4 w-4 text-purple-600" />
+          <div className="p-3 bg-primary-light/60 border border-blue-300 rounded-[6px] space-y-2 text-xs">
+            <div className="flex items-center gap-1.5 font-semibold text-ink">
+              <CreditCard className="h-4 w-4 text-primary" />
               <span>Prepared Payment Instrument</span>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-xs text-purple-800 pt-1 border-t border-purple-100">
+            <div className="grid grid-cols-2 gap-2 text-xs text-primary-hover pt-1 border-t border-border">
               <div>
-                <span className="text-purple-600 block">Method:</span>
+                <span className="text-muted block">Method:</span>
                 <span className="font-semibold" data-testid="prep-method">
                   {disbursement.payment_method || disbursement.paymentMethod || 'N/A'}
                 </span>
               </div>
               <div>
-                <span className="text-purple-600 block">Reference:</span>
+                <span className="text-muted block">Reference:</span>
                 <span className="font-semibold tabular-nums" data-testid="prep-reference">
                   {disbursement.payment_reference || disbursement.paymentReference || 'N/A'}
                 </span>
               </div>
               <div>
-                <span className="text-purple-600 block">Bank / Source:</span>
+                <span className="text-muted block">Bank / Source:</span>
                 <span className="font-semibold" data-testid="prep-bank">
                   {disbursement.payment_bank || disbursement.paymentBank || 'N/A'}
                 </span>
               </div>
               <div>
-                <span className="text-purple-600 block">Prepared Date:</span>
+                <span className="text-muted block">Prepared Date:</span>
                 <span className="font-semibold" data-testid="prep-date">
                   {disbursement.payment_date || disbursement.paymentDate || 'N/A'}
                 </span>
               </div>
             </div>
             {(disbursement.funded_by_name || disbursement.payment_processed_by_name) && (
-              <div className="text-xs text-purple-700 pt-1 border-t border-purple-100">
+              <div className="text-xs text-muted pt-1 border-t border-border">
                 <span>
                   Prepared by:{' '}
                   {disbursement.funded_by_name || disbursement.payment_processed_by_name}
                 </span>
               </div>
             )}
-            <div className="flex items-center gap-1 text-xs text-purple-700 pt-1 border-t border-purple-100">
+            <div className="flex items-center gap-1 text-xs text-muted pt-1 border-t border-border">
               <ShieldAlert className="h-3 w-3 shrink-0" />
               <span>
                 Prepared instrument is locked. Release records actual payment handover without
@@ -211,10 +211,10 @@ export function ReleaseFundsModal({
 
           {error && (
             <div
-              className="p-2.5 bg-rose-50 border border-rose-200 rounded-[6px] text-xs text-rose-800 flex items-center gap-1.5"
+              className="p-2.5 bg-danger-surface border border-danger-border rounded-[6px] text-xs text-danger flex items-center gap-1.5"
               role="alert"
             >
-              <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+              <AlertCircle className="h-4 w-4 text-danger-solid shrink-0" />
               <span>{error}</span>
             </div>
           )}
@@ -236,7 +236,7 @@ export function ReleaseFundsModal({
               size="sm"
               disabled={!canSubmit}
               data-testid="submit-release-funds-btn"
-              className="text-xs font-semibold bg-[#1D4ED8] hover:bg-[#1E40AF] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              className="text-xs font-semibold bg-primary hover:bg-primary-hover text-inverse disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? 'Sanctioning...' : 'Sanction Release'}
             </Button>
@@ -282,7 +282,7 @@ export function FundsReleaseActions({ disbursement, onSuccess }: FundsReleaseAct
           type="button"
           size="sm"
           onClick={() => setIsFundModalOpen(true)}
-          className="text-xs font-semibold bg-[#1D4ED8] hover:bg-[#1E40AF] text-white"
+          className="text-xs font-semibold bg-primary hover:bg-primary-hover text-inverse"
           data-testid="action-fund-btn"
         >
           <DollarSign className="h-3.5 w-3.5 mr-1" />
@@ -297,7 +297,7 @@ export function FundsReleaseActions({ disbursement, onSuccess }: FundsReleaseAct
           size="sm"
           title="Sanction payment release"
           onClick={() => setIsReleaseModalOpen(true)}
-          className="text-xs font-semibold bg-[#1D4ED8] hover:bg-[#1E40AF] text-white disabled:opacity-50 disabled:cursor-not-allowed"
+          className="text-xs font-semibold bg-primary hover:bg-primary-hover text-inverse disabled:opacity-50 disabled:cursor-not-allowed"
           data-testid="action-release-btn"
         >
           <DollarSign className="h-3.5 w-3.5 mr-1" />
