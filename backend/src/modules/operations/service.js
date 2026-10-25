@@ -145,7 +145,7 @@ const formatDateManila = (dateVal) => {
 
 const toApiTask = (
   row,
-  { checklist = [], timeLogs = [], taskDocuments = [], assignees = [], taskAssignees = [], predMap = new Map() } = {}
+  { checklist = [], timeLogs = [], taskDocuments = [], hasDocuments = taskDocuments.length > 0, assignees = [], taskAssignees = [], predMap = new Map() } = {}
 ) => {
   const taskLevelLogs = timeLogs.filter((t) => !t.checklist_item_id);
 
@@ -229,6 +229,7 @@ const toApiTask = (
       workerName: t.worker_name || null,
       checklistItemId: null,
     })),
+    hasDocuments,
     taskDocuments: taskDocuments.map((d) => ({
       documentId: d.id,
       fileName: d.file_name,
@@ -322,14 +323,43 @@ const loadTasksForWorkRequests = async (wrIds) => {
   return tasks;
 };
 
+// Financial records are documents too; receipts live on disbursements rather than in DMS.
+// Canonical task_id wins over the legacy linked_task_id when both are present.
+const loadTaskLinkedDocuments = async (taskIds) => {
+  const ids = taskIds.join(',');
+  const results = await Promise.all([
+    supabaseAdmin.from('documents').select('*').in('linked_task_id', taskIds).is('deleted_at', null),
+    ...['invoices', 'disbursements'].map((table) =>
+      supabaseAdmin.from(table).select('id, task_id, linked_task_id')
+        .or(`task_id.in.(${ids}),and(task_id.is.null,linked_task_id.in.(${ids}))`)
+        .is('deleted_at', null)
+    ),
+    supabaseAdmin.from('transmittals').select('id, linked_task_id')
+      .in('linked_task_id', taskIds).is('deleted_at', null),
+  ]);
+  if (results.some((result) => result.error)) {
+    throw new AppError({
+      statusCode: 500,
+      title: 'Database Error',
+      detail: 'Unable to verify linked documents/receipts. Please try again.',
+    });
+  }
+  const linkedTaskIds = new Set();
+  results.forEach((result, index) => (result.data || []).forEach((row) => {
+    linkedTaskIds.add(index === 1 || index === 2 ? row.task_id || row.linked_task_id : row.linked_task_id);
+  }));
+  return { data: results[0].data || [], linkedTaskIds };
+};
+
 const loadTaskExtras = async (taskIds, knownPredIds = null) => {
   const checklist = new Map();
   const timeLogs = new Map();
   const taskDocuments = new Map();
+  const documentTaskIds = new Set();
   const assignees = new Map();
   const taskAssignees = new Map();
   const predMap = new Map();
-  if (!taskIds.length) return { checklist, timeLogs, taskDocuments, assignees, taskAssignees, predMap };
+  if (!taskIds.length) return { checklist, timeLogs, taskDocuments, documentTaskIds, assignees, taskAssignees, predMap };
 
   const queries = [
     supabaseAdmin
@@ -339,11 +369,7 @@ const loadTaskExtras = async (taskIds, knownPredIds = null) => {
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: true }),
     supabaseAdmin.from('task_time_logs').select('*').in('task_id', taskIds),
-    supabaseAdmin
-      .from('documents')
-      .select('*')
-      .in('linked_task_id', taskIds)
-      .is('deleted_at', null),
+    loadTaskLinkedDocuments(taskIds),
     supabaseAdmin.from('task_assignees').select('*').in('task_id', taskIds),
   ];
 
@@ -369,6 +395,7 @@ const loadTaskExtras = async (taskIds, knownPredIds = null) => {
     })),
   ];
   const docRows = results[2].data;
+  results[2].linkedTaskIds.forEach((id) => documentTaskIds.add(id));
   const taRows = results[3].data;
   const taskRows = knownPredIds ? null : results[5]?.data;
 
@@ -470,7 +497,7 @@ const loadTaskExtras = async (taskIds, knownPredIds = null) => {
       assigned_at: r.assigned_at || null,
     });
   });
-  return { checklist, timeLogs, taskDocuments, assignees, taskAssignees, predMap };
+  return { checklist, timeLogs, taskDocuments, documentTaskIds, assignees, taskAssignees, predMap };
 };
 
 const canViewWorkRequest = (wr, user, taskMap) => {
@@ -671,6 +698,7 @@ const listWorkRequests = async ({
           checklist: extras.checklist.get(t.id) || [],
           timeLogs: extras.timeLogs.get(t.id) || [],
           taskDocuments: extras.taskDocuments.get(t.id) || [],
+          hasDocuments: extras.documentTaskIds.has(t.id),
           assignees: extras.assignees ? extras.assignees.get(t.id) || [] : [],
           taskAssignees: extras.taskAssignees ? extras.taskAssignees.get(t.id) || [] : [],
           predMap: extras.predMap || new Map(),
@@ -1629,6 +1657,7 @@ const getWorkRequestById = async ({ id, entityId, user, includeTasks = false }) 
         checklist: extras.checklist.get(t.id) || [],
         timeLogs: extras.timeLogs.get(t.id) || [],
         taskDocuments: extras.taskDocuments.get(t.id) || [],
+        hasDocuments: extras.documentTaskIds.has(t.id),
         assignees: extras.assignees ? extras.assignees.get(t.id) || [] : [],
         taskAssignees: extras.taskAssignees ? extras.taskAssignees.get(t.id) || [] : [],
         predMap: extras.predMap || new Map(),
@@ -1938,6 +1967,7 @@ const listTasks = async ({ workRequestId, entityId, user, internal = false }) =>
       checklist: extras.checklist.get(t.id) || [],
       timeLogs: extras.timeLogs.get(t.id) || [],
       taskDocuments: extras.taskDocuments.get(t.id) || [],
+      hasDocuments: extras.documentTaskIds.has(t.id),
       assignees: extras.assignees ? extras.assignees.get(t.id) || [] : [],
       taskAssignees: extras.taskAssignees ? extras.taskAssignees.get(t.id) || [] : [],
       predMap: extras.predMap || new Map(),
@@ -2017,6 +2047,7 @@ const getTaskById = async ({
     checklist: extras.checklist.get(taskId) || [],
     timeLogs: extras.timeLogs.get(taskId) || [],
     taskDocuments: extras.taskDocuments.get(taskId) || [],
+    hasDocuments: extras.documentTaskIds.has(taskId),
     assignees: extras.assignees ? extras.assignees.get(taskId) || [] : [],
     taskAssignees: extras.taskAssignees ? extras.taskAssignees.get(taskId) || [] : [],
     predMap: extras.predMap || new Map(),
@@ -2704,13 +2735,16 @@ const deleteTask = async ({ workRequestId, taskId, entityId, user, caller, inter
 
   const effectiveWrId = workRequestId || existing.workRequestId || existing.work_request_id;
   if (effectiveWrId) {
-    const { data: parentWr } = await supabaseAdmin
+    const { data: parentWr, error: parentError } = await supabaseAdmin
       .from('work_requests')
-      .select('status')
+      .select('status, phase')
       .eq('id', effectiveWrId)
       .maybeSingle();
 
-    if (parentWr?.status === 'Completed') {
+    if (parentError || !parentWr) {
+      throw new AppError({ statusCode: 500, title: 'Database Error', detail: 'Unable to verify work request phase. Please try again.' });
+    }
+    if (parentWr.status === 'Completed' || parentWr.phase === 'completion') {
       throw new AppError({
         statusCode: 400,
         title: 'Bad Request',
@@ -2718,6 +2752,26 @@ const deleteTask = async ({ workRequestId, taskId, entityId, user, caller, inter
         code: 'COMPLETED_WR_LOCKED',
       });
     }
+
+    const taskPhaseIndex = PHASE_SEQUENCE.indexOf(existing.phase);
+    if (taskPhaseIndex >= 0 && taskPhaseIndex < PHASE_SEQUENCE.indexOf(parentWr.phase)) {
+      throw new AppError({
+        statusCode: 409,
+        title: 'Conflict',
+        detail: 'You cannot delete this task because the work request has advanced beyond its phase.',
+        code: 'PAST_PHASE_TASK_LOCKED',
+      });
+    }
+  }
+
+  const { linkedTaskIds } = await loadTaskLinkedDocuments([taskId]);
+  if (linkedTaskIds.has(taskId)) {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'You cannot delete this task because it has documents/receipts.',
+      code: 'TASK_HAS_DOCUMENTS',
+    });
   }
 
   let query = supabaseAdmin
