@@ -203,18 +203,20 @@ export default function ClientsPage() {
       />
 
       {/* Create / Edit Client Modal */}
-      <ClientModal
-        isOpen={isFormModalOpen}
-        client={editingClient}
-        onClose={() => {
-          setIsFormModalOpen(false);
-          setEditingClient(null);
-        }}
-        onSuccess={() => {
-          setIsFormModalOpen(false);
-          setEditingClient(null);
-        }}
-      />
+      {canEditClients && (
+        <ClientModal
+          isOpen={isFormModalOpen}
+          client={editingClient}
+          onClose={() => {
+            setIsFormModalOpen(false);
+            setEditingClient(null);
+          }}
+          onSuccess={() => {
+            setIsFormModalOpen(false);
+            setEditingClient(null);
+          }}
+        />
+      )}
 
       {/* Global Blocking Action Modal */}
       <BlockingActionModal />
