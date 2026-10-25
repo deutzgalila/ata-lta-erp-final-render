@@ -182,6 +182,11 @@ export function RetainerGenerateModal({
       return;
     }
 
+    if (!dueDate) {
+      setError('Due date is required to generate work requests.');
+      return;
+    }
+
     // Strict task assignee scoping check
     if (unmappedTasks.length > 0) {
       setError(
@@ -203,7 +208,7 @@ export function RetainerGenerateModal({
           overrides: {
             clientId: clientId || selectedTemplate?.clientId || selectedTemplate?.client_id || undefined,
             priority,
-            dueDate: dueDate || undefined,
+            dueDate,
             assignedTo,
             coAssignees,
             tasks: blueprintTasks.map((t) => ({
@@ -351,7 +356,7 @@ export function RetainerGenerateModal({
             <div className="space-y-1">
               <label className="text-xs tracking-normal text-[#475569] flex items-center gap-1">
                 <Calendar className="h-3 w-3 text-[#475569]" />
-                <span>Due Date</span>
+                <span>Due Date *</span>
               </label>
               <DateInput
                 type="date"
@@ -359,6 +364,7 @@ export function RetainerGenerateModal({
                 onValueChange={(val) => setDueDate(val)}
                 className="h-9 bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px] tabular-nums text-xs text-[#1E293B]"
                 aria-label="Due Date"
+                required
                 data-testid="due-date-input"
               />
             </div>

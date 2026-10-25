@@ -1,3 +1,4 @@
+import { WorkRequestSidePeek } from '@/features/operations/components/WorkRequestSidePeek';
 import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -131,6 +132,7 @@ export default function OperationsPage() {
   const activeView = searchParams.get('view') || 'list';
 
   // Modal Visibility States
+  const [archivedWorkRequestId, setArchivedWorkRequestId] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingWr, setEditingWr] = useState<WorkRequest | null>(null);
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
@@ -749,9 +751,15 @@ export default function OperationsPage() {
 
         {/* Tab 4 Content: Operations Archive */}
         <TabsContent value="archive" className="mt-0">
-          <OperationsArchiveTab />
+          <OperationsArchiveTab onViewWr={(wr) => setArchivedWorkRequestId(wr.id)} />
         </TabsContent>
       </Tabs>
+
+      <WorkRequestSidePeek
+        workRequestId={archivedWorkRequestId}
+        isOpen={Boolean(archivedWorkRequestId)}
+        onClose={() => setArchivedWorkRequestId(null)}
+      />
 
       {/* Global Modals Mounted at Root */}
       <WorkRequestModal

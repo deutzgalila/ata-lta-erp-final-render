@@ -383,7 +383,7 @@ export function OtherTemplateModal({
               placeholder="Provide workflow context or operational instructions..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] p-2 text-xs text-[#1E293B] placeholder:text-[#475569] focus:outline-none focus:ring-1 focus:ring-[#1D4ED8]"
+              className="resize-none w-full rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] p-2 text-xs text-[#1E293B] placeholder:text-[#475569] focus:outline-none focus:ring-1 focus:ring-[#1D4ED8]"
               data-testid="other-template-description-input"
             />
           </div>
