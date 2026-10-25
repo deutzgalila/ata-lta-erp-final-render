@@ -299,4 +299,47 @@ describe('Company details controls', () => {
       global.fetch = originalFetch;
     }
   });
+
+  it('suppresses print preview and PDF download on non-access query failure (HTTP 500)', async () => {
+    let shouldFail = true;
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      const u = String(url);
+      if (u.includes('/invoices/inv-preview-fail') && shouldFail) {
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          json: async () => ({ title: 'Server Error', detail: 'Database error' }),
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { ...mockInvoiceForPrint, id: 'inv-preview-fail' } }),
+      } as Response);
+    });
+
+    const { wrapper } = createHarness();
+    render(
+      <PrintPreviewModal
+        isOpen={true}
+        onClose={vi.fn()}
+        invoiceId="inv-preview-fail"
+        initialInvoice={mockInvoiceForPrint}
+      />,
+      { wrapper }
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('print-preview-error')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Unable to Load Print Preview')).toBeInTheDocument();
+    expect(screen.queryByTestId('a4-document-sheet')).not.toBeInTheDocument();
+
+    shouldFail = false;
+    fireEvent.click(screen.getByTestId('print-preview-error-retry-btn'));
+    await waitFor(() => {
+      expect(screen.queryByTestId('print-preview-error')).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId('a4-document-sheet')).toBeInTheDocument();
+  });
 });

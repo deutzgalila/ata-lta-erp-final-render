@@ -129,8 +129,9 @@ describe('InvoiceEditModal Component (R4 / D3)', () => {
 
     expect(screen.getByTestId('invoice-edit-modal')).toBeInTheDocument();
     expect(screen.getByTestId('input-edit-invoice-number')).toHaveValue('ATA-SI-2026-0042');
-    expect(screen.getByTestId('input-edit-issue-date')).toHaveValue('2026-10-17');
-    expect(screen.getByTestId('input-edit-due-date')).toHaveValue('2026-11-17');
+    // DateInput displays formatted locale date (en-US MM/DD/YYYY)
+    expect(screen.getByTestId('input-edit-issue-date')).toHaveValue('10/17/2026');
+    expect(screen.getByTestId('input-edit-due-date')).toHaveValue('11/17/2026');
 
     // Line items prefilled
     expect(screen.getByTestId('line-item-desc-0')).toHaveValue('Corporate Secretarial Services');
@@ -407,6 +408,167 @@ describe('InvoiceEditModal Component (R4 / D3)', () => {
     await waitFor(() => {
       expect(screen.getByTestId('invoice-edit-modal')).toBeInTheDocument();
       expect(screen.getByTestId('input-edit-invoice-number')).toHaveValue('ATA-SI-2026-0042');
+    });
+  });
+
+  it('unrelated save sends {} and does not materialize inherited automatic print values', async () => {
+    let payload: Record<string, unknown> | null = null;
+    global.fetch = vi.fn().mockImplementation((url: string, opts?: RequestInit) => {
+      if (String(url).includes('/invoices/inv-edit-1') && opts?.method === 'PATCH') {
+        payload = JSON.parse(String(opts?.body || '{}'));
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ data: { ...mockDraftInvoice, ...payload, version: 2 } }),
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: mockDraftInvoice }),
+      } as Response);
+    });
+
+    const { wrapper } = createHarness();
+    render(<InvoiceEditModal isOpen={true} onClose={() => {}} invoice={mockDraftInvoice} />, {
+      wrapper,
+    });
+
+    fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'Updated audit notes' } });
+    fireEvent.click(screen.getByTestId('btn-save-invoice-edit'));
+
+    await waitFor(() => expect(payload).not.toBeNull());
+    expect((payload as unknown as { printDetails?: unknown })?.printDetails).toEqual({});
+  });
+
+  it('preserves existing custom and blank overrides when saving unrelated fields', async () => {
+    let payload: Record<string, unknown> | null = null;
+    const invoiceWithOverrides: Invoice = {
+      ...mockDraftInvoice,
+      print_details: {
+        preparedBy: 'Elena Cruz',
+        paymentDate: '',
+      },
+    };
+
+    global.fetch = vi.fn().mockImplementation((url: string, opts?: RequestInit) => {
+      if (String(url).includes('/invoices/inv-edit-1') && opts?.method === 'PATCH') {
+        payload = JSON.parse(String(opts?.body || '{}'));
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ data: { ...invoiceWithOverrides, ...payload, version: 2 } }),
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: invoiceWithOverrides }),
+      } as Response);
+    });
+
+    const { wrapper } = createHarness();
+    render(<InvoiceEditModal isOpen={true} onClose={() => {}} invoice={invoiceWithOverrides} />, {
+      wrapper,
+    });
+
+    fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'Updated notes' } });
+    fireEvent.click(screen.getByTestId('btn-save-invoice-edit'));
+
+    await waitFor(() => expect(payload).not.toBeNull());
+    expect((payload as unknown as { printDetails?: unknown })?.printDetails).toEqual({
+      preparedBy: 'Elena Cruz',
+      paymentDate: '',
+    });
+  });
+
+  it('resets an override to automatic and persists removal on save', async () => {
+    let payload: Record<string, unknown> | null = null;
+    const invoiceWithCustomCheck: Invoice = {
+      ...mockDraftInvoice,
+      payments: [
+        {
+          id: 'pay-1',
+          invoice_id: mockDraftInvoice.id,
+          amount: 500,
+          method: 'Check',
+          reference: 'CHK-LIVE-888',
+          payment_date: '2026-10-25',
+        },
+      ],
+      print_details: {
+        checkNumber: 'OLD-CHECK-OVERRIDE',
+        receivedBy: 'Elena Cruz',
+      },
+    };
+
+    global.fetch = vi.fn().mockImplementation((url: string, opts?: RequestInit) => {
+      if (String(url).includes('/invoices/inv-edit-1') && opts?.method === 'PATCH') {
+        payload = JSON.parse(String(opts?.body || '{}'));
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ data: { ...invoiceWithCustomCheck, ...payload, version: 2 } }),
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: invoiceWithCustomCheck }),
+      } as Response);
+    });
+
+    const { wrapper } = createHarness();
+    render(<InvoiceEditModal isOpen={true} onClose={() => {}} invoice={invoiceWithCustomCheck} />, {
+      wrapper,
+    });
+
+    // Reset check number override
+    const resetBtn = screen.getByRole('button', {
+      name: /use automatic for date \/ check number/i,
+    });
+    fireEvent.click(resetBtn);
+
+    // Value immediately reflects live automatic default
+    expect(screen.getByLabelText('Date / check number')).toHaveValue('CHK-LIVE-888');
+
+    fireEvent.click(screen.getByTestId('btn-save-invoice-edit'));
+    await waitFor(() => expect(payload).not.toBeNull());
+    expect((payload as unknown as { printDetails?: unknown })?.printDetails).toEqual({
+      receivedBy: 'Elena Cruz',
+    });
+  });
+
+  it('persists intentional blank override when field is deliberately cleared', async () => {
+    let payload: Record<string, unknown> | null = null;
+    global.fetch = vi.fn().mockImplementation((url: string, opts?: RequestInit) => {
+      if (String(url).includes('/invoices/inv-edit-1') && opts?.method === 'PATCH') {
+        payload = JSON.parse(String(opts?.body || '{}'));
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ data: { ...mockDraftInvoice, ...payload, version: 2 } }),
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: mockDraftInvoice }),
+      } as Response);
+    });
+
+    const { wrapper } = createHarness();
+    render(<InvoiceEditModal isOpen={true} onClose={() => {}} invoice={mockDraftInvoice} />, {
+      wrapper,
+    });
+
+    // Explicitly clear Noted by (which defaults to HENRY WONG)
+    fireEvent.change(screen.getByLabelText('Noted by'), { target: { value: '' } });
+    fireEvent.click(screen.getByTestId('btn-save-invoice-edit'));
+
+    await waitFor(() => expect(payload).not.toBeNull());
+    expect((payload as unknown as { printDetails?: unknown })?.printDetails).toEqual({
+      notedBy: '',
     });
   });
 });

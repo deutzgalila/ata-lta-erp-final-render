@@ -37,6 +37,79 @@ const formatDate = (dateStr?: string | null): string => {
   });
 };
 
+export function resolvePaymentProperties(
+  p?: {
+    amount?: number | null;
+    method?: string | null;
+    reference?: string | null;
+    payment_method?: string | null;
+    reference_number?: string | null;
+    payment_date?: string | null;
+  } | null
+) {
+  if (!p) return null;
+  const method =
+    p.method !== undefined && p.method !== null
+      ? String(p.method)
+      : p.payment_method !== undefined && p.payment_method !== null
+        ? String(p.payment_method)
+        : '';
+  const reference =
+    p.reference !== undefined && p.reference !== null
+      ? String(p.reference)
+      : p.reference_number !== undefined && p.reference_number !== null
+        ? String(p.reference_number)
+        : '';
+  const payment_date = p.payment_date ? formatDate(p.payment_date) : '';
+  const amount = p.amount;
+  return { method, reference, payment_date, amount };
+}
+
+export function getAutomaticPaymentDetails(
+  payment?: {
+    amount?: number | null;
+    method?: string | null;
+    reference?: string | null;
+    payment_method?: string | null;
+    reference_number?: string | null;
+    payment_date?: string | null;
+  } | null
+) {
+  const resolved = resolvePaymentProperties(payment);
+  if (!resolved || !resolved.method) {
+    return {
+      paymentDate: resolved?.payment_date ?? '',
+      cash: '',
+      checkNumber: '',
+      bankBranch: '',
+    };
+  }
+  if (resolved.method === 'Cash') {
+    return {
+      paymentDate: resolved.payment_date,
+      cash:
+        resolved.amount !== undefined && resolved.amount !== null ? formatPHP(resolved.amount) : '',
+      checkNumber: '',
+      bankBranch: '',
+    };
+  }
+  if (resolved.method === 'Check') {
+    return {
+      paymentDate: resolved.payment_date,
+      cash: '',
+      checkNumber: resolved.reference || '',
+      bankBranch: '',
+    };
+  }
+  return {
+    paymentDate: resolved.payment_date,
+    cash:
+      resolved.amount !== undefined && resolved.amount !== null ? formatPHP(resolved.amount) : '',
+    checkNumber: resolved.reference || '',
+    bankBranch: resolved.method,
+  };
+}
+
 function openPrintWindow(title: string, css: string, bodyHtml: string): void {
   const w = window.open('', '_blank');
   if (!w) return;
@@ -89,7 +162,9 @@ export interface StatementPrintInvoice {
   } | null;
   line_items?: Array<{ description?: string | null; amount: number }>;
   payments?: Array<{
-    amount: number;
+    amount?: number | null;
+    method?: string | null;
+    reference?: string | null;
     payment_method?: string | null;
     reference_number?: string | null;
     payment_date?: string | null;
@@ -98,17 +173,14 @@ export interface StatementPrintInvoice {
 
 /** Defaults shared by both admin editors; explicit empty strings remain empty. */
 export function getInvoicePrintDetails(inv: StatementPrintInvoice): InvoicePrintDetails {
-  const payment = inv.payments?.[0];
+  const auto = getAutomaticPaymentDetails(inv.payments?.[0]);
   return {
     clientName: inv.clients?.name ?? '',
     clientTin: inv.clients?.tin ?? '',
-    paymentDate: payment?.payment_date ? formatDate(payment.payment_date) : '',
-    cash: payment && payment.payment_method !== 'Check' ? formatPHP(payment.amount) : '',
-    checkNumber: payment?.reference_number ?? '',
-    bankBranch:
-      payment && !['Cash', 'Check'].includes(payment.payment_method ?? '')
-        ? (payment.payment_method ?? '')
-        : '',
+    paymentDate: auto.paymentDate,
+    cash: auto.cash,
+    checkNumber: auto.checkNumber,
+    bankBranch: auto.bankBranch,
     notedBy: 'HENRY WONG',
     preparedBy: '',
     receivedBy: '',
@@ -202,30 +274,11 @@ export function buildStatementDocument(
   const companyName =
     entity === 'ATA' ? 'A.T.A. BUSINESS CONSULTANCY' : 'LTA BUSINESS MANAGEMENT CORP';
 
-  let dateVal = '';
-  let cashVal = '';
-  let checkVal = '';
-  let bankVal = '';
-  const payments = inv.payments || [];
-  if (payments.length > 0 && payments[0]) {
-    const p = payments[0];
-    if (p.payment_date) dateVal = formatDate(p.payment_date);
-    if (p.payment_method === 'Cash') {
-      cashVal = formatPHP(p.amount);
-    } else if (p.payment_method === 'Check') {
-      checkVal = p.reference_number || '';
-      bankVal = '';
-    } else if (p.payment_method) {
-      cashVal = formatPHP(p.amount);
-      checkVal = p.reference_number || '';
-      bankVal = p.payment_method;
-    }
-  }
-
-  dateVal = details.paymentDate ?? dateVal;
-  cashVal = details.cash ?? cashVal;
-  checkVal = details.checkNumber ?? checkVal;
-  bankVal = details.bankBranch ?? bankVal;
+  const auto = getAutomaticPaymentDetails(inv.payments?.[0]);
+  const dateVal = details.paymentDate ?? auto.paymentDate;
+  const cashVal = details.cash ?? auto.cash;
+  const checkVal = details.checkNumber ?? auto.checkNumber;
+  const bankVal = details.bankBranch ?? auto.bankBranch;
 
   /* Keep the header's space for preprinted stationery. */
   let headerHtml: string;
@@ -421,12 +474,15 @@ export function defaultTransmittalCompany(entity?: string) {
   return {
     includeCompanyDetails: true,
     companyName: `${entity === 'LTA' ? 'LTA' : 'ATA'} BUSINESS CONSULTANCY SERVICES`,
-    companyAddress: 'RM 307 Republic Supermarket Bldg,\nSoler St., cor. F.Torres St.,\nSta. Cruz, Manila',
+    companyAddress:
+      'RM 307 Republic Supermarket Bldg,\nSoler St., cor. F.Torres St.,\nSta. Cruz, Manila',
   };
 }
 
 /** Ignore blank draft rows; never pad or truncate the document manifest. */
-export function printableTransmittalItems<T extends { description?: string | null }>(items?: T[]): T[] {
+export function printableTransmittalItems<T extends { description?: string | null }>(
+  items?: T[]
+): T[] {
   return (items || []).filter((item) => Boolean(item.description?.trim()));
 }
 
@@ -470,13 +526,19 @@ body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0; color: 
 .sig-label { font-size: 9pt; color: #333; margin-top: 6px; }
 `;
 
-export function printTransmittalDocument(t: TransmittalPrintData, options: TransmittalPrintOptions = {}): void {
+export function printTransmittalDocument(
+  t: TransmittalPrintData,
+  options: TransmittalPrintOptions = {}
+): void {
   const entity = t.entity_code === 'LTA' ? 'LTA' : 'ATA';
   const isATA = entity === 'ATA';
 
   const company = { ...defaultTransmittalCompany(entity), ...options };
   const companyName = company.companyName;
-  const companyAddressLines = company.companyAddress.split('\n').map((line) => line.trim()).filter(Boolean);
+  const companyAddressLines = company.companyAddress
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
 
   /* Entity-aware date: ATA uppercase long form, LTA M/D/YYYY */
   const dateObj = new Date(t.sent_at || t.created_at || new Date());
@@ -522,7 +584,8 @@ export function printTransmittalDocument(t: TransmittalPrintData, options: Trans
 
   const rows = printableTransmittalItems(t.items).map((item) => ({
     category: (item.document_type || item.documentType || 'Others').toUpperCase(),
-    document: (item.description || '').toUpperCase() +
+    document:
+      (item.description || '').toUpperCase() +
       (item.quantity && item.quantity > 1 ? ` (QTY: ${item.quantity})` : ''),
   }));
 
@@ -552,7 +615,8 @@ export function printTransmittalDocument(t: TransmittalPrintData, options: Trans
     `<tr>` +
     (company.includeCompanyDetails
       ? `<td class="from-cell"><strong>FROM:</strong> <strong>${esc(companyName)}</strong>` +
-        companyAddressLines.map((l) => `<br>${esc(l)}`).join('') + `</td>`
+        companyAddressLines.map((l) => `<br>${esc(l)}`).join('') +
+        `</td>`
       : '') +
     `<td class="to-cell"${company.includeCompanyDetails ? '' : ' colspan="2" style="width:100%"'}>` +
     `<div style="display: flex; gap: 8px; align-items: flex-start;">` +
@@ -562,7 +626,9 @@ export function printTransmittalDocument(t: TransmittalPrintData, options: Trans
     `<div class="underline-line">${toLine2 ? esc(toLine2) : ''}</div>` +
     `<div class="underline-line">${toLine3 ? esc(toLine3) : ''}</div>` +
     `<div class="underline-line">${toLine4 ? esc(toLine4) : ''}</div>` +
-    (t.recipient_details?.trim() ? `<div style="white-space:pre-line;margin-top:4px">${esc(t.recipient_details)}</div>` : '') +
+    (t.recipient_details?.trim()
+      ? `<div style="white-space:pre-line;margin-top:4px">${esc(t.recipient_details)}</div>`
+      : '') +
     `</div></div>` +
     `</td>` +
     `</tr>` +

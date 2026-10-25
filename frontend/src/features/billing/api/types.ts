@@ -26,7 +26,13 @@ export interface InvoicePayment {
   invoice_id: string;
   entity_id?: string;
   amount: number;
-  payment_method: string;
+  /** Canonical method name matching table and API responses. */
+  method?: string;
+  /** Canonical reference matching table and API responses. */
+  reference?: string | null;
+  /** Legacy fallback for method. */
+  payment_method?: string;
+  /** Legacy fallback for reference. */
   reference_number?: string | null;
   payment_date: string;
   notes?: string | null;

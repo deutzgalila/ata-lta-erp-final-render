@@ -113,7 +113,7 @@ describe('Voucher print and admin edit controls', () => {
     expect(screen.getByTestId('disbursement-generic-option')).not.toBeChecked();
   });
   it.each([true, false])(
-    'persists released voucher fields and signatures with the current version (inline=%s)',
+    'persists Draft corrections and changed signatures with the current version (inline=%s)',
     async (inline) => {
       let payload: Record<string, unknown> | undefined;
       global.fetch = vi.fn().mockImplementation(async (_url, init?: RequestInit) => {
@@ -133,7 +133,7 @@ describe('Voucher print and admin edit controls', () => {
       fireEvent.change(screen.getByLabelText('Amount (PHP)'), { target: { value: '1999.99' } });
       fireEvent.change(screen.getByLabelText('Prepared by'), { target: { value: 'P. Cruz' } });
       fireEvent.change(screen.getByLabelText('Approved by'), { target: { value: 'A. Lim' } });
-      fireEvent.change(screen.getByLabelText('Released by'), { target: { value: 'R. Tan' } });
+      fireEvent.change(screen.getByLabelText('Released by'), { target: { value: 'R. Lim' } });
       fireEvent.change(screen.getByLabelText('Printed bank / branch'), {
         target: { value: 'BDO Manila' },
       });
@@ -145,10 +145,11 @@ describe('Voucher print and admin edit controls', () => {
         printDetails: {
           preparedBy: 'P. Cruz',
           approvedBy: 'A. Lim',
-          releasedBy: 'R. Tan',
+          releasedBy: 'R. Lim',
           paymentBank: 'BDO Manila',
         },
       });
+      expect(payload?.printDetails).not.toHaveProperty('paymentDate');
     }
   );
   it('keeps edits on version conflict and requires loading latest values', async () => {
@@ -210,5 +211,53 @@ describe('Voucher print and admin edit controls', () => {
     );
     expect(screen.getByTestId('disbursement-total-amount')).toHaveTextContent('2,500.00');
     expect(screen.getByTestId('sig-prepared-by')).toHaveTextContent('P. Cruz');
+  });
+
+  it('unrelated Draft voucher save sends empty sparse print overrides and does not freeze blanks', async () => {
+    let payload: Record<string, unknown> | null = null;
+    global.fetch = vi.fn().mockImplementation(async (_url, init?: RequestInit) => {
+      if (init?.method === 'PUT') payload = JSON.parse(String(init.body));
+      return { ok: true, status: 200, json: async () => ({ data: { ...voucher, version: 4 } }) };
+    });
+    const { wrapper } = harness();
+    render(<DisbursementEditModal inline isOpen disbursement={voucher} onClose={vi.fn()} />, {
+      wrapper,
+    });
+    fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'Updated voucher note' } });
+    fireEvent.click(screen.getByTestId('save-disbursement-edit'));
+    await waitFor(() => expect(payload).not.toBeNull());
+    expect((payload as unknown as { printDetails?: unknown })?.printDetails).toEqual({});
+  });
+
+  it('resetting an override restores live actor default and preserves other deliberate blanks', async () => {
+    let payload: Record<string, unknown> | null = null;
+    const voucherWithOverrides: Disbursement = {
+      ...voucher,
+      print_details: {
+        preparedBy: 'Old Name',
+        paymentDate: '',
+      },
+    };
+    global.fetch = vi.fn().mockImplementation(async (_url, init?: RequestInit) => {
+      if (init?.method === 'PUT') payload = JSON.parse(String(init.body));
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { ...voucherWithOverrides, version: 4 } }),
+      };
+    });
+    const { wrapper } = harness();
+    render(
+      <DisbursementEditModal inline isOpen disbursement={voucherWithOverrides} onClose={vi.fn()} />,
+      { wrapper }
+    );
+    // Reset prepared by
+    fireEvent.click(screen.getByRole('button', { name: /use automatic for prepared by/i }));
+    // Immediately reflects automatic default
+    expect(screen.getByLabelText('Prepared by')).toHaveValue('M. Santos');
+    fireEvent.click(screen.getByTestId('save-disbursement-edit'));
+    await waitFor(() => expect(payload).not.toBeNull());
+    // Only paymentDate: '' remains as deliberate blank
+    expect((payload as unknown as { printDetails?: unknown })?.printDetails).toEqual({ paymentDate: '' });
   });
 });

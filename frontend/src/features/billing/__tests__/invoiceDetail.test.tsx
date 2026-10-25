@@ -385,4 +385,103 @@ describe('InvoiceDetailModal Component', () => {
     expect(requesterEl).toBeInTheDocument();
     expect(requesterEl).toHaveTextContent('Work Request Requester: Atty. Lorein Wong');
   });
+
+  it('displays truthful unpaid message and template default guidance when invoice has no payments', async () => {
+    const unpaidInvoice: Invoice = {
+      ...mockDetailInvoice,
+      amount_paid: 0,
+      balance: 50000,
+      payments: [],
+    };
+
+    const { wrapper } = createHarness();
+    render(
+      <InvoiceDetailModal
+        isOpen={true}
+        onClose={vi.fn()}
+        invoiceId="inv-detail-1"
+        initialInvoice={unpaidInvoice}
+      />,
+      { wrapper }
+    );
+
+    expect(
+      screen.getByText('No payments recorded. Payment details appear after a payment is recorded.')
+    ).toBeInTheDocument();
+    expect(screen.getByText('(template default)')).toBeInTheDocument();
+  });
+
+  it('renders canonical payment properties in history table and statement details', async () => {
+    const canonicalInvoice: Invoice = {
+      ...mockDetailInvoice,
+      payments: [
+        {
+          id: 'pay-canonical-1',
+          invoice_id: 'inv-detail-1',
+          amount: 25000,
+          method: 'Bank Transfer',
+          reference: 'BT-REF-9988',
+          payment_date: '2026-10-25',
+          notes: 'Direct client deposit',
+        },
+      ],
+    };
+
+    const { wrapper } = createHarness();
+    render(
+      <InvoiceDetailModal
+        isOpen={true}
+        onClose={vi.fn()}
+        invoiceId="inv-detail-1"
+        initialInvoice={canonicalInvoice}
+      />,
+      { wrapper }
+    );
+
+    expect(screen.getAllByText('Bank Transfer').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('BT-REF-9988').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('suppresses cached fallback and shows retryable error dialog on non-access query failure (HTTP 500)', async () => {
+    let shouldFail = true;
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      const u = String(url);
+      if (u.includes('/invoices/inv-detail-fail') && shouldFail) {
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          json: async () => ({ title: 'Internal Server Error', detail: 'Failed to read child payments' }),
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: { ...mockDetailInvoice, id: 'inv-detail-fail' } }),
+      } as Response);
+    });
+
+    const { wrapper } = createHarness();
+    render(
+      <InvoiceDetailModal
+        isOpen={true}
+        onClose={vi.fn()}
+        invoiceId="inv-detail-fail"
+        initialInvoice={mockDetailInvoice}
+      />,
+      { wrapper }
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('invoice-detail-error')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Unable to Load Invoice Details')).toBeInTheDocument();
+    expect(screen.queryByTestId('detail-btn-print-preview')).not.toBeInTheDocument();
+
+    shouldFail = false;
+    fireEvent.click(screen.getByTestId('invoice-detail-error-retry-btn'));
+    await waitFor(() => {
+      expect(screen.queryByTestId('invoice-detail-error')).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId('invoice-detail-modal')).toBeInTheDocument();
+  });
 });

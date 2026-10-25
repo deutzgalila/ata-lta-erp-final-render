@@ -1,4 +1,4 @@
-import { getInvoicePrintDetails } from '@/lib/printDocuments';
+import { getInvoicePrintDetails, resolvePaymentProperties } from '@/lib/printDocuments';
 import { PRINT_DETAIL_FIELDS } from '../utils/printDetailFields';
 import { useState, useEffect } from 'react';
 import {
@@ -14,12 +14,14 @@ import {
   CheckCircle,
   XCircle,
   Clock,
+  AlertTriangle,
 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -167,6 +169,49 @@ export function InvoiceDetailModal({
           >
             Close
           </Button>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  if (isInvoiceError && !isDenied) {
+    return (
+      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <DialogContent
+          className="max-w-md p-6 border-[#E2E8F0] bg-[#FFFFFF] shadow-float text-center space-y-3 rounded-[12px]"
+          data-testid="invoice-detail-error"
+        >
+          <div className="w-12 h-12 rounded-full bg-red-50 mx-auto flex items-center justify-center">
+            <AlertTriangle className="w-6 h-6 text-red-600" />
+          </div>
+          <div className="space-y-1">
+            <DialogTitle className="text-base font-bold text-[#1E293B]">
+              Unable to Load Invoice Details
+            </DialogTitle>
+            <DialogDescription className="text-xs text-[#475569] max-w-xs mx-auto">
+              Could not retrieve invoice details from the server.
+            </DialogDescription>
+          </div>
+          <div className="flex items-center justify-center gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onClose}
+              className="text-xs"
+              data-testid="invoice-detail-error-close-btn"
+            >
+              Close
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => void refetch()}
+              className="text-xs"
+              data-testid="invoice-detail-error-retry-btn"
+            >
+              Retry
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     );
@@ -384,11 +429,36 @@ export function InvoiceDetailModal({
         </div>}
         <div className="px-6 py-3 border-t border-slate-100">
           <h3 className="text-sm font-semibold mb-2">Statement details</h3>
+          {(!invoice.payments || invoice.payments.length === 0) && (
+            <div className="mb-3 p-2.5 bg-slate-50 border border-slate-200 rounded-[6px] text-xs text-slate-600">
+              No payments recorded. Payment details appear after a payment is recorded.
+            </div>
+          )}
           <dl className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-            {PRINT_DETAIL_FIELDS.slice(2).map(([key, label]) => <div key={key}>
-              <dt className="text-slate-500">{label}</dt>
-              <dd className="font-medium whitespace-pre-wrap">{printDetails[key] || '—'}</dd>
-            </div>)}
+            {PRINT_DETAIL_FIELDS.slice(2).map(([key, label]) => (
+              <div key={key}>
+                <dt className="text-slate-500">
+                  {label}
+                  {key === 'notedBy' && (
+                    <span className="ml-1 text-xs text-slate-600 font-normal">
+                      {invoice.print_details &&
+                      Object.prototype.hasOwnProperty.call(invoice.print_details, 'notedBy')
+                        ? '(override)'
+                        : '(template default)'}
+                    </span>
+                  )}
+                  {(key === 'preparedBy' || key === 'receivedBy') && (
+                    <span className="ml-1 text-xs text-slate-600 font-normal">
+                      {invoice.print_details &&
+                      Object.prototype.hasOwnProperty.call(invoice.print_details, key)
+                        ? '(override)'
+                        : '(manual)'}
+                    </span>
+                  )}
+                </dt>
+                <dd className="font-medium whitespace-pre-wrap">{printDetails[key] || '—'}</dd>
+              </div>
+            ))}
           </dl>
         </div>
         {addressFeedback && (
@@ -595,25 +665,28 @@ export function InvoiceDetailModal({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {invoice.payments.map((p) => (
-                    <TableRow key={p.id}>
-                      <TableCell className="text-xs text-[#1E293B] py-2">
-                        {p.payment_date?.slice(0, 10)}
-                      </TableCell>
-                      <TableCell className="text-xs text-[#1E293B] font-medium py-2">
-                        {p.payment_method}
-                      </TableCell>
-                      <TableCell className="text-xs font-mono text-[#475569] py-2">
-                        {p.reference_number || '—'}
-                      </TableCell>
-                      <TableCell className="text-xs text-[#475569] py-2">
-                        {p.notes || '—'}
-                      </TableCell>
-                      <TableCell className="text-xs tabular-nums font-bold text-emerald-600 text-right py-2">
-                        {formatCurrency(p.amount)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {invoice.payments.map((p) => {
+                    const resolved = resolvePaymentProperties(p);
+                    return (
+                      <TableRow key={p.id}>
+                        <TableCell className="text-xs text-[#1E293B] py-2">
+                          {p.payment_date?.slice(0, 10)}
+                        </TableCell>
+                        <TableCell className="text-xs text-[#1E293B] font-medium py-2">
+                          {resolved?.method || '—'}
+                        </TableCell>
+                        <TableCell className="text-xs font-mono text-[#475569] py-2">
+                          {resolved?.reference || '—'}
+                        </TableCell>
+                        <TableCell className="text-xs text-[#475569] py-2">
+                          {p.notes || '—'}
+                        </TableCell>
+                        <TableCell className="text-xs tabular-nums font-bold text-emerald-600 text-right py-2">
+                          {formatCurrency(p.amount)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
