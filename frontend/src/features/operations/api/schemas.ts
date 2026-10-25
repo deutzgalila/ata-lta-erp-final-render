@@ -173,6 +173,7 @@ export const phaseTaskInputSchema = z.object({
   dueDate: z.string().optional().nullable(),
   requiredLinkType: z.string().nullable().optional(),
   required_link_type: z.string().nullable().optional(),
+  checklist: z.array(checklistItemInputSchema).optional().nullable(),
 });
 
 export const createWorkRequestPhasesSchema = z.object({

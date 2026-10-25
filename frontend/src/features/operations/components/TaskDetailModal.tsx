@@ -21,7 +21,6 @@ import {
 import {
   Clock,
   FileText,
-  CheckSquare,
   User,
   Users,
   Plus,
@@ -72,6 +71,8 @@ import {
 } from '../lib/taskScope';
 import { runBlockingAction } from './BlockingActionModal';
 import { operationsKeys } from '../api/queryKeys';
+import { TaskChecklist } from './TaskChecklist';
+import { toChecklistInput } from '../utils/checklist';
 import { getPhaseBadgeInfo } from '../lib/statusBadges';
 import { TaskTypeSelect, TaskTypeBadge } from '../lib/taskTypes';
 import type { Task, WorkRequest, DmsDocument, TaskStatus } from '../api/types';
@@ -166,6 +167,8 @@ export function TaskDetailModal({
   const {
     data: rawLiveTask,
     isError: isTaskError,
+    isFetching: isTaskFetching,
+    refetch: refetchTask,
     isPlaceholderData: isTaskPlaceholder,
     error: taskError,
   } = useTaskDetail(effectiveWrId, effectiveTaskId, {
@@ -342,7 +345,6 @@ export function TaskDetailModal({
   // Key state to reset select dropdowns after an action
   const [addSelectKey, setAddSelectKey] = useState(0);
   const [reassignSelectKey, setReassignSelectKey] = useState(0);
-  const [newChecklistText, setNewChecklistText] = useState('');
 
   // Live Collaborative Real-Time CDC Subscriptions for Task Time Logs (SPEC-REALTIME-TIME-LOGGING-001)
   useEntityRealtimeSync({
@@ -796,61 +798,6 @@ export function TaskDetailModal({
       successMessage: 'Transmittal request has been queued for Documentation review.',
       invalidateQueries: [operationsKeys.requests()],
     });
-  };
-
-  const handleToggleChecklist = async (itemId: string, completed: boolean) => {
-    if (!task || !task.workRequestId) return;
-    const currentList = task.checklist || [];
-    const updated = currentList.map((c) =>
-      c.id === itemId ? { ...c, completed } : c
-    );
-    await updateTask({
-      workRequestId: task.workRequestId,
-      taskId: task.id,
-      data: {
-        checklist: updated.map((c) => ({
-          id: c.id,
-          text: c.text,
-          completed: c.completed,
-          category: c.category,
-          periodYear: c.periodYear ? String(c.periodYear) : null,
-          dependsOn: c.dependsOn || null,
-        })),
-      },
-    });
-  };
-
-  const handleAddChecklistItem = async () => {
-    if (!newChecklistText.trim() || !task || !task.workRequestId) return;
-    const currentList = task.checklist || [];
-    const generateChecklistId = (): string => {
-      if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-        return crypto.randomUUID();
-      }
-      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-        const r = (Math.random() * 16) | 0;
-        const v = c === 'x' ? r : (r & 0x3) | 0x8;
-        return v.toString(16);
-      });
-    };
-
-    const newItem = {
-      id: generateChecklistId(),
-      text: newChecklistText.trim(),
-      completed: false,
-    };
-    await updateTask({
-      workRequestId: task.workRequestId,
-      taskId: task.id,
-      data: {
-        checklist: [...currentList, newItem].map((c) => ({
-          id: c.id,
-          text: c.text,
-          completed: c.completed,
-        })),
-      },
-    });
-    setNewChecklistText('');
   };
 
   // Calculate total minutes logged
@@ -1446,73 +1393,29 @@ export function TaskDetailModal({
               )}
             </div>
 
-            {/* 3. Checklist Items */}
-            <div className="space-y-2">
-              <h4 className="text-xs font-bold tracking-normal text-[#475569] flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <CheckSquare className="h-3.5 w-3.5" />
-                  Checklist ({task.checklist?.filter((c) => c.completed).length || 0}/{task.checklist?.length || 0})
-                </span>
-              </h4>
-
-              {task.checklist && task.checklist.length > 0 ? (
-                <div className="p-2 border-[#E2E8F0] rounded-[6px] divide-y divide-[#CBD5E1] bg-[#FFFFFF]">
-                  {task.checklist.map((item) => (
-                    <div key={item.id} className="py-2 px-2 flex items-center justify-between text-xs">
-                      <label className="flex items-center gap-2 cursor-pointer flex-1">
-                        <input
-                          type="checkbox"
-                          checked={item.completed}
-                          onChange={() => handleToggleChecklist(item.id, !item.completed)}
-                          disabled={!canEdit || isPhaseBlocked}
-                          title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
-                          className="rounded-[6px] accent-[#1D4ED8] text-[#1E293B] cursor-pointer"
-                        />
-                        <span className={item.completed ? 'line-through text-[#475569]' : 'text-[#1E293B] font-medium'}>
-                          {item.text}
-                        </span>
-                      </label>
-                      {item.assigneeName && (
-                        <span className="text-xs text-[#475569]">{item.assigneeName}</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-3 text-center text-xs text-[#475569] bg-[#F8FAFC] rounded-[8px] border-[#E2E8F0] italic">
-                  No checklist items yet.
-                </div>
-              )}
-
-              {canEdit && (
-                <div className="flex items-center gap-2 pt-1">
-                  <Input
-                    placeholder="Add a new checklist item..."
-                    value={newChecklistText}
-                    onChange={(e) => setNewChecklistText(e.target.value)}
-                    disabled={isPhaseBlocked}
-                    title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleAddChecklistItem();
-                      }
-                    }}
-                    className="h-8 text-xs bg-[#FFFFFF] border-[#E2E8F0] rounded-[6px]"
-                  />
-                  <Button
-                    type="button"
-                    size="xs"
-                    onClick={handleAddChecklistItem}
-                    disabled={!newChecklistText.trim() || isPhaseBlocked}
-                    title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
-                    className="h-8 text-xs gap-1 rounded-[6px] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Add
-                  </Button>
-                </div>
-              )}
-            </div>
+            {/* Only a successful task read may drive a full checklist replacement. */}
+            <TaskChecklist
+              key={task.id}
+              items={task.checklist || []}
+              canEdit={canEdit}
+              ready={!isTaskError && !isTaskPlaceholder && liveTask?.id === task.id && Array.isArray(liveTask.checklist)}
+              loading={isTaskFetching || isTaskPlaceholder}
+              loadError={isTaskError}
+              disabled={isPhaseBlocked}
+              disabledReason={isPhaseBlocked ? phaseBlockedTooltip : undefined}
+              onRetry={() => { void refetchTask(); }}
+              onChange={async (items) => {
+                if (isTaskError || isTaskPlaceholder || !Array.isArray(liveTask?.checklist) || !canEdit || isPhaseBlocked) {
+                  throw new Error('Reload the checklist before making changes.');
+                }
+                const updated = await updateTask({
+                  workRequestId: task.workRequestId,
+                  taskId: task.id,
+                  data: { checklist: items.map(toChecklistInput), expectedVersion: task.version },
+                });
+                if (updated) onTaskUpdated?.(updated);
+              }}
+            />
 
             {/* 4. Predecessors */}
             {task.predecessors && task.predecessors.length > 0 && (
