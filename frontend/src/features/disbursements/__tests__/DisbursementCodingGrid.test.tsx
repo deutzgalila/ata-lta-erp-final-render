@@ -220,6 +220,49 @@ describe('DisbursementCodingGrid Component (design/disb-06)', () => {
       expect(screen.getByTestId('coding-grid-amount')).toHaveTextContent('₱1,500.00');
     });
 
+    it('resolves work request title when linked_work_request_name is a raw UUID and applies pr-16 for floating timer clearance', async () => {
+      const rawUuidVoucher = {
+        ...mockDraftVoucher,
+        linked_work_request_id: '39ae64ae-17e5-47e5-b31d-6ed488ba65cb',
+        linked_work_request_name: '39ae64ae-17e5-47e5-b31d-6ed488ba65cb', // raw UUID
+        linked_work_request_order_number: 'WO-2026-0099',
+      };
+
+      global.fetch = vi.fn().mockImplementation((url: string) => {
+        if (String(url).includes('/operations/work-requests/39ae64ae-17e5-47e5-b31d-6ed488ba65cb')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-type': 'application/json' }),
+            json: async () => ({
+              data: {
+                id: '39ae64ae-17e5-47e5-b31d-6ed488ba65cb',
+                title: 'BIR Annual Return 2026',
+                work_order_number: 'WO-2026-0099',
+              },
+            }),
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({ data: {} }),
+        });
+      });
+
+      const { wrapper } = createHarness();
+      render(<DisbursementCodingGrid disbursement={rawUuidVoucher} />, { wrapper });
+
+      // Verifies pr-16 clearance for floating time studio button
+      expect(screen.getByTestId('coding-summary-strip').parentElement).toHaveClass('pr-16');
+      expect(screen.getByTestId('disbursement-coding-content')).toHaveClass('pr-16');
+
+      // Verifies resolution to human-readable work request name and never displays the raw UUID
+      expect(await screen.findByText(/BIR Annual Return 2026/)).toBeInTheDocument();
+      expect(screen.queryByText('39ae64ae-17e5-47e5-b31d-6ed488ba65cb')).not.toBeInTheDocument();
+    });
+
     it('toggles collapsible bottom pane with aria-expanded and localStorage persistence', () => {
       const { wrapper } = createHarness();
       render(<DisbursementCodingGrid disbursement={mockDraftVoucher} />, { wrapper });

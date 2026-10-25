@@ -200,7 +200,7 @@ export function ReceiptViewer({
 
   // Case 5: Receipt URL available — render rich viewer with labeled toolbar
   return (
-    <div className="space-y-3" data-testid="receipt-viewer-container">
+    <div className="flex-1 min-h-0 flex flex-col space-y-2 h-full" data-testid="receipt-viewer-container">
       {receiptData?.url && (
         <>
           {/* Compact Viewer Toolbar */}
@@ -215,7 +215,7 @@ export function ReceiptViewer({
               size="sm"
               onClick={handleZoomOut}
               disabled={zoom <= 50}
-              className="h-6 w-6 p-0 text-xs font-medium text-ink bg-surface border-border hover:bg-hover flex items-center justify-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+              className="h-6 w-6 p-0 text-xs font-medium text-ink bg-surface border-border hover:bg-hover flex items-center justify-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0 whitespace-nowrap"
               title="Zoom out"
               aria-label="Zoom Out"
             >
@@ -223,7 +223,7 @@ export function ReceiptViewer({
             </Button>
 
             <div
-              className="h-6 px-1 flex items-center justify-center text-[10px] font-mono tabular-nums text-text-secondary bg-surface rounded-[4px] border border-border min-w-[36px] select-none shrink-0"
+              className="h-6 px-1 flex items-center justify-center text-[10px] font-mono tabular-nums text-text-secondary bg-surface rounded-[4px] border border-border min-w-[36px] select-none shrink-0 whitespace-nowrap"
               title="Current zoom level"
             >
               {zoom}%
@@ -235,7 +235,7 @@ export function ReceiptViewer({
               size="sm"
               onClick={handleZoomIn}
               disabled={zoom >= 300}
-              className="h-6 w-6 p-0 text-xs font-medium text-ink bg-surface border-border hover:bg-hover flex items-center justify-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+              className="h-6 w-6 p-0 text-xs font-medium text-ink bg-surface border-border hover:bg-hover flex items-center justify-center cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0 whitespace-nowrap"
               title="Zoom in"
               aria-label="Zoom In"
             >
@@ -247,7 +247,7 @@ export function ReceiptViewer({
               variant="outline"
               size="sm"
               onClick={handleFit}
-              className="h-6 px-1.5 text-xs font-medium text-ink bg-surface border-border hover:bg-hover flex items-center gap-1 cursor-pointer shrink-0"
+              className="h-6 px-1.5 text-xs font-medium text-ink bg-surface border-border hover:bg-hover flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap"
               title="Reset zoom and rotation to 100%"
               aria-label="Fit"
             >
@@ -260,7 +260,7 @@ export function ReceiptViewer({
               variant="outline"
               size="sm"
               onClick={handleRotate}
-              className="h-6 px-1.5 text-xs font-medium text-ink bg-surface border-border hover:bg-hover flex items-center gap-1 cursor-pointer shrink-0"
+              className="h-6 px-1.5 text-xs font-medium text-ink bg-surface border-border hover:bg-hover flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap"
               title="Rotate 90 degrees clockwise"
               aria-label="Rotate"
             >
@@ -276,7 +276,7 @@ export function ReceiptViewer({
               data-testid="btn-open-modal-receipt"
               aria-label="Open modal viewer"
               title="Open full document modal viewer"
-              className="h-6 px-1.5 text-xs font-medium text-ink bg-surface border-border hover:bg-hover flex items-center gap-1 cursor-pointer shrink-0"
+              className="h-6 px-1.5 text-xs font-medium text-ink bg-surface border-border hover:bg-hover flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap"
             >
               <Maximize className="h-3 w-3 text-muted shrink-0" />
               <span>Modal</span>
@@ -286,7 +286,7 @@ export function ReceiptViewer({
               href={receiptData.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="h-6 px-1.5 text-xs font-medium text-ink bg-surface border border-border rounded-[4px] hover:bg-hover inline-flex items-center gap-1 cursor-pointer transition-colors shrink-0"
+              className="h-6 px-1.5 text-xs font-medium text-ink bg-surface border border-border rounded-[4px] hover:bg-hover inline-flex items-center gap-1 cursor-pointer transition-colors shrink-0 whitespace-nowrap"
               data-testid="btn-preview-receipt"
               title="Open receipt in a new browser tab"
               aria-label="Open in new tab"
@@ -303,7 +303,7 @@ export function ReceiptViewer({
                 setImageLoadError(false);
                 void onRefetchReceiptUrl();
               }}
-              className="h-6 w-6 p-0 text-xs font-medium text-muted hover:text-ink bg-surface border-border hover:bg-hover flex items-center justify-center cursor-pointer shrink-0"
+              className="h-6 w-6 p-0 text-xs font-medium text-muted hover:text-ink bg-surface border-border hover:bg-hover flex items-center justify-center cursor-pointer shrink-0 whitespace-nowrap"
               title="Refresh signed link"
               aria-label="Refresh Link"
               data-testid="btn-refresh-receipt"
@@ -318,7 +318,7 @@ export function ReceiptViewer({
               download={fileName}
               target="_blank"
               rel="noopener noreferrer"
-              className="h-6 w-6 p-0 text-xs font-medium text-inverse bg-primary hover:bg-primary-hover rounded-[4px] inline-flex items-center justify-center cursor-pointer shadow-2xs ml-auto transition-colors shrink-0"
+              className="h-6 w-6 p-0 text-xs font-medium text-inverse bg-primary hover:bg-primary-hover rounded-[4px] inline-flex items-center justify-center cursor-pointer shadow-2xs ml-auto transition-colors shrink-0 whitespace-nowrap"
               title="Download receipt document"
               aria-label="Download"
             >
@@ -329,7 +329,7 @@ export function ReceiptViewer({
           {/* Document Well */}
           {isImage ? (
             <div
-              className="w-full flex-1 bg-viewer-bg rounded-[4px] border border-border p-2 overflow-auto flex items-center justify-center min-h-[220px] max-h-[calc(100vh-380px)] relative overscroll-contain"
+              className="w-full flex-1 min-h-[220px] bg-viewer-bg rounded-[4px] border border-border p-2 overflow-auto flex items-center justify-center relative overscroll-contain"
               tabIndex={0}
               aria-label="Receipt preview viewport"
             >

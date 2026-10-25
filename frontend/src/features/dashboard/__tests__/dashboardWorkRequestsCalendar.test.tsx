@@ -368,5 +368,47 @@ describe('Dashboard Work Requests Calendar & Visibility Gating', () => {
       fireEvent.click(backBtn);
       expect(onBackToSidePeek).toHaveBeenCalledWith('wr-lead-mine');
     });
+
+    it('renders compact icon-only buttons in week view to prevent typography collision, and full text in agenda view', async () => {
+      useSessionStore.setState({
+        user: {
+          id: 'user-manager-1',
+          role: 'Manager',
+          name: 'Manager One',
+          email: 'manager1@ata-lta.ph',
+          departments: ['Operations'],
+          entities: ['ATA', 'LTA'],
+        },
+        activeEntity: 'ATA',
+      });
+
+      vi.spyOn(api, 'apiRequest').mockImplementation(async (path: string) => {
+        if (path.includes('/operations/work-requests')) {
+          return { data: mockWorkRequestsData } as never;
+        }
+        return { data: [] } as never;
+      });
+
+      const { Wrapper } = createWrapper('/dashboard');
+      render(<PendingTasksCard />, { wrapper: Wrapper });
+
+      const weekCard = await screen.findByTestId('pending-wr-wr-lead-mine');
+      expect(weekCard).toBeInTheDocument();
+
+      // In default week view (calendar grid), the task board button is icon-only (no visible "Task Board" text span)
+      const weekTaskBoardBtn = screen.getByTestId('view-wr-btn-wr-lead-mine');
+      expect(weekTaskBoardBtn).toHaveClass('w-6');
+      expect(weekTaskBoardBtn.querySelector('.sm\\:inline')).toBeNull();
+
+      // Switch to Agenda view
+      const agendaBtn = screen.getByRole('button', { name: /Agenda/i });
+      fireEvent.click(agendaBtn);
+
+      const agendaCard = await screen.findByTestId('pending-wr-wr-lead-mine');
+      expect(agendaCard).toBeInTheDocument();
+      const agendaTaskBoardBtn = screen.getByTestId('view-wr-btn-wr-lead-mine');
+      expect(agendaTaskBoardBtn.querySelector('.sm\\:inline')).not.toBeNull();
+      expect(agendaTaskBoardBtn).toHaveTextContent('Task Board');
+    });
   });
 });

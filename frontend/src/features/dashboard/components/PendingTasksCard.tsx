@@ -4,6 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 import {
   Calendar as CalendarIcon,
   CheckCircle2,
@@ -478,14 +479,18 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
       ? assignees.length - 1
       : 0;
 
-    const visibleAssignees = assignees.slice(0, 3);
-    const remainingCount = assignees.length > 3
-      ? assignees.length - 3
+    const isNarrowCalendarView = view === 'week' || view === 'month';
+    const maxVisibleAvatars = isNarrowCalendarView ? 2 : 3;
+    const visibleAssignees = assignees.slice(0, maxVisibleAvatars);
+    const remainingCount = assignees.length > maxVisibleAvatars
+      ? assignees.length - maxVisibleAvatars
       : coCount > 0 && assignees.length <= 1
       ? coCount
       : 0;
 
     const cardPaddingClass = view === 'month' ? 'p-2' : view === 'week' || view === 'agenda' ? 'p-2.5' : 'p-3';
+    const avatarSizeClass = isNarrowCalendarView ? 'h-5 w-5 text-[10px]' : 'h-6 w-6 text-xs';
+    const pillSizeClass = isNarrowCalendarView ? 'h-5 min-w-[20px] text-[10px]' : 'h-6 min-w-[24px] text-xs';
 
     return (
       <div
@@ -571,16 +576,16 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
         </div>
 
         {/* 4. Bottom Footer Bar: Avatars on Left, Action Buttons on Right */}
-        <div className="flex items-center justify-between gap-1.5 pt-1.5 mt-1 border-t border-black/10">
+        <div className="flex items-center justify-between gap-1.5 pt-1.5 mt-1 border-t border-black/10 min-w-0">
           {/* Left: Lead + Co-assignees Avatars */}
           <div
-            className="flex items-center -space-x-1.5 min-w-0"
+            className="flex items-center -space-x-1.5 min-w-0 shrink overflow-hidden"
             title={assignees.map((p) => p.name).join(', ')}
           >
             {visibleAssignees.map((person, idx) => (
               <div
                 key={person.id || idx}
-                className="h-6 w-6 rounded-full border-[1.5px] border-white bg-white text-xs font-bold flex items-center justify-center shadow-2xs shrink-0"
+                className={`${avatarSizeClass} rounded-full border-[1.5px] border-white bg-white font-bold flex items-center justify-center shadow-2xs shrink-0`}
                 style={{ backgroundColor: theme.avatarBg, color: '#FFFFFF' }}
                 title={`${person.name}${person.role ? ` · ${person.role}` : ''}`}
               >
@@ -589,7 +594,7 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
             ))}
             {remainingCount > 0 && (
               <div
-                className="h-6 min-w-[24px] px-1 rounded-full border-[1.5px] border-white bg-white text-[#0F172A] text-xs font-bold flex items-center justify-center shadow-2xs shrink-0 font-mono"
+                className={`${pillSizeClass} px-1 rounded-full border-[1.5px] border-white bg-white text-[#0F172A] font-bold flex items-center justify-center shadow-2xs shrink-0 font-mono`}
                 title={`+${remainingCount} more assignees`}
               >
                 +{remainingCount}
@@ -601,14 +606,17 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
           </div>
 
           {/* Right: Action Buttons */}
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-1 shrink-0 ml-auto">
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 handlePinToTimer(wr);
               }}
-              className="h-6 px-1.5 rounded-[5px] border border-black/15 bg-[#FFFFFF]/85 hover:bg-[#FFFFFF] inline-flex items-center gap-1 text-xs font-semibold cursor-pointer shadow-2xs transition-colors"
+              className={cn(
+                "rounded-[5px] border border-black/15 bg-[#FFFFFF]/85 hover:bg-[#FFFFFF] inline-flex items-center justify-center font-semibold cursor-pointer shadow-2xs transition-colors shrink-0",
+                view === 'agenda' ? "h-6 px-1.5 gap-1 text-xs" : "h-6 w-6 p-0"
+              )}
               data-testid={`quick-log-task-btn-${wr.id}`}
               title="Pin to Timer"
             >
@@ -622,12 +630,15 @@ export function PendingTasksCard({ onLogTimeForTask }: PendingTasksCardProps = {
                 e.stopPropagation();
                 handleNavigateToWorkRequestBoard(wr);
               }}
-              className="h-6 px-2 rounded-[5px] border border-black/15 bg-[#FFFFFF]/85 hover:bg-[#FFFFFF] inline-flex items-center gap-1 text-xs font-semibold cursor-pointer shadow-2xs transition-colors"
+              className={cn(
+                "rounded-[5px] border border-black/15 bg-[#FFFFFF]/85 hover:bg-[#FFFFFF] inline-flex items-center justify-center font-semibold cursor-pointer shadow-2xs transition-colors shrink-0",
+                isNarrowCalendarView ? "h-6 w-6 p-0" : "h-6 px-2 gap-1 text-xs"
+              )}
               data-testid={`view-wr-btn-${wr.id}`}
               title="Open Task Board"
             >
               <Kanban className="h-3 w-3 shrink-0 text-[#1D4ED8]" />
-              <span className="hidden sm:inline text-[11px]">Task Board</span>
+              {!isNarrowCalendarView && <span className="hidden sm:inline text-[11px]">Task Board</span>}
               <span className="sr-only" data-testid={`view-task-btn-${wr.id}`}>
                 View Task Board
               </span>

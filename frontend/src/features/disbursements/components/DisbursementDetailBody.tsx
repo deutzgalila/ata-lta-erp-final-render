@@ -328,16 +328,23 @@ export function DisbursementDetailBody({
   const clientName =
     item?.client_name || item?.clientName || item?.clients?.name || 'Firm Internal';
   const workRequestId = item?.linked_work_request_id || item?.linkedWorkRequestId;
+  const rawItemWrName = item?.linked_work_request_name;
+  const isWrNameUuid = Boolean(
+    rawItemWrName &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawItemWrName.trim())
+  );
+  const hasValidItemWrName = Boolean(rawItemWrName && !isWrNameUuid);
+
   const { data: linkedWrDetail } = useWorkRequestDetail(workRequestId ?? undefined, {
-    enabled: Boolean(workRequestId && !item?.linked_work_request_name),
+    enabled: Boolean(workRequestId && !hasValidItemWrName),
   });
 
   const effectiveWrOrder =
     item?.linked_work_request_order_number ||
-    (linkedWrDetail as { work_order_number?: string | null } | undefined)?.work_order_number ||
+    linkedWrDetail?.work_order_number ||
     null;
   const effectiveWrName =
-    item?.linked_work_request_name ||
+    (hasValidItemWrName ? rawItemWrName : null) ||
     linkedWrDetail?.title ||
     null;
 
@@ -558,7 +565,7 @@ export function DisbursementDetailBody({
                 </TabsList>
 
                 {/* Tab 1: Attachment */}
-                <TabsContent value="attachment" className={cn(isDocked ? "mt-0 flex-1 min-h-0 overflow-hidden flex flex-col p-1.5" : "mt-4 space-y-3")}>
+                <TabsContent value="attachment" className={cn(isDocked ? "mt-0 flex-1 min-h-0 overflow-y-auto flex flex-col p-1.5" : "mt-4 space-y-3")}>
                   <ReceiptViewer
                     receiptFileName={item.receipt_filename || item.receiptFilename}
                     receiptS3Key={item.receipt_s3_key || item.receiptS3Key}

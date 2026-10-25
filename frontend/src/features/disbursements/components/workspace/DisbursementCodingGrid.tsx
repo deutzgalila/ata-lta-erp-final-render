@@ -18,6 +18,9 @@ import type { Disbursement, FundSource, UpdateDisbursementInput } from '../../ap
 
 export const CODING_COLLAPSED_STORAGE_KEY = 'disb.codingCollapsed';
 
+const isUuid = (val?: string | null) =>
+  Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim()));
+
 type EditableField = 'category' | 'amount' | 'fundSource';
 
 export interface DisbursementCodingGridProps {
@@ -285,16 +288,19 @@ export function DisbursementCodingGrid({
     disbursement?.linked_work_request_id ||
     disbursement?.linkedWorkRequestId ||
     undefined;
+  const rawWrName = disbursement?.linked_work_request_name;
+  const hasHumanReadableName = Boolean(rawWrName && !isUuid(rawWrName));
+
   const { data: linkedWrDetail } = useWorkRequestDetail(linkedWrId, {
-    enabled: Boolean(linkedWrId && !disbursement?.linked_work_request_name),
+    enabled: Boolean(linkedWrId && !hasHumanReadableName),
   });
 
   const effectiveWrOrder =
     disbursement?.linked_work_request_order_number ||
-    (linkedWrDetail as { work_order_number?: string | null } | undefined)?.work_order_number ||
+    linkedWrDetail?.work_order_number ||
     null;
   const effectiveWrName =
-    disbursement?.linked_work_request_name ||
+    (hasHumanReadableName ? rawWrName : null) ||
     linkedWrDetail?.title ||
     null;
   const wrDisplay =
@@ -332,7 +338,7 @@ export function DisbursementCodingGrid({
       data-testid="disbursement-coding-grid"
     >
       {/* 1. Summary Strip & Controls Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-2 bg-sidebar/50 border-b border-border">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-2 bg-sidebar/50 border-b border-border pr-16">
         {/* Left: Summary Strip */}
         <div
           className="flex items-center flex-wrap gap-x-4 gap-y-1 text-[13px]"
@@ -432,7 +438,7 @@ export function DisbursementCodingGrid({
       {!isCollapsed && (
         <div
           id="disbursement-coding-table"
-          className="w-full overflow-x-auto max-h-[140px] overscroll-contain"
+          className="w-full overflow-x-auto max-h-[140px] overscroll-contain pr-16"
           data-testid="disbursement-coding-content"
         >
           <table
@@ -815,8 +821,10 @@ export function DisbursementCodingDefinitionList({
 
   const category = disbursement.category || '—';
 
+  const candidatePropWrName = propWrName || disbursement.linked_work_request_name;
+  const hasValidPropWrName = Boolean(candidatePropWrName && !isUuid(candidatePropWrName));
   const wrOrder = propWrOrder || disbursement.linked_work_request_order_number;
-  const wrName = propWrName || disbursement.linked_work_request_name;
+  const wrName = hasValidPropWrName ? candidatePropWrName : null;
   const wrDisplay =
     wrOrder && wrName
       ? `${wrOrder} — ${wrName}`
