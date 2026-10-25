@@ -60,6 +60,8 @@ The backend plan reran historical reproductions that refresh output files. Codex
 
 Unrelated whole-file formatting in invoice detail was removed before publication. No private tooling, temporary browser entry, unrelated audit, credentials or pre-existing untracked notes are included in the commits.
 
+Sourcery completed both initial PR reviews successfully, with no frontend inline findings. Its two backend findings requested stronger test coverage for the exact recorded payment date and the Bank Transfer bank/branch value in statement HTML. Codex added those assertions, reran the 26-test statement suite and lint, and published a focused follow-up test commit on staging using a normal push. No runtime change or history rewrite was needed; the backend PR therefore contains two task commits and the frontend PR one.
+
 ## Browser assessment and evidence
 
 The `design-taste-frontend` existing-component workflow was used without a redraw or redesign. Before and after were captured at all three widths and the final invoice inspector reports 0 FAIL / 1 WARN. Its small-text warning is retained deliberately: the existing compact billing screen uses 12px body/labels, and the new metadata also uses readable 12px rather than changing the surrounding type system. Controls wrap without overflow. The existing narrow phone line-item editor is outside this correction's scope. An intermediate inspector CDP timeout is preserved; the final run succeeded. Actual voucher/reset and error/retry states were independently inspected in Chromium.

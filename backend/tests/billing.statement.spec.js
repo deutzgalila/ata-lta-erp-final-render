@@ -258,14 +258,18 @@ describe('STATEMENT-DETAILS-20261025 canonical payments, overrides, and fail-fas
       expect(d.cash).toBe(expectedCash);
       expect(d.checkNumber).toBe(expectedCheck);
       expect(d.bankBranch).toBe(expectedBank);
-      expect(d.paymentDate).toBeTruthy();
+      expect(d.paymentDate).toBe('Oct 25, 2026');
 
       const doc = buildStatementDocument(res.body.data);
+      expect(doc).toContain('Oct 25, 2026');
       if (expectedCheck) {
         expect(doc).toContain(expectedCheck);
       }
       if (expectedCash) {
         expect(doc).toContain(expectedCash);
+      }
+      if (expectedBank) {
+        expect(doc).toContain(expectedBank);
       }
     }
   );
@@ -279,7 +283,7 @@ describe('STATEMENT-DETAILS-20261025 canonical payments, overrides, and fail-fas
     expect(details.cash).toBe('');
     expect(details.checkNumber).toBe('');
     expect(details.bankBranch).toBe('');
-    expect(details.paymentDate).toBeTruthy();
+    expect(details.paymentDate).toBe('Oct 25, 2026');
   });
 
   it('supports legacy alias fallbacks and enforces canonical non-nullish precedence', () => {
@@ -375,7 +379,7 @@ describe('STATEMENT-DETAILS-20261025 canonical payments, overrides, and fail-fas
       .expect(200);
 
     d = getInvoicePrintDetails(res.body.data);
-    expect(d.paymentDate).toBeTruthy();
+    expect(d.paymentDate).toBe('Oct 25, 2026');
     expect(d.checkNumber).toBe('AUTO-CHK');
     expect(d.preparedBy).toBe('');
     expect(d.notedBy).toBe('HENRY WONG');
