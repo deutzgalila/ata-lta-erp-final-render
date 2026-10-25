@@ -1,3 +1,4 @@
+import { getTaskDeletionReason } from '../lib/taskDeletion';
 import { DateInput } from '@/components/ui/date-input';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
@@ -135,6 +136,7 @@ export function WorkRequestModal({
         setTasks(
           workRequest.tasks.map((t) => ({
             localId: t.id,
+            deletionBlockedReason: getTaskDeletionReason(t, workRequest),
             id: t.id,
             title: t.title,
             description: t.description || undefined,
@@ -352,6 +354,13 @@ export function WorkRequestModal({
         : 'Please wait while the work request is being created...',
       apiCall: async () => {
         if (isEditMode && workRequest) {
+          const retainedIds = new Set(tasks.map((task) => task.id).filter(Boolean));
+          for (const task of workRequest.tasks || []) {
+            if (!retainedIds.has(task.id)) {
+              const reason = getTaskDeletionReason(task, workRequest);
+              if (reason) throw new Error(reason);
+            }
+          }
           const updatePayload: UpdateWorkRequestInput = {
             title: title.trim(),
             description: description.trim() || null,

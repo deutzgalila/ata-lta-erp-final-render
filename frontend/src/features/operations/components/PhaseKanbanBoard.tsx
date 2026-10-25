@@ -57,6 +57,7 @@ import { getPhaseBadgeInfo, getStatusBadgeInfo } from '../lib/statusBadges';
 import { useSearchParams, useInRouterContext } from 'react-router-dom';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
+import { getTaskDeletionReason } from '../lib/taskDeletion';
 import { isUserAdmin } from '../lib/taskScope';
 import type {
   Phase,
@@ -169,9 +170,17 @@ function PhaseKanbanBoardInner({
     assigneeName?: string | null;
   } | null>(null);
   const [isDeletingTask, setIsDeletingTask] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const handleConfirmDeleteTask = async () => {
     if (!taskToDelete) return;
+    const latestTask = tasks.find((task) => task.id === taskToDelete.id);
+    const reason = latestTask ? getTaskDeletionReason(latestTask, currentWr) : null;
+    if (reason) {
+      setDeleteError(reason);
+      return;
+    }
+    setDeleteError(null);
     setIsDeletingTask(true);
     try {
       await deleteTask(taskToDelete.id);
@@ -180,7 +189,7 @@ function PhaseKanbanBoardInner({
       }
       setTaskToDelete(null);
     } catch (err) {
-      console.error('Failed to delete task:', err);
+      setDeleteError(err instanceof Error ? err.message : 'Unable to delete task. Please try again.');
     } finally {
       setIsDeletingTask(false);
     }
@@ -691,6 +700,7 @@ function PhaseKanbanBoardInner({
                   </div>
                 ) : (
                   phaseTasks.map((task) => {
+                    const deletionReason = getTaskDeletionReason(task, activeWr);
                     const isTaskFailed = task.qaStatus === 'failed';
                     const isTaskPassed = task.qaStatus === 'passed';
 
@@ -750,8 +760,11 @@ function PhaseKanbanBoardInner({
                                 <DropdownMenuContent align="end" className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]" onClick={(e) => e.stopPropagation()}>
                                   <DropdownMenuItem
                                     className="text-xs tracking-normal text-[#DC2626] focus:text-[#FFFFFF] focus:bg-[#DC2626] cursor-pointer gap-1.5 rounded-[6px]"
+                                    disabled={Boolean(deletionReason)}
                                     onClick={(e) => {
                                       e.stopPropagation();
+                                      if (deletionReason) return;
+                                      setDeleteError(null);
                                       setTaskToDelete({
                                         id: task.id,
                                         title: task.title,
@@ -763,6 +776,11 @@ function PhaseKanbanBoardInner({
                                     <Trash2 className="h-3.5 w-3.5" />
                                     Delete Task
                                   </DropdownMenuItem>
+                                  {deletionReason && (
+                                    <p className="max-w-64 px-2 py-1.5 text-sm text-[#475569]" data-testid={`task-delete-reason-${task.id}`}>
+                                      {deletionReason}
+                                    </p>
+                                  )}
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             )}
@@ -1067,6 +1085,8 @@ function PhaseKanbanBoardInner({
               </div>
             </div>
           )}
+
+          {deleteError && <p role="alert" className="text-sm text-[#DC2626]">{deleteError}</p>}
 
           <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t border-[#E2E8F0]">
             <Button

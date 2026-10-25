@@ -49,6 +49,7 @@ export interface TaskItemData {
   checklist?: ChecklistItemData[];
   dueDate?: string | null;
   requiredLinkType?: string | null;
+  deletionBlockedReason?: string | null;
 }
 
 export interface TaskLineItemsProps {
@@ -135,7 +136,7 @@ export function TaskLineItems({
 
   const handleRemoveTask = (index: number) => {
     const target = tasks[index];
-    if (!target) return;
+    if (!target || target.deletionBlockedReason) return;
     const removedId = target.localId;
 
     // Prune dependencies on removed task
@@ -462,7 +463,7 @@ export function TaskLineItems({
                   variant="ghost"
                   size="icon-xs"
                   onClick={() => handleRemoveTask(index)}
-                  disabled={disabled || tasks.length <= 1}
+                  disabled={disabled || tasks.length <= 1 || Boolean(task.deletionBlockedReason)}
                   className="text-[#475569] hover:text-[#DC2626] hover:bg-[#F8FAFC] rounded-[6px]"
                   aria-label="Remove task"
                   data-testid={`task-remove-btn-${task.localId}`}
@@ -470,6 +471,12 @@ export function TaskLineItems({
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </div>
+
+              {task.deletionBlockedReason && (
+                <p className="text-sm text-[#475569]" data-testid={`task-delete-reason-${task.localId}`}>
+                  {task.deletionBlockedReason}
+                </p>
+              )}
 
               {/* Delimiter Tokenizer Live Preview */}
               {tokenizer.shouldSplit && (
