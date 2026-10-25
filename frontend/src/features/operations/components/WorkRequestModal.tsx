@@ -85,15 +85,18 @@ export function WorkRequestModal({
   const activeSessionEntity = useSessionStore((state) => state.activeEntity);
 
   // Queries
-  const { data: clients = [] } = useClients();
   const { data: team = [] } = useTeam();
   const { createWorkRequest, updateWorkRequest } = useWorkRequestMutations();
   const { createTask, updateTask, deleteTask } = useTaskMutations(workRequest?.id);
 
   // Form State
   const [title, setTitle] = useState('');
-  const [entity, setEntity] = useState<'ATA' | 'LTA'>('ATA');
+  const [entity, setEntity] = useState<'ATA' | 'LTA'>(
+    workRequest?.entity === 'LTA' || (!workRequest && activeSessionEntity === 'LTA') ? 'LTA' : 'ATA'
+  );
   const [clientId, setClientId] = useState<string>('');
+  const [clientError, setClientError] = useState<string | null>(null);
+  const { data: clients = [] } = useClients({ entity }, { enabled: isOpen });
   const [priority, setPriority] = useState<Priority>('Normal');
   const [dueDateError, setDueDateError] = useState<string | null>(null);
   const [dueDate, setDueDate] = useState<string>('');
@@ -115,7 +118,7 @@ export function WorkRequestModal({
     () => clients.find((c) => c.id === clientId),
     [clients, clientId]
   );
-  const isEntityLocked = Boolean(selectedClient?.entity);
+  const isEntityLocked = selectedClient?.entity === entity;
 
   // Initialize or reset form
   const resetForm = useCallback(() => {
@@ -179,6 +182,7 @@ export function WorkRequestModal({
       setTasks(DEFAULT_TASKS);
     }
     setManagerError(null);
+    setClientError(null);
     setTitleError(null);
     setDueDateError(null);
     setIsDirty(false);
@@ -203,17 +207,16 @@ export function WorkRequestModal({
     }
   }, [isOpen, resetForm, draftKey, workRequest?.id]);
 
-  // Client Entity Auto-Sync
+  // The operating entity scopes client selection; choosing a client never changes it.
   const handleClientChange = (newClientId: string) => {
+    // Radix may emit an empty value while a restored selection is loading.
+    // Only the explicit No Client option should clear the selection.
+    if (!newClientId) return;
     const cid = newClientId === 'unselected' ? '' : newClientId;
+    if (cid && !clients.some((c) => c.id === cid && c.entity === entity)) return;
     setClientId(cid);
+    setClientError(null);
     setIsDirty(true);
-    if (!cid) return;
-
-    const matched = clients.find((c) => c.id === cid);
-    if (matched?.entity) {
-      setEntity(matched.entity);
-    }
   };
 
   // Restore Draft
@@ -319,6 +322,15 @@ export function WorkRequestModal({
       return;
     }
     setTitleError(null);
+
+    // Drafts can predate entity scoping. Existing clients may be archived and
+    // absent from the active list; the API validates an unchanged binding.
+    const keepsExistingClient = isEditMode && clientId === workRequest?.clientId && entity === workRequest?.entity;
+    if (clientId && (selectedClient ? selectedClient.entity !== entity : !keepsExistingClient)) {
+      setClientError(`Choose a client registered under ${entity}, or select No Client.`);
+      return;
+    }
+    setClientError(null);
 
     if (!isEditMode && !dueDate) {
       setDueDateError('Due date is required');
@@ -791,6 +803,8 @@ export function WorkRequestModal({
                 disabled={isEntityLocked}
                 onClick={() => {
                   setEntity('ATA');
+                  setClientId('');
+                  setClientError(null);
                   setIsDirty(true);
                 }}
                 className={`text-xs  font-bold uppercase rounded-[6px] h-7 px-3 ${
@@ -806,6 +820,8 @@ export function WorkRequestModal({
                 disabled={isEntityLocked}
                 onClick={() => {
                   setEntity('LTA');
+                  setClientId('');
+                  setClientError(null);
                   setIsDirty(true);
                 }}
                 className={`text-xs  font-bold uppercase rounded-[6px] h-7 px-3 ${
@@ -832,7 +848,7 @@ export function WorkRequestModal({
                 <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
                   <SelectItem value="unselected" className="text-xs">— No Client —</SelectItem>
                   {clients
-                    .filter((c) => !isEntityLocked || c.entity === entity)
+                    .filter((c) => c.entity === entity)
                     .map((c) => (
                       <SelectItem key={c.id} value={c.id} className="text-xs">
                         {c.name} ({c.entity})
@@ -840,6 +856,9 @@ export function WorkRequestModal({
                     ))}
                 </SelectContent>
               </Select>
+              {clientError && (
+                <span role="alert" className="text-[11px] text-red-500">{clientError}</span>
+              )}
             </div>
 
             {/* Priority */}
