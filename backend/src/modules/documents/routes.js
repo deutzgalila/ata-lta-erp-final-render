@@ -56,12 +56,12 @@ router.post(
   documentsController.createDocument
 );
 
-// Dedicated comment writes retain the existing DMS edit permission gate.
-router.post('/:id/comments', requirePermission('dms:edit'),
+// The service authorizes task assignment or standalone DMS edit access.
+router.post('/:id/comments',
   audit('document.comment.add', { table: 'documents' }), documentsController.addDocumentComment);
-router.put('/:id/comments/:commentId', requirePermission('dms:edit'),
+router.put('/:id/comments/:commentId',
   audit('document.comment.edit', { table: 'documents' }), documentsController.updateDocumentComment);
-router.delete('/:id/comments/:commentId', requirePermission('dms:edit'),
+router.delete('/:id/comments/:commentId',
   audit('document.comment.delete', { table: 'documents' }), documentsController.deleteDocumentComment);
 
 // Update document metadata
