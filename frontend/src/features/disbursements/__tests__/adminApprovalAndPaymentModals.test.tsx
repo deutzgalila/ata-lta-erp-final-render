@@ -322,10 +322,10 @@ describe('Direct Admin Approval & Payment Details Corrections (R3 / D2)', () => 
       );
 
       await waitFor(() => {
-        expect(screen.getByTestId('btn-preview-receipt')).toBeInTheDocument();
+        expect(screen.getByTestId('btn-download-receipt')).toBeInTheDocument();
       });
 
-      expect(screen.getByTestId('btn-preview-receipt')).toHaveAttribute(
+      expect(screen.getByTestId('btn-download-receipt')).toHaveAttribute(
         'href',
         'https://storage.test/signed/official_receipt.pdf'
       );
@@ -430,11 +430,11 @@ describe('Direct Admin Approval & Payment Details Corrections (R3 / D2)', () => 
       );
 
       await waitFor(() => {
-        expect(screen.getByTestId('btn-preview-receipt')).toBeInTheDocument();
+        expect(screen.getByTestId('btn-download-receipt')).toBeInTheDocument();
         expect(screen.getByTestId('btn-refresh-receipt')).toBeInTheDocument();
       });
 
-      expect(screen.getByTestId('btn-preview-receipt')).toHaveAttribute(
+      expect(screen.getByTestId('btn-download-receipt')).toHaveAttribute(
         'href',
         'https://storage.test/signed/official_receipt_1.pdf'
       );
@@ -447,7 +447,7 @@ describe('Direct Admin Approval & Payment Details Corrections (R3 / D2)', () => 
       });
 
       await waitFor(() => {
-        expect(screen.getByTestId('btn-preview-receipt')).toHaveAttribute(
+        expect(screen.getByTestId('btn-download-receipt')).toHaveAttribute(
           'href',
           'https://storage.test/signed/official_receipt_2.pdf'
         );
@@ -511,14 +511,14 @@ describe('Direct Admin Approval & Payment Details Corrections (R3 / D2)', () => 
         expect(screen.getByTestId('btn-retry-receipt')).toBeInTheDocument();
       }, { timeout: 4000 });
 
-      expect(screen.queryByTestId('btn-preview-receipt')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('btn-download-receipt')).not.toBeInTheDocument();
 
       // Clear failure and click retry
       shouldFail = false;
       fireEvent.click(screen.getByTestId('btn-retry-receipt'));
 
       await waitFor(() => {
-        expect(screen.getByTestId('btn-preview-receipt')).toBeInTheDocument();
+        expect(screen.getByTestId('btn-download-receipt')).toBeInTheDocument();
       });
       expect(screen.queryByTestId('receipt-error-state')).not.toBeInTheDocument();
     });
@@ -586,28 +586,30 @@ describe('Direct Admin Approval & Payment Details Corrections (R3 / D2)', () => 
         { wrapper }
       );
 
+      await waitFor(() => expect(screen.getByTestId('btn-preview-receipt')).toBeEnabled());
+      fireEvent.click(screen.getByTestId('btn-preview-receipt'));
       await waitFor(() => {
-        expect(screen.getByTestId('receipt-preview-image')).toBeInTheDocument();
+        expect(screen.getByTestId('doc-preview-image')).toBeInTheDocument();
       });
 
       // Simulate expired image failing to load
-      fireEvent.error(screen.getByTestId('receipt-preview-image'));
+      fireEvent.error(screen.getByTestId('doc-preview-image'));
 
       await waitFor(() => {
-        expect(screen.getByTestId('receipt-image-error')).toBeInTheDocument();
-        expect(screen.getByTestId('btn-retry-image-preview')).toBeInTheDocument();
+        expect(screen.getByTestId('attachment-preview-error')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Retry preview' })).toBeInTheDocument();
       });
 
-      expect(screen.queryByTestId('receipt-preview-image')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('doc-preview-image')).not.toBeInTheDocument();
 
       // Click refresh image preview
       refreshCalled = true;
-      fireEvent.click(screen.getByTestId('btn-retry-image-preview'));
+      fireEvent.click(screen.getByRole('button', { name: 'Retry preview' }));
 
       await waitFor(() => {
-        expect(screen.getByTestId('receipt-preview-image')).toBeInTheDocument();
+        expect(screen.getByTestId('doc-preview-image')).toBeInTheDocument();
       });
-      expect(screen.getByTestId('receipt-preview-image')).toHaveAttribute(
+      expect(screen.getByTestId('doc-preview-image')).toHaveAttribute(
         'src',
         'https://storage.test/signed/refreshed_image.png'
       );

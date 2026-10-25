@@ -41,6 +41,7 @@ import { DisbursementPrintModal } from './DisbursementPrintModal';
 import { AdminApprovalModal } from './AdminApprovalModal';
 import { EditPaymentDetailsModal } from './EditPaymentDetailsModal';
 import { ReceiptViewer } from './ReceiptViewer';
+import { DisbursementAuditTimeline } from './DisbursementAuditTimeline';
 import { useWorkRequestDetail } from '@/features/operations/api/useWorkRequests';
 import { useSessionStore } from '@/lib/session';
 import { disbursementKeys } from '../api/queryKeys';
@@ -225,8 +226,6 @@ export function DisbursementDetailBody({
     setConflictModalState({ isOpen: false });
   }, [effectiveId, isOpen, user?.id, activeEntity]);
 
-  if (!isOpen) return null;
-
   const handleResendDraft = async () => {
     if (!item || actionPending.current) return;
     actionPending.current = true;
@@ -329,7 +328,7 @@ export function DisbursementDetailBody({
     item?.client_name || item?.clientName || item?.clients?.name || 'Firm Internal';
   const workRequestId = item?.linked_work_request_id || item?.linkedWorkRequestId;
   const { data: linkedWrDetail } = useWorkRequestDetail(workRequestId ?? undefined, {
-    enabled: Boolean(workRequestId && !item?.linked_work_request_name),
+    enabled: Boolean(isOpen && canFetchChildren && workRequestId && !item?.linked_work_request_name),
   });
 
   const effectiveWrOrder =
@@ -345,7 +344,7 @@ export function DisbursementDetailBody({
 
   return (
     <div
-      className={cn(isDocked ? 'w-full h-full flex flex-col overflow-hidden text-xs text-ink' : 'space-y-4 text-xs text-ink')}
+      className={cn('min-w-0', isDocked ? 'w-full h-full flex flex-col overflow-hidden text-xs text-ink' : 'space-y-4 text-xs text-ink')}
       data-testid="disbursement-detail-body"
     >
       {isDenied ? (
@@ -560,6 +559,7 @@ export function DisbursementDetailBody({
                 {/* Tab 1: Attachment */}
                 <TabsContent value="attachment" className={cn(isDocked ? "mt-0 flex-1 min-h-0 overflow-hidden flex flex-col p-1.5" : "mt-4 space-y-3")}>
                   <ReceiptViewer
+                    key={`${item.id}:${item.receipt_s3_key || item.receiptS3Key || item.receipt_filename || item.receiptFilename || ''}`}
                     receiptFileName={item.receipt_filename || item.receiptFilename}
                     receiptS3Key={item.receipt_s3_key || item.receiptS3Key}
                     receiptData={receiptData}
@@ -951,184 +951,13 @@ export function DisbursementDetailBody({
 
                 {/* Tab 5: Log */}
                 <TabsContent value="log" className={cn(isDocked ? "mt-0 flex-1 min-h-0 overflow-hidden flex flex-col gap-1.5 p-2 text-[11px]" : "mt-4 space-y-3")}>
-                  <div className="p-3.5 bg-surface rounded-md border border-border space-y-3 shadow-soft">
+                  <div className={cn('p-3.5 bg-surface rounded-md border border-border space-y-3 shadow-soft', isDocked && 'min-h-0 overflow-y-auto')}>
                     <h4 className="font-semibold text-ink text-xs flex items-center gap-1.5">
                       <Clock className="h-4 w-4 text-muted" />
                       <span>Audit & Lifecycle Timeline</span>
                     </h4>
 
-                    {item.lifecycle_history && item.lifecycle_history.length > 0 ? (
-                      <div
-                        className="space-y-3 text-xs text-muted pl-2"
-                        data-testid="lifecycle-history-timeline"
-                      >
-                        {item.lifecycle_history.map((evt, idx) => (
-                          <div
-                            key={idx}
-                            className="flex items-start gap-2.5 border-l-2 border-primary/40 pl-3 py-1"
-                          >
-                            <span className="w-2.5 h-2.5 rounded-full bg-primary mt-1 shrink-0 ring-4 ring-primary-light" />
-                            <div className="space-y-0.5">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-semibold text-ink">
-                                  {evt.action || evt.new_status}
-                                </span>
-                                {evt.old_status && evt.new_status && (
-                                  <span className="text-xs text-muted font-mono">
-                                    ({evt.old_status} → {evt.new_status})
-                                  </span>
-                                )}
-                                <span className="text-xs text-muted font-mono tabular-nums">
-                                  {new Date(evt.created_at || evt.timestamp || '').toLocaleString()}
-                                </span>
-                              </div>
-                              <div className="text-muted">
-                                By{' '}
-                                <span className="font-medium text-ink">
-                                  {evt.actor_name || evt.actor_id || 'System'}
-                                </span>
-                              </div>
-                              {evt.reason && (
-                                <div className="text-danger bg-danger-surface px-2 py-0.5 rounded text-xs border border-danger-border mt-1">
-                                  Reason: {evt.reason}
-                                </div>
-                              )}
-                              {evt.notes && (
-                                <div className="text-muted text-xs mt-1">{evt.notes}</div>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : item.audit_logs && item.audit_logs.length > 0 ? (
-                      <div
-                        className="space-y-3 text-xs text-muted pl-2"
-                        data-testid="lifecycle-history-timeline"
-                      >
-                        {item.audit_logs.map((log, idx) => (
-                          <div
-                            key={idx}
-                            className="flex items-start gap-2.5 border-l-2 border-primary/40 pl-3 py-1"
-                          >
-                            <span className="w-2.5 h-2.5 rounded-full bg-primary mt-1 shrink-0 ring-4 ring-primary-light" />
-                            <div className="space-y-0.5">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-semibold text-ink">{log.action}</span>
-                                {log.previous_status && log.new_status && (
-                                  <span className="text-xs text-muted font-mono">
-                                    ({log.previous_status} → {log.new_status})
-                                  </span>
-                                )}
-                                <span className="text-xs text-muted font-mono tabular-nums">
-                                  {new Date(log.created_at).toLocaleString()}
-                                </span>
-                              </div>
-                              <div className="text-muted">
-                                By{' '}
-                                <span className="font-medium text-ink">
-                                  {log.actor_name || log.actor_id || 'System'}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div
-                        className="space-y-2 text-xs text-muted pl-2"
-                        data-testid="lifecycle-history-timeline"
-                      >
-                        <div className="flex items-center gap-2 border-l-2 border-border pl-3 py-0.5">
-                          <span className="w-2 h-2 rounded-full bg-placeholder shrink-0" />
-                          <span>
-                            Created by{' '}
-                            <span className="font-medium text-ink">
-                              {item.created_by_name ||
-                                item.createdByName ||
-                                item.requested_by_name ||
-                                item.requestedByName ||
-                                item.employee_name ||
-                                item.employeeName ||
-                                item.requested_by ||
-                                item.requestedBy ||
-                                item.created_by ||
-                                item.createdBy ||
-                                'User'}
-                            </span>{' '}
-                            on {new Date(item.created_at || item.createdAt || '').toLocaleString()}
-                          </span>
-                        </div>
-                        {(item.approved_at || item.approvedAt) && (
-                          <div className="flex items-center gap-2 border-l-2 border-success-border pl-3 py-0.5">
-                            <span className="w-2 h-2 rounded-full bg-success shrink-0" />
-                            <span>
-                              Approved by{' '}
-                              <span className="font-medium text-ink">
-                                {item.approved_by_name ||
-                                  item.approvedByName ||
-                                  item.approved_by ||
-                                  item.approvedBy ||
-                                  'Admin'}
-                              </span>{' '}
-                              on {new Date(item.approved_at || item.approvedAt || '').toLocaleString()}
-                            </span>
-                          </div>
-                        )}
-                        {(item.funded_at || item.fundedAt || item.payment_date || item.paymentDate) && (
-                          <div className="flex items-center gap-2 border-l-2 border-border pl-3 py-0.5">
-                            <span className="w-2 h-2 rounded-full bg-ata shrink-0" />
-                            <span>
-                              Payment prepared / funded by{' '}
-                              <span className="font-medium text-ink">
-                                {item.funded_by_name ||
-                                  item.funded_by ||
-                                  item.fundedBy ||
-                                  item.payment_processed_by ||
-                                  item.paymentProcessedBy ||
-                                  'Accounting'}
-                              </span>{' '}
-                              {item.funded_at || item.fundedAt
-                                ? `on ${new Date(item.funded_at || item.fundedAt || '').toLocaleString()}`
-                                : ''}
-                            </span>
-                          </div>
-                        )}
-                        {(item.released_at || item.releasedAt) && (
-                          <div className="flex items-center gap-2 border-l-2 border-primary/40 pl-3 py-0.5">
-                            <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
-                            <span>
-                              Released by{' '}
-                              <span className="font-medium text-ink">
-                                {item.released_by_name ||
-                                  item.releasedByName ||
-                                  item.released_by ||
-                                  item.releasedBy ||
-                                  'Admin'}
-                              </span>{' '}
-                              on {new Date(item.released_at || item.releasedAt || '').toLocaleString()}
-                            </span>
-                          </div>
-                        )}
-                        {(item.status === 'Rejected' || item.rejected_at || item.rejectedAt) && (
-                          <div className="flex items-center gap-2 border-l-2 border-danger-border pl-3 py-0.5">
-                            <span className="w-2 h-2 rounded-full bg-danger-solid shrink-0" />
-                            <span>
-                              Rejected by{' '}
-                              <span className="font-medium text-ink">
-                                {item.rejected_by_name ||
-                                  item.rejectedByName ||
-                                  item.rejected_by ||
-                                  item.rejectedBy ||
-                                  'Admin'}
-                              </span>{' '}
-                              {item.rejected_at || item.rejectedAt
-                                ? `on ${new Date(item.rejected_at || item.rejectedAt || '').toLocaleString()}`
-                                : ''}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                    <DisbursementAuditTimeline item={item} />
                   </div>
                 </TabsContent>
               </Tabs>

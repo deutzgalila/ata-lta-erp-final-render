@@ -690,7 +690,7 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
 
       // Initial link
       await waitFor(() => {
-        expect(screen.getByTestId('btn-preview-receipt')).toHaveAttribute(
+        expect(screen.getByTestId('btn-download-receipt')).toHaveAttribute(
           'href',
           'https://storage.test/signed/token-v1.pdf'
         );
@@ -702,7 +702,7 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
 
       // Link updates to newly signed token URL
       await waitFor(() => {
-        expect(screen.getByTestId('btn-preview-receipt')).toHaveAttribute(
+        expect(screen.getByTestId('btn-download-receipt')).toHaveAttribute(
           'href',
           'https://storage.test/signed/token-v2.pdf'
         );
@@ -779,7 +779,7 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
       fireEvent.click(screen.getByTestId('btn-retry-receipt'));
 
       await waitFor(() => {
-        expect(screen.getByTestId('btn-preview-receipt')).toHaveAttribute(
+        expect(screen.getByTestId('btn-download-receipt')).toHaveAttribute(
           'href',
           'https://storage.test/signed/recovered.pdf'
         );
@@ -834,33 +834,35 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
       );
 
       // Inline image is rendered initially
+      await waitFor(() => expect(screen.getByTestId('btn-preview-receipt')).toBeEnabled());
+      fireEvent.click(screen.getByTestId('btn-preview-receipt'));
       await waitFor(() => {
-        expect(screen.getByTestId('receipt-preview-image')).toBeInTheDocument();
+        expect(screen.getByTestId('doc-preview-image')).toBeInTheDocument();
       });
 
       // Simulate image 403 load error
-      fireEvent.error(screen.getByTestId('receipt-preview-image'));
+      fireEvent.error(screen.getByTestId('doc-preview-image'));
 
       // Fallback UI replaces broken image
       await waitFor(() => {
-        expect(screen.getByTestId('receipt-image-error')).toBeInTheDocument();
-        expect(screen.getByTestId('btn-retry-image-preview')).toBeInTheDocument();
+        expect(screen.getByTestId('attachment-preview-error')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Retry preview' })).toBeInTheDocument();
       });
-      expect(screen.queryByTestId('receipt-preview-image')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('doc-preview-image')).not.toBeInTheDocument();
 
       // Click refresh image preview
       isRefreshed = true;
-      fireEvent.click(screen.getByTestId('btn-retry-image-preview'));
+      fireEvent.click(screen.getByRole('button', { name: 'Retry preview' }));
 
       // New image loads and error banner is dismissed
       await waitFor(() => {
-        expect(screen.getByTestId('receipt-preview-image')).toBeInTheDocument();
+        expect(screen.getByTestId('doc-preview-image')).toBeInTheDocument();
       });
-      expect(screen.getByTestId('receipt-preview-image')).toHaveAttribute(
+      expect(screen.getByTestId('doc-preview-image')).toHaveAttribute(
         'src',
         'https://storage.test/signed/fresh_image.png'
       );
-      expect(screen.queryByTestId('receipt-image-error')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('attachment-preview-error')).not.toBeInTheDocument();
     });
   });
 
