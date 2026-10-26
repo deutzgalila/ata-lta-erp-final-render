@@ -302,6 +302,77 @@ describe('ClientImportModal Component', () => {
     );
   });
 
+  it('sends per-row X-Active-Entity header and displays cross-entity notice for mixed files', async () => {
+    useSessionStore.getState().setActiveEntity('ATA');
+
+    const capturedHeaders: Array<Record<string, string>> = [];
+    global.fetch = vi.fn().mockImplementation(async (url: string, options?: RequestInit) => {
+      if (url.includes('/clients') && options?.method === 'POST') {
+        const body = JSON.parse((options.body as string) || '{}');
+        const headers = (options.headers as Record<string, string>) || {};
+        capturedHeaders.push({ ...headers });
+
+        return new Response(
+          JSON.stringify({
+            data: {
+              id: `c-${body.name}`,
+              entity: body.entity,
+              name: body.name,
+              tin: body.tin,
+              retainer: false,
+              status: 'Active',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              version: 1,
+            },
+          }),
+          { status: 201, headers: { 'content-type': 'application/json' } }
+        );
+      }
+      return new Response(JSON.stringify({ data: [] }), {
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+      });
+    });
+
+    const { wrapper } = createWrapper();
+    render(<ClientImportModal isOpen={true} onClose={vi.fn()} />, { wrapper });
+
+    const csvContent = [
+      'Name,TIN,Entity,On Retainer,Retainer\'s Fee,RDO Code,Trade Name,Business Address,Point of Contact',
+      'ATA Client,123-456-789-00001,ATA,no,,034,,Makati,',
+      'LTA Client,987-654-321-00002,LTA,no,,040,,Pasig,',
+    ].join('\n');
+
+    const file = new File([csvContent], 'mixed_entities.csv', { type: 'text/csv' });
+    fireEvent.change(screen.getByTestId('csv-file-input'), { target: { files: [file] } });
+
+    // Informational note appears
+    await waitFor(() => {
+      expect(screen.getByTestId('cross-entity-note')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('cross-entity-note')).toHaveTextContent(
+      '1 row will be created under LTA'
+    );
+    expect(screen.getByTestId('cross-entity-note')).toHaveTextContent(
+      'current active entity is ATA'
+    );
+
+    // Start import
+    fireEvent.click(screen.getByTestId('start-import-btn'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Import Results/i)).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/✓ 2 Saved/i)).toBeInTheDocument();
+
+    // Verify per-row X-Active-Entity header sent to API
+    expect(capturedHeaders).toHaveLength(2);
+    expect(capturedHeaders[0]!['X-Active-Entity']).toBe('ATA');
+    expect(capturedHeaders[1]!['X-Active-Entity']).toBe('LTA');
+  });
+
   describe('Route Gating Integration', () => {
     it('renders the "Import" button when user holds clients:edit permission', async () => {
       useSessionStore.getState().setSession({

@@ -243,6 +243,9 @@ export function useImportClients() {
         const validated = createClientSchema.parse(record);
         const res = await apiRequest<ClientDetailResponse>('/clients', {
           method: 'POST',
+          headers: {
+            'X-Active-Entity': validated.entity,
+          },
           body: JSON.stringify(validated),
         });
         clientSchema.parse(res.data);
@@ -265,9 +268,14 @@ export function useImportClients() {
       }
     }
 
-    // Invalidate client queries after the whole run once
+    // Invalidate client lists and counts across all entities (ATA, LTA, ALL)
     queryClient.invalidateQueries({ queryKey: clientKeys.all });
+    queryClient.invalidateQueries({ queryKey: clientKeys.lists() });
+    queryClient.invalidateQueries({ queryKey: [...clientKeys.all, 'counts'] });
     queryClient.invalidateQueries({ queryKey: clientKeys.counts(activeEntity) });
+    queryClient.invalidateQueries({ queryKey: clientKeys.counts('ATA') });
+    queryClient.invalidateQueries({ queryKey: clientKeys.counts('LTA') });
+    queryClient.invalidateQueries({ queryKey: clientKeys.counts('ALL') });
 
     return { results, successCount, failCount };
   };

@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
+  Info,
 } from 'lucide-react';
 import {
   Dialog,
@@ -19,6 +20,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/components/ui/toast';
+import { useSessionStore } from '@/lib/session';
 import { useRegisteredUsers, useImportClients } from '../api/useClients';
 import {
   parseCSV,
@@ -49,6 +51,7 @@ export function ClientImportModal({ isOpen, onClose }: ClientImportModalProps) {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const activeEntity = useSessionStore((state) => state.activeEntity);
   const { data: registeredUsers = [] } = useRegisteredUsers();
   const { importClients } = useImportClients();
 
@@ -170,6 +173,18 @@ export function ClientImportModal({ isOpen, onClose }: ClientImportModalProps) {
   };
 
   const percent = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
+
+  // Cross-entity detection: rows targeting an entity different from current active scope
+  const differentEntityCounts: Record<string, number> = {};
+  if (activeEntity && activeEntity !== 'ALL') {
+    validatedRecords.forEach((item) => {
+      const ent = item.record.entity;
+      if (ent && ent !== activeEntity) {
+        differentEntityCounts[ent] = (differentEntityCounts[ent] || 0) + 1;
+      }
+    });
+  }
+  const differentEntityEntries = Object.entries(differentEntityCounts);
 
   return (
     <Dialog
@@ -349,6 +364,28 @@ export function ClientImportModal({ isOpen, onClose }: ClientImportModalProps) {
                 )}
               </div>
             </div>
+
+            {/* Informational cross-entity note when active entity isn't ALL */}
+            {differentEntityEntries.length > 0 && (
+              <div
+                className="flex items-start gap-2.5 p-2.5 bg-[#EFF6FF] border border-[#BFDBFE] rounded-[8px] text-xs text-[#1E40AF]"
+                data-testid="cross-entity-note"
+              >
+                <Info className="h-4 w-4 text-[#1D4ED8] shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <span className="font-semibold block">Entity Notice</span>
+                  <span className="text-[#1E40AF] block">
+                    {differentEntityEntries
+                      .map(
+                        ([ent, count]) =>
+                          `${count} row${count > 1 ? 's' : ''} will be created under ${ent}`
+                      )
+                      .join(', ')}{' '}
+                    (current active entity is {activeEntity}).
+                  </span>
+                </div>
+              </div>
+            )}
 
             {validationErrors.length > 0 && (
               <div className="space-y-1.5">
