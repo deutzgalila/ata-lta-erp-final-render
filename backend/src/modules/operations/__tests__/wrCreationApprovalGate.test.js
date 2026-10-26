@@ -11,12 +11,17 @@ jest.mock('../../../services/supabaseClient', () => {
 const request = require('supertest');
 const { app } = require('../../../../tests/helpers/testServer');
 const { registerUser, seedDefaults, resetMock } = require('../../../../tests/fixtures/supabaseMock');
+const { invalidateAnalytics } = require('../../reports/service');
 
 describe('Parcel 1: Work Request Creation Admission Gate', () => {
   let adminToken;
   let managerToken;
+  let manager2Token;
+  let manager2Id;
   let employeeToken;
+  let employeeId;
   let client;
+  let ltaClient;
 
   beforeEach(async () => {
     resetMock();
@@ -36,7 +41,18 @@ describe('Parcel 1: Work Request Creation Admission Gate', () => {
       entities: ['ATA', 'LTA'],
     });
 
+    manager2Id = '77777777-7777-4777-a777-777777777777';
+    manager2Token = registerUser({
+      id: manager2Id,
+      email: 'manager2-gate@ata-lta.ph',
+      name: 'Manager Gate 2',
+      role: 'Manager',
+      entities: ['ATA', 'LTA'],
+    });
+
+    employeeId = '55555555-5555-4555-a555-555555555555';
     employeeToken = registerUser({
+      id: employeeId,
       email: 'staff-gate@ata-lta.ph',
       name: 'Staff Gate',
       role: 'Operations', // Employee role (not Admin or Manager)
@@ -55,6 +71,19 @@ describe('Parcel 1: Work Request Creation Admission Gate', () => {
       })
       .expect(201);
     client = clientRes.body.data;
+
+    // Create LTA client
+    const ltaClientRes = await request(app)
+      .post('/v1/clients')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('X-Active-Entity', 'LTA')
+      .send({
+        name: 'LTA Gate Client Corp',
+        tin: '999-888-777-000',
+        entity: 'LTA',
+      })
+      .expect(201);
+    ltaClient = ltaClientRes.body.data;
   });
 
   describe('Policy R1: Creation Gate & Role Enforcement', () => {
@@ -380,6 +409,377 @@ describe('Parcel 1: Work Request Creation Admission Gate', () => {
       expect(resubmitted.description).toBe('Updated with detailed deliverable list');
       expect(resubmitted.rejectionReason).toBeNull();
       expect(resubmitted.version).toBe(rejectedWr.version + 1);
+    });
+
+    it('denies ordinary PUT /v1/work-requests/:id updates on unadmitted (pending or rejected) work requests', async () => {
+      const createRes = await request(app)
+        .post('/v1/work-requests')
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          title: 'Direct Update Lock Test',
+          description: 'Cannot update via ordinary PUT before admission',
+          clientId: client.id,
+          dueDate: '2026-12-31',
+          entity: 'ATA',
+        })
+        .expect(201);
+
+      const pendingWr = createRes.body.data;
+      expect(pendingWr.creationApprovalStatus).toBe('pending');
+
+      // Ordinary PUT update on pending WR returns 404
+      await request(app)
+        .put(`/v1/work-requests/${pendingWr.id}`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          title: 'Direct Update Attempt',
+        })
+        .expect(404);
+
+      // Even Admin calling ordinary PUT update on unadmitted WR returns 404
+      await request(app)
+        .put(`/v1/work-requests/${pendingWr.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          title: 'Admin Direct Update Attempt',
+        })
+        .expect(404);
+
+      // Reject the WR
+      await request(app)
+        .post(`/v1/operations/work-requests/${pendingWr.id}/creation-approval`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          decision: 'reject',
+          reason: 'Needs correction via resubmit',
+          expectedVersion: pendingWr.version,
+        })
+        .expect(200);
+
+      // Ordinary PUT update on rejected WR also returns 404
+      await request(app)
+        .put(`/v1/work-requests/${pendingWr.id}`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          title: 'Direct Update After Rejection',
+        })
+        .expect(404);
+    });
+
+    it('canonical creator check: nominated requested_by cannot view or resubmit pending/rejected WR created by another user', async () => {
+      // Manager 1 creates a WR, nominating Manager 2 as requestedBy
+      const createRes = await request(app)
+        .post('/v1/work-requests')
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          title: 'Nominated Requester Isolation Test',
+          description: 'Testing canonical creator vs nominated requester',
+          clientId: client.id,
+          dueDate: '2026-12-31',
+          entity: 'ATA',
+          requestedBy: manager2Id,
+        })
+        .expect(201);
+
+      const pendingWr = createRes.body.data;
+      expect(pendingWr.createdBy).toBeDefined();
+      expect(pendingWr.requestedBy).toBe(manager2Id);
+
+      // Manager 2 checks their creation approvals (scope=mine) -> should NOT see it
+      const otherListRes = await request(app)
+        .get('/v1/operations/work-requests/creation-approvals?scope=mine')
+        .set('Authorization', `Bearer ${manager2Token}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(200);
+
+      const found = otherListRes.body.data.find((w) => w.id === pendingWr.id);
+      expect(found).toBeUndefined();
+
+      // Reject the WR
+      const rejectRes = await request(app)
+        .post(`/v1/operations/work-requests/${pendingWr.id}/creation-approval`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          decision: 'reject',
+          reason: 'Correction required by actual creator',
+          expectedVersion: pendingWr.version,
+        })
+        .expect(200);
+
+      const rejectedWr = rejectRes.body.data;
+
+      // Manager 2 attempts to resubmit -> 403 Forbidden
+      await request(app)
+        .post(`/v1/operations/work-requests/${pendingWr.id}/resubmit-creation`)
+        .set('Authorization', `Bearer ${manager2Token}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          expectedVersion: rejectedWr.version,
+          data: { description: 'Malicious hijack attempt by nominated requester' },
+        })
+        .expect(403);
+
+      // Actual creator resubmitting -> 200 OK
+      const resubmitRes = await request(app)
+        .post(`/v1/operations/work-requests/${pendingWr.id}/resubmit-creation`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          expectedVersion: rejectedWr.version,
+          data: { description: 'Legitimate correction by canonical creator' },
+        })
+        .expect(200);
+
+      expect(resubmitRes.body.data.creationApprovalStatus).toBe('pending');
+      expect(resubmitRes.body.data.description).toBe('Legitimate correction by canonical creator');
+    });
+
+    it('validates client entity and team roles during resubmission', async () => {
+      // Manager creates a pending WR
+      const createRes = await request(app)
+        .post('/v1/work-requests')
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          title: 'Resubmit Validation Target',
+          clientId: client.id,
+          dueDate: '2026-12-31',
+          entity: 'ATA',
+        })
+        .expect(201);
+
+      const pendingWr = createRes.body.data;
+
+      // Reject it
+      const rejectRes = await request(app)
+        .post(`/v1/operations/work-requests/${pendingWr.id}/creation-approval`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          decision: 'reject',
+          reason: 'Needs correction',
+          expectedVersion: pendingWr.version,
+        })
+        .expect(200);
+
+      const rejectedWr = rejectRes.body.data;
+
+      // 1. Resubmit with client belonging to another entity (LTA client on ATA WR) -> 400
+      await request(app)
+        .post(`/v1/operations/work-requests/${pendingWr.id}/resubmit-creation`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          expectedVersion: rejectedWr.version,
+          data: {
+            clientId: ltaClient.id,
+          },
+        })
+        .expect(400);
+
+      // 2. Resubmit with invalid assignedTo (employee role) -> 400
+      await request(app)
+        .post(`/v1/operations/work-requests/${pendingWr.id}/resubmit-creation`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          expectedVersion: rejectedWr.version,
+          data: {
+            assignedTo: employeeId,
+          },
+        })
+        .expect(400);
+
+      // 3. Resubmit with valid data -> 200
+      const validRes = await request(app)
+        .post(`/v1/operations/work-requests/${pendingWr.id}/resubmit-creation`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          expectedVersion: rejectedWr.version,
+          data: {
+            title: 'Corrected Resubmit Title',
+            description: 'Now has valid metadata',
+          },
+        })
+        .expect(200);
+
+      expect(validRes.body.data.creationApprovalStatus).toBe('pending');
+      expect(validRes.body.data.title).toBe('Corrected Resubmit Title');
+    });
+
+    it('denies task, archive, advance, and related paths for Admin when work request is pending or rejected', async () => {
+      // 1. Manager creates a pending WR
+      const createRes = await request(app)
+        .post('/v1/work-requests')
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          title: 'Isolation Gate Test WR',
+          clientId: client.id,
+          dueDate: '2026-12-31',
+          entity: 'ATA',
+        })
+        .expect(201);
+
+      const pendingWr = createRes.body.data;
+      expect(pendingWr.creationApprovalStatus).toBe('pending');
+
+      // Admin calls tasks on pending WR -> 404
+      await request(app)
+        .get(`/v1/work-requests/${pendingWr.id}/tasks`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(404);
+
+      await request(app)
+        .post(`/v1/work-requests/${pendingWr.id}/tasks`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          title: 'Admin Task on Pending WR',
+        })
+        .expect(404);
+
+      // Admin calls archive on pending WR -> 404
+      await request(app)
+        .post(`/v1/work-requests/${pendingWr.id}/archive`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(404);
+
+      // Admin calls advance on pending WR -> 404
+      await request(app)
+        .post(`/v1/work-requests/${pendingWr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ toPhase: 'processing' })
+        .expect(404);
+
+      // Admin calls related on pending WR -> 404
+      await request(app)
+        .get(`/v1/work-requests/${pendingWr.id}/related`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(404);
+
+      // 2. Reject the WR
+      const rejectRes = await request(app)
+        .post(`/v1/operations/work-requests/${pendingWr.id}/creation-approval`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          decision: 'reject',
+          reason: 'Testing rejected isolation',
+          expectedVersion: pendingWr.version,
+        })
+        .expect(200);
+
+      const rejectedWr = rejectRes.body.data;
+      expect(rejectedWr.creationApprovalStatus).toBe('rejected');
+
+      // Admin calls tasks on rejected WR -> 404
+      await request(app)
+        .get(`/v1/work-requests/${pendingWr.id}/tasks`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(404);
+
+      await request(app)
+        .post(`/v1/work-requests/${pendingWr.id}/tasks`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          title: 'Admin Task on Rejected WR',
+        })
+        .expect(404);
+
+      // Admin calls archive on rejected WR -> 404
+      await request(app)
+        .post(`/v1/work-requests/${pendingWr.id}/archive`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(404);
+
+      // Admin calls advance on rejected WR -> 404
+      await request(app)
+        .post(`/v1/work-requests/${pendingWr.id}/advance`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ toPhase: 'processing' })
+        .expect(404);
+
+      // Admin calls related on rejected WR -> 404
+      await request(app)
+        .get(`/v1/work-requests/${pendingWr.id}/related`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(404);
+    });
+
+    it('ensures dashboard report does not leak pending or rejected work requests to Admin', async () => {
+      invalidateAnalytics('ent-ata');
+      // Fetch baseline dashboard summary
+      const baseReport = await request(app)
+        .get('/v1/reports/dashboard')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(200);
+
+      const baseTotal = baseReport.body.data?.workRequests?.total || 0;
+
+      // Manager creates pending WR
+      const createRes = await request(app)
+        .post('/v1/work-requests')
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          title: 'Dashboard Leak Test WR',
+          clientId: client.id,
+          dueDate: '2026-12-31',
+          entity: 'ATA',
+        })
+        .expect(201);
+
+      const pendingWr = createRes.body.data;
+
+      invalidateAnalytics('ent-ata');
+      // Admin checks dashboard -> total should remain unchanged
+      const pendingReport = await request(app)
+        .get('/v1/reports/dashboard')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(200);
+
+      expect(pendingReport.body.data?.workRequests?.total).toBe(baseTotal);
+
+      // Admin approves the WR
+      await request(app)
+        .post(`/v1/operations/work-requests/${pendingWr.id}/creation-approval`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          decision: 'approve',
+          expectedVersion: pendingWr.version,
+        })
+        .expect(200);
+
+      invalidateAnalytics('ent-ata');
+      // Admin checks dashboard -> total increments by 1
+      const approvedReport = await request(app)
+        .get('/v1/reports/dashboard')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(200);
+
+      expect(approvedReport.body.data?.workRequests?.total).toBe(baseTotal + 1);
     });
   });
 });

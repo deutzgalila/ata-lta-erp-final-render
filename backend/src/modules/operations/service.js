@@ -1685,8 +1685,7 @@ const getWorkRequestById = async ({ id, entityId, user, includeTasks = false, al
 
   const isApproved =
     !data.creation_approval_status ||
-    data.creation_approval_status === 'approved' ||
-    (data.phase && data.phase !== 'pre_processing');
+    data.creation_approval_status === 'approved';
   const isCreator = isCreatorUser(user, data);
   const isAdmin = user && user.role === 'Admin';
 
@@ -1741,7 +1740,7 @@ const getWorkRequestById = async ({ id, entityId, user, includeTasks = false, al
 };
 
 const updateWorkRequest = async ({ id, entityId, data, user }) => {
-  const existing = await getWorkRequestById({ id, entityId, user, allowPending: true });
+  const existing = await getWorkRequestById({ id, entityId, user });
   if (!existing) {
     throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Work request not found' });
   }
@@ -1859,7 +1858,7 @@ const updateWorkRequest = async ({ id, entityId, data, user }) => {
   }
 
   const updatedRow = updatedRows[0];
-  return getWorkRequestById({ id, entityId: updatedRow.entity_id, user, allowPending: true });
+  return getWorkRequestById({ id, entityId: updatedRow.entity_id, user });
 };
 
 const archiveWorkRequest = async ({ id, entityId, user }) => {
@@ -1975,7 +1974,7 @@ const listTasks = async ({ workRequestId, entityId, user, internal = false }) =>
 
     let wrQuery = supabaseAdmin
       .from('work_requests')
-      .select('id, entity_id, deleted_at')
+      .select('id, entity_id, deleted_at, creation_approval_status')
       .eq('id', workRequestId)
       .is('deleted_at', null);
 
@@ -1984,7 +1983,7 @@ const listTasks = async ({ workRequestId, entityId, user, internal = false }) =>
     }
 
     const { data: wr, error: wrErr } = await wrQuery.maybeSingle();
-    if (wrErr || !wr) {
+    if (wrErr || !wr || (wr.creation_approval_status && wr.creation_approval_status !== 'approved')) {
       throw new AppError({
         statusCode: 404,
         title: 'Not Found',
@@ -2078,7 +2077,7 @@ const getTaskById = async ({
   if (data.work_request_id) {
     let wrQuery = supabaseAdmin
       .from('work_requests')
-      .select('id, entity_id, deleted_at')
+      .select('id, entity_id, deleted_at, creation_approval_status')
       .eq('id', data.work_request_id)
       .is('deleted_at', null);
     if (entityId && entityId !== 'ALL') {
@@ -2086,6 +2085,7 @@ const getTaskById = async ({
     }
     const { data: wr } = await wrQuery.maybeSingle();
     if (!wr) return null; // Parent deleted or entity mismatch
+    if (wr.creation_approval_status && wr.creation_approval_status !== 'approved') return null;
   }
 
   // Authorization check
@@ -2128,9 +2128,18 @@ const createTask = async ({ workRequestId, entityId, data, user: _user }) => {
   if (data.checklist?.length) assertChecklistEditor(_user);
   const { data: wr } = await supabaseAdmin
     .from('work_requests')
-    .select('phase, status')
+    .select('phase, status, creation_approval_status')
     .eq('id', workRequestId)
+    .is('deleted_at', null)
     .maybeSingle();
+
+  if (!wr || (wr.creation_approval_status && wr.creation_approval_status !== 'approved')) {
+    throw new AppError({
+      statusCode: 404,
+      title: 'Not Found',
+      detail: 'Work request not found',
+    });
+  }
 
   if (wr?.status === 'Completed') {
     throw new AppError({
@@ -2964,7 +2973,7 @@ const getWorkRequestRelated = async (arg1, arg2) => {
 
   let wrQuery = supabaseAdmin
     .from('work_requests')
-    .select('id, entity_id, deleted_at')
+    .select('id, entity_id, deleted_at, creation_approval_status')
     .eq('id', id)
     .is('deleted_at', null);
 
@@ -2974,7 +2983,7 @@ const getWorkRequestRelated = async (arg1, arg2) => {
 
   const { data: wr, error: wrErr } = await wrQuery.maybeSingle();
 
-  if (wrErr || !wr) {
+  if (wrErr || !wr || (wr.creation_approval_status && wr.creation_approval_status !== 'approved')) {
     throw new AppError({
       statusCode: 404,
       title: 'Not Found',
@@ -3112,7 +3121,7 @@ const getTaskRelated = async (arg1, arg2) => {
 
   let wrQuery = supabaseAdmin
     .from('work_requests')
-    .select('id, entity_id, deleted_at')
+    .select('id, entity_id, deleted_at, creation_approval_status')
     .eq('id', task.work_request_id)
     .is('deleted_at', null);
 
@@ -3121,7 +3130,7 @@ const getTaskRelated = async (arg1, arg2) => {
   }
 
   const { data: wr, error: wrErr } = await wrQuery.maybeSingle();
-  if (wrErr || !wr) {
+  if (wrErr || !wr || (wr.creation_approval_status && wr.creation_approval_status !== 'approved')) {
     return { invoices: [], disbursements: [], transmittals: [] };
   }
 
@@ -4584,7 +4593,7 @@ const decideWorkRequestCreationApproval = async ({ id, entityId, decision, reaso
   }
 
   // Entitlement
-  const entitled = await isUserEntitledToEntity(wr.entity_id, user);
+  const entitled = await isUserEntitledToEntity(wr.entity_id, currentActor);
   if (!entitled) {
     throw new AppError({ statusCode: 403, title: 'Forbidden', detail: 'Not entitled to work request entity' });
   }
@@ -4651,10 +4660,10 @@ const decideWorkRequestCreationApproval = async ({ id, entityId, decision, reaso
   });
 
   // Notify creator
-  const creatorId = wr.created_by || wr.requested_by;
+  const creatorId = getCanonicalCreatorId(wr);
   if (creatorId) {
     try {
-      await notify([creatorId], `wr.creation_${decision}d`, {
+      await notify([creatorId], 'pending_request.resolved', {
         work_request_id: id,
         wr_title: wr.title,
         decision,
@@ -4698,8 +4707,8 @@ const resubmitWorkRequestCreation = async ({ id, entityId, expectedVersion, data
     throw new AppError({ statusCode: 403, title: 'Forbidden', detail: 'Not entitled to work request entity' });
   }
 
-  // Creator check
-  const isCreator = user.id === wr.created_by || user.id === wr.requested_by;
+  // Creator check (strict canonical created_by with fallback to requested_by only if created_by is null)
+  const isCreator = isCreatorUser(user, wr);
   if (!isCreator) {
     throw new AppError({
       statusCode: 403,
@@ -4739,12 +4748,40 @@ const resubmitWorkRequestCreation = async ({ id, entityId, expectedVersion, data
   };
 
   if (editData && typeof editData === 'object') {
-    if (editData.title) updates.title = editData.title.trim();
+    if (editData.title !== undefined) updates.title = editData.title.trim();
     if (editData.description !== undefined) updates.description = editData.description;
-    if (editData.dueDate) updates.due_date = editData.dueDate;
-    if (editData.priority) updates.priority = editData.priority;
-    if (editData.assignedTo !== undefined) updates.assigned_to = editData.assignedTo;
-    if (editData.coAssignees !== undefined) updates.co_assignees = editData.coAssignees;
+    if (editData.priority !== undefined) updates.priority = editData.priority;
+
+    if (editData.dueDate !== undefined) {
+      const dueDateResult = workRequestDueDateSchema.safeParse(editData.dueDate);
+      if (!dueDateResult.success) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Validation Error',
+          code: 'VALIDATION_ERROR',
+          detail: `dueDate: ${dueDateResult.error.issues[0].message}`,
+        });
+      }
+      updates.due_date = editData.dueDate;
+    }
+
+    if (editData.clientId !== undefined) {
+      if (editData.clientId) {
+        await validateWorkRequestClientEntity(editData.clientId, wr.entity_id);
+      }
+      updates.client_id = editData.clientId || null;
+    }
+
+    if (editData.assignedTo !== undefined || editData.coAssignees !== undefined) {
+      const targetAssignedTo = editData.assignedTo !== undefined ? editData.assignedTo : wr.assigned_to;
+      const targetCoAssignees = editData.coAssignees !== undefined ? editData.coAssignees : wr.co_assignees;
+      await validateProjectTeamRoles({
+        assignedTo: targetAssignedTo,
+        coAssignees: targetCoAssignees,
+      });
+      if (editData.assignedTo !== undefined) updates.assigned_to = editData.assignedTo;
+      if (editData.coAssignees !== undefined) updates.co_assignees = editData.coAssignees;
+    }
   }
 
   const updateResult = await supabaseAdmin
