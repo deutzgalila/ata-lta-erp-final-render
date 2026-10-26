@@ -245,11 +245,11 @@ export function DisbursementsTable({
   return (
     <div className="flex flex-col h-full w-full overflow-hidden" data-testid="disbursements-table-container">
       {/* Compact Filter and Search Toolbar (Flush border, no gaps) */}
-      <div className="flex items-center justify-between px-2.5 py-1 gap-2 bg-table-header border-b border-border shrink-0 h-8">
-        <div className="flex items-center gap-1.5 flex-1 min-w-0 overflow-x-auto scrollbar-none">
+      <div className="flex items-center justify-between px-2 py-1 gap-1.5 bg-table-header border-b border-border shrink-0 h-8">
+        <div className="flex items-center gap-1 flex-1 min-w-0 overflow-x-auto scrollbar-none">
           {/* Search */}
-          <div className="relative w-36 lg:w-44 shrink-0">
-            <Search className="h-3 w-3 absolute left-2 top-1.5 text-muted" />
+          <div className="relative w-28 sm:w-32 lg:w-36 shrink-0">
+            <Search className="h-2.5 w-2.5 absolute left-1.5 top-1.5 text-muted" />
             <Input
               type="text"
               placeholder="Search..."
@@ -258,7 +258,7 @@ export function DisbursementsTable({
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              className="pl-6 text-xs h-6 rounded-[4px] bg-surface border-border"
+              className="pl-5 text-[11px] h-6 rounded-[4px] bg-surface border-border py-0"
               data-testid="search-disbursements-input"
             />
           </div>
@@ -271,7 +271,7 @@ export function DisbursementsTable({
                 setSelectedStatus(e.target.value as DisbursementStatus | '');
                 setPage(1);
               }}
-              className="text-xs h-6 px-1.5 py-0 border rounded-[4px] bg-surface border-border text-ink focus:outline-none focus:ring-1 focus:ring-primary shrink-0 max-w-[110px] truncate"
+              className="text-[11px] h-6 px-1 py-0 border rounded-[4px] bg-surface border-border text-ink focus:outline-none focus:ring-1 focus:ring-primary shrink-0 max-w-[76px] sm:max-w-[86px] truncate"
               data-testid="filter-status-select"
             >
               <option value="">All Statuses</option>
@@ -290,7 +290,7 @@ export function DisbursementsTable({
               setSelectedCategory(e.target.value);
               setPage(1);
             }}
-            className="text-xs h-6 px-1.5 py-0 border rounded-[4px] bg-surface border-border text-ink focus:outline-none focus:ring-1 focus:ring-primary shrink-0 max-w-[115px] truncate"
+            className="text-[11px] h-6 px-1 py-0 border rounded-[4px] bg-surface border-border text-ink focus:outline-none focus:ring-1 focus:ring-primary shrink-0 max-w-[80px] sm:max-w-[92px] truncate"
             data-testid="filter-category-select"
           >
             <option value="">All Categories</option>
@@ -308,7 +308,7 @@ export function DisbursementsTable({
               setSelectedFundSource(e.target.value as FundSource | '');
               setPage(1);
             }}
-            className="text-xs h-6 px-1.5 py-0 border rounded-[4px] bg-surface border-border text-ink focus:outline-none focus:ring-1 focus:ring-primary shrink-0 max-w-[115px] truncate"
+            className="text-[11px] h-6 px-1 py-0 border rounded-[4px] bg-surface border-border text-ink focus:outline-none focus:ring-1 focus:ring-primary shrink-0 max-w-[82px] sm:max-w-[94px] truncate"
             data-testid="filter-fund-source-select"
           >
             <option value="">All Fund Sources</option>
@@ -326,7 +326,7 @@ export function DisbursementsTable({
               setSelectedWorkRequest(e.target.value);
               setPage(1);
             }}
-            className="text-xs h-6 px-1.5 py-0 border rounded-[4px] bg-surface border-border text-ink focus:outline-none focus:ring-1 focus:ring-primary shrink-0 max-w-[125px] truncate"
+            className="text-[11px] h-6 px-1 py-0 border rounded-[4px] bg-surface border-border text-ink focus:outline-none focus:ring-1 focus:ring-primary shrink-0 max-w-[88px] sm:max-w-[102px] truncate"
             data-testid="filter-work-request-select"
             title="Filter by Work Request"
           >
@@ -345,7 +345,7 @@ export function DisbursementsTable({
               setSelectedClient(e.target.value);
               setPage(1);
             }}
-            className="text-xs h-6 px-1.5 py-0 border rounded-[4px] bg-surface border-border text-ink focus:outline-none focus:ring-1 focus:ring-primary shrink-0 max-w-[115px] truncate"
+            className="text-[11px] h-6 px-1 py-0 border rounded-[4px] bg-surface border-border text-ink focus:outline-none focus:ring-1 focus:ring-primary shrink-0 max-w-[76px] sm:max-w-[88px] truncate"
             data-testid="filter-client-select"
             title="Filter by Client"
           >
@@ -365,7 +365,7 @@ export function DisbursementsTable({
                 setSelectedEmployee(e.target.value);
                 setPage(1);
               }}
-              className="text-xs h-6 px-1.5 py-0 border rounded-[4px] bg-surface border-border text-ink focus:outline-none focus:ring-1 focus:ring-primary shrink-0 max-w-[115px] truncate"
+              className="text-[11px] h-6 px-1 py-0 border rounded-[4px] bg-surface border-border text-ink focus:outline-none focus:ring-1 focus:ring-primary shrink-0 max-w-[76px] sm:max-w-[88px] truncate"
               data-testid="filter-employee-select"
               title="Filter by Employee (Admin only)"
             >
@@ -385,7 +385,7 @@ export function DisbursementsTable({
               setSelectedDueDate(e.target.value);
               setPage(1);
             }}
-            className="text-xs h-6 px-1.5 py-0 border rounded-[4px] bg-surface border-border text-ink focus:outline-none focus:ring-1 focus:ring-primary shrink-0 max-w-[110px] truncate"
+            className="text-[11px] h-6 px-1 py-0 border rounded-[4px] bg-surface border-border text-ink focus:outline-none focus:ring-1 focus:ring-primary shrink-0 max-w-[76px] sm:max-w-[86px] truncate"
             data-testid="filter-due-date-select"
             title="Filter by Due Date"
           >
@@ -402,7 +402,7 @@ export function DisbursementsTable({
               variant="ghost"
               size="sm"
               onClick={resetFilters}
-              className="text-xs h-6 px-1.5 text-muted hover:text-ink cursor-pointer shrink-0"
+              className="text-[11px] h-6 px-1 text-muted hover:text-ink cursor-pointer shrink-0"
               data-testid="reset-filters-btn"
             >
               Reset
