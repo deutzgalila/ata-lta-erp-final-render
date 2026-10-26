@@ -11,7 +11,6 @@ const { randomUUID } = require('crypto');
 const { tokenizeTask } = require('../../lib/tokenizer');
 const auditService = require('../../services/auditService');
 const { notify } = require('../../services/notify');
-const logger = require('../../lib/logger');
 const {
   getUserConcernedWorkRequestIds,
   isUserMemberOfWorkRequest,
@@ -115,29 +114,95 @@ const validateWorkRequestClientEntity = async (clientId, entityId) => {
   }
 };
 
-const toApiWorkRequest = (row, entityCode) => ({
-  id: row.id,
-  entity: entityCode,
-  title: row.title,
-  description: row.description || null,
-  clientId: row.client_id,
-  clientName: row.client_name || row.clients?.name || null,
-  status: row.status,
-  phase: row.phase || null,
-  onHold: row.on_hold ?? false,
-  on_hold: row.on_hold ?? false,
-  phaseEnteredAt: row.phase_entered_at || null,
-  phase_entered_at: row.phase_entered_at || null,
-  priority: row.priority || 'Normal',
-  archived: row.archived ?? false,
-  requestedBy: row.requested_by || null,
-  assignedTo: row.assigned_to || null,
-  coAssignees: Array.isArray(row.co_assignees) ? row.co_assignees : (row.coAssignees || []),
-  dueDate: row.due_date || null,
-  createdAt: row.created_at,
-  updatedAt: row.updated_at,
-  version: row.version || 1,
-});
+const checkHasManagerLead = async (assignedToId, entityId) => {
+  if (!assignedToId || !isValidUUID(assignedToId)) return false;
+  const { data: leadUser, error } = await supabaseAdmin
+    .from('users')
+    .select('id, role, is_active, entities')
+    .eq('id', assignedToId)
+    .maybeSingle();
+  if (error || !leadUser) return false;
+  if (leadUser.role !== 'Manager' || leadUser.is_active === false) return false;
+  return isUserEntitledToEntity(entityId, leadUser);
+};
+
+const loadManagerLeadMap = async (workRequestRows) => {
+  const leadMap = new Map();
+  const assignedIds = [...new Set(workRequestRows.map((r) => r.assigned_to).filter(isValidUUID))];
+  if (assignedIds.length === 0) return leadMap;
+  const { data: users } = await supabaseAdmin
+    .from('users')
+    .select('id, role, is_active, entities')
+    .in('id', assignedIds);
+  const userMap = new Map((users || []).map((u) => [u.id, u]));
+
+  for (const row of workRequestRows) {
+    if (!row.assigned_to) {
+      leadMap.set(row.id, false);
+      continue;
+    }
+    const u = userMap.get(row.assigned_to);
+    if (!u || u.role !== 'Manager' || u.is_active === false) {
+      leadMap.set(row.id, false);
+      continue;
+    }
+    const entitled = await isUserEntitledToEntity(row.entity_id, u);
+    leadMap.set(row.id, entitled);
+  }
+  return leadMap;
+};
+
+const getCanonicalCreatorId = (row) => {
+  if (row.created_by !== undefined && row.created_by !== null) {
+    return row.created_by;
+  }
+  return row.requested_by || null;
+};
+
+const isCreatorUser = (user, row) => {
+  if (!user || !user.id || !row) return false;
+  const canonicalCreatorId = getCanonicalCreatorId(row);
+  return canonicalCreatorId === user.id;
+};
+
+const toApiWorkRequest = (row, entityCode, user = null, hasManagerLead = false) => {
+  const creationApprovalStatus = row.creation_approval_status || 'approved';
+  const createdBy = getCanonicalCreatorId(row);
+  const isCreator = isCreatorUser(user, row);
+  const isAdmin = user && user.role === 'Admin';
+
+  return {
+    id: row.id,
+    entity: entityCode,
+    title: row.title,
+    description: row.description || null,
+    clientId: row.client_id,
+    clientName: row.client_name || row.clients?.name || null,
+    status: row.status,
+    phase: row.phase || null,
+    onHold: row.on_hold ?? false,
+    on_hold: row.on_hold ?? false,
+    phaseEnteredAt: row.phase_entered_at || null,
+    phase_entered_at: row.phase_entered_at || null,
+    priority: row.priority || 'Normal',
+    archived: row.archived ?? false,
+    requestedBy: row.requested_by || null,
+    assignedTo: row.assigned_to || null,
+    coAssignees: Array.isArray(row.co_assignees) ? row.co_assignees : (row.coAssignees || []),
+    dueDate: row.due_date || null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    version: row.version || 1,
+    creationApprovalStatus,
+    createdBy,
+    reviewedBy: row.reviewed_by || null,
+    reviewedAt: row.reviewed_at || null,
+    rejectionReason: row.rejection_reason || null,
+    canReviewCreation: Boolean(isAdmin && creationApprovalStatus === 'pending'),
+    canResubmit: Boolean(isCreator && creationApprovalStatus === 'rejected'),
+    hasManagerLead: Boolean(hasManagerLead),
+  };
+};
 
 const formatTimeManila = (dateTime) => {
   if (!dateTime) return null;
@@ -632,6 +697,7 @@ const listWorkRequests = async ({
     .from('work_requests')
     .select('*, clients(name)')
     .is('deleted_at', null)
+    .or('creation_approval_status.is.null,creation_approval_status.eq.approved')
     .order(sortField, { ascending: sortAsc });
 
   if (entityId && entityId !== 'ALL') {
@@ -729,11 +795,13 @@ const listWorkRequests = async ({
     extras = await loadTaskExtras(allTaskIds);
   }
 
+  const leadMap = await loadManagerLeadMap(resultRows);
+
   const result = resultRows.map((row) => {
     const code = entityCodeMap
       ? entityCodeMap.get(row.entity_id) || row.entity_id
       : singleEntityCode;
-    const wr = toApiWorkRequest(row, code);
+    const wr = toApiWorkRequest(row, code, user, leadMap.get(row.id));
     if (withTasks) {
       wr.tasks = (taskMap.get(row.id) || []).map((t) =>
         toApiTask(t, {
@@ -838,6 +906,13 @@ const validateProjectTeamRoles = async ({ assignedTo, coAssignees, rejectAdminCo
 };
 
 const createWorkRequestGraph = async ({ entityId, data, user }) => {
+  if (user && user.role !== 'Admin' && user.role !== 'Manager') {
+    throw new AppError({
+      statusCode: 403,
+      title: 'Forbidden',
+      detail: 'Only Admin or Manager roles can create work requests',
+    });
+  }
   await validateProjectTeamRoles({ assignedTo: data.assignedTo, coAssignees: data.coAssignees });
 
   const rawPhases = data.phases || {};
@@ -1134,6 +1209,13 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
   const wrId = data.id && isValidUUID(data.id) ? data.id : randomUUID();
   const now = new Date().toISOString();
 
+  const isAdmin = user?.role === 'Admin';
+  const isMgr = user?.role === 'Manager';
+  const creationApprovalStatus = isMgr ? 'pending' : 'approved';
+  const createdBy = user?.id || data.requestedBy || null;
+  const reviewedBy = isAdmin && user?.id ? user.id : null;
+  const reviewedAt = isAdmin ? now : null;
+
   const wrRecord = {
     id: wrId,
     entity_id: entityId,
@@ -1149,6 +1231,11 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
     assigned_to: data.assignedTo || null,
     co_assignees: Array.from(coAssigneeIdSet),
     due_date: data.dueDate || null,
+    creation_approval_status: creationApprovalStatus,
+    created_by: createdBy,
+    reviewed_by: reviewedBy,
+    reviewed_at: reviewedAt,
+    rejection_reason: null,
     created_at: now,
     updated_at: now,
   };
@@ -1423,70 +1510,14 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
       tasks: apiTasks,
     };
 
-    const userIsManager = isManager(user);
-    const needsApproval = userIsManager || Boolean(data.requiresApproval);
-
-    if (needsApproval) {
-      try {
-        const opReqRecord = {
-          entity_id: entityId,
-          type: 'wr_phase_transition',
-          work_request_id: wrId,
-          client_id: wrRecord.client_id || null,
-          requested_by: user?.id || wrRecord.requested_by,
-          status: 'pending',
-          notes: JSON.stringify({
-            from_phase: 'pre_processing',
-            to_phase: 'processing',
-            work_request_id: wrId,
-            user_notes: data.notes || 'Manager work request creation awaiting phase advancement approval',
-          }),
-          created_at: now,
-          updated_at: now,
-        };
-
-        const { data: opReq, error: opReqError } = await supabaseAdmin
-          .from('operations_requests')
-          .insert(opReqRecord)
-          .select()
-          .single();
-
-        if (!opReqError && opReq) {
-          await auditService.log({
-            action: 'operations_request.create',
-            table: 'operations_requests',
-            recordId: opReq.id,
-            entity: entityId,
-            userId: user?.id || wrRecord.requested_by,
-            details: { type: 'wr_phase_transition', status: 'pending', workRequestId: wrId },
-          });
-
-          // Emit notification to Admins
-          const { data: admins } = await supabaseAdmin
-            .from('users')
-            .select('id')
-            .eq('role', 'Admin')
-            .eq('is_active', true);
-
-          const adminUserIds = (admins || []).map((a) => a.id);
-          if (adminUserIds.length > 0) {
-            await notify(adminUserIds, 'wr.transition_request.received', {
-              request_id: opReq.id,
-              work_request_id: wrId,
-              from_phase: 'pre_processing',
-              to_phase: 'processing',
-              requested_by: user?.id || wrRecord.requested_by,
-              wr_title: wrRecord.title,
-            });
-          }
-        }
-      } catch (opReqErr) {
-        logger.warn('Failed to create pending operations_request for manager WR', {
-          error: opReqErr.message,
-          workRequestId: wrId,
-        });
-      }
-    }
+    fullGraph.creationApprovalStatus = creationApprovalStatus;
+    fullGraph.createdBy = createdBy;
+    fullGraph.reviewedBy = reviewedBy;
+    fullGraph.reviewedAt = reviewedAt;
+    fullGraph.rejectionReason = null;
+    fullGraph.canReviewCreation = Boolean(isAdmin && creationApprovalStatus === 'pending');
+    fullGraph.canResubmit = false;
+    fullGraph.hasManagerLead = await checkHasManagerLead(wrRecord.assigned_to, entityId);
 
     return fullGraph;
   } catch (err) {
@@ -1503,6 +1534,13 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
 };
 
 const createWorkRequest = async ({ entityId, data, user }) => {
+  if (user && user.role !== 'Admin' && user.role !== 'Manager') {
+    throw new AppError({
+      statusCode: 403,
+      title: 'Forbidden',
+      detail: 'Only Admin or Manager roles can create work requests',
+    });
+  }
   const dueDateResult = workRequestDueDateSchema.safeParse(data.dueDate);
   if (!dueDateResult.success) {
     throw new AppError({
@@ -1546,11 +1584,18 @@ const createWorkRequest = async ({ entityId, data, user }) => {
 
       const { data: existingDups } = await dupQuery.limit(1);
       if (existingDups && existingDups.length > 0) {
-        return getWorkRequestById({ id: existingDups[0].id, entityId, user, includeTasks: true });
+        return getWorkRequestById({ id: existingDups[0].id, entityId, user, includeTasks: true, allowPending: true });
       }
 
       const id = data.id && isValidUUID(data.id) ? data.id : randomUUID();
       const now = new Date().toISOString();
+      const isAdmin = user?.role === 'Admin';
+      const isMgr = user?.role === 'Manager';
+      const creationApprovalStatus = isMgr ? 'pending' : 'approved';
+      const createdBy = user?.id || data.requestedBy || null;
+      const reviewedBy = isAdmin && user?.id ? user.id : null;
+      const reviewedAt = isAdmin ? now : null;
+
       const record = {
         id,
         entity_id: entityId,
@@ -1566,6 +1611,11 @@ const createWorkRequest = async ({ entityId, data, user }) => {
         assigned_to: data.assignedTo || null,
         co_assignees: data.coAssignees || [],
         due_date: data.dueDate || null,
+        creation_approval_status: creationApprovalStatus,
+        created_by: createdBy,
+        reviewed_by: reviewedBy,
+        reviewed_at: reviewedAt,
+        rejection_reason: null,
         created_at: now,
         updated_at: now,
       };
@@ -1579,72 +1629,7 @@ const createWorkRequest = async ({ entityId, data, user }) => {
         });
       }
 
-      const userIsManager = isManager(user);
-      const needsApproval = userIsManager || Boolean(data.requiresApproval);
-
-      if (needsApproval) {
-        try {
-          const opReqRecord = {
-            entity_id: entityId,
-            type: 'wr_phase_transition',
-            work_request_id: id,
-            client_id: record.client_id || null,
-            requested_by: user?.id || record.requested_by,
-            status: 'pending',
-            notes: JSON.stringify({
-              from_phase: 'pre_processing',
-              to_phase: 'processing',
-              work_request_id: id,
-              user_notes: data.notes || 'Manager work request creation awaiting phase advancement approval',
-            }),
-            created_at: now,
-            updated_at: now,
-          };
-
-          const { data: opReq, error: opReqError } = await supabaseAdmin
-            .from('operations_requests')
-            .insert(opReqRecord)
-            .select()
-            .single();
-
-          if (!opReqError && opReq) {
-            await auditService.log({
-              action: 'operations_request.create',
-              table: 'operations_requests',
-              recordId: opReq.id,
-              entity: entityId,
-              userId: user?.id || record.requested_by,
-              details: { type: 'wr_phase_transition', status: 'pending', workRequestId: id },
-            });
-
-            // Emit notification to Admins
-            const { data: admins } = await supabaseAdmin
-              .from('users')
-              .select('id')
-              .eq('role', 'Admin')
-              .eq('is_active', true);
-
-            const adminUserIds = (admins || []).map((a) => a.id);
-            if (adminUserIds.length > 0) {
-              await notify(adminUserIds, 'wr.transition_request.received', {
-                request_id: opReq.id,
-                work_request_id: id,
-                from_phase: 'pre_processing',
-                to_phase: 'processing',
-                requested_by: user?.id || record.requested_by,
-                wr_title: record.title,
-              });
-            }
-          }
-        } catch (opReqErr) {
-          logger.warn('Failed to create pending operations_request for manager WR', {
-            error: opReqErr.message,
-            workRequestId: id,
-          });
-        }
-      }
-
-      return getWorkRequestById({ id, entityId, user, includeTasks: true });
+      return getWorkRequestById({ id, entityId, user, includeTasks: true, allowPending: true });
     } finally {
       inFlightWorkRequests.delete(dedupeKey);
     }
@@ -1654,7 +1639,7 @@ const createWorkRequest = async ({ entityId, data, user }) => {
   return creationPromise;
 };
 
-const getWorkRequestById = async ({ id, entityId, user, includeTasks = false }) => {
+const getWorkRequestById = async ({ id, entityId, user, includeTasks = false, allowPending = false }) => {
   let query = supabaseAdmin
     .from('work_requests')
     .select('*, clients(name)')
@@ -1666,7 +1651,7 @@ const getWorkRequestById = async ({ id, entityId, user, includeTasks = false }) 
   }
 
   const res = await query.maybeSingle();
-  const data = res.data;
+  let data = res.data;
   const error = res.error;
 
   if (error) {
@@ -1676,6 +1661,20 @@ const getWorkRequestById = async ({ id, entityId, user, includeTasks = false }) 
       detail: 'Unable to retrieve work request',
     });
   }
+
+  // Cross-entity fallback: if not found under entityId, lookup by ID alone and verify user has access to that entity
+  if (!data && entityId && entityId !== 'ALL') {
+    const fallbackRes = await supabaseAdmin
+      .from('work_requests')
+      .select('*, clients(name)')
+      .eq('id', id)
+      .is('deleted_at', null)
+      .maybeSingle();
+    if (fallbackRes.data) {
+      data = fallbackRes.data;
+    }
+  }
+
   if (!data) return null;
 
   // Enforce entity entitlement (applies to all users including Admin)
@@ -1684,10 +1683,23 @@ const getWorkRequestById = async ({ id, entityId, user, includeTasks = false }) 
     if (!entitled) return null;
   }
 
-  // Canonical project membership check
-  if (user && user.role !== 'Admin') {
-    const isMember = await isUserMemberOfWorkRequest(id, user, { entityId });
-    if (!isMember) return null;
+  const isApproved =
+    !data.creation_approval_status ||
+    data.creation_approval_status === 'approved' ||
+    (data.phase && data.phase !== 'pre_processing');
+  const isCreator = isCreatorUser(user, data);
+  const isAdmin = user && user.role === 'Admin';
+
+  if (!isApproved) {
+    if (!allowPending || (!isAdmin && !isCreator)) {
+      return null;
+    }
+  } else {
+    // Canonical project membership check for approved records
+    if (user && !isAdmin) {
+      const isMember = await isUserMemberOfWorkRequest(id, user, { entityId: data.entity_id });
+      if (!isMember) return null;
+    }
   }
 
   const withTasks = includeTasks === true || String(includeTasks).toLowerCase() === 'true';
@@ -1698,7 +1710,8 @@ const getWorkRequestById = async ({ id, entityId, user, includeTasks = false }) 
   }
 
   const entityCode = await resolveEntityCode(data.entity_id || entityId);
-  const wr = toApiWorkRequest(data, entityCode);
+  const hasLead = await checkHasManagerLead(data.assigned_to, data.entity_id);
+  const wr = toApiWorkRequest(data, entityCode, user, hasLead);
 
   if (withTasks) {
     const taskRows = (taskMap && taskMap.get(id)) || [];
@@ -1728,7 +1741,7 @@ const getWorkRequestById = async ({ id, entityId, user, includeTasks = false }) 
 };
 
 const updateWorkRequest = async ({ id, entityId, data, user }) => {
-  const existing = await getWorkRequestById({ id, entityId, user });
+  const existing = await getWorkRequestById({ id, entityId, user, allowPending: true });
   if (!existing) {
     throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Work request not found' });
   }
@@ -1846,7 +1859,7 @@ const updateWorkRequest = async ({ id, entityId, data, user }) => {
   }
 
   const updatedRow = updatedRows[0];
-  return getWorkRequestById({ id, entityId: updatedRow.entity_id, user });
+  return getWorkRequestById({ id, entityId: updatedRow.entity_id, user, allowPending: true });
 };
 
 const archiveWorkRequest = async ({ id, entityId, user }) => {
@@ -1898,10 +1911,9 @@ const unarchiveWorkRequest = async ({ id, entityId, user }) => {
 };
 
 const getWorkRequestCounts = async ({ entityId, user }) => {
-  const isAdmin = user?.role === 'Admin';
+  const isAdmin = !user || user?.role === 'Admin';
   let concernedWrIds = null;
-  if (!isAdmin) {
-    if (!user) return { active: 0, all: 0, archived: 0 };
+  if (user && user.role !== 'Admin') {
     concernedWrIds = await getUserConcernedWorkRequestIds(user, { entityId });
     if (concernedWrIds.length === 0) {
       return { active: 0, all: 0, archived: 0 };
@@ -1912,7 +1924,8 @@ const getWorkRequestCounts = async ({ entityId, user }) => {
     let q = supabaseAdmin
       .from('work_requests')
       .select('*', { count: 'exact', head: true })
-      .is('deleted_at', null);
+      .is('deleted_at', null)
+      .or('creation_approval_status.is.null,creation_approval_status.eq.approved');
     if (entityId && entityId !== 'ALL') q = q.eq('entity_id', entityId);
     if (!isAdmin && concernedWrIds) q = q.in('id', concernedWrIds);
     return q;
@@ -4411,6 +4424,362 @@ const rerouteWorkRequest = async ({ id, entityId, toPhase, reason, user }) => {
   };
 };
 
+const listCreationApprovals = async ({ entityId, user, status = 'pending', scope = 'mine', page, limit }) => {
+  if (!user || (user.role !== 'Admin' && user.role !== 'Manager')) {
+    throw new AppError({
+      statusCode: 403,
+      title: 'Forbidden',
+      detail: 'Only Admin and Manager roles can access creation approvals',
+    });
+  }
+
+  // Managers may see own submissions only; Admins may see 'all' or 'mine'
+  const effectiveScope = user.role === 'Manager' ? 'mine' : (scope === 'mine' ? 'mine' : 'all');
+  const validStatus = ['pending', 'rejected', 'approved'].includes(status) ? status : 'pending';
+
+  let query = supabaseAdmin
+    .from('work_requests')
+    .select('*, clients(name)')
+    .is('deleted_at', null)
+    .eq('creation_approval_status', validStatus)
+    .order('created_at', { ascending: false });
+
+  if (entityId && entityId !== 'ALL') {
+    query = query.eq('entity_id', entityId);
+  }
+
+  if (effectiveScope === 'mine') {
+    query = query.or(`created_by.eq.${user.id},and(created_by.is.null,requested_by.eq.${user.id})`);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new AppError({
+      statusCode: 500,
+      title: 'Database Error',
+      detail: 'Unable to list work request creation approvals',
+    });
+  }
+
+  let visibleRows = data || [];
+  // Admin entity entitlement filtering when in ALL view
+  if (user) {
+    const allowed = [];
+    for (const r of visibleRows) {
+      if (await isUserEntitledToEntity(r.entity_id, user)) {
+        allowed.push(r);
+      }
+    }
+    visibleRows = allowed;
+  }
+
+  const isPaginated = page !== undefined || limit !== undefined;
+  const pageNum = Math.max(1, parseInt(page, 10) || 1);
+  const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 50));
+  const resultRows = isPaginated
+    ? visibleRows.slice((pageNum - 1) * limitNum, pageNum * limitNum)
+    : visibleRows;
+
+  const wrIds = resultRows.map((r) => r.id);
+  const taskMap = await loadTasksForWorkRequests(wrIds);
+  const leadMap = await loadManagerLeadMap(resultRows);
+
+  const formatted = await Promise.all(
+    resultRows.map(async (row) => {
+      const code = await resolveEntityCode(row.entity_id);
+      const wr = toApiWorkRequest(row, code, user, leadMap.get(row.id));
+      const taskRows = (taskMap && taskMap.get(row.id)) || [];
+      const extras = await loadTaskExtras(taskRows.map((t) => t.id));
+      wr.tasks = taskRows.map((t) =>
+        toApiTask(t, {
+          checklist: extras.checklist.get(t.id) || [],
+          timeLogs: extras.timeLogs.get(t.id) || [],
+          taskDocuments: extras.taskDocuments.get(t.id) || [],
+          hasDocuments: extras.documentTaskIds.has(t.id),
+          assignees: extras.assignees ? extras.assignees.get(t.id) || [] : [],
+          taskAssignees: extras.taskAssignees ? extras.taskAssignees.get(t.id) || [] : [],
+          predMap: extras.predMap || new Map(),
+        })
+      );
+      wr.phases = {
+        pre_processing: {
+          tasks: wr.tasks.filter((t) => t.phase === 'pre_processing'),
+        },
+        processing: {
+          tasks: wr.tasks.filter((t) => t.phase === 'processing'),
+        },
+      };
+      return wr;
+    })
+  );
+
+  return {
+    data: formatted,
+    meta: {
+      total: visibleRows.length,
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(visibleRows.length / limitNum) || 1,
+    },
+  };
+};
+
+const decideWorkRequestCreationApproval = async ({ id, entityId, decision, reason, expectedVersion, user }) => {
+  if (!user || user.role !== 'Admin') {
+    throw new AppError({
+      statusCode: 403,
+      title: 'Forbidden',
+      detail: 'Admin access required to approve or reject work requests',
+    });
+  }
+
+  // Atomically verify current active actor role at decision time to protect against concurrent role revoking
+  const { data: currentActor, error: actorErr } = await supabaseAdmin
+    .from('users')
+    .select('id, role, is_active, entities')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (actorErr || !currentActor || currentActor.is_active === false || currentActor.role !== 'Admin') {
+    throw new AppError({
+      statusCode: 403,
+      title: 'Forbidden',
+      detail: 'Admin access required to approve or reject work requests',
+    });
+  }
+
+  if (!['approve', 'reject'].includes(decision)) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'Decision must be "approve" or "reject"',
+    });
+  }
+
+  if (decision === 'reject' && (!reason || typeof reason !== 'string' || reason.trim().length === 0)) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'Reason is required when rejecting a work request',
+    });
+  }
+
+  // Fetch WR
+  let query = supabaseAdmin
+    .from('work_requests')
+    .select('*')
+    .eq('id', id)
+    .is('deleted_at', null);
+
+  if (entityId && entityId !== 'ALL') {
+    query = query.eq('entity_id', entityId);
+  }
+
+  const { data: wr, error } = await query.maybeSingle();
+  if (error) {
+    throw new AppError({ statusCode: 500, title: 'Database Error', detail: 'Failed to retrieve work request' });
+  }
+  if (!wr) {
+    throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Work request not found' });
+  }
+
+  // Entitlement
+  const entitled = await isUserEntitledToEntity(wr.entity_id, user);
+  if (!entitled) {
+    throw new AppError({ statusCode: 403, title: 'Forbidden', detail: 'Not entitled to work request entity' });
+  }
+
+  if (wr.creation_approval_status !== 'pending') {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: `Work request is already ${wr.creation_approval_status}`,
+      code: 'INVALID_APPROVAL_STATE',
+    });
+  }
+
+  const currentVersion = wr.version || 1;
+  if (expectedVersion !== undefined && expectedVersion !== null && expectedVersion !== currentVersion) {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Work request was modified concurrently. Please reload.',
+      code: 'CONCURRENT_MODIFICATION',
+    });
+  }
+
+  const now = new Date().toISOString();
+  const nextVersion = currentVersion + 1;
+  const newStatus = decision === 'approve' ? 'approved' : 'rejected';
+  const cleanReason = decision === 'reject' ? reason.trim() : null;
+
+  const updateResult = await supabaseAdmin
+    .from('work_requests')
+    .update({
+      creation_approval_status: newStatus,
+      reviewed_by: user.id,
+      reviewed_at: now,
+      rejection_reason: cleanReason,
+      version: nextVersion,
+      updated_at: now,
+    })
+    .eq('id', id)
+    .eq('version', currentVersion)
+    .eq('creation_approval_status', 'pending')
+    .select();
+
+  if (updateResult.error) {
+    throw new AppError({ statusCode: 500, title: 'Database Error', detail: 'Failed to update work request approval' });
+  }
+
+  if (!updateResult.data || updateResult.data.length === 0) {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Work request was modified or decided concurrently. Please reload.',
+      code: 'CONCURRENT_MODIFICATION',
+    });
+  }
+
+  await auditService.log({
+    action: decision === 'approve' ? 'work_request.creation_approved' : 'work_request.creation_rejected',
+    table: 'work_requests',
+    recordId: id,
+    entity: wr.entity_id,
+    userId: user.id,
+    details: { decision, reason: cleanReason, version: nextVersion },
+  });
+
+  // Notify creator
+  const creatorId = wr.created_by || wr.requested_by;
+  if (creatorId) {
+    try {
+      await notify([creatorId], `wr.creation_${decision}d`, {
+        work_request_id: id,
+        wr_title: wr.title,
+        decision,
+        reason: cleanReason,
+        reviewed_by: user.id,
+      });
+    } catch (_e) {
+      // Notification errors must not fail business flow
+    }
+  }
+
+  return getWorkRequestById({ id, entityId: wr.entity_id, user, allowPending: true, includeTasks: true });
+};
+
+const resubmitWorkRequestCreation = async ({ id, entityId, expectedVersion, data: editData, user }) => {
+  if (!user) {
+    throw new AppError({ statusCode: 401, title: 'Unauthorized', detail: 'Authentication required' });
+  }
+
+  let query = supabaseAdmin
+    .from('work_requests')
+    .select('*')
+    .eq('id', id)
+    .is('deleted_at', null);
+
+  if (entityId && entityId !== 'ALL') {
+    query = query.eq('entity_id', entityId);
+  }
+
+  const { data: wr, error } = await query.maybeSingle();
+  if (error) {
+    throw new AppError({ statusCode: 500, title: 'Database Error', detail: 'Failed to retrieve work request' });
+  }
+  if (!wr) {
+    throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Work request not found' });
+  }
+
+  // Entitlement
+  const entitled = await isUserEntitledToEntity(wr.entity_id, user);
+  if (!entitled) {
+    throw new AppError({ statusCode: 403, title: 'Forbidden', detail: 'Not entitled to work request entity' });
+  }
+
+  // Creator check
+  const isCreator = user.id === wr.created_by || user.id === wr.requested_by;
+  if (!isCreator) {
+    throw new AppError({
+      statusCode: 403,
+      title: 'Forbidden',
+      detail: 'Only the creator may resubmit this work request',
+    });
+  }
+
+  if (wr.creation_approval_status !== 'rejected') {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: `Only rejected work requests can be resubmitted (current status: ${wr.creation_approval_status})`,
+      code: 'INVALID_APPROVAL_STATE',
+    });
+  }
+
+  const currentVersion = wr.version || 1;
+  if (expectedVersion !== undefined && expectedVersion !== null && expectedVersion !== currentVersion) {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Work request was modified concurrently. Please reload.',
+      code: 'CONCURRENT_MODIFICATION',
+    });
+  }
+
+  const now = new Date().toISOString();
+  const nextVersion = currentVersion + 1;
+  const updates = {
+    creation_approval_status: 'pending',
+    rejection_reason: null,
+    reviewed_by: null,
+    reviewed_at: null,
+    version: nextVersion,
+    updated_at: now,
+  };
+
+  if (editData && typeof editData === 'object') {
+    if (editData.title) updates.title = editData.title.trim();
+    if (editData.description !== undefined) updates.description = editData.description;
+    if (editData.dueDate) updates.due_date = editData.dueDate;
+    if (editData.priority) updates.priority = editData.priority;
+    if (editData.assignedTo !== undefined) updates.assigned_to = editData.assignedTo;
+    if (editData.coAssignees !== undefined) updates.co_assignees = editData.coAssignees;
+  }
+
+  const updateResult = await supabaseAdmin
+    .from('work_requests')
+    .update(updates)
+    .eq('id', id)
+    .eq('version', currentVersion)
+    .eq('creation_approval_status', 'rejected')
+    .select();
+
+  if (updateResult.error) {
+    throw new AppError({ statusCode: 500, title: 'Database Error', detail: 'Failed to resubmit work request' });
+  }
+
+  if (!updateResult.data || updateResult.data.length === 0) {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Work request was modified or resubmitted concurrently. Please reload.',
+      code: 'CONCURRENT_MODIFICATION',
+    });
+  }
+
+  await auditService.log({
+    action: 'work_request.creation_resubmitted',
+    table: 'work_requests',
+    recordId: id,
+    entity: wr.entity_id,
+    userId: user.id,
+    details: { version: nextVersion },
+  });
+
+  return getWorkRequestById({ id, entityId: wr.entity_id, user, allowPending: true, includeTasks: true });
+};
+
 module.exports = {
   listWorkRequests,
   createWorkRequest,
@@ -4420,6 +4789,9 @@ module.exports = {
   unarchiveWorkRequest,
   getWorkRequestCounts,
   deleteWorkRequest,
+  listCreationApprovals,
+  decideWorkRequestCreationApproval,
+  resubmitWorkRequestCreation,
   listTasks,
   getTaskById,
   createTask,
@@ -4448,6 +4820,7 @@ module.exports = {
   rerouteWorkRequest,
   isUserAssignedToTask,
   isManager,
+  checkHasManagerLead,
   validateProjectTeamRoles,
   loadTasksForWorkRequests,
   canViewWorkRequest,

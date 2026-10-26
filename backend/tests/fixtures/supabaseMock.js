@@ -184,7 +184,12 @@ const tableQuery = (table) => {
     if (fop === 'or') {
       return (filter.parts || []).some((p) => matchFilter(row, p));
     }
-    const rowValue = row[column];
+    let rowValue = row[column];
+    if (rowValue === undefined) {
+      if (column === 'creation_approval_status' || column === 'approval_status') {
+        rowValue = 'approved';
+      }
+    }
     if (fop === 'not') {
       return !matchFilter(row, { column, value, op: innerOp || 'eq' });
     }
@@ -321,6 +326,12 @@ const tableQuery = (table) => {
         const stored = { ...rec, id };
         if (VERSIONED_TABLES.has(table) && stored.version === undefined) {
           stored.version = 1;
+        }
+        if (table === 'work_requests' && stored.creation_approval_status === undefined) {
+          stored.creation_approval_status = 'approved';
+        }
+        if (table === 'tasks' && stored.approval_status === undefined) {
+          stored.approval_status = 'approved';
         }
         if (table === 'retainer_templates' && stored.template_type === undefined) {
           stored.template_type = 'retainer';

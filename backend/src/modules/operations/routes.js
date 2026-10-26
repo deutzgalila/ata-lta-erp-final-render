@@ -180,7 +180,7 @@ router.post(
 );
 
 router.get(
-  '/counts',
+  ['/work-requests/counts', '/counts'],
   resolveEntity({ allowAll: true }),
   requirePermission('workflow:view'),
   operationsController.counts
@@ -198,6 +198,21 @@ router.post(
   requirePermission('workflow:edit'),
   audit('work_request.created', { table: 'work_requests' }),
   operationsController.create
+);
+router.get(
+  ['/work-requests/creation-approvals', '/creation-approvals'],
+  resolveEntity({ allowAll: true }),
+  operationsController.listCreationApprovals
+);
+router.post(
+  ['/work-requests/:id/creation-approval', '/:id/creation-approval'],
+  resolveEntity(),
+  operationsController.decideCreationApproval
+);
+router.post(
+  ['/work-requests/:id/resubmit-creation', '/:id/resubmit-creation'],
+  resolveEntity(),
+  operationsController.resubmitCreation
 );
 router.get(
   ['/work-requests/:id', '/:id'],
