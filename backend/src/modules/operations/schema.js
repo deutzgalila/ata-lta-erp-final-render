@@ -366,9 +366,21 @@ const taskCreationApprovalDecisionSchema = z
     { message: 'Reason is required when rejecting', path: ['reason'] }
   );
 
+const taskResubmitDataSchema = z
+  .object({
+    title: z.string().min(1).max(255).optional(),
+    description: z.string().max(2000).optional().nullable(),
+    dueDate: z.string().optional().nullable(),
+    assigneeId: nullableUuid.optional(),
+    assignees: z.array(z.string().uuid()).optional().nullable(),
+    predecessors: z.array(z.string().uuid()).optional().nullable(),
+    requiredLinkType: z.string().max(50).optional().nullable(),
+  })
+  .strict();
+
 const taskResubmitCreationSchema = z.object({
   expectedVersion: z.number().int().positive(),
-  data: updateTaskSchema.optional(),
+  data: taskResubmitDataSchema.optional(),
 });
 
 module.exports = {

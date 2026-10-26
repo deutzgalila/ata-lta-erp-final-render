@@ -621,6 +621,132 @@ const tableQuery = (table) => {
  * Atomic RPC transition helpers for concurrency tests.
  */
 const rpcImpl = {
+  task_creation_review_decide: (params) => {
+    const fail = (code, message) => ({ data: null, error: { code, message } });
+    const taskId = params.p_task_id;
+    const wrId = params.p_work_request_id;
+    const entityId = params.p_entity_id;
+    const actorId = params.p_actor_id;
+    const expectedVersion = Number(params.p_expected_version);
+    const decision = params.p_decision;
+    const reason = params.p_reason;
+
+    const wr = mockTables.work_requests.get(wrId);
+    if (!wr || wr.deleted_at) return fail('P0002', 'WORK_REQUEST_NOT_FOUND');
+    if (entityId && wr.entity_id !== entityId) return fail('P0002', 'WORK_REQUEST_NOT_FOUND');
+    if (wr.creation_approval_status && wr.creation_approval_status !== 'approved') {
+      return fail('P0002', 'WORK_REQUEST_NOT_FOUND');
+    }
+
+    const actor = mockTables.users.get(actorId);
+    if (!actor || actor.is_active === false) return fail('42501', 'TASK_REVIEW_FORBIDDEN');
+    if (actor.role === 'Admin') return fail('42501', 'TASK_REVIEW_FORBIDDEN');
+    if (actor.role !== 'Manager') return fail('42501', 'TASK_REVIEW_FORBIDDEN');
+    if (wr.assigned_to !== actorId) return fail('42501', 'TASK_REVIEW_FORBIDDEN');
+
+    // Entitlement
+    const actorEntities = Array.isArray(actor.entities) ? actor.entities : [];
+    if (!actorEntities.includes('ALL')) {
+      const ent = mockTables.entities.get(wr.entity_id);
+      const code = ent?.code || wr.entity_id;
+      if (!actorEntities.includes(code)) return fail('42501', 'TASK_REVIEW_FORBIDDEN');
+    }
+
+    const task = mockTables.tasks.get(taskId);
+    if (!task || task.deleted_at || task.work_request_id !== wrId) {
+      return fail('P0002', 'TASK_NOT_FOUND');
+    }
+
+    const currentStatus = task.approval_status || 'approved';
+    if (currentStatus !== 'pending') {
+      return fail('P0001', 'TASK_REVIEW_STATE');
+    }
+
+    if (Number(task.version || 1) !== expectedVersion) {
+      return fail('P0001', 'TASK_REVIEW_CONFLICT');
+    }
+
+    const isApprove = decision === 'approve' || decision === 'approved';
+    const isReject = decision === 'reject' || decision === 'rejected';
+    if (!isApprove && !isReject) {
+      return fail('22023', 'INVALID_DECISION');
+    }
+
+    if (isReject && (!reason || typeof reason !== 'string' || reason.trim().length === 0)) {
+      return fail('22023', 'REASON_REQUIRED');
+    }
+
+    const now = nowIso();
+    const nextVersion = expectedVersion + 1;
+    task.approval_status = isApprove ? 'approved' : 'rejected';
+    task.reviewed_by = actorId;
+    task.reviewed_at = now;
+    task.rejection_reason = isReject ? reason.trim() : null;
+    task.version = nextVersion;
+    task.updated_at = now;
+
+    return { data: [JSON.parse(JSON.stringify(task))], error: null };
+  },
+  task_creation_review_resubmit: (params) => {
+    const fail = (code, message) => ({ data: null, error: { code, message } });
+    const taskId = params.p_task_id;
+    const wrId = params.p_work_request_id;
+    const entityId = params.p_entity_id;
+    const actorId = params.p_actor_id;
+    const expectedVersion = Number(params.p_expected_version);
+    const editData = params.p_data || {};
+
+    const wr = mockTables.work_requests.get(wrId);
+    if (!wr || wr.deleted_at) return fail('P0002', 'WORK_REQUEST_NOT_FOUND');
+    if (entityId && wr.entity_id !== entityId) return fail('P0002', 'WORK_REQUEST_NOT_FOUND');
+    if (wr.creation_approval_status && wr.creation_approval_status !== 'approved') {
+      return fail('P0002', 'WORK_REQUEST_NOT_FOUND');
+    }
+
+    const actor = mockTables.users.get(actorId);
+    if (!actor || actor.is_active === false) return fail('42501', 'TASK_REVIEW_FORBIDDEN');
+
+    const task = mockTables.tasks.get(taskId);
+    if (!task || task.deleted_at || task.work_request_id !== wrId) {
+      return fail('P0002', 'TASK_NOT_FOUND');
+    }
+
+    const creatorId =
+      task.created_by !== undefined && task.created_by !== null
+        ? task.created_by
+        : task.requested_by || null;
+    if (creatorId !== actorId) {
+      return fail('42501', 'TASK_REVIEW_FORBIDDEN');
+    }
+
+    const currentStatus = task.approval_status || 'approved';
+    if (currentStatus !== 'rejected') {
+      return fail('P0001', 'TASK_REVIEW_STATE');
+    }
+
+    if (Number(task.version || 1) !== expectedVersion) {
+      return fail('P0001', 'TASK_REVIEW_CONFLICT');
+    }
+
+    const now = nowIso();
+    const nextVersion = expectedVersion + 1;
+    task.approval_status = 'pending';
+    task.reviewed_by = null;
+    task.reviewed_at = null;
+    task.rejection_reason = null;
+    task.version = nextVersion;
+    task.updated_at = now;
+
+    if (editData.title !== undefined) task.title = String(editData.title).trim();
+    if (editData.description !== undefined) task.description = editData.description;
+    if (editData.dueDate !== undefined) task.due_date = editData.dueDate;
+    if (editData.assigneeId !== undefined) task.assignee_id = editData.assigneeId;
+    if (editData.assignees !== undefined) task.assignees = editData.assignees;
+    if (editData.predecessors !== undefined) task.predecessors = editData.predecessors;
+    if (editData.requiredLinkType !== undefined) task.required_link_type = editData.requiredLinkType;
+
+    return { data: [JSON.parse(JSON.stringify(task))], error: null };
+  },
   mutate_document_comment: (p) => {
     const fail = (code, message) => ({ data: null, error: { code, message } });
     const doc = mockTables.documents.get(p.p_document_id);

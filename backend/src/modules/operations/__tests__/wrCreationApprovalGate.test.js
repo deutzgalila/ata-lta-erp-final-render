@@ -781,5 +781,66 @@ describe('Parcel 1: Work Request Creation Admission Gate', () => {
 
       expect(approvedReport.body.data?.workRequests?.total).toBe(baseTotal + 1);
     });
+
+    it('approved submissions API does not confer ongoing task data access to non-member creator (CONTRACT R2)', async () => {
+      // Manager creates pending WR assigned to manager2 without self membership
+      const createRes = await request(app)
+        .post('/v1/work-requests')
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          title: 'Non-member Creator Test WR',
+          clientId: client.id,
+          assignedTo: manager2Id,
+          dueDate: '2026-12-31',
+          entity: 'ATA',
+        })
+        .expect(201);
+
+      const wrId = createRes.body.data.id;
+      const expectedVersion = createRes.body.data.version;
+
+      // While pending, creator can see it in own submissions
+      const pendingList = await request(app)
+        .get('/v1/operations/work-requests/creation-approvals?status=pending&scope=mine')
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(200);
+      expect(pendingList.body.data.some((w) => w.id === wrId)).toBe(true);
+
+      // Admin approves the WR
+      await request(app)
+        .post(`/v1/operations/work-requests/${wrId}/creation-approval`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          decision: 'approve',
+          expectedVersion,
+        })
+        .expect(200);
+
+      // Once approved, non-member creator cannot use approved submissions API to access it or its tasks
+      const approvedList = await request(app)
+        .get('/v1/operations/work-requests/creation-approvals?status=approved&scope=mine')
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(200);
+      expect(approvedList.body.data.some((w) => w.id === wrId)).toBe(false);
+
+      // Nor can creator access ordinary WR details
+      await request(app)
+        .get(`/v1/operations/work-requests/${wrId}`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(404);
+
+      // In contrast, assigned lead (manager2) has access to ordinary WR details
+      const leadWr = await request(app)
+        .get(`/v1/operations/work-requests/${wrId}`)
+        .set('Authorization', `Bearer ${manager2Token}`)
+        .set('X-Active-Entity', 'ATA')
+        .expect(200);
+      expect(leadWr.body.data.id).toBe(wrId);
+    });
   });
 });

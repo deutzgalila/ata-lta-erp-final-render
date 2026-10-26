@@ -60,33 +60,50 @@ const requireWorkflowEditOrTaskAssignee = async (req, res, next) => {
     }
 
     // 3. User IS assigned to task:
-    // May ONLY update status (and optional expectedVersion / version).
-    // If other fields are in req.body -> 403 Forbidden ("Assignees may only update task status")
-    const allowedKeys = new Set(['status', 'expectedVersion', 'expected_version', 'version']);
+    // May update status, checklist completion, or material fields (which triggers re-approval per Policy R6).
+    const allowedKeys = new Set([
+      'status',
+      'title',
+      'description',
+      'dueDate',
+      'assigneeId',
+      'assigneeName',
+      'assignees',
+      'coAssignees',
+      'predecessors',
+      'requiredLinkType',
+      'expectedVersion',
+      'expected_version',
+      'version',
+      'checklistCompletions',
+      'displayOrder',
+    ]);
     const bodyKeys = Object.keys(req.body || {});
     const disallowedKeys = bodyKeys.filter((key) => !allowedKeys.has(key));
 
-    if (disallowedKeys.length > 0 || !req.body || req.body.status === undefined) {
+    if (disallowedKeys.length > 0 || !req.body || bodyKeys.length === 0) {
       throw new AppError({
         statusCode: 403,
         title: 'Forbidden',
-        detail: 'Assignees may only update task status',
+        detail: 'Assignees may only update task status, checklist completions, or material task fields',
       });
     }
 
-    // Normalize 'Complete' -> 'Completed'
-    if (req.body.status === 'Complete') {
-      req.body.status = 'Completed';
-    }
+    if (req.body.status !== undefined) {
+      // Normalize 'Complete' -> 'Completed'
+      if (req.body.status === 'Complete') {
+        req.body.status = 'Completed';
+      }
 
-    // Target status restricted to 'In Progress' or 'Completed'. Other statuses -> 400 Bad Request
-    const allowedStatuses = ['In Progress', 'Completed'];
-    if (!allowedStatuses.includes(req.body.status)) {
-      throw new AppError({
-        statusCode: 400,
-        title: 'Bad Request',
-        detail: 'Assignees may only update task status to "In Progress" or "Completed"',
-      });
+      // Target status restricted to 'In Progress' or 'Completed'. Other statuses -> 400 Bad Request
+      const allowedStatuses = ['In Progress', 'Completed'];
+      if (!allowedStatuses.includes(req.body.status)) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Bad Request',
+          detail: 'Assignees may only update task status to "In Progress" or "Completed"',
+        });
+      }
     }
 
     next();
@@ -317,6 +334,16 @@ router.patch(
   operationsController.updateTask
 );
 router.post(
+  ['/work-requests/:wrId/tasks/:taskId/creation-approval', '/:wrId/tasks/:taskId/creation-approval'],
+  resolveEntity(),
+  operationsController.decideTaskCreationApproval
+);
+router.post(
+  ['/work-requests/:wrId/tasks/:taskId/resubmit-creation', '/:wrId/tasks/:taskId/resubmit-creation'],
+  resolveEntity(),
+  operationsController.resubmitTaskCreation
+);
+router.post(
   ['/work-requests/:wrId/tasks/:taskId/time-logs', '/:wrId/tasks/:taskId/time-logs', '/tasks/:taskId/time-logs'],
   resolveEntity(),
   requirePermission('timelog:create'),
@@ -354,6 +381,14 @@ tasksRouter.patch(
   requireWorkflowEditOrTaskAssignee,
   audit('task.updated', { table: 'tasks' }),
   operationsController.updateTask
+);
+tasksRouter.post(
+  '/:taskId/creation-approval',
+  operationsController.decideTaskCreationApproval
+);
+tasksRouter.post(
+  '/:taskId/resubmit-creation',
+  operationsController.resubmitTaskCreation
 );
 tasksRouter.delete(
   '/:taskId',

@@ -245,7 +245,17 @@ const formatDateManila = (dateVal) => {
 
 const toApiTask = (
   row,
-  { checklist = [], timeLogs = [], taskDocuments = [], hasDocuments = taskDocuments.length > 0, assignees = [], taskAssignees = [], predMap = new Map() } = {}
+  {
+    checklist = [],
+    timeLogs = [],
+    taskDocuments = [],
+    hasDocuments = taskDocuments.length > 0,
+    assignees = [],
+    taskAssignees = [],
+    predMap = new Map(),
+    user = null,
+    parentWr = null,
+  } = {}
 ) => {
   const taskLevelLogs = timeLogs.filter((t) => !t.checklist_item_id);
 
@@ -259,6 +269,24 @@ const toApiTask = (
           : row.assignee_id
             ? [row.assignee_id]
             : [];
+
+  const approvalStatus = row.approval_status || 'approved';
+  const createdBy = getCanonicalCreatorId(row);
+  const isCreator = isCreatorUser(user, row);
+  const isManagerUser = user && user.role === 'Manager' && user.role !== 'Admin';
+  const isAssignedLead = Boolean(
+    isManagerUser &&
+    parentWr &&
+    parentWr.assigned_to === user.id
+  );
+  const canReview = Boolean(
+    isAssignedLead &&
+    approvalStatus === 'pending'
+  );
+  const canResubmit = Boolean(
+    isCreator &&
+    approvalStatus === 'rejected'
+  );
 
   return {
     id: row.id,
@@ -338,6 +366,13 @@ const toApiTask = (
     })),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    approvalStatus,
+    createdBy,
+    reviewedBy: row.reviewed_by || null,
+    reviewedAt: row.reviewed_at || null,
+    rejectionReason: row.rejection_reason || null,
+    canReview,
+    canResubmit,
   };
 };
 
@@ -812,6 +847,8 @@ const listWorkRequests = async ({
           assignees: extras.assignees ? extras.assignees.get(t.id) || [] : [],
           taskAssignees: extras.taskAssignees ? extras.taskAssignees.get(t.id) || [] : [],
           predMap: extras.predMap || new Map(),
+          user,
+          parentWr: row,
         })
       );
       wr.phases = {
@@ -1288,6 +1325,11 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
         status: t.status,
         phase: t.phase,
         qa_status: 'none',
+        approval_status: 'approved',
+        created_by: user?.id || null,
+        reviewed_by: user?.id || null,
+        reviewed_at: now,
+        rejection_reason: null,
         assignee_id: assigneeId,
         assignee_name: assigneeName,
         predecessors: predecessorUuids,
@@ -1472,6 +1514,18 @@ const createWorkRequestGraph = async ({ entityId, data, user }) => {
         assignedAt: tr.assigned_at,
         assigned_at: tr.assigned_at,
         version: tr.version || 1,
+        approvalStatus: 'approved',
+        approval_status: 'approved',
+        createdBy: user?.id || null,
+        created_by: user?.id || null,
+        reviewedBy: user?.id || null,
+        reviewed_by: user?.id || null,
+        reviewedAt: now,
+        reviewed_at: now,
+        rejectionReason: null,
+        rejection_reason: null,
+        canReview: false,
+        canResubmit: false,
       };
     });
 
@@ -1724,6 +1778,8 @@ const getWorkRequestById = async ({ id, entityId, user, includeTasks = false, al
         assignees: extras.assignees ? extras.assignees.get(t.id) || [] : [],
         taskAssignees: extras.taskAssignees ? extras.taskAssignees.get(t.id) || [] : [],
         predMap: extras.predMap || new Map(),
+        user,
+        parentWr: data,
       })
     );
     wr.phases = {
@@ -1783,6 +1839,33 @@ const updateWorkRequest = async ({ id, entityId, data, user }) => {
         });
       }
     }
+
+    if (data.status === 'Completed') {
+      const { data: wrTasks, error: wrTasksErr } = await supabaseAdmin
+        .from('tasks')
+        .select('id, title, approval_status')
+        .eq('work_request_id', id)
+        .is('deleted_at', null);
+
+      if (wrTasksErr) {
+        throw new AppError({
+          statusCode: 500,
+          title: 'Database Error',
+          detail: 'Unable to verify task approval statuses',
+        });
+      }
+
+      const unapproved = (wrTasks || []).filter((t) => (t.approval_status || 'approved') !== 'approved');
+      if (unapproved.length > 0) {
+        const list = unapproved.map((t) => `"${t.title || t.id}" (${t.approval_status || 'pending'})`).join(', ');
+        throw new AppError({
+          statusCode: 409,
+          title: 'Conflict',
+          detail: `Cannot mark work request Completed: ${unapproved.length} task(s) require creation approval review: ${list}`,
+          code: 'TASK_REVIEW_REQUIRED',
+        });
+      }
+    }
   }
 
   // The persisted work request owns its entity, including cross-entity lookups
@@ -1813,6 +1896,27 @@ const updateWorkRequest = async ({ id, entityId, data, user }) => {
       assignedTo: data.assignedTo !== undefined ? data.assignedTo : existing.assignedTo,
       coAssignees: data.coAssignees !== undefined ? data.coAssignees : existing.coAssignees,
     });
+  }
+
+  if (data.status === 'Completed' || data.phase === 'completion') {
+    const { data: wrTasks } = await supabaseAdmin
+      .from('tasks')
+      .select('id, title, approval_status')
+      .eq('work_request_id', id)
+      .is('deleted_at', null);
+
+    const unapproved = (wrTasks || []).filter(
+      (t) => (t.approval_status || 'approved') !== 'approved'
+    );
+    if (unapproved.length > 0) {
+      const list = unapproved.map((t) => `"${t.title || t.id}" (${t.approval_status})`).join(', ');
+      throw new AppError({
+        statusCode: 409,
+        title: 'Conflict',
+        detail: `Cannot complete work request: ${unapproved.length} task(s) have unapproved creation review status: ${list}`,
+        code: 'TASK_CREATION_REVIEW_PENDING',
+      });
+    }
   }
 
   // OCC (Spec 2.2 / R-10): version-guard the update when the client declares
@@ -1963,6 +2067,7 @@ const deleteWorkRequest = async ({ id, entityId, user }) => {
 };
 
 const listTasks = async ({ workRequestId, entityId, user, internal = false }) => {
+  let parentWr = null;
   if (!internal) {
     if (!user) {
       throw new AppError({
@@ -1974,7 +2079,7 @@ const listTasks = async ({ workRequestId, entityId, user, internal = false }) =>
 
     let wrQuery = supabaseAdmin
       .from('work_requests')
-      .select('id, entity_id, deleted_at, creation_approval_status')
+      .select('id, entity_id, deleted_at, creation_approval_status, assigned_to')
       .eq('id', workRequestId)
       .is('deleted_at', null);
 
@@ -1990,6 +2095,7 @@ const listTasks = async ({ workRequestId, entityId, user, internal = false }) =>
         detail: 'Work request not found',
       });
     }
+    parentWr = wr;
 
     if (user.role !== 'Admin') {
       const isMember = await isUserMemberOfWorkRequest(workRequestId, user, { entityId });
@@ -2040,6 +2146,8 @@ const listTasks = async ({ workRequestId, entityId, user, internal = false }) =>
       assignees: extras.assignees ? extras.assignees.get(t.id) || [] : [],
       taskAssignees: extras.taskAssignees ? extras.taskAssignees.get(t.id) || [] : [],
       predMap: extras.predMap || new Map(),
+      user,
+      parentWr,
     })
   );
 };
@@ -2074,10 +2182,11 @@ const getTaskById = async ({
   if (!data) return null;
 
   // Validate parent WR
+  let parentWr = null;
   if (data.work_request_id) {
     let wrQuery = supabaseAdmin
       .from('work_requests')
-      .select('id, entity_id, deleted_at, creation_approval_status')
+      .select('id, entity_id, deleted_at, creation_approval_status, assigned_to')
       .eq('id', data.work_request_id)
       .is('deleted_at', null);
     if (entityId && entityId !== 'ALL') {
@@ -2086,6 +2195,7 @@ const getTaskById = async ({
     const { data: wr } = await wrQuery.maybeSingle();
     if (!wr) return null; // Parent deleted or entity mismatch
     if (wr.creation_approval_status && wr.creation_approval_status !== 'approved') return null;
+    parentWr = wr;
   }
 
   // Authorization check
@@ -2104,7 +2214,7 @@ const getTaskById = async ({
   }
 
   if (skipExtras) {
-    return toApiTask(data);
+    return toApiTask(data, { user, parentWr });
   }
 
   if (data.assignee_id && (!data.assignee_name || isValidUUID(data.assignee_name))) {
@@ -2121,14 +2231,17 @@ const getTaskById = async ({
     assignees: extras.assignees ? extras.assignees.get(taskId) || [] : [],
     taskAssignees: extras.taskAssignees ? extras.taskAssignees.get(taskId) || [] : [],
     predMap: extras.predMap || new Map(),
+    user,
+    parentWr,
   });
 };
 
-const createTask = async ({ workRequestId, entityId, data, user: _user }) => {
-  if (data.checklist?.length) assertChecklistEditor(_user);
+const createTask = async ({ workRequestId, entityId, data, user: _user, caller }) => {
+  const effectiveUser = caller || _user;
+  if (data.checklist?.length) assertChecklistEditor(effectiveUser);
   const { data: wr } = await supabaseAdmin
     .from('work_requests')
-    .select('phase, status, creation_approval_status')
+    .select('id, phase, status, creation_approval_status, assigned_to, entity_id')
     .eq('id', workRequestId)
     .is('deleted_at', null)
     .maybeSingle();
@@ -2148,6 +2261,28 @@ const createTask = async ({ workRequestId, entityId, data, user: _user }) => {
       detail: 'Completed Work Requests are locked: tasks cannot be added to a completed request.',
       code: 'COMPLETED_WR_LOCKED',
     });
+  }
+
+  const isEmployeeCaller = Boolean(effectiveUser && effectiveUser.role !== 'Admin' && effectiveUser.role !== 'Manager');
+  if (isEmployeeCaller) {
+    const isMember = await isUserMemberOfWorkRequest(workRequestId, effectiveUser, { entityId: wr.entity_id });
+    if (!isMember) {
+      throw new AppError({
+        statusCode: 403,
+        title: 'Forbidden',
+        detail: 'You do not have access to add tasks to this work request',
+      });
+    }
+
+    const hasLead = await checkHasManagerLead(wr.assigned_to, wr.entity_id);
+    if (!hasLead) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Validation Error',
+        detail: 'Work request must have an assigned Manager lead before tasks can be added by team members.',
+        code: 'MANAGER_LEAD_REQUIRED',
+      });
+    }
   }
 
   let phase = data.phase || null;
@@ -2202,11 +2337,12 @@ const createTask = async ({ workRequestId, entityId, data, user: _user }) => {
           : []
   ).filter(isValidUUID);
 
-  if (phase === 'pre_processing' && declaredPreds.length > 0) {
+  if (declaredPreds.length > 0) {
     const { data: predPhaseTasks, error: predPhaseErr } = await supabaseAdmin
       .from('tasks')
-      .select('id, title, phase')
+      .select('id, title, phase, work_request_id')
       .in('id', declaredPreds)
+      .eq('work_request_id', workRequestId)
       .is('deleted_at', null);
 
     if (predPhaseErr) {
@@ -2217,14 +2353,27 @@ const createTask = async ({ workRequestId, entityId, data, user: _user }) => {
       });
     }
 
-    const invalidProcessingPred = (predPhaseTasks || []).find((p) => p.phase === 'processing');
-    if (invalidProcessingPred) {
+    const foundIds = new Set((predPhaseTasks || []).map((p) => p.id));
+    const missingPredIds = declaredPreds.filter((pId) => !foundIds.has(pId));
+    if (missingPredIds.length > 0) {
       throw new AppError({
         statusCode: 400,
-        title: 'Invalid Dependency',
-        detail: `Pre-processing task "${data.title}" cannot depend on processing task "${invalidProcessingPred.title || invalidProcessingPred.id}". Upstream tasks cannot depend on downstream phases.`,
-        code: 'INVALID_PHASE_DEPENDENCY',
+        title: 'Invalid Dependencies',
+        detail: `Prerequisite task(s) do not exist or belong to another work request: ${missingPredIds.join(', ')}`,
+        code: 'TASK_PREDECESSORS_NOT_FOUND',
       });
+    }
+
+    if (phase === 'pre_processing') {
+      const invalidProcessingPred = (predPhaseTasks || []).find((p) => p.phase === 'processing');
+      if (invalidProcessingPred) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Invalid Dependency',
+          detail: `Pre-processing task "${data.title}" cannot depend on processing task "${invalidProcessingPred.title || invalidProcessingPred.id}". Upstream tasks cannot depend on downstream phases.`,
+          code: 'INVALID_PHASE_DEPENDENCY',
+        });
+      }
     }
   }
 
@@ -2238,6 +2387,11 @@ const createTask = async ({ workRequestId, entityId, data, user: _user }) => {
   if ((!assigneeName || isValidUUID(assigneeName)) && primaryAssigneeId) {
     assigneeName = await resolveAssigneeName(primaryAssigneeId, assigneeName);
   }
+  const approvalStatus = isEmployeeCaller ? 'pending' : 'approved';
+  const createdBy = effectiveUser?.id || null;
+  const reviewedBy = isEmployeeCaller ? null : (effectiveUser?.id || null);
+  const reviewedAt = isEmployeeCaller ? null : now;
+
   const record = {
     id,
     work_request_id: workRequestId,
@@ -2247,13 +2401,18 @@ const createTask = async ({ workRequestId, entityId, data, user: _user }) => {
     version: 1,
     phase,
     qa_status: 'none',
+    approval_status: approvalStatus,
+    created_by: createdBy,
+    reviewed_by: reviewedBy,
+    reviewed_at: reviewedAt,
+    rejection_reason: null,
     assignee_id: primaryAssigneeId,
     assignee_name: assigneeName,
     predecessors: Array.isArray(data.predecessors) ? data.predecessors.filter(isValidUUID) : [],
     due_date: data.dueDate || null,
     required_link_type: data.requiredLinkType || null,
     display_order: data.displayOrder ?? 0,
-    assigned_by: _user?.id || null,
+    assigned_by: effectiveUser?.id || null,
     assigned_at: primaryAssigneeId ? now : null,
     created_at: now,
     updated_at: now,
@@ -2296,7 +2455,7 @@ const createTask = async ({ workRequestId, entityId, data, user: _user }) => {
   }
   // Time logs in task snapshots are read-only. Use the permission-checked logging endpoints.
 
-  return getTaskById({ workRequestId, taskId: id, entityId, internal: true });
+  return getTaskById({ workRequestId, taskId: id, entityId, internal: true, user: _user });
 };
 
 const readChecklistRows = async (taskId) => {
@@ -2407,6 +2566,16 @@ const addTimeLogs = async ({ workRequestId, taskId, entityId, logs, user }) => {
     throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Task not found' });
   }
 
+  const currentApprovalStatus = existing.approvalStatus || existing.approval_status || 'approved';
+  if (currentApprovalStatus === 'rejected') {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Task is rejected and locked against time logging',
+      code: 'TASK_REJECTED_LOCKED',
+    });
+  }
+
   if (!await isUserAssignedToTask(taskId, user.id)) {
     throw new AppError({ statusCode: 403, title: 'Forbidden', detail: 'You are not assigned to this task' });
   }
@@ -2503,6 +2672,16 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user, 
   });
   if (!existing) {
     throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Task not found' });
+  }
+
+  const currentApprovalStatus = existing.approvalStatus || existing.approval_status || 'approved';
+  if (currentApprovalStatus === 'rejected') {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Task is rejected and locked against direct modification. Use resubmit-creation to submit corrections.',
+      code: 'TASK_REJECTED_LOCKED',
+    });
   }
 
   const effectiveWrId = workRequestId || existing.workRequestId || existing.work_request_id;
@@ -2765,6 +2944,29 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user, 
 
   if (data.requiredLinkType !== undefined) {
     updates.required_link_type = data.requiredLinkType || null;
+  }
+
+  // Material Employee Edit Reset (Policy R6):
+  // When an employee caller modifies material fields (title, description, dueDate, assigneeId, assignees, coAssignees, predecessors, requiredLinkType)
+  // on an approved task, its approval_status resets to 'pending', clearing review metadata.
+  // Routine status transitions and checklist toggles do not reset approval.
+  const isEmployeeCaller = Boolean(_user && _user.role !== 'Admin' && _user.role !== 'Manager');
+  const hasMaterialFieldEdit = Boolean(
+    (data.title !== undefined && data.title !== existing.title) ||
+    (data.description !== undefined && data.description !== existing.description) ||
+    (data.dueDate !== undefined && data.dueDate !== (existing.dueDate || existing.due_date)) ||
+    (data.assigneeId !== undefined && data.assigneeId !== existing.assigneeId) ||
+    (data.assignees !== undefined) ||
+    (data.coAssignees !== undefined) ||
+    (data.predecessors !== undefined) ||
+    (data.requiredLinkType !== undefined && data.requiredLinkType !== (existing.requiredLinkType || existing.required_link_type))
+  );
+
+  if (isEmployeeCaller && hasMaterialFieldEdit && currentApprovalStatus === 'approved') {
+    updates.approval_status = 'pending';
+    updates.reviewed_by = null;
+    updates.reviewed_at = null;
+    updates.rejection_reason = null;
   }
 
   // OCC (Spec 2.2 / R-10): version-guard the update when the client declares
@@ -4009,7 +4211,7 @@ const checkAdvancementGate = async ({ workRequestId, fromPhase, toPhase }) => {
   // Fetch all tasks for this work request
   const { data: tasks, error } = await supabaseAdmin
     .from('tasks')
-    .select('id, title, status, phase, qa_status')
+    .select('id, title, status, phase, qa_status, approval_status')
     .eq('work_request_id', workRequestId)
     .is('deleted_at', null);
 
@@ -4018,6 +4220,18 @@ const checkAdvancementGate = async ({ workRequestId, fromPhase, toPhase }) => {
       statusCode: 500,
       title: 'Database Error',
       detail: 'Unable to fetch tasks for advancement gate check',
+    });
+  }
+
+  // Phase gate (Policy R7): Any pending or rejected non-deleted task blocks phase advancement
+  const unapprovedTasks = (tasks || []).filter((t) => (t.approval_status || 'approved') !== 'approved');
+  if (unapprovedTasks.length > 0) {
+    const list = unapprovedTasks.map((t) => `"${t.title || t.id}" (${t.approval_status || 'pending'})`).join(', ');
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: `Advancement gate failed: ${unapprovedTasks.length} task(s) require creation approval review: ${list}`,
+      code: 'TASK_REVIEW_REQUIRED',
     });
   }
 
@@ -4476,6 +4690,14 @@ const listCreationApprovals = async ({ entityId, user, status = 'pending', scope
     const allowed = [];
     for (const r of visibleRows) {
       if (await isUserEntitledToEntity(r.entity_id, user)) {
+        // Creator submission access must not confer ongoing project membership after admission (CONTRACT R2).
+        // For approved rows, require ordinary membership before returning current details/children.
+        if (validStatus === 'approved' && user.role !== 'Admin') {
+          const isMember = await isUserMemberOfWorkRequest(r.id, user, { entityId: r.entity_id });
+          if (!isMember) {
+            continue;
+          }
+        }
         allowed.push(r);
       }
     }
@@ -4817,6 +5039,461 @@ const resubmitWorkRequestCreation = async ({ id, entityId, expectedVersion, data
   return getWorkRequestById({ id, entityId: wr.entity_id, user, allowPending: true, includeTasks: true });
 };
 
+const mapTaskReviewRpcError = (error, defaultMsg = 'Task review error') => {
+  const msg = error?.message || '';
+  const code = error?.code || '';
+  if (msg.includes('TASK_REVIEW_FORBIDDEN') || code === '42501') {
+    return new AppError({
+      statusCode: 403,
+      title: 'Forbidden',
+      detail: 'Manager lead access required to review task creation',
+      code: 'TASK_REVIEW_FORBIDDEN',
+    });
+  }
+  if (msg.includes('TASK_REVIEW_CONFLICT') || msg.includes('CONCURRENT_MODIFICATION')) {
+    return new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Task was modified concurrently. Please reload.',
+      code: 'TASK_REVIEW_CONFLICT',
+    });
+  }
+  if (msg.includes('TASK_REVIEW_STATE') || msg.includes('INVALID_APPROVAL_STATE')) {
+    return new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Task is not in a valid state for this action',
+      code: 'TASK_REVIEW_STATE',
+    });
+  }
+  if (msg.includes('TASK_REJECTED_LOCKED')) {
+    return new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Task is rejected and locked against modification',
+      code: 'TASK_REJECTED_LOCKED',
+    });
+  }
+  if (msg.includes('TASK_REVIEW_REQUIRED')) {
+    return new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'All tasks must be approved before advancing phase or completing work request',
+      code: 'TASK_REVIEW_REQUIRED',
+    });
+  }
+  if (msg.includes('TASK_NOT_FOUND')) {
+    return new AppError({
+      statusCode: 404,
+      title: 'Not Found',
+      detail: 'Task not found',
+      code: 'TASK_NOT_FOUND',
+    });
+  }
+  if (msg.includes('WORK_REQUEST_NOT_FOUND')) {
+    return new AppError({
+      statusCode: 404,
+      title: 'Not Found',
+      detail: 'Work request not found',
+      code: 'WORK_REQUEST_NOT_FOUND',
+    });
+  }
+  if (msg.includes('REASON_REQUIRED')) {
+    return new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'Reason is required when rejecting a task',
+      code: 'REASON_REQUIRED',
+    });
+  }
+  if (msg.includes('INVALID_DECISION')) {
+    return new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'Decision must be "approve" or "reject"',
+      code: 'INVALID_DECISION',
+    });
+  }
+  return new AppError({
+    statusCode: 500,
+    title: 'Database Error',
+    detail: msg || defaultMsg,
+  });
+};
+
+const decideTaskCreationApproval = async ({
+  workRequestId,
+  taskId,
+  entityId,
+  decision,
+  reason,
+  expectedVersion,
+  user,
+}) => {
+  if (!user || user.role === 'Admin') {
+    throw new AppError({
+      statusCode: 403,
+      title: 'Forbidden',
+      detail: 'Admins cannot decide task creation reviews; only the assigned Manager lead may review tasks',
+      code: 'TASK_REVIEW_FORBIDDEN',
+    });
+  }
+  if (user.role !== 'Manager') {
+    throw new AppError({
+      statusCode: 403,
+      title: 'Forbidden',
+      detail: 'Only the assigned Manager lead may review tasks',
+      code: 'TASK_REVIEW_FORBIDDEN',
+    });
+  }
+
+  // Atomically verify current active actor role at decision time to protect against concurrent role revoking
+  const { data: currentActor, error: actorErr } = await supabaseAdmin
+    .from('users')
+    .select('id, role, is_active, entities')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (actorErr || !currentActor || currentActor.is_active === false || currentActor.role !== 'Manager') {
+    throw new AppError({
+      statusCode: 403,
+      title: 'Forbidden',
+      detail: 'Only active Manager leads may review tasks',
+      code: 'TASK_REVIEW_FORBIDDEN',
+    });
+  }
+
+  let effectiveWrId = workRequestId;
+  if (!effectiveWrId) {
+    const { data: t } = await supabaseAdmin
+      .from('tasks')
+      .select('work_request_id')
+      .eq('id', taskId)
+      .maybeSingle();
+    effectiveWrId = t?.work_request_id;
+  }
+
+  if (!effectiveWrId) {
+    throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Work request not found', code: 'WORK_REQUEST_NOT_FOUND' });
+  }
+
+  // Fetch parent WR
+  let wrQuery = supabaseAdmin
+    .from('work_requests')
+    .select('id, entity_id, status, phase, assigned_to, creation_approval_status')
+    .eq('id', effectiveWrId)
+    .is('deleted_at', null);
+
+  if (entityId && entityId !== 'ALL') {
+    wrQuery = wrQuery.eq('entity_id', entityId);
+  }
+
+  const { data: wr, error: wrErr } = await wrQuery.maybeSingle();
+  if (wrErr) {
+    throw new AppError({ statusCode: 500, title: 'Database Error', detail: 'Failed to retrieve work request' });
+  }
+  if (!wr) {
+    throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Work request not found', code: 'WORK_REQUEST_NOT_FOUND' });
+  }
+  if (wr.creation_approval_status && wr.creation_approval_status !== 'approved') {
+    throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Work request not found', code: 'WORK_REQUEST_NOT_FOUND' });
+  }
+
+  // Strict Lead check: only assigned_to Manager may decide
+  if (wr.assigned_to !== currentActor.id) {
+    throw new AppError({
+      statusCode: 403,
+      title: 'Forbidden',
+      detail: 'Only the assigned Manager lead may review tasks on this work request',
+      code: 'TASK_REVIEW_FORBIDDEN',
+    });
+  }
+
+  // Entitlement
+  const entitled = await isUserEntitledToEntity(wr.entity_id, currentActor);
+  if (!entitled) {
+    throw new AppError({ statusCode: 403, title: 'Forbidden', detail: 'Not entitled to work request entity', code: 'TASK_REVIEW_FORBIDDEN' });
+  }
+
+  if (!['approve', 'reject'].includes(decision)) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'Decision must be "approve" or "reject"',
+      code: 'INVALID_DECISION',
+    });
+  }
+
+  if (decision === 'reject' && (!reason || typeof reason !== 'string' || reason.trim().length === 0)) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'Reason is required when rejecting a task',
+      code: 'REASON_REQUIRED',
+    });
+  }
+
+  // Fetch task
+  const { data: task, error: taskErr } = await supabaseAdmin
+    .from('tasks')
+    .select('*')
+    .eq('id', taskId)
+    .eq('work_request_id', effectiveWrId)
+    .is('deleted_at', null)
+    .maybeSingle();
+
+  if (taskErr) {
+    throw new AppError({ statusCode: 500, title: 'Database Error', detail: 'Failed to retrieve task' });
+  }
+  if (!task) {
+    throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Task not found', code: 'TASK_NOT_FOUND' });
+  }
+
+  const currentStatus = task.approval_status || 'approved';
+  if (currentStatus !== 'pending') {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: `Task is already ${currentStatus}`,
+      code: 'TASK_REVIEW_STATE',
+    });
+  }
+
+  const currentVersion = task.version || 1;
+  if (expectedVersion !== undefined && expectedVersion !== null && expectedVersion !== currentVersion) {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Task was modified concurrently. Please reload.',
+      code: 'TASK_REVIEW_CONFLICT',
+    });
+  }
+
+  const rpcResult = await supabaseAdmin.rpc('task_creation_review_decide', {
+    p_task_id: taskId,
+    p_work_request_id: effectiveWrId,
+    p_entity_id: wr.entity_id,
+    p_actor_id: user.id,
+    p_expected_version: expectedVersion || currentVersion,
+    p_decision: decision,
+    p_reason: decision === 'reject' ? reason.trim() : null,
+  });
+
+  if (rpcResult.error) {
+    throw mapTaskReviewRpcError(rpcResult.error, 'Failed to decide task creation approval');
+  }
+
+  const cleanReason = decision === 'reject' ? reason.trim() : null;
+  const nextVersion = currentVersion + 1;
+
+  await auditService.log({
+    action: decision === 'approve' ? 'task.creation_approved' : 'task.creation_rejected',
+    table: 'tasks',
+    recordId: taskId,
+    entity: wr.entity_id,
+    userId: user.id,
+    details: { decision, reason: cleanReason, version: nextVersion, workRequestId: effectiveWrId },
+  });
+
+  const creatorId = getCanonicalCreatorId(task);
+  if (creatorId) {
+    try {
+      await notify([creatorId], 'pending_request.resolved', {
+        task_id: taskId,
+        work_request_id: effectiveWrId,
+        task_title: task.title,
+        decision,
+        reason: cleanReason,
+        reviewed_by: user.id,
+      });
+    } catch (_e) {
+      // Notification errors must not fail business flow
+    }
+  }
+
+  return getTaskById({ taskId, workRequestId: effectiveWrId, entityId: wr.entity_id, user });
+};
+
+const resubmitTaskCreation = async ({
+  workRequestId,
+  taskId,
+  entityId,
+  expectedVersion,
+  data: editData,
+  user,
+}) => {
+  if (!user) {
+    throw new AppError({ statusCode: 401, title: 'Unauthorized', detail: 'Authentication required' });
+  }
+
+  const allowedFields = new Set([
+    'title',
+    'description',
+    'dueDate',
+    'assigneeId',
+    'assignees',
+    'predecessors',
+    'requiredLinkType',
+  ]);
+  if (editData && typeof editData === 'object') {
+    for (const key of Object.keys(editData)) {
+      if (!allowedFields.has(key)) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Validation Error',
+          detail: `Unsupported field in task resubmission: ${key}. Resubmission only permits title, description, dueDate, assigneeId, assignees, predecessors, and requiredLinkType.`,
+          code: 'UNSUPPORTED_RESUBMISSION_FIELD',
+        });
+      }
+    }
+  }
+
+  let effectiveWrId = workRequestId;
+  if (!effectiveWrId) {
+    const { data: t } = await supabaseAdmin
+      .from('tasks')
+      .select('work_request_id')
+      .eq('id', taskId)
+      .maybeSingle();
+    effectiveWrId = t?.work_request_id;
+  }
+
+  if (!effectiveWrId) {
+    throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Work request not found', code: 'WORK_REQUEST_NOT_FOUND' });
+  }
+
+  // Fetch parent WR
+  let wrQuery = supabaseAdmin
+    .from('work_requests')
+    .select('id, entity_id, status, phase, creation_approval_status')
+    .eq('id', effectiveWrId)
+    .is('deleted_at', null);
+
+  if (entityId && entityId !== 'ALL') {
+    wrQuery = wrQuery.eq('entity_id', entityId);
+  }
+
+  const { data: wr, error: wrErr } = await wrQuery.maybeSingle();
+  if (wrErr) {
+    throw new AppError({ statusCode: 500, title: 'Database Error', detail: 'Failed to retrieve work request' });
+  }
+  if (!wr) {
+    throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Work request not found', code: 'WORK_REQUEST_NOT_FOUND' });
+  }
+  if (wr.creation_approval_status && wr.creation_approval_status !== 'approved') {
+    throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Work request not found', code: 'WORK_REQUEST_NOT_FOUND' });
+  }
+
+  // Fetch task
+  const { data: task, error: taskErr } = await supabaseAdmin
+    .from('tasks')
+    .select('*')
+    .eq('id', taskId)
+    .eq('work_request_id', effectiveWrId)
+    .is('deleted_at', null)
+    .maybeSingle();
+
+  if (taskErr) {
+    throw new AppError({ statusCode: 500, title: 'Database Error', detail: 'Failed to retrieve task' });
+  }
+  if (!task) {
+    throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Task not found', code: 'TASK_NOT_FOUND' });
+  }
+
+  // Strict creator check
+  const isCreator = isCreatorUser(user, task);
+  if (!isCreator) {
+    throw new AppError({
+      statusCode: 403,
+      title: 'Forbidden',
+      detail: 'Only the creator may resubmit this task',
+      code: 'TASK_REVIEW_FORBIDDEN',
+    });
+  }
+
+  if (task.approval_status !== 'rejected') {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: `Only rejected tasks can be resubmitted (current status: ${task.approval_status || 'approved'})`,
+      code: 'TASK_REVIEW_STATE',
+    });
+  }
+
+  const currentVersion = task.version || 1;
+  if (expectedVersion !== undefined && expectedVersion !== null && expectedVersion !== currentVersion) {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Task was modified concurrently. Please reload.',
+      code: 'TASK_REVIEW_CONFLICT',
+    });
+  }
+
+  // Validate predecessors if provided
+  if (editData?.predecessors && Array.isArray(editData.predecessors) && editData.predecessors.length > 0) {
+    const predIds = editData.predecessors.filter(isValidUUID);
+    const { data: predTasks, error: predErr } = await supabaseAdmin
+      .from('tasks')
+      .select('id, work_request_id')
+      .in('id', predIds)
+      .eq('work_request_id', effectiveWrId)
+      .is('deleted_at', null);
+
+    if (predErr || !predTasks || predTasks.length !== predIds.length) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Validation Error',
+        detail: 'One or more predecessor tasks do not exist or belong to another work request',
+        code: 'INVALID_PREDECESSORS',
+      });
+    }
+  }
+
+  // Call RPC
+  const rpcResult = await supabaseAdmin.rpc('task_creation_review_resubmit', {
+    p_task_id: taskId,
+    p_work_request_id: effectiveWrId,
+    p_entity_id: wr.entity_id,
+    p_actor_id: user.id,
+    p_expected_version: expectedVersion || currentVersion,
+    p_data: editData || {},
+  });
+
+  if (rpcResult.error) {
+    throw mapTaskReviewRpcError(rpcResult.error, 'Failed to resubmit task creation');
+  }
+
+  // Update task_assignees join table if explicit assignees passed
+  if (editData && Array.isArray(editData.assignees)) {
+    await supabaseAdmin.from('task_assignees').delete().eq('task_id', taskId);
+    const uniqueAssignees = [...new Set(editData.assignees.filter(isValidUUID))];
+    if (uniqueAssignees.length) {
+      const now = new Date().toISOString();
+      await supabaseAdmin.from('task_assignees').insert(uniqueAssignees.map((userId) => ({
+        id: randomUUID(),
+        task_id: taskId,
+        user_id: userId,
+        assigned_by: user.id,
+        assigned_at: now,
+        created_at: now,
+      })));
+    }
+  }
+
+  const nextVersion = currentVersion + 1;
+  await auditService.log({
+    action: 'task.creation_resubmitted',
+    table: 'tasks',
+    recordId: taskId,
+    entity: wr.entity_id,
+    userId: user.id,
+    details: { version: nextVersion, workRequestId: effectiveWrId },
+  });
+
+  return getTaskById({ taskId, workRequestId: effectiveWrId, entityId: wr.entity_id, user });
+};
+
 module.exports = {
   listWorkRequests,
   createWorkRequest,
@@ -4829,6 +5506,8 @@ module.exports = {
   listCreationApprovals,
   decideWorkRequestCreationApproval,
   resubmitWorkRequestCreation,
+  decideTaskCreationApproval,
+  resubmitTaskCreation,
   listTasks,
   getTaskById,
   createTask,

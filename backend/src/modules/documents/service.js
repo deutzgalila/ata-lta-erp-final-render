@@ -241,7 +241,7 @@ const createDocument = async ({ entityId, entityCode, userId, data }) => {
   if (data.linkedTaskId) {
     const { data: task, error: taskError } = await supabaseAdmin
       .from('tasks')
-      .select('id, work_request_id, assignee_id')
+      .select('id, work_request_id, assignee_id, approval_status')
       .eq('id', data.linkedTaskId)
       .single();
 
@@ -250,6 +250,15 @@ const createDocument = async ({ entityId, entityCode, userId, data }) => {
         statusCode: 400,
         title: 'Validation Error',
         detail: `Linked task ${data.linkedTaskId} does not exist`,
+      });
+    }
+
+    if (task.approval_status === 'rejected') {
+      throw new AppError({
+        statusCode: 409,
+        title: 'Conflict',
+        detail: 'Task is rejected and locked against document attachments',
+        code: 'TASK_REJECTED_LOCKED',
       });
     }
 
@@ -443,7 +452,24 @@ const updateDocument = async ({ entityId, id, userId, data, user, caller, intern
   if (data.documentType !== undefined) updates.document_type = data.documentType;
   if (data.category !== undefined) updates.category = data.category;
   if (data.description !== undefined) updates.description = data.description;
-  if (data.linkedTaskId !== undefined) updates.linked_task_id = data.linkedTaskId;
+  if (data.linkedTaskId !== undefined) {
+    if (data.linkedTaskId) {
+      const { data: linkedTask } = await supabaseAdmin
+        .from('tasks')
+        .select('id, approval_status')
+        .eq('id', data.linkedTaskId)
+        .maybeSingle();
+      if (linkedTask && linkedTask.approval_status === 'rejected') {
+        throw new AppError({
+          statusCode: 409,
+          title: 'Conflict',
+          detail: 'Task is rejected and locked against document attachments',
+          code: 'TASK_REJECTED_LOCKED',
+        });
+      }
+    }
+    updates.linked_task_id = data.linkedTaskId;
+  }
   if (data.externalUrl !== undefined) updates.external_url = data.externalUrl;
   if (data.scannedBy !== undefined) updates.scanned_by = data.scannedBy;
   if (data.envelopeId !== undefined) updates.envelope_id = data.envelopeId;

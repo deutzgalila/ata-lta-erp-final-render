@@ -20,6 +20,8 @@ const {
   generateRetainerTemplateSchema,
   creationApprovalDecisionSchema,
   resubmitCreationSchema,
+  taskCreationApprovalDecisionSchema,
+  taskResubmitCreationSchema,
 } = require('./schema');
 const auditService = require('../../services/auditService');
 const { supabaseAdmin } = require('../../services/supabaseClient');
@@ -34,11 +36,14 @@ const validate = (schema, data) => {
     const isPhaseImmutable = result.error.issues.some(
       (i) => i.params?.code === 'TASK_PHASE_IMMUTABLE' || i.path.includes('phase')
     );
+    const isReasonRequired = result.error.issues.some(
+      (i) => i.params?.code === 'REASON_REQUIRED' || /reason is required/i.test(i.message)
+    );
     throw new AppError({
       statusCode: 400,
       title: 'Validation Error',
       detail: issues,
-      code: isPhaseImmutable ? 'TASK_PHASE_IMMUTABLE' : 'VALIDATION_ERROR',
+      code: isPhaseImmutable ? 'TASK_PHASE_IMMUTABLE' : isReasonRequired ? 'REASON_REQUIRED' : 'VALIDATION_ERROR',
     });
   }
   return result.data;
@@ -831,6 +836,41 @@ const resubmitCreation = async (req, res, next) => {
   }
 };
 
+const decideTaskCreationApproval = async (req, res, next) => {
+  try {
+    const payload = validate(taskCreationApprovalDecisionSchema, req.body);
+    const result = await operationsService.decideTaskCreationApproval({
+      workRequestId: req.params.wrId || req.params.id,
+      taskId: req.params.taskId,
+      entityId: req.entityUUID,
+      decision: payload.decision,
+      reason: payload.reason,
+      expectedVersion: payload.expectedVersion,
+      user: req.user,
+    });
+    res.status(200).json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const resubmitTaskCreation = async (req, res, next) => {
+  try {
+    const payload = validate(taskResubmitCreationSchema, req.body);
+    const result = await operationsService.resubmitTaskCreation({
+      workRequestId: req.params.wrId || req.params.id,
+      taskId: req.params.taskId,
+      entityId: req.entityUUID,
+      expectedVersion: payload.expectedVersion,
+      data: payload.data,
+      user: req.user,
+    });
+    res.status(200).json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   operationsController: {
     list,
@@ -867,6 +907,8 @@ module.exports = {
     listCreationApprovals,
     decideCreationApproval,
     resubmitCreation,
+    decideTaskCreationApproval,
+    resubmitTaskCreation,
   },
 };
 
