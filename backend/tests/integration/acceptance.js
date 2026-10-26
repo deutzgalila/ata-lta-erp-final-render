@@ -293,18 +293,18 @@ describe('Task Creation Approval Review Database Acceptance Suite', () => {
       `);
 
       await asServiceRole(async (client) => {
-        // Attempt UPDATE by service_role (denied by immutable trigger)
+        // Least privilege denies service_role before the owner-only immutable trigger.
         await expect(
           client.query(
             "UPDATE public.task_creation_review_events SET reason = 'Tampered' WHERE id = $1",
             [eventId]
           )
-        ).rejects.toThrow(/TASK_REVIEW_STATE.*append-only/);
+        ).rejects.toMatchObject({ code: '42501' });
 
-        // Attempt DELETE by service_role (denied by immutable trigger)
+        // DELETE is denied by the same table privileges.
         await expect(
           client.query('DELETE FROM public.task_creation_review_events WHERE id = $1', [eventId])
-        ).rejects.toThrow(/TASK_REVIEW_STATE.*append-only/);
+        ).rejects.toMatchObject({ code: '42501' });
       });
 
       // Attempt UPDATE by table owner (denied by immutable trigger)
