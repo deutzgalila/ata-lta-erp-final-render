@@ -1,3 +1,4 @@
+import { usePendingWorkRequestCreationCount } from '../api/useWorkRequests';
 import { useState, useMemo, useEffect } from 'react';
 import {
   CheckCircle2,
@@ -175,27 +176,7 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
     return (rawCreationApprovals as unknown as { data?: WorkRequest[] })?.data ?? [];
   }, [rawCreationApprovals, isCreationDenied]);
 
-  const {
-    data: rawPendingCreations,
-    isError: isPendingCreationsError,
-    error: pendingCreationsError,
-  } = useWorkRequestCreationApprovals(
-    { status: 'pending', scope: wrScope },
-    { enabled: isAdmin || isManager }
-  );
-
-  const isPendingCreationsDenied = Boolean(
-    isPendingCreationsError &&
-      ((pendingCreationsError as { status?: number })?.status === 401 ||
-        (pendingCreationsError as { status?: number })?.status === 403 ||
-        (pendingCreationsError as { status?: number })?.status === 404)
-  );
-
-  const pendingWrCreationCount = useMemo(() => {
-    if (isPendingCreationsDenied) return 0;
-    if (Array.isArray(rawPendingCreations)) return rawPendingCreations.length;
-    return (rawPendingCreations as unknown as { data?: WorkRequest[] })?.data?.length ?? 0;
-  }, [rawPendingCreations, isPendingCreationsDenied]);
+  const pendingWrCreationCount = usePendingWorkRequestCreationCount();
 
   const filteredCreationApprovals = useMemo(() => {
     return creationApprovals.filter((wr) => {

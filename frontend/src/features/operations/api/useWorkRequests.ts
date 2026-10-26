@@ -139,6 +139,18 @@ export function useWorkRequestCreationApprovals(
   });
 }
 
+/** Counts the same authorized pending creations shown by the inbox. */
+export function usePendingWorkRequestCreationCount(options?: { enabled?: boolean }) {
+  const role = useSessionStore((state) => state.user?.role);
+  const eligible = role === 'Admin' || role === 'Manager';
+  const query = useWorkRequestCreationApprovals(
+    { status: 'pending', scope: role === 'Admin' ? 'all' : 'mine' },
+    { enabled: eligible && (options?.enabled ?? true) }
+  );
+  const denied = [401, 403, 404].includes((query.error as ApiError | null)?.status ?? 0);
+  return eligible && !denied ? query.data?.length ?? 0 : 0;
+}
+
 export function useWorkRequestCounts(options?: { enabled?: boolean }) {
   const activeEntity = useSessionStore((state) => state.activeEntity);
 

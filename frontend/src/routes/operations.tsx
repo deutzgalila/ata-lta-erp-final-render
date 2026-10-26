@@ -1,3 +1,4 @@
+import { usePendingWorkRequestCreationCount } from '@/features/operations/api/useWorkRequests';
 import { operationsViewerRefresh } from '@/features/operations/api/viewerRefresh';
 import { WorkRequestSidePeek } from '@/features/operations/components/WorkRequestSidePeek';
 import { useState, useMemo, useEffect } from 'react';
@@ -189,6 +190,7 @@ export default function OperationsPage() {
     enabled: Boolean(canViewModule && hasApprovalAuthority),
     ...operationsViewerRefresh,
   });
+  const pendingWrCreationCount = usePendingWorkRequestCreationCount({ enabled: canViewModule });
   const { data: wrCounts } = useWorkRequestCounts();
   const { data: retainerTemplates = [] } = useRetainerTemplates({ enabled: canAccessRetainerTemplates, type: 'retainer' });
   const { data: otherTemplates = [] } = useRetainerTemplates({ enabled: canUseRetainers, type: 'other' });
@@ -239,7 +241,7 @@ export default function OperationsPage() {
     });
   };
 
-  const pendingApprovalsCount = requestCounts?.pending ?? 0;
+  const pendingApprovalsCount = (requestCounts?.pending ?? 0) + pendingWrCreationCount;
   const archivedCount = wrCounts?.archived ?? 0;
   const workRequestsCount = wrCounts?.active ?? wrCounts?.all ?? 0;
 
