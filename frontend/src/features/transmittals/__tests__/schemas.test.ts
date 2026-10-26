@@ -210,6 +210,17 @@ describe('Transmittals Zod Schemas (transmittals@2.0.0)', () => {
       const res = updateTransmittalSchema.safeParse(payload);
       expect(res.success).toBe(false);
     });
+
+    it('rejects empty or null workRequestId or linkedTaskId on update', () => {
+      expect(updateTransmittalSchema.safeParse({ workRequestId: null }).success).toBe(false);
+      expect(updateTransmittalSchema.safeParse({ workRequestId: '' }).success).toBe(false);
+      expect(updateTransmittalSchema.safeParse({ linkedTaskId: null }).success).toBe(false);
+      expect(updateTransmittalSchema.safeParse({ linkedTaskId: '' }).success).toBe(false);
+      expect(updateTransmittalSchema.safeParse({ workRequestId: validUuid, linkedTaskId: null }).success).toBe(false);
+      expect(
+        updateTransmittalSchema.safeParse({ workRequestId: validUuid, linkedTaskId: validUuid }).success
+      ).toBe(true);
+    });
   });
 
   describe('Response Schemas', () => {

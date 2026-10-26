@@ -344,9 +344,11 @@ describe('Mandatory Linked Task UX Contract Verification Suite', () => {
   });
 
   describe('3. DocumentUploadModal UX', () => {
-    it('disables task select when no WR is selected, keeping None option', () => {
+    it('disables task select when no WR is selected and always shows required indicators', () => {
       render(<DocumentUploadModal isOpen onClose={vi.fn()} />, { wrapper });
 
+      const wrLabel = screen.getByLabelText(/Work Request/i);
+      expect(wrLabel).toBeInTheDocument();
       const taskTrigger = screen.getByTestId('work-request-task-select');
       expect(taskTrigger).toBeDisabled();
     });
@@ -356,6 +358,7 @@ describe('Mandatory Linked Task UX Contract Verification Suite', () => {
 
       const wrTrigger = screen.getByTestId('work-request-select');
       fireEvent.keyDown(wrTrigger, { key: 'ArrowDown', code: 'ArrowDown' });
+      expect(screen.queryByRole('option', { name: /None \(No work request\)/i })).not.toBeInTheDocument();
       const wrOpt = await screen.findByRole('option', { name: /WR Multi Tasks/i });
       fireEvent.click(wrOpt);
 
@@ -364,32 +367,61 @@ describe('Mandatory Linked Task UX Contract Verification Suite', () => {
         expect(taskTrigger).not.toBeDisabled();
       });
 
-      // Once WR is picked, label shows required indicator
       expect(screen.getByText(/Linked Task/i)).toBeInTheDocument();
 
       fireEvent.keyDown(taskTrigger, { key: 'ArrowDown', code: 'ArrowDown' });
       expect(screen.queryByRole('option', { name: /None \(No linked task\)/i })).not.toBeInTheDocument();
     });
 
-    it('allows submission without WR and without task (documents no-WR path still submits)', async () => {
+    it('requires both Work Request * and Linked Task *, does not offer None options, and blocks upload until both are chosen', async () => {
       render(<DocumentUploadModal isOpen onClose={vi.fn()} />, { wrapper });
 
-      // External mode without WR
+      // Both Work Request * and Linked Task * labels show required indicator (never Optional)
+      expect(screen.queryByText(/Work Request \(Optional\)/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Linked Task \(Optional\)/i)).not.toBeInTheDocument();
+
+      // Switch to external link mode and fill URL + name without WR/task
       fireEvent.click(screen.getByTestId('mode-tab-external'));
       fireEvent.change(screen.getByTestId('external-url-input'), {
         target: { value: 'https://sec.gov.ph/document/doc-general.pdf' },
       });
       fireEvent.change(screen.getByTestId('document-name-input'), {
-        target: { value: 'General Standalone Document.pdf' },
+        target: { value: 'Compliance Document.pdf' },
       });
 
+      // Upload submit button is disabled without WR and task
       const submitBtn = screen.getByTestId('upload-submit-button');
-      expect(submitBtn).not.toBeDisabled();
+      expect(submitBtn).toBeDisabled();
 
+      // Open WR dropdown: verify "None (No work request)" is not offered
+      const wrTrigger = screen.getByTestId('work-request-select');
+      fireEvent.keyDown(wrTrigger, { key: 'ArrowDown', code: 'ArrowDown' });
+      expect(screen.queryByRole('option', { name: /None \(No work request\)/i })).not.toBeInTheDocument();
+
+      // Select WR with multiple tasks (so task is not auto-selected yet)
+      const wrOpt = await screen.findByRole('option', { name: /WR Multi Tasks/i });
+      fireEvent.click(wrOpt);
+
+      // Submit button remains disabled until a task is chosen
+      expect(submitBtn).toBeDisabled();
+
+      // Select a selectable task
+      const taskTrigger = screen.getByTestId('work-request-task-select');
+      await waitFor(() => expect(taskTrigger).not.toBeDisabled());
+      fireEvent.keyDown(taskTrigger, { key: 'ArrowDown', code: 'ArrowDown' });
+      expect(screen.queryByRole('option', { name: /None \(No linked task\)/i })).not.toBeInTheDocument();
+      const taskOpt = await screen.findByRole('option', { name: /Multi Task One — Juan Dela Cruz/i });
+      fireEvent.click(taskOpt);
+
+      // Now submit button is enabled and submits with both workRequestId and linkedTaskId
+      await waitFor(() => expect(submitBtn).not.toBeDisabled());
       fireEvent.click(submitBtn);
 
       await waitFor(() => {
-        expect(postCalls.some((p) => p.url.includes('/documents'))).toBe(true);
+        const docPost = postCalls.find((p) => p.url.includes('/documents'));
+        expect(docPost).toBeDefined();
+        expect(docPost?.body.workRequestId).toBe(WR_MULTI);
+        expect(docPost?.body.linkedTaskId).toBe(TASK_MULTI_1);
       });
     });
 
@@ -500,6 +532,46 @@ describe('Mandatory Linked Task UX Contract Verification Suite', () => {
       await waitFor(() => {
         const taskTrigger = screen.getByTestId('task-select');
         expect(taskTrigger.textContent).toContain('Only Single Task');
+      });
+    });
+
+    it('requires Work Request * and Linked Task * in edit mode (no floating transmittals)', async () => {
+      render(
+        <TransmittalFormModal
+          isOpen
+          onClose={vi.fn()}
+          transmittalToEdit={{
+            id: 'tx-edit-1',
+            tracking_number: 'TR-ATA-2026-0001',
+            entity_id: 'ATA',
+            client_id: CLIENT_ID,
+            work_request_id: null,
+            linked_task_id: null,
+            status: 'Draft',
+            approved: false,
+            board_order: 0,
+            archived: false,
+            version: 1,
+            created_at: '2026-10-01T00:00:00.000Z',
+            items: [{ id: 'item-1', description: 'Contract Copy', document_type: 'Contract', quantity: 1 }],
+          }}
+        />,
+        { wrapper }
+      );
+
+      expect(screen.getByText(/Work Request \*/i)).toBeInTheDocument();
+      expect(screen.getByText(/Linked Task \*/i)).toBeInTheDocument();
+      expect(screen.queryByText(/Work Request \(Optional\)/i)).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId('submit-transmittal-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('work-request-error-message')).toHaveTextContent(
+          /Please select a work request/i
+        );
+        expect(screen.getByTestId('task-error-message')).toHaveTextContent(
+          /A valid linked task is required/i
+        );
       });
     });
   });

@@ -217,18 +217,24 @@ export function DocumentUploadModal({
     setFileName(file.name);
   };
 
+  const effectiveWrId = workRequestId.trim() || defaultWorkRequestId?.trim() || '';
+  const effectiveTaskId = linkedTaskId.trim() || defaultTaskId?.trim() || '';
+  const canSubmit = Boolean(effectiveWrId && effectiveTaskId && !isTaskBlocked);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const effectiveWrId = workRequestId.trim() || defaultWorkRequestId?.trim();
-    const effectiveTaskId = linkedTaskId.trim() || defaultTaskId?.trim();
-
-    if (effectiveWrId && !effectiveTaskId) {
-      setTaskError('Linked task is required when a work request is selected');
+    if (!effectiveWrId) {
+      setTaskError('Work request is required');
       return;
     }
 
-    if (effectiveWrId && isTaskBlocked) {
+    if (!effectiveTaskId) {
+      setTaskError('A valid linked task is required');
+      return;
+    }
+
+    if (isTaskBlocked) {
       setTaskError(
         blockingMessage ||
           (isNoTasksBlocked
@@ -247,9 +253,9 @@ export function DocumentUploadModal({
         category,
         documentType: documentType.trim() || undefined,
         description: description.trim() || undefined,
-        workRequestId: effectiveWrId || undefined,
+        workRequestId: effectiveWrId,
         clientId: clientId.trim() || defaultClientId?.trim() || undefined,
-        linkedTaskId: effectiveTaskId || undefined,
+        linkedTaskId: effectiveTaskId,
       };
 
       try {
@@ -288,9 +294,9 @@ export function DocumentUploadModal({
         contentType: parsed.detectedMimeType,
         documentType: documentType.trim() || undefined,
         description: description.trim() || undefined,
-        workRequestId: effectiveWrId || undefined,
+        workRequestId: effectiveWrId,
         clientId: clientId.trim() || defaultClientId?.trim() || undefined,
-        linkedTaskId: effectiveTaskId || undefined,
+        linkedTaskId: effectiveTaskId,
       };
 
       try {
@@ -321,7 +327,7 @@ export function DocumentUploadModal({
   const isSubmitDisabled =
     uploadMutation.isPending ||
     (mode === 'file' ? !selectedFile || Boolean(sizeError) : !externalUrl.trim() || !fileName.trim()) ||
-    Boolean(workRequestId && isTaskBlocked);
+    !canSubmit;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
@@ -514,10 +520,10 @@ export function DocumentUploadModal({
                   className="text-xs font-medium text-[#1E293B] flex items-center gap-1"
                 >
                   <Briefcase className="h-3.5 w-3.5 text-[#475569]" />
-                  Work Request (Optional)
+                  Work Request <span className="text-rose-500">*</span>
                 </label>
                 <Select
-                  value={workRequestId || '__none__'}
+                  value={workRequestId}
                   onValueChange={handleWorkRequestChange}
                   disabled={Boolean(defaultWorkRequestId)}
                 >
@@ -529,7 +535,6 @@ export function DocumentUploadModal({
                     <SelectValue placeholder="Link to work request..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">None (No work request)</SelectItem>
                     {workRequests.map((wr) => (
                       <SelectItem key={wr.id} value={wr.id}>
                         {(wr as { tracking_number?: string }).tracking_number || wr.title}
@@ -546,10 +551,10 @@ export function DocumentUploadModal({
                   className="text-xs font-medium text-[#1E293B] flex items-center gap-1"
                 >
                   <Briefcase className="h-3.5 w-3.5 text-[#475569]" />
-                  Linked Task {workRequestId ? <span className="text-rose-500">*</span> : '(Optional)'}
+                  Linked Task <span className="text-rose-500">*</span>
                 </label>
                 <Select
-                  value={linkedTaskId || '__none__'}
+                  value={linkedTaskId}
                   onValueChange={handleTaskChange}
                   disabled={Boolean(defaultTaskId) || !workRequestId || isTaskBlocked}
                 >
@@ -565,9 +570,6 @@ export function DocumentUploadModal({
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    {!workRequestId && (
-                      <SelectItem value="__none__">None (No linked task)</SelectItem>
-                    )}
                     {taskOptions.map((opt) => (
                       <SelectItem key={opt.id} value={opt.id} disabled={opt.disabled}>
                         {opt.label}

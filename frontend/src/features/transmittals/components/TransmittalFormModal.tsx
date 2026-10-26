@@ -166,8 +166,8 @@ export function TransmittalFormModal({
   useEffect(() => {
     if (isOpen) {
       if (transmittalToEdit) {
-        setClientId(transmittalToEdit.client_id || '');
-        setWorkRequestId(transmittalToEdit.work_request_id || '');
+        setClientId(transmittalToEdit.client_id || transmittalToEdit.clientId || '');
+        setWorkRequestId(transmittalToEdit.work_request_id || transmittalToEdit.workRequestId || '');
         setSelectedTaskId(transmittalToEdit.linked_task_id || transmittalToEdit.linkedTaskId || '');
         setTrackingNumber(transmittalToEdit.tracking_number || '');
         setRecipientName(transmittalToEdit.recipient_name || '');
@@ -309,7 +309,7 @@ export function TransmittalFormModal({
     if (!clientId) {
       newErrors.clientId = 'Please select a client';
     }
-    if (!workRequestId && !isEditMode) {
+    if (!workRequestId) {
       newErrors.workRequestId = 'Please select a work request';
     }
     if (items.length === 0) {
@@ -321,20 +321,18 @@ export function TransmittalFormModal({
       newErrors.items = 'All document rows must have a valid description';
     }
 
-    if (workRequestId) {
-      if (!selectedTaskId) {
-        newErrors.selectedTaskId = 'A valid linked task is required';
-      } else if (isTaskBlocked && selectedTaskId !== originTaskId) {
-        newErrors.selectedTaskId =
-          blockingMessage ||
-          (isNoTasksBlocked
-            ? 'This work request has no tasks — create one first'
-            : "You're not assigned to any task on this work request. Ask the task owner or an Admin to add you.");
-      } else {
-        const found = taskOptions.find((t) => t.id === selectedTaskId);
-        if (found && found.disabled && found.id !== originTaskId) {
-          newErrors.selectedTaskId = 'You are not assigned to this task';
-        }
+    if (!selectedTaskId) {
+      newErrors.selectedTaskId = 'A valid linked task is required';
+    } else if (workRequestId && isTaskBlocked && selectedTaskId !== originTaskId) {
+      newErrors.selectedTaskId =
+        blockingMessage ||
+        (isNoTasksBlocked
+          ? 'This work request has no tasks — create one first'
+          : "You're not assigned to any task on this work request. Ask the task owner or an Admin to add you.");
+    } else if (workRequestId) {
+      const found = taskOptions.find((t) => t.id === selectedTaskId);
+      if (found && found.disabled && found.id !== originTaskId) {
+        newErrors.selectedTaskId = 'You are not assigned to this task';
       }
     }
 
@@ -355,8 +353,8 @@ export function TransmittalFormModal({
           id: transmittalToEdit.id,
           data: {
             clientId,
-            workRequestId: workRequestId || null,
-            linkedTaskId: selectedTaskId || null,
+            workRequestId,
+            linkedTaskId: selectedTaskId,
             trackingNumber: (transmittalToEdit.tracking_number || transmittalToEdit.trackingNumber || trackingNumber || '').trim(),
             items: sanitizedItems,
             recipientName: recipientName.trim() || null,
@@ -369,7 +367,7 @@ export function TransmittalFormModal({
         await createMutation.mutateAsync({
           clientId,
           workRequestId,
-          linkedTaskId: selectedTaskId || null,
+          linkedTaskId: selectedTaskId,
           items: sanitizedItems,
           recipientName: recipientName.trim() || null,
           recipientDetails: recipientDetails.trim() || null,
@@ -471,7 +469,7 @@ export function TransmittalFormModal({
                 className="text-xs font-semibold flex items-center gap-1 text-[#1E293B]"
               >
                 <Briefcase className="h-3.5 w-3.5" />
-                Work Request {isEditMode ? '(Optional)' : '*'}
+                Work Request *
               </Label>
               <Select
                 value={workRequestId}
@@ -494,7 +492,7 @@ export function TransmittalFormModal({
                 </SelectContent>
               </Select>
               {errors.workRequestId && (
-                <p className="text-xs text-rose-600 flex items-center gap-1">
+                <p className="text-xs text-rose-600 flex items-center gap-1" data-testid="work-request-error-message">
                   <AlertCircle className="h-3 w-3" />
                   {errors.workRequestId}
                 </p>
@@ -508,10 +506,10 @@ export function TransmittalFormModal({
                 className="text-xs font-semibold flex items-center gap-1 text-[#1E293B]"
               >
                 <Briefcase className="h-3.5 w-3.5" />
-                Linked Task {workRequestId ? '*' : '(Optional)'}
+                Linked Task *
               </Label>
               <Select
-                value={selectedTaskId || '__none__'}
+                value={selectedTaskId}
                 onValueChange={(val) => {
                   setSelectedTaskId(val === '__none__' ? '' : val);
                   if (errors.selectedTaskId) {
@@ -534,9 +532,6 @@ export function TransmittalFormModal({
                   />
                 </SelectTrigger>
                 <SelectContent>
-                  {!workRequestId && (
-                    <SelectItem value="__none__">None (No linked task)</SelectItem>
-                  )}
                   {taskOptions.map((opt) => (
                     <SelectItem key={opt.id} value={opt.id} disabled={opt.disabled && opt.id !== originTaskId}>
                       {opt.label}

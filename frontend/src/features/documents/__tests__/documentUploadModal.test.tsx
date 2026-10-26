@@ -163,6 +163,7 @@ describe('DocumentUploadModal - External URL & Task Linking', () => {
     mockMutateAsyncUpload.mockResolvedValueOnce({
       id: 'doc-pdf',
       linked_task_id: 'task-123',
+      work_request_id: 'wr-123',
     });
 
     render(
@@ -170,6 +171,7 @@ describe('DocumentUploadModal - External URL & Task Linking', () => {
         isOpen={true}
         onClose={vi.fn()}
         defaultTaskId="task-123"
+        defaultWorkRequestId="wr-123"
       />,
       { wrapper }
     );
@@ -191,31 +193,29 @@ describe('DocumentUploadModal - External URL & Task Linking', () => {
 
     const payload = mockMutateAsyncUpload.mock.calls[0]![0];
     expect(payload.metadata.linkedTaskId).toBe('task-123');
+    expect(payload.metadata.workRequestId).toBe('wr-123');
     expect(payload.metadata.contentType).toBe('application/pdf');
     expect(payload.file.type).toBe('application/pdf');
   });
 
-  it('resets linkedTaskId when reopened without defaultTaskId prop', async () => {
-    mockMutateAsyncUpload.mockResolvedValue({
-      id: 'doc-standalone',
-      linked_task_id: null,
-    });
-
+  it('resets linkedTaskId when reopened without defaultTaskId prop and blocks submission until WR and task are selected', async () => {
     const { rerender } = render(
       <DocumentUploadModal
         isOpen={true}
         onClose={vi.fn()}
         defaultTaskId="task-prior"
+        defaultWorkRequestId="wr-prior"
       />,
       { wrapper }
     );
 
-    // Reopen modal without defaultTaskId
+    // Reopen modal without defaultTaskId or defaultWorkRequestId
     rerender(
       <DocumentUploadModal
         isOpen={true}
         onClose={vi.fn()}
         defaultTaskId={undefined}
+        defaultWorkRequestId={undefined}
       />
     );
 
@@ -227,14 +227,9 @@ describe('DocumentUploadModal - External URL & Task Linking', () => {
       target: { value: 'Independent Report.pdf' },
     });
 
-    fireEvent.click(screen.getByTestId('upload-submit-button'));
-
-    await waitFor(() => {
-      expect(mockMutateAsyncUpload).toHaveBeenCalledTimes(1);
-    });
-
-    const payload = mockMutateAsyncUpload.mock.calls[0]![0];
-    expect(payload.metadata.linkedTaskId).toBeUndefined();
+    const submitBtn = screen.getByTestId('upload-submit-button');
+    expect(submitBtn).toBeDisabled();
+    expect(mockMutateAsyncUpload).not.toHaveBeenCalled();
   });
 
   it('renders all 12 category options in the category select with Others as default', () => {
