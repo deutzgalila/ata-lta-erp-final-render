@@ -16,7 +16,11 @@ const {
   fetchInPages,
   isUserEntitledToEntity,
 } = require('../../lib/userScope');
-const { resolveTrustedUser, isUserAssignedToTask } = require('../../lib/taskAssignment');
+const {
+  resolveTrustedUser,
+  isUserAssignedToTask,
+  assertTaskPhaseAndPrerequisitesSelectable,
+} = require('../../lib/taskAssignment');
 const { buildPermissionSet, hasPermission } = require('../../lib/permissions');
 const {
   validateRecordProjectLinkage,
@@ -82,7 +86,7 @@ const assertTaskDocumentMutationAllowed = async ({
 
   const { data: task, error: taskError } = await supabaseAdmin
     .from('tasks')
-    .select('id, work_request_id, assignee_id, approval_status, deleted_at')
+    .select('id, work_request_id, assignee_id, approval_status, status, phase, predecessors, deleted_at')
     .eq('id', taskId)
     .maybeSingle();
 
@@ -99,6 +103,7 @@ const assertTaskDocumentMutationAllowed = async ({
       statusCode: 400,
       title: 'Validation Error',
       detail: `Linked task ${taskId} does not exist`,
+      code: 'TASK_NOT_FOUND',
     });
   }
 
@@ -122,13 +127,14 @@ const assertTaskDocumentMutationAllowed = async ({
       statusCode: 400,
       title: 'Validation Error',
       detail: `Linked task ${taskId} does not belong to work request ${workRequestId}`,
+      code: 'TASK_WR_MISMATCH',
     });
   }
 
   if (effectiveWrId) {
     const { data: wrData, error: wrError } = await supabaseAdmin
       .from('work_requests')
-      .select('id, entity_id, deleted_at, creation_approval_status')
+      .select('id, entity_id, phase, deleted_at, creation_approval_status')
       .eq('id', effectiveWrId)
       .maybeSingle();
 
@@ -402,70 +408,81 @@ const listDocuments = async ({ entityId, filters = {}, user }) => {
  * @returns {Promise<{ document: object, uploadUrl: string }>}
  */
 const createDocument = async ({ entityId, entityCode, userId, user, data }) => {
-  let linkedTask = null;
-  // Validate linkedTaskId if provided
-  if (data.linkedTaskId) {
-    let callerUser = user;
-    if (!callerUser || !callerUser.role) {
-      const { data: uploader } = await supabaseAdmin
-        .from('users')
-        .select('id, role')
-        .eq('id', userId)
-        .maybeSingle();
-      callerUser = uploader || { id: userId };
-    }
-
-    const authResult = await assertTaskDocumentMutationAllowed({
-      taskId: data.linkedTaskId,
-      entityId,
-      user: callerUser,
-      workRequestId: data.workRequestId,
-      action: 'attachment',
-      requireAssignment: true,
+  // Enforce mandatory linked task on all document creations (No Floating Documents)
+  if (
+    !data.linkedTaskId ||
+    (typeof data.linkedTaskId === 'string' && data.linkedTaskId.trim() === '')
+  ) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'A valid linked task is required',
+      code: 'TASK_REQUIRED',
     });
-    linkedTask = authResult.task;
-    if (!data.workRequestId && linkedTask?.work_request_id) {
-      data.workRequestId = linkedTask.work_request_id;
-    }
-  } else if (data.workRequestId) {
-    const { data: wrData, error: wrErr } = await supabaseAdmin
-      .from('work_requests')
-      .select('id, entity_id, deleted_at, creation_approval_status')
-      .eq('id', data.workRequestId)
+  }
+
+  let callerUser = user;
+  if (!callerUser || !callerUser.role) {
+    const { data: uploader } = await supabaseAdmin
+      .from('users')
+      .select('id, role')
+      .eq('id', userId)
       .maybeSingle();
+    callerUser = uploader || { id: userId };
+  }
 
-    if (wrErr) {
-      throw new AppError({
-        statusCode: 500,
-        title: 'Database Error',
-        detail: `Failed to retrieve work request: ${wrErr.message || String(wrErr)}`,
-      });
-    }
+  const authResult = await assertTaskDocumentMutationAllowed({
+    taskId: data.linkedTaskId,
+    entityId,
+    user: callerUser,
+    workRequestId: data.workRequestId,
+    action: 'attachment',
+    requireAssignment: callerUser?.role !== 'Admin',
+  });
+  const linkedTask = authResult.task;
+  const wrData = authResult.workRequest;
 
-    if (!wrData || wrData.deleted_at) {
+  if (data.workRequestId && linkedTask.work_request_id !== data.workRequestId) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Validation Error',
+      detail: `Linked task ${data.linkedTaskId} does not belong to work request ${data.workRequestId}`,
+      code: 'TASK_WR_MISMATCH',
+    });
+  }
+
+  const effectiveWrId = data.workRequestId || linkedTask?.work_request_id;
+  if (!effectiveWrId) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Validation Error',
+      detail: 'Task is not associated with an active work request',
+      code: 'TASK_WR_MISMATCH',
+    });
+  }
+  data.workRequestId = effectiveWrId;
+
+  if (linkedTask.status) {
+    const normStatus = String(linkedTask.status).trim().toLowerCase();
+    if (normStatus === 'cancelled') {
       throw new AppError({
         statusCode: 400,
-        title: 'Validation Error',
-        detail: `Work request ${data.workRequestId} does not exist`,
+        title: 'Bad Request',
+        detail: 'Task is cancelled and cannot be linked',
+        code: 'TASK_NOT_SELECTABLE',
       });
     }
-
-    if (wrData.creation_approval_status && wrData.creation_approval_status !== 'approved') {
-      throw new AppError({
-        statusCode: 404,
-        title: 'Not Found',
-        detail: 'Parent work request not found or deleted',
-      });
-    }
-
-    if (entityId && entityId !== 'ALL' && wrData.entity_id && wrData.entity_id !== entityId) {
+    if (normStatus === 'completed' || normStatus === 'done') {
       throw new AppError({
         statusCode: 400,
-        title: 'Validation Error',
-        detail: `Work request ${data.workRequestId} does not belong to active entity`,
+        title: 'Bad Request',
+        detail: 'Completed tasks cannot be linked to this record',
+        code: 'TASK_NOT_SELECTABLE',
       });
     }
   }
+
+  await assertTaskPhaseAndPrerequisitesSelectable(linkedTask, wrData, 'document');
 
   const documentId = randomUUID();
 
@@ -646,6 +663,97 @@ const updateDocument = async ({ entityId, id, userId, data, user, caller, intern
     });
   }
 
+  const isWrSpecified = data.workRequestId !== undefined;
+  const isTaskSpecified = data.linkedTaskId !== undefined;
+  const isLinkageInPayload = isWrSpecified || isTaskSpecified;
+  let effectiveWrId = isWrSpecified ? data.workRequestId : existing.work_request_id;
+  const effectiveTaskId = isTaskSpecified ? data.linkedTaskId : existing.linked_task_id;
+  const isTaskChanged = isTaskSpecified && data.linkedTaskId !== existing.linked_task_id;
+
+  if (isLinkageInPayload) {
+    if (isWrSpecified && (!data.workRequestId || String(data.workRequestId).trim() === '')) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: 'A valid work request and linked task are required',
+        code: 'TASK_REQUIRED',
+      });
+    }
+
+    if (
+      !effectiveTaskId ||
+      (typeof effectiveTaskId === 'string' && effectiveTaskId.trim() === '')
+    ) {
+      throw new AppError({
+        statusCode: 400,
+        title: 'Bad Request',
+        detail: 'A valid linked task is required',
+        code: 'TASK_REQUIRED',
+      });
+    }
+
+    if (isTaskChanged && effectiveTaskId) {
+      const authResult = await assertTaskDocumentMutationAllowed({
+        taskId: effectiveTaskId,
+        entityId,
+        user: effectiveUser,
+        workRequestId: effectiveWrId,
+        action: 'attachment',
+        requireAssignment: effectiveUser?.role !== 'Admin',
+      });
+      const targetTask = authResult.task;
+      const targetWr = authResult.workRequest;
+
+      effectiveWrId = effectiveWrId || targetTask?.work_request_id;
+      if (!effectiveWrId) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Validation Error',
+          detail: 'Task is not associated with an active work request',
+          code: 'TASK_WR_MISMATCH',
+        });
+      }
+
+      if (targetTask?.status) {
+        const normStatus = String(targetTask.status).trim().toLowerCase();
+        if (normStatus === 'cancelled') {
+          throw new AppError({
+            statusCode: 400,
+            title: 'Bad Request',
+            detail: 'Task is cancelled and cannot be linked',
+            code: 'TASK_NOT_SELECTABLE',
+          });
+        }
+        if (normStatus === 'completed' || normStatus === 'done') {
+          throw new AppError({
+            statusCode: 400,
+            title: 'Bad Request',
+            detail: 'Completed tasks cannot be linked to this record',
+            code: 'TASK_NOT_SELECTABLE',
+          });
+        }
+      }
+
+      await assertTaskPhaseAndPrerequisitesSelectable(targetTask, targetWr, 'document');
+    } else if (!isTaskChanged && effectiveTaskId && effectiveWrId) {
+      // Unchanged stored linkage: check if stored task was deleted
+      const { data: storedTask } = await supabaseAdmin
+        .from('tasks')
+        .select('id, deleted_at')
+        .eq('id', effectiveTaskId)
+        .maybeSingle();
+
+      if (!storedTask || Boolean(storedTask.deleted_at)) {
+        throw new AppError({
+          statusCode: 400,
+          title: 'Bad Request',
+          detail: 'The previously linked task has been deleted. A valid linked task is required.',
+          code: 'TASK_REQUIRED',
+        });
+      }
+    }
+  }
+
   const updates = {
     updated_by: userId,
     updated_at: new Date().toISOString(),
@@ -654,22 +762,9 @@ const updateDocument = async ({ entityId, id, userId, data, user, caller, intern
   if (data.documentType !== undefined) updates.document_type = data.documentType;
   if (data.category !== undefined) updates.category = data.category;
   if (data.description !== undefined) updates.description = data.description;
-  if (data.linkedTaskId !== undefined) {
-    if (data.linkedTaskId) {
-      const authResult = await assertTaskDocumentMutationAllowed({
-        taskId: data.linkedTaskId,
-        entityId,
-        user: effectiveUser,
-        workRequestId: data.workRequestId || existing.work_request_id,
-        action: 'attachment',
-        requireAssignment: effectiveUser?.role !== 'Admin',
-      });
-      if (authResult?.task?.work_request_id) {
-        updates.work_request_id = authResult.task.work_request_id;
-      }
-    }
-    updates.linked_task_id = data.linkedTaskId;
-  }
+  if (data.workRequestId !== undefined) updates.work_request_id = data.workRequestId;
+  if (data.linkedTaskId !== undefined) updates.linked_task_id = data.linkedTaskId;
+  if (effectiveWrId && updates.work_request_id === undefined) updates.work_request_id = effectiveWrId;
   if (data.externalUrl !== undefined) updates.external_url = data.externalUrl;
   if (data.scannedBy !== undefined) updates.scanned_by = data.scannedBy;
   if (data.envelopeId !== undefined) updates.envelope_id = data.envelopeId;
