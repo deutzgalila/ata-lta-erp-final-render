@@ -27,9 +27,10 @@ const { Client } = require('pg');
 const fixture = require('../fixtures/supabaseMock');
 const service = require('../../src/modules/operations/service');
 
-const dbUrl =
-  process.env.TASK_APP_TEST_DATABASE_URL ||
-  'postgres://javvii@127.0.0.1:55493/task_app_integration_test';
+const dbUrl = process.env.TASK_APP_TEST_DATABASE_URL;
+if (!dbUrl) {
+  throw new Error('TASK_APP_TEST_DATABASE_URL is required for the explicit local acceptance suite.');
+}
 
 function assertSafeLoopbackTarget(urlStr) {
   const parsed = new URL(urlStr);
