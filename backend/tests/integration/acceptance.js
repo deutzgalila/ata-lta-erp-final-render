@@ -19,6 +19,7 @@
 
 const { Client, Pool } = require('pg');
 const migration = require('../../migrations/000074_task_creation_approval_review.js');
+const migration76 = require('../../migrations/000076_task_review_write_serialization.js');
 
 const testDbUrl = process.env.TASK_REVIEW_TEST_DATABASE_URL;
 
@@ -132,6 +133,15 @@ describe('Task Creation Approval Review Database Acceptance Suite', () => {
       },
     });
     await adminClient.query(upSql);
+
+    // Apply migration 76 UP
+    let upSql76 = '';
+    migration76.up({
+      sql: (query) => {
+        upSql76 = query;
+      },
+    });
+    await adminClient.query(upSql76);
     await adminClient.query("SET task_review.allow_cleanup = 'on';");
 
     pool = new Pool({ connectionString: testDbUrl, max: 12 });
@@ -1484,6 +1494,16 @@ describe('Task Creation Approval Review Database Acceptance Suite', () => {
   // ---------------------------------------------------------------------------
   describe('12. Migration Reversibility', () => {
     it('rolls back cleanly via down migration and re-applies cleanly via up', async () => {
+      let downSql76 = '';
+      migration76.down({
+        sql: (query) => {
+          downSql76 = query;
+        },
+      });
+      await adminClient.query("SET task_review.allow_cleanup = 'on';");
+      await adminClient.query(downSql76);
+      await adminClient.query("RESET task_review.allow_cleanup;");
+
       let downSql = '';
       migration.down({
         sql: (query) => {
@@ -1493,7 +1513,7 @@ describe('Task Creation Approval Review Database Acceptance Suite', () => {
       await adminClient.query(downSql);
 
       const funcRes = await adminClient.query(
-        "SELECT proname FROM pg_proc WHERE proname LIKE 'task_creation_review%';"
+        "SELECT proname FROM pg_proc WHERE proname LIKE 'task_creation_review%' OR proname = 'task_material_update';"
       );
       expect(funcRes.rows.length).toBe(0);
 
@@ -1509,12 +1529,1035 @@ describe('Task Creation Approval Review Database Acceptance Suite', () => {
         },
       });
       await adminClient.query(upSql);
+
+      let upSql76 = '';
+      migration76.up({
+        sql: (query) => {
+          upSql76 = query;
+        },
+      });
+      await adminClient.query(upSql76);
       await adminClient.query("SET task_review.allow_cleanup = 'on';");
 
       const funcRecheck = await adminClient.query(
-        "SELECT proname FROM pg_proc WHERE proname LIKE 'task_creation_review%';"
+        "SELECT proname FROM pg_proc WHERE proname LIKE 'task_creation_review%' OR proname = 'task_material_update';"
       );
-      expect(funcRecheck.rows.length).toBe(2);
+      expect(funcRecheck.rows.length).toBe(4);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 13. Task Write Serialization: Creation Review RPC (task_creation_review_create)
+  // ---------------------------------------------------------------------------
+  describe('13. Task Write Serialization: Creation Review RPC (task_creation_review_create)', () => {
+    let testWrId;
+    let baseTaskId;
+
+    beforeEach(async () => {
+      testWrId = 'f2000000-0000-4000-8000-000000000001';
+      baseTaskId = '21000000-0000-4000-8000-000000000001';
+
+      await cleanFixtureData(`
+        DELETE FROM public.task_creation_review_events WHERE work_request_id = '${testWrId}';
+        DELETE FROM public.task_assignees WHERE task_id IN (SELECT id FROM public.tasks WHERE work_request_id = '${testWrId}');
+        DELETE FROM public.tasks WHERE work_request_id = '${testWrId}';
+        DELETE FROM public.work_requests WHERE id = '${testWrId}';
+
+        INSERT INTO public.work_requests (
+          id, entity_id, client_id, title, assigned_to, requested_by,
+          phase, status, creation_approval_status, version, co_assignees
+        ) VALUES (
+          '${testWrId}', '${ENTITY_ATA_ID}', '${CLIENT_ATA_ID}',
+          'Create Serialization WR', '${USER_LEAD_ID}', '${USER_LEAD_ID}',
+          'pre_processing', 'Pre-processing', 'approved', 1, '["${USER_EMPLOYEE_ID}"]'::jsonb
+        );
+
+        INSERT INTO public.tasks (
+          id, work_request_id, title, status, phase, approval_status,
+          created_by, version, assignee_id
+        ) VALUES (
+          '${baseTaskId}', '${testWrId}', 'Base Task',
+          'Draft', 'pre_processing', 'approved', '${USER_LEAD_ID}', 1, '${USER_EMPLOYEE_ID}'
+        );
+      `);
+    });
+
+    it('denies anon and authenticated from executing task_creation_review_create', async () => {
+      for (const role of ['anon', 'authenticated']) {
+        await asRole(role, async (client) => {
+          await expect(
+            client.query(
+              'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+              [testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, JSON.stringify({ title: 'New Task' })]
+            )
+          ).rejects.toThrow(/permission denied.*task_creation_review_create/i);
+        });
+      }
+    });
+
+    it('rejects task creation if parent WR is not admitted', async () => {
+      await adminClient.query(
+        "UPDATE public.work_requests SET creation_approval_status = 'pending' WHERE id = $1",
+        [testWrId]
+      );
+
+      await asServiceRole(async (client) => {
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+            [testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, JSON.stringify({ title: 'New Task' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_STATE.*not admitted/);
+      });
+    });
+
+    it('rejects task creation if parent WR is Completed, Cancelled, or archived', async () => {
+      await asServiceRole(async (client) => {
+        // Test Completed
+        await adminClient.query(
+          "UPDATE public.work_requests SET status = 'Completed' WHERE id = $1",
+          [testWrId]
+        );
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+            [testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, JSON.stringify({ title: 'New Task' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_STATE.*archived, cancelled, or completed/);
+
+        // Test Cancelled
+        await adminClient.query(
+          "UPDATE public.work_requests SET status = 'Cancelled' WHERE id = $1",
+          [testWrId]
+        );
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+            [testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, JSON.stringify({ title: 'New Task' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_STATE.*archived, cancelled, or completed/);
+
+        // Test Archived
+        await adminClient.query(
+          "UPDATE public.work_requests SET status = 'Pre-processing', archived = true WHERE id = $1",
+          [testWrId]
+        );
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+            [testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, JSON.stringify({ title: 'New Task' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_STATE.*archived, cancelled, or completed/);
+      });
+    });
+
+    it('rejects task creation if actor is not entitled to WR entity', async () => {
+      await asServiceRole(async (client) => {
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+            [testWrId, ENTITY_LTA_ID, USER_EMPLOYEE_ID, JSON.stringify({ title: 'New Task' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_FORBIDDEN.*Work request entity mismatch/);
+      });
+    });
+
+    it('denies Manager who has no membership in WR from creating tasks', async () => {
+      // USER_OTHER_LEAD_ID is a Manager, but not lead, not co-assignee, and has no tasks on testWrId
+      await asServiceRole(async (client) => {
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+            [testWrId, ENTITY_ATA_ID, USER_OTHER_LEAD_ID, JSON.stringify({ title: 'Manager Task' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_FORBIDDEN.*Actor is not a member of this work request/);
+      });
+    });
+
+    it('rejects employee task creation if WR has no active entitled Manager lead', async () => {
+      await asServiceRole(async (client) => {
+        // Case 1: No assigned lead
+        await adminClient.query(
+          'UPDATE public.work_requests SET assigned_to = NULL WHERE id = $1',
+          [testWrId]
+        );
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+            [testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, JSON.stringify({ title: 'Employee Task' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_REQUIRED.*Manager lead/);
+
+        // Case 2: Assigned lead is an employee (not a Manager)
+        await adminClient.query(
+          "UPDATE public.work_requests SET assigned_to = $1 WHERE id = $2",
+          [USER_OTHER_EMPLOYEE_ID, testWrId]
+        );
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+            [testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, JSON.stringify({ title: 'Employee Task' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_REQUIRED.*Manager lead/);
+
+        // Case 3: Assigned lead is inactive
+        await adminClient.query(
+          "UPDATE public.work_requests SET assigned_to = $1 WHERE id = $2",
+          [USER_INACTIVE_ID, testWrId]
+        );
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+            [testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, JSON.stringify({ title: 'Employee Task' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_REQUIRED.*Manager lead/);
+      });
+    });
+
+    it('rejects privileged or unsupported keys in task creation data', async () => {
+      await asServiceRole(async (client) => {
+        // Privileged approval_status
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+            [
+              testWrId,
+              ENTITY_ATA_ID,
+              USER_EMPLOYEE_ID,
+              JSON.stringify({ title: 'Forged Task', approval_status: 'approved' }),
+            ]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_STATE.*privileged/);
+
+        // Privileged version
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+            [
+              testWrId,
+              ENTITY_ATA_ID,
+              USER_EMPLOYEE_ID,
+              JSON.stringify({ title: 'Forged Version', version: 5 }),
+            ]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_STATE.*privileged/);
+
+        // Unknown key
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+            [
+              testWrId,
+              ENTITY_ATA_ID,
+              USER_EMPLOYEE_ID,
+              JSON.stringify({ title: 'Invalid Key', unknown_prop: 'bad' }),
+            ]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_STATE.*Unsupported field/);
+
+        // Missing title
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+            [
+              testWrId,
+              ENTITY_ATA_ID,
+              USER_EMPLOYEE_ID,
+              JSON.stringify({ description: 'No title provided' }),
+            ]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_STATE.*title is required/);
+      });
+    });
+
+    it('rejects cross-WR predecessor and inactive assignee in task creation', async () => {
+      await asServiceRole(async (client) => {
+        // Cross-WR predecessor
+        const foreignTaskId = '10000000-0000-4000-8000-000000000001';
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+            [
+              testWrId,
+              ENTITY_ATA_ID,
+              USER_EMPLOYEE_ID,
+              JSON.stringify({ title: 'Bad Dep', predecessors: [foreignTaskId] }),
+            ]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_CONFLICT.*Predecessor task.*does not belong to work request/);
+
+        // Inactive assignee
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+            [
+              testWrId,
+              ENTITY_ATA_ID,
+              USER_EMPLOYEE_ID,
+              JSON.stringify({ title: 'Bad Assignee', assignees: [USER_INACTIVE_ID] }),
+            ]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_FORBIDDEN.*Assignee.*is inactive or invalid/);
+      });
+    });
+
+    it('successfully creates employee task: derives pending, sets creator/assigner, version 1 and syncs assignees', async () => {
+      await asServiceRole(async (client) => {
+        const payload = {
+          title: 'Employee Pending Task',
+          description: 'Detailed scope of work',
+          dueDate: '2026-11-20T00:00:00Z',
+          predecessors: [baseTaskId],
+          assignees: [USER_OTHER_EMPLOYEE_ID],
+        };
+
+        const res = await client.query(
+          'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+          [testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, JSON.stringify(payload)]
+        );
+
+        expect(res.rows.length).toBe(1);
+        const task = res.rows[0];
+        expect(task.title).toBe('Employee Pending Task');
+        expect(task.description).toBe('Detailed scope of work');
+        expect(task.approval_status).toBe('pending');
+        expect(task.created_by).toBe(USER_EMPLOYEE_ID);
+        expect(task.assigned_by).toBe(USER_EMPLOYEE_ID);
+        expect(task.assignee_id).toBe(USER_OTHER_EMPLOYEE_ID);
+        expect(task.version).toBe(1);
+        expect(task.predecessors).toEqual([baseTaskId]);
+
+        // Verify task_assignees synchronized
+        const ta = await client.query(
+          'SELECT user_id, assigned_by FROM public.task_assignees WHERE task_id = $1',
+          [task.id]
+        );
+        expect(ta.rows.length).toBe(1);
+        expect(ta.rows[0].user_id).toBe(USER_OTHER_EMPLOYEE_ID);
+        expect(ta.rows[0].assigned_by).toBe(USER_EMPLOYEE_ID);
+      });
+    });
+
+    it('successfully creates Admin and Manager task: derives approved status directly', async () => {
+      await asServiceRole(async (client) => {
+        // Admin creates task on entitled entity without prior WR assignment
+        const adminPayload = {
+          title: 'Admin Created Task',
+          description: 'Immediate action required',
+        };
+        const adminRes = await client.query(
+          'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+          [testWrId, ENTITY_ATA_ID, USER_ADMIN_ID, JSON.stringify(adminPayload)]
+        );
+        expect(adminRes.rows.length).toBe(1);
+        expect(adminRes.rows[0].approval_status).toBe('approved');
+        expect(adminRes.rows[0].created_by).toBe(USER_ADMIN_ID);
+        expect(adminRes.rows[0].version).toBe(1);
+
+        // Manager lead creates task on WR
+        const managerPayload = {
+          title: 'Manager Created Task',
+          description: 'Planned work',
+        };
+        const managerRes = await client.query(
+          'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+          [testWrId, ENTITY_ATA_ID, USER_LEAD_ID, JSON.stringify(managerPayload)]
+        );
+        expect(managerRes.rows.length).toBe(1);
+        expect(managerRes.rows[0].approval_status).toBe('approved');
+        expect(managerRes.rows[0].created_by).toBe(USER_LEAD_ID);
+        expect(managerRes.rows[0].version).toBe(1);
+      });
+    });
+
+    it('rejects employee task creation if assigned lead is not entitled to WR entity', async () => {
+      const unentitledLeadId = 'b0000000-0000-4000-8000-000000000099';
+      await cleanFixtureData(`
+        INSERT INTO public.users (id, name, role, email, is_active, entities)
+        VALUES ('${unentitledLeadId}', 'LTA Only Lead', 'Manager', 'lta-lead@example.test', true, ARRAY['LTA'])
+        ON CONFLICT (id) DO UPDATE SET entities = ARRAY['LTA'], role = 'Manager', is_active = true;
+        UPDATE public.work_requests SET assigned_to = '${unentitledLeadId}' WHERE id = '${testWrId}';
+      `);
+
+      await asServiceRole(async (client) => {
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+            [testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, JSON.stringify({ title: 'Unentitled Lead Task' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_REQUIRED.*Assigned lead is not entitled to work request entity/);
+      });
+    });
+
+    it('enforces dynamic lead revocation if WR lead reassigned under database lock during create', async () => {
+      const client1 = await pool.connect();
+      const client2 = await pool.connect();
+
+      try {
+        await client1.query('SET ROLE service_role');
+        await client2.query('SET ROLE service_role');
+
+        // Client 1 holds row lock on WR
+        await client1.query('BEGIN');
+        await client1.query('SELECT * FROM public.work_requests WHERE id = $1 FOR UPDATE', [testWrId]);
+
+        // Client 2 attempts employee task creation (blocks on parent row lock)
+        let client2Resolved = false;
+        let client2Error = null;
+        const client2Promise = (async () => {
+          try {
+            await client2.query(
+              'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+              [testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, JSON.stringify({ title: 'Race Lead Task' })]
+            );
+            client2Resolved = true;
+          } catch (err) {
+            client2Error = err.message;
+          }
+        })();
+
+        await new Promise((r) => setTimeout(r, 100));
+        expect(client2Resolved).toBe(false);
+
+        // Client 1 reassigns lead to an employee (invalid lead) and commits
+        await client1.query('UPDATE public.work_requests SET assigned_to = $1 WHERE id = $2', [
+          USER_OTHER_EMPLOYEE_ID,
+          testWrId,
+        ]);
+        await client1.query('COMMIT');
+
+        // Client 2 unblocks, re-evaluates lead under lock, and fails
+        await client2Promise;
+        expect(client2Error).toMatch(/TASK_REVIEW_REQUIRED.*Assigned lead is not an active Manager lead/);
+      } finally {
+        await client1.query('ROLLBACK').catch(() => {});
+        await client2.query('ROLLBACK').catch(() => {});
+        await client1.query('RESET ROLE').catch(() => {});
+        await client2.query('RESET ROLE').catch(() => {});
+        client1.release();
+        client2.release();
+      }
+    });
+
+    it('allows Manager co-assignee to create approved task', async () => {
+      await adminClient.query(
+        "UPDATE public.work_requests SET co_assignees = $1 WHERE id = $2",
+        [JSON.stringify([USER_OTHER_LEAD_ID]), testWrId]
+      );
+
+      await asServiceRole(async (client) => {
+        const res = await client.query(
+          'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+          [testWrId, ENTITY_ATA_ID, USER_OTHER_LEAD_ID, JSON.stringify({ title: 'Co-assignee Manager Task' })]
+        );
+        expect(res.rows.length).toBe(1);
+        expect(res.rows[0].approval_status).toBe('approved');
+        expect(res.rows[0].created_by).toBe(USER_OTHER_LEAD_ID);
+      });
+    });
+
+    it('supports explicit p_assignees parameter in task_creation_review_create', async () => {
+      await asServiceRole(async (client) => {
+        const res = await client.query(
+          'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4, $5)',
+          [
+            testWrId,
+            ENTITY_ATA_ID,
+            USER_EMPLOYEE_ID,
+            JSON.stringify({ title: 'Task with explicit p_assignees' }),
+            [USER_OTHER_EMPLOYEE_ID],
+          ]
+        );
+        expect(res.rows.length).toBe(1);
+        expect(res.rows[0].assignee_id).toBe(USER_OTHER_EMPLOYEE_ID);
+
+        const ta = await client.query(
+          'SELECT user_id FROM public.task_assignees WHERE task_id = $1',
+          [res.rows[0].id]
+        );
+        expect(ta.rows.map((r) => r.user_id)).toContain(USER_OTHER_EMPLOYEE_ID);
+      });
+    });
+
+    it('rejects self-referential task dependency if id is supplied', async () => {
+      const explicitTaskId = '21000000-0000-4000-8000-000000000099';
+      await asServiceRole(async (client) => {
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+            [
+              testWrId,
+              ENTITY_ATA_ID,
+              USER_EMPLOYEE_ID,
+              JSON.stringify({
+                id: explicitTaskId,
+                title: 'Self-Dependent Task',
+                predecessors: [explicitTaskId],
+              }),
+            ]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_CONFLICT.*Task cannot depend on itself/);
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 14. Task Write Serialization: Material Update RPC (task_material_update)
+  // ---------------------------------------------------------------------------
+  describe('14. Task Write Serialization: Material Update RPC (task_material_update)', () => {
+    let testWrId;
+    let testTaskId;
+    let predTaskId;
+
+    beforeEach(async () => {
+      testWrId = 'f2000000-0000-4000-8000-000000000002';
+      testTaskId = '21000000-0000-4000-8000-000000000002';
+      predTaskId = '21000000-0000-4000-8000-000000000022';
+
+      await cleanFixtureData(`
+        DELETE FROM public.task_creation_review_events WHERE work_request_id = '${testWrId}';
+        DELETE FROM public.task_assignees WHERE task_id IN ('${testTaskId}', '${predTaskId}');
+        DELETE FROM public.tasks WHERE work_request_id = '${testWrId}';
+        DELETE FROM public.work_requests WHERE id = '${testWrId}';
+
+        INSERT INTO public.work_requests (
+          id, entity_id, client_id, title, assigned_to, requested_by,
+          phase, status, creation_approval_status, version, co_assignees
+        ) VALUES (
+          '${testWrId}', '${ENTITY_ATA_ID}', '${CLIENT_ATA_ID}',
+          'Material Update WR', '${USER_LEAD_ID}', '${USER_LEAD_ID}',
+          'pre_processing', 'Pre-processing', 'approved', 1, '["${USER_EMPLOYEE_ID}"]'::jsonb
+        );
+
+        INSERT INTO public.tasks (
+          id, work_request_id, title, status, phase, approval_status,
+          created_by, version, assignee_id
+        ) VALUES (
+          '${predTaskId}', '${testWrId}', 'Predecessor Task',
+          'Draft', 'pre_processing', 'approved', '${USER_LEAD_ID}', 1, '${USER_EMPLOYEE_ID}'
+        );
+
+        INSERT INTO public.tasks (
+          id, work_request_id, title, description, status, phase,
+          approval_status, created_by, version, reviewed_by, reviewed_at, assignee_id
+        ) VALUES (
+          '${testTaskId}', '${testWrId}', 'Approved Active Task', 'Original description',
+          'Draft', 'pre_processing', 'approved', '${USER_EMPLOYEE_ID}', 1,
+          '${USER_LEAD_ID}', now(), '${USER_EMPLOYEE_ID}'
+        );
+      `);
+    });
+
+    it('denies anon and authenticated from executing task_material_update', async () => {
+      for (const role of ['anon', 'authenticated']) {
+        await asRole(role, async (client) => {
+          await expect(
+            client.query(
+              'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+              [testTaskId, testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, 1, JSON.stringify({ title: 'New' })]
+            )
+          ).rejects.toThrow(/permission denied.*task_material_update/i);
+        });
+      }
+    });
+
+    it('rejects material update with stale expected_version (OCC guard)', async () => {
+      await asServiceRole(async (client) => {
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+            [testTaskId, testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, 999, JSON.stringify({ title: 'New' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_CONFLICT.*Task version mismatch/);
+      });
+    });
+
+    it('denies ordinary material update on rejected task directly (Policy R6)', async () => {
+      await adminClient.query(
+        "UPDATE public.tasks SET approval_status = 'rejected', rejection_reason = 'Rejected for rework' WHERE id = $1",
+        [testTaskId]
+      );
+
+      await asServiceRole(async (client) => {
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+            [testTaskId, testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, 1, JSON.stringify({ title: 'New Title' })]
+          )
+        ).rejects.toThrow(/TASK_REJECTED_LOCKED.*Cannot modify rejected task without resubmission/);
+      });
+    });
+
+    it('rejects privileged or unsupported keys in material update data', async () => {
+      await asServiceRole(async (client) => {
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+            [
+              testTaskId,
+              testWrId,
+              ENTITY_ATA_ID,
+              USER_EMPLOYEE_ID,
+              1,
+              JSON.stringify({ approval_status: 'approved' }),
+            ]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_STATE.*privileged/);
+
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+            [
+              testTaskId,
+              testWrId,
+              ENTITY_ATA_ID,
+              USER_EMPLOYEE_ID,
+              1,
+              JSON.stringify({ created_by: USER_ADMIN_ID }),
+            ]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_STATE.*privileged/);
+
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+            [
+              testTaskId,
+              testWrId,
+              ENTITY_ATA_ID,
+              USER_EMPLOYEE_ID,
+              1,
+              JSON.stringify({ phase: 'processing' }),
+            ]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_STATE.*privileged/);
+      });
+    });
+
+    it('employee material update resets approved task to pending, clears review fields, increments version and logs event', async () => {
+      await asServiceRole(async (client) => {
+        const materialPatch = {
+          description: 'Substantially amended description and deliverables',
+          dueDate: '2026-12-25T00:00:00Z',
+          predecessors: [predTaskId],
+        };
+
+        const res = await client.query(
+          'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+          [testTaskId, testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, 1, JSON.stringify(materialPatch)]
+        );
+
+        expect(res.rows.length).toBe(1);
+        const task = res.rows[0];
+        expect(task.description).toBe('Substantially amended description and deliverables');
+        expect(task.approval_status).toBe('pending'); // Reset to pending!
+        expect(task.reviewed_by).toBeNull(); // Cleared!
+        expect(task.reviewed_at).toBeNull(); // Cleared!
+        expect(task.rejection_reason).toBeNull();
+        expect(task.version).toBe(2); // Incremented!
+
+        // Verify material_update event appended to immutable history
+        const events = await client.query(
+          'SELECT * FROM public.task_creation_review_events WHERE task_id = $1 AND event_type = $2',
+          [testTaskId, 'material_update']
+        );
+        expect(events.rows.length).toBe(1);
+        expect(events.rows[0].actor_id).toBe(USER_EMPLOYEE_ID);
+        expect(events.rows[0].metadata.prior_approval_status).toBe('approved');
+        expect(events.rows[0].metadata.prior_version).toBe(1);
+        expect(events.rows[0].metadata.new_version).toBe(2);
+      });
+    });
+
+    it('employee routine update (display order) preserves approved status and does not log review event', async () => {
+      await asServiceRole(async (client) => {
+        const routinePatch = {
+          display_order: 3,
+        };
+
+        const res = await client.query(
+          'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+          [testTaskId, testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, 1, JSON.stringify(routinePatch)]
+        );
+
+        expect(res.rows.length).toBe(1);
+        const task = res.rows[0];
+        expect(task.display_order).toBe(3);
+        expect(task.approval_status).toBe('approved'); // Preserved!
+        expect(task.reviewed_by).toBe(USER_LEAD_ID); // Preserved!
+        expect(task.version).toBe(2);
+
+        // No review event should be recorded
+        const events = await client.query(
+          'SELECT * FROM public.task_creation_review_events WHERE task_id = $1',
+          [testTaskId]
+        );
+        expect(events.rows.length).toBe(0);
+      });
+    });
+
+    it('rejects missing or non-positive expectedVersion in task_material_update', async () => {
+      await asServiceRole(async (client) => {
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+            [testTaskId, testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, null, JSON.stringify({ title: 'New' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_CONFLICT.*expectedVersion is required and must be a positive integer/);
+
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+            [testTaskId, testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, 0, JSON.stringify({ title: 'New' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_CONFLICT.*expectedVersion is required and must be a positive integer/);
+
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+            [testTaskId, testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, -5, JSON.stringify({ title: 'New' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_CONFLICT.*expectedVersion is required and must be a positive integer/);
+      });
+    });
+
+    it('supports explicit p_assignees parameter in task_material_update', async () => {
+      await asServiceRole(async (client) => {
+        const res = await client.query(
+          'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6, $7)',
+          [
+            testTaskId,
+            testWrId,
+            ENTITY_ATA_ID,
+            USER_EMPLOYEE_ID,
+            1,
+            JSON.stringify({ title: 'Updated Title' }),
+            [USER_OTHER_EMPLOYEE_ID],
+          ]
+        );
+        expect(res.rows.length).toBe(1);
+        expect(res.rows[0].assignee_id).toBe(USER_OTHER_EMPLOYEE_ID);
+        expect(res.rows[0].approval_status).toBe('pending');
+
+        const ta = await client.query(
+          'SELECT user_id FROM public.task_assignees WHERE task_id = $1',
+          [testTaskId]
+        );
+        expect(ta.rows.map((r) => r.user_id)).toContain(USER_OTHER_EMPLOYEE_ID);
+      });
+    });
+
+    it('updates legacy task with NULL created_by and resets to pending on employee material change', async () => {
+      const legacyTaskId = '21000000-0000-4000-8000-000000000088';
+      await adminClient.query(`
+        DELETE FROM public.task_creation_review_events WHERE task_id = '${legacyTaskId}';
+        DELETE FROM public.tasks WHERE id = '${legacyTaskId}';
+        INSERT INTO public.tasks (
+          id, work_request_id, title, description, status, phase,
+          approval_status, created_by, version, assignee_id
+        ) VALUES (
+          '${legacyTaskId}', '${testWrId}', 'Legacy Task', 'Old description',
+          'Draft', 'pre_processing', 'approved', NULL, 1, '${USER_EMPLOYEE_ID}'
+        );
+      `);
+
+      await asServiceRole(async (client) => {
+        const res = await client.query(
+          'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+          [
+            legacyTaskId,
+            testWrId,
+            ENTITY_ATA_ID,
+            USER_EMPLOYEE_ID,
+            1,
+            JSON.stringify({ description: 'New description for legacy task' }),
+          ]
+        );
+
+        expect(res.rows.length).toBe(1);
+        expect(res.rows[0].approval_status).toBe('pending');
+        expect(res.rows[0].version).toBe(2);
+        expect(res.rows[0].description).toBe('New description for legacy task');
+      });
+    });
+
+    it('Manager or Admin material update preserves approved status without reset', async () => {
+      await asServiceRole(async (client) => {
+        const managerPatch = {
+          description: 'Manager adjusting task details',
+          dueDate: '2026-11-30T00:00:00Z',
+        };
+
+        const res = await client.query(
+          'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+          [testTaskId, testWrId, ENTITY_ATA_ID, USER_LEAD_ID, 1, JSON.stringify(managerPatch)]
+        );
+
+        expect(res.rows.length).toBe(1);
+        const task = res.rows[0];
+        expect(task.description).toBe('Manager adjusting task details');
+        expect(task.approval_status).toBe('approved'); // Preserved!
+        expect(task.version).toBe(2);
+
+        const events = await client.query(
+          'SELECT * FROM public.task_creation_review_events WHERE task_id = $1',
+          [testTaskId]
+        );
+        expect(events.rows.length).toBe(0);
+      });
+    });
+
+    it('rejects missing or non-positive expectedVersion in task_material_update', async () => {
+      await asServiceRole(async (client) => {
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+            [testTaskId, testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, null, JSON.stringify({ title: 'New' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_CONFLICT.*expectedVersion is required and must be a positive integer/);
+
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+            [testTaskId, testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, 0, JSON.stringify({ title: 'New' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_CONFLICT.*expectedVersion is required and must be a positive integer/);
+
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+            [testTaskId, testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, -5, JSON.stringify({ title: 'New' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_CONFLICT.*expectedVersion is required and must be a positive integer/);
+      });
+    });
+
+    it('supports explicit p_assignees parameter in task_material_update', async () => {
+      await asServiceRole(async (client) => {
+        const res = await client.query(
+          'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6, $7)',
+          [
+            testTaskId,
+            testWrId,
+            ENTITY_ATA_ID,
+            USER_EMPLOYEE_ID,
+            1,
+            JSON.stringify({ title: 'Updated Title' }),
+            [USER_OTHER_EMPLOYEE_ID],
+          ]
+        );
+        expect(res.rows.length).toBe(1);
+        expect(res.rows[0].assignee_id).toBe(USER_OTHER_EMPLOYEE_ID);
+        expect(res.rows[0].approval_status).toBe('pending');
+
+        const ta = await client.query(
+          'SELECT user_id FROM public.task_assignees WHERE task_id = $1',
+          [testTaskId]
+        );
+        expect(ta.rows.map((r) => r.user_id)).toContain(USER_OTHER_EMPLOYEE_ID);
+      });
+    });
+
+    it('updates legacy task with NULL created_by and resets to pending on employee material change', async () => {
+      const legacyTaskId = '21000000-0000-4000-8000-000000000088';
+      await adminClient.query(`
+        DELETE FROM public.task_creation_review_events WHERE task_id = '${legacyTaskId}';
+        DELETE FROM public.tasks WHERE id = '${legacyTaskId}';
+        INSERT INTO public.tasks (
+          id, work_request_id, title, description, status, phase,
+          approval_status, created_by, version, assignee_id
+        ) VALUES (
+          '${legacyTaskId}', '${testWrId}', 'Legacy Task', 'Old description',
+          'Draft', 'pre_processing', 'approved', NULL, 1, '${USER_EMPLOYEE_ID}'
+        );
+      `);
+
+      await asServiceRole(async (client) => {
+        const res = await client.query(
+          'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+          [
+            legacyTaskId,
+            testWrId,
+            ENTITY_ATA_ID,
+            USER_EMPLOYEE_ID,
+            1,
+            JSON.stringify({ description: 'New description for legacy task' }),
+          ]
+        );
+
+        expect(res.rows.length).toBe(1);
+        expect(res.rows[0].approval_status).toBe('pending');
+        expect(res.rows[0].version).toBe(2);
+        expect(res.rows[0].description).toBe('New description for legacy task');
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 15. Concurrent Serialization Races (Parent Row Locking)
+  // ---------------------------------------------------------------------------
+  describe('15. Concurrent Serialization Races (Parent Row Locking)', () => {
+    let testWrId;
+    let testTaskId;
+
+    beforeEach(async () => {
+      testWrId = 'f2000000-0000-4000-8000-000000000003';
+      testTaskId = '21000000-0000-4000-8000-000000000003';
+
+      await cleanFixtureData(`
+        DELETE FROM public.task_creation_review_events WHERE work_request_id = '${testWrId}';
+        DELETE FROM public.task_assignees WHERE task_id IN (SELECT id FROM public.tasks WHERE work_request_id = '${testWrId}');
+        DELETE FROM public.tasks WHERE work_request_id = '${testWrId}';
+        DELETE FROM public.work_requests WHERE id = '${testWrId}';
+
+        INSERT INTO public.work_requests (
+          id, entity_id, client_id, title, assigned_to, requested_by,
+          phase, status, creation_approval_status, version, co_assignees
+        ) VALUES (
+          '${testWrId}', '${ENTITY_ATA_ID}', '${CLIENT_ATA_ID}',
+          'Concurrent Race WR', '${USER_LEAD_ID}', '${USER_LEAD_ID}',
+          'pre_processing', 'Pre-processing', 'approved', 1, '["${USER_EMPLOYEE_ID}"]'::jsonb
+        );
+
+        INSERT INTO public.tasks (
+          id, work_request_id, title, status, phase, approval_status,
+          created_by, version, assignee_id
+        ) VALUES (
+          '${testTaskId}', '${testWrId}', 'Race Baseline Task',
+          'Draft', 'pre_processing', 'approved', '${USER_LEAD_ID}', 1, '${USER_EMPLOYEE_ID}'
+        );
+      `);
+    });
+
+    it('proves strict parent-lock serialization: employee create blocks competing WR phase advancement', async () => {
+      const client1 = await pool.connect();
+      const client2 = await pool.connect();
+
+      try {
+        await client1.query('SET ROLE service_role');
+        await client2.query('SET ROLE service_role');
+
+        // Step 1: Client 1 starts transaction and inserts a pending employee task via RPC
+        await client1.query('BEGIN');
+        const createRes = await client1.query(
+          'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+          [
+            testWrId,
+            ENTITY_ATA_ID,
+            USER_EMPLOYEE_ID,
+            JSON.stringify({ title: 'Concurrent Pending Task' }),
+          ]
+        );
+        expect(createRes.rows[0].approval_status).toBe('pending');
+
+        // Step 2: Client 2 tries to advance phase concurrently on the work request
+        // Because Client 1 holds parent WR lock FOR UPDATE, Client 2 MUST block!
+        let client2Resolved = false;
+        let client2Error = null;
+        const client2Promise = (async () => {
+          try {
+            await client2.query(
+              "UPDATE public.work_requests SET phase = 'processing', status = 'Processing' WHERE id = $1",
+              [testWrId]
+            );
+            client2Resolved = true;
+          } catch (err) {
+            client2Error = err.message;
+          }
+        })();
+
+        // Wait 100ms and verify client2 has NOT resolved (strictly blocked by parent row lock)
+        await new Promise((r) => setTimeout(r, 100));
+        expect(client2Resolved).toBe(false);
+        expect(client2Error).toBeNull();
+
+        // Step 3: Client 1 commits
+        await client1.query('COMMIT');
+
+        // Step 4: Client 2 now unblocks, trigger runs and strictly denies phase advancement!
+        await client2Promise;
+        expect(client2Error).toMatch(/TASK_REVIEW_REQUIRED.*pending or rejected tasks/);
+
+        // Verify phase did not advance
+        const wrRes = await adminClient.query(
+          'SELECT phase FROM public.work_requests WHERE id = $1',
+          [testWrId]
+        );
+        expect(wrRes.rows[0].phase).toBe('pre_processing');
+      } finally {
+        await client1.query('ROLLBACK').catch(() => {});
+        await client2.query('ROLLBACK').catch(() => {});
+        await client1.query('RESET ROLE').catch(() => {});
+        await client2.query('RESET ROLE').catch(() => {});
+        client1.release();
+        client2.release();
+      }
+    });
+
+    it('proves strict parent-lock serialization: employee material reset blocks competing WR phase advancement', async () => {
+      const client1 = await pool.connect();
+      const client2 = await pool.connect();
+
+      try {
+        await client1.query('SET ROLE service_role');
+        await client2.query('SET ROLE service_role');
+
+        // Step 1: Client 1 starts transaction and updates material description (resets approved -> pending)
+        await client1.query('BEGIN');
+        const updateRes = await client1.query(
+          'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+          [
+            testTaskId,
+            testWrId,
+            ENTITY_ATA_ID,
+            USER_EMPLOYEE_ID,
+            1,
+            JSON.stringify({ description: 'Material reset description' }),
+          ]
+        );
+        expect(updateRes.rows[0].approval_status).toBe('pending');
+
+        // Step 2: Client 2 concurrently tries to advance phase to completion
+        let client2Resolved = false;
+        let client2Error = null;
+        const client2Promise = (async () => {
+          try {
+            await client2.query(
+              "UPDATE public.work_requests SET phase = 'processing', status = 'Processing' WHERE id = $1",
+              [testWrId]
+            );
+            client2Resolved = true;
+          } catch (err) {
+            client2Error = err.message;
+          }
+        })();
+
+        // Verify client 2 is strictly blocked by parent WR row lock
+        await new Promise((r) => setTimeout(r, 100));
+        expect(client2Resolved).toBe(false);
+        expect(client2Error).toBeNull();
+
+        // Step 3: Client 1 commits
+        await client1.query('COMMIT');
+
+        // Step 4: Client 2 unblocks, re-reads task review status, and trigger fails!
+        await client2Promise;
+        expect(client2Error).toMatch(/TASK_REVIEW_REQUIRED.*pending or rejected tasks/);
+
+        // Verify work request phase remains in pre_processing
+        const wrRes = await adminClient.query(
+          'SELECT phase FROM public.work_requests WHERE id = $1',
+          [testWrId]
+        );
+        expect(wrRes.rows[0].phase).toBe('pre_processing');
+      } finally {
+        await client1.query('ROLLBACK').catch(() => {});
+        await client2.query('ROLLBACK').catch(() => {});
+        await client1.query('RESET ROLE').catch(() => {});
+        await client2.query('RESET ROLE').catch(() => {});
+        client1.release();
+        client2.release();
+      }
     });
   });
 });
