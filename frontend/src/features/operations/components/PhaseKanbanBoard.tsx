@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { toast } from 'sonner';
 import {
   CheckCircle2,
   XCircle,
@@ -199,8 +200,19 @@ function PhaseKanbanBoardInner({
   const [taskToReject, setTaskToReject] = useState<Task | null>(null);
   const [taskToResubmit, setTaskToResubmit] = useState<Task | null>(null);
 
+  // Clear pending dialogs on WR, entity, or user account change to prevent cross-WR / stale decisions
+  React.useEffect(() => {
+    setTaskToReject(null);
+    setTaskToResubmit(null);
+    setTaskToDelete(null);
+  }, [effectiveWrId, activeEntity, currentUser?.id, currentUser?.role]);
+
   const handleApproveTask = async (task: Task) => {
     if (!activeWr) return;
+    if (task.workRequestId && task.workRequestId !== activeWr.id) {
+      toast.error('Task does not belong to the active work request');
+      return;
+    }
     await runBlockingAction({
       title: 'Approving Task Creation',
       message: 'Please wait while the task creation is approved...',
@@ -216,7 +228,9 @@ function PhaseKanbanBoardInner({
       successMessage: 'Task creation has been approved successfully.',
       invalidateQueries: [
         operationsKeys.tasks(effectiveWrId),
+        operationsKeys.taskDetail(effectiveWrId, task.id),
         operationsKeys.workRequestDetail(effectiveWrId),
+        operationsKeys.workRequestCounts(activeEntity),
       ],
     });
   };
@@ -1348,8 +1362,11 @@ function PhaseKanbanBoardInner({
           successMessage="The task creation has been rejected with feedback."
           onClose={() => setTaskToReject(null)}
           onReject={async (taskId, reason) => {
+            if (!activeWr || (taskToReject.workRequestId && taskToReject.workRequestId !== activeWr.id)) {
+              throw new Error('Task does not belong to the active work request');
+            }
             await approveOrRejectTaskCreation({
-              workRequestId: activeWr?.id,
+              workRequestId: activeWr.id,
               taskId,
               decision: 'reject',
               reason,
@@ -1358,7 +1375,9 @@ function PhaseKanbanBoardInner({
           }}
           invalidateQueries={[
             operationsKeys.tasks(effectiveWrId),
+            operationsKeys.taskDetail(effectiveWrId, taskToReject.id),
             operationsKeys.workRequestDetail(effectiveWrId),
+            operationsKeys.workRequestCounts(activeEntity),
           ]}
         />
       )}

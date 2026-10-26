@@ -84,10 +84,19 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
   });
 
   // Queries
-  const { data: rawRequests, isLoading, isError, refetch } = useOperationsRequests({
+  const { data: rawRequests, isLoading, isError, error: reqError, refetch } = useOperationsRequests({
     status: activeSubTab === 'all' ? undefined : activeSubTab,
   });
+
+  const isReqErrorDenied = Boolean(
+    isError &&
+      ((reqError as { status?: number })?.status === 401 ||
+        (reqError as { status?: number })?.status === 403 ||
+        (reqError as { status?: number })?.status === 404)
+  );
+
   const requests = useMemo((): OperationsRequest[] => {
+    if (isReqErrorDenied) return [];
     if (Array.isArray(rawRequests)) return rawRequests as OperationsRequest[];
     if (
       rawRequests &&
@@ -98,7 +107,7 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
       return (rawRequests as { data: OperationsRequest[] }).data;
     }
     return [];
-  }, [rawRequests]);
+  }, [rawRequests, isReqErrorDenied]);
 
   const { data: counts } = useOperationsRequestCounts();
   const pendingCount = counts?.pending ?? 0;
@@ -142,6 +151,8 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
   const {
     data: rawCreationApprovals,
     isLoading: isLoadingCreationApprovals,
+    isError: isCreationApprovalsError,
+    error: creationApprovalsError,
     refetch: refetchCreationApprovals,
   } = useWorkRequestCreationApprovals(
     {
@@ -151,19 +162,40 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
     { enabled: isAdmin || isManager }
   );
 
+  const isCreationDenied = Boolean(
+    isCreationApprovalsError &&
+      ((creationApprovalsError as { status?: number })?.status === 401 ||
+        (creationApprovalsError as { status?: number })?.status === 403 ||
+        (creationApprovalsError as { status?: number })?.status === 404)
+  );
+
   const creationApprovals = useMemo((): WorkRequest[] => {
+    if (isCreationDenied) return [];
     if (Array.isArray(rawCreationApprovals)) return rawCreationApprovals;
     return (rawCreationApprovals as unknown as { data?: WorkRequest[] })?.data ?? [];
-  }, [rawCreationApprovals]);
+  }, [rawCreationApprovals, isCreationDenied]);
 
-  const { data: rawPendingCreations } = useWorkRequestCreationApprovals(
+  const {
+    data: rawPendingCreations,
+    isError: isPendingCreationsError,
+    error: pendingCreationsError,
+  } = useWorkRequestCreationApprovals(
     { status: 'pending', scope: wrScope },
     { enabled: isAdmin || isManager }
   );
+
+  const isPendingCreationsDenied = Boolean(
+    isPendingCreationsError &&
+      ((pendingCreationsError as { status?: number })?.status === 401 ||
+        (pendingCreationsError as { status?: number })?.status === 403 ||
+        (pendingCreationsError as { status?: number })?.status === 404)
+  );
+
   const pendingWrCreationCount = useMemo(() => {
+    if (isPendingCreationsDenied) return 0;
     if (Array.isArray(rawPendingCreations)) return rawPendingCreations.length;
     return (rawPendingCreations as unknown as { data?: WorkRequest[] })?.data?.length ?? 0;
-  }, [rawPendingCreations]);
+  }, [rawPendingCreations, isPendingCreationsDenied]);
 
   const filteredCreationApprovals = useMemo(() => {
     return creationApprovals.filter((wr) => {

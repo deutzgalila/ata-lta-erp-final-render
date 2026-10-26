@@ -49,25 +49,36 @@ export function TaskResubmitModal({
   const activeEntity = useSessionStore((state) => state.activeEntity);
   const initialUserRef = useRef(currentUser?.id);
   const initialEntityRef = useRef(activeEntity);
+  const capturedTaskIdRef = useRef<string | null>(null);
+  const capturedVersionRef = useRef<number>(task.version ?? 1);
+  const capturedWrIdRef = useRef<string | undefined>(task.workRequestId || workRequest?.id);
 
-  // Reset form when task or open state changes
+  // Initialize form ONLY on modal open or task identity change.
+  // Never overwrite in-progress user drafts or rebase expectedVersion on background refresh.
   useEffect(() => {
     if (isOpen) {
-      setTitle(task.title || '');
-      setDescription(task.description || '');
-      setRequiredLinkType(
-        task.requiredLinkType ?? (task as { required_link_type?: string | null }).required_link_type ?? null
-      );
-      setDueDate(
-        task.dueDate
-          ? (task.dueDate.includes('T')
-            ? (task.dueDate.split('T')[0] ?? null)
-            : task.dueDate)
-          : null
-      );
-      setError(null);
+      if (capturedTaskIdRef.current !== task.id) {
+        capturedTaskIdRef.current = task.id;
+        capturedVersionRef.current = task.version ?? 1;
+        capturedWrIdRef.current = task.workRequestId || workRequest?.id;
+        setTitle(task.title || '');
+        setDescription(task.description || '');
+        setRequiredLinkType(
+          task.requiredLinkType ?? (task as { required_link_type?: string | null }).required_link_type ?? null
+        );
+        setDueDate(
+          task.dueDate
+            ? (task.dueDate.includes('T')
+              ? (task.dueDate.split('T')[0] ?? null)
+              : task.dueDate)
+            : null
+        );
+        setError(null);
+      }
+    } else {
+      capturedTaskIdRef.current = null;
     }
-  }, [isOpen, task]);
+  }, [isOpen, task, workRequest?.id]);
 
   // Strict session/account isolation: close modal on user or entity switch
   useEffect(() => {
@@ -103,10 +114,12 @@ export function TaskResubmitModal({
     setError(null);
 
     try {
+      const targetWrId = capturedWrIdRef.current || effectiveWrId;
+      const targetVersion = capturedVersionRef.current;
       const updated = await resubmitTaskCreation({
-        workRequestId: effectiveWrId,
+        workRequestId: targetWrId,
         taskId: task.id,
-        expectedVersion: task.version ?? 1,
+        expectedVersion: targetVersion,
         data: {
           title: trimmedTitle,
           description: description.trim() || undefined,

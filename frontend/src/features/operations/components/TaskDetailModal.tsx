@@ -1,4 +1,5 @@
 import { workDate } from '@/lib/workDate';
+import { toast } from 'sonner';
 import { DateInput } from '@/components/ui/date-input';
 import React, { useState, useMemo, useEffect } from 'react';
 import {
@@ -187,8 +188,10 @@ export function TaskDetailModal({
 
   const isTaskDetailErrorDenied = Boolean(
     isTaskError &&
-      ((taskError as { status?: number })?.status === 403 ||
+      ((taskError as { status?: number })?.status === 401 ||
+        (taskError as { status?: number })?.status === 403 ||
         (taskError as { status?: number })?.status === 404 ||
+        String(taskError?.message || '').includes('401') ||
         String(taskError?.message || '').includes('403') ||
         String(taskError?.message || '').includes('404'))
   );
@@ -210,8 +213,10 @@ export function TaskDetailModal({
 
   const isRelatedErrorDenied = Boolean(
     isRelatedError &&
-      ((relatedError as { status?: number })?.status === 403 ||
+      ((relatedError as { status?: number })?.status === 401 ||
+        (relatedError as { status?: number })?.status === 403 ||
         (relatedError as { status?: number })?.status === 404 ||
+        String(relatedError?.message || '').includes('401') ||
         String(relatedError?.message || '').includes('403') ||
         String(relatedError?.message || '').includes('404'))
   );
@@ -244,8 +249,10 @@ export function TaskDetailModal({
     }
   }, [isTaskDetailErrorDenied, isRelatedErrorDenied, effectiveWrId, effectiveTaskId, activeEntity, currentUser?.id, queryClient]);
 
-  const liveTask = Array.isArray(rawLiveTask)
-    ? rawLiveTask.find((t) => t?.id === effectiveTaskId) || rawLiveTask[0]
+  const liveTask = isTaskDenied
+    ? null
+    : Array.isArray(rawLiveTask)
+    ? rawLiveTask.find((t) => t?.id === effectiveTaskId)
     : rawLiveTask;
 
   // Support restored membership on fresh successful authorized read (Directive 2):
@@ -412,12 +419,23 @@ export function TaskDetailModal({
   const canResubmit = canResubmitTask(currentUser, task, workRequest);
 
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const rejectIntent = React.useRef<{ taskId: string; wrId: string; version: number } | null>(null);
   const [isResubmitModalOpen, setIsResubmitModalOpen] = useState(false);
+
+  // Clear review dialogs on task, WR, entity, or account context switch
+  useEffect(() => {
+    setIsRejectModalOpen(false);
+    setIsResubmitModalOpen(false);
+  }, [task?.id, effectiveWrId, activeEntity, currentUser?.id]);
 
   const handleApproveTask = async () => {
     if (!task) return;
     const wrId = effectiveWrId || task.workRequestId;
     if (!wrId) return;
+    if (task.workRequestId && task.workRequestId !== wrId) {
+      toast.error('Task does not belong to the active work request');
+      return;
+    }
     await runBlockingAction({
       title: 'Approving Task Creation',
       message: 'Please wait while the task creation is approved...',
@@ -457,11 +475,12 @@ export function TaskDetailModal({
   // Task description editing state (OA.5)
   const [isEditingDesc, setIsEditingDesc] = useState(false);
   const [descText, setDescText] = useState(task?.description || '');
+  const descriptionVersion = React.useRef(task?.version ?? 1);
   const [isSavingDesc, setIsSavingDesc] = useState(false);
 
   useEffect(() => {
-    setDescText(task?.description || '');
-  }, [task?.description]);
+    if (!isEditingDesc) setDescText(task?.description || '');
+  }, [task?.description, isEditingDesc]);
 
   const handleSaveDescription = async () => {
     if (!task || !task.workRequestId) return;
@@ -470,7 +489,7 @@ export function TaskDetailModal({
       const res = await updateTask({
         workRequestId: task.workRequestId,
         taskId: task.id,
-        data: { description: descText.trim() || null },
+        data: { description: descText.trim() || null, expectedVersion: descriptionVersion.current },
       });
       if (res && onTaskUpdated) {
         onTaskUpdated(res as Task);
@@ -478,6 +497,7 @@ export function TaskDetailModal({
       setIsEditingDesc(false);
     } catch (err) {
       console.error('Failed to update task description:', err);
+      toast.error(err instanceof Error ? err.message : 'Unable to save task description.');
     } finally {
       setIsSavingDesc(false);
     }
@@ -682,6 +702,7 @@ export function TaskDetailModal({
           taskId: task.id,
           data: {
             assigneeId: nextAssigneeId,
+            expectedVersion: task.version,
             assigneeName: nextAssigneeName,
             assignees: nextAssigneeIds,
           },
@@ -719,6 +740,7 @@ export function TaskDetailModal({
           taskId: task.id,
           data: {
             assigneeId: member.id,
+            expectedVersion: task.version,
             assigneeName: member.name,
             assignees: nextAssigneeIds,
           },
@@ -770,6 +792,7 @@ export function TaskDetailModal({
           taskId: task.id,
           data: {
             assigneeId: nextLeadId,
+            expectedVersion: task.version,
             assigneeName: nextLeadName,
             assignees: nextAssigneeIds,
           },
@@ -1017,7 +1040,7 @@ export function TaskDetailModal({
                         const updated = await updateTask({
                           workRequestId: task.workRequestId,
                           taskId: task.id,
-                          data: { requiredLinkType: nextVal },
+                          data: { requiredLinkType: nextVal, expectedVersion: task.version },
                         });
                         if (updated && onTaskUpdated) {
                           onTaskUpdated(updated as Task);
@@ -1107,7 +1130,10 @@ export function TaskDetailModal({
                   size="sm"
                   variant="outline"
                   className="text-xs font-bold gap-1 rounded-[6px] border-[#DC2626] text-[#DC2626] hover:bg-[#FEF2F2]"
-                  onClick={() => setIsRejectModalOpen(true)}
+                  onClick={() => {
+                    rejectIntent.current = { taskId: task.id, wrId: task.workRequestId || effectiveWrId || '', version: task.version ?? 1 };
+                    setIsRejectModalOpen(true);
+                  }}
                   data-testid="task-detail-reject-btn"
                 >
                   <XCircle className="h-3.5 w-3.5" />
@@ -1278,7 +1304,7 @@ export function TaskDetailModal({
                             updateTask({
                               workRequestId: task.workRequestId,
                               taskId: task.id,
-                              data: { dueDate: val },
+                              data: { dueDate: val, expectedVersion: task.version },
                             })
                               .then((res) => {
                                 if (res && onTaskUpdated) {
@@ -1490,7 +1516,7 @@ export function TaskDetailModal({
                     type="button"
                     variant="ghost"
                     size="xs"
-                    onClick={() => setIsEditingDesc(!isEditingDesc)}
+                    onClick={() => { descriptionVersion.current = task.version ?? 1; setIsEditingDesc(!isEditingDesc); }}
                     className="h-6 px-1.5 text-[#475569] hover:text-[#1E293B] gap-1 rounded-[6px]"
                     title="Edit Task Description"
                     data-testid="edit-task-description-btn"
@@ -2244,14 +2270,17 @@ export function TaskDetailModal({
           successMessage="The task creation has been rejected."
           onClose={() => setIsRejectModalOpen(false)}
           onReject={async (taskId, reason) => {
-            const wrId = effectiveWrId || task.workRequestId;
-            if (!wrId) return;
+            const intent = rejectIntent.current;
+            if (!intent || intent.taskId !== taskId || intent.wrId !== (effectiveWrId || task.workRequestId)) {
+              throw new Error('Task review context changed. Reopen the task to review it.');
+            }
+            const wrId = intent.wrId;
             const updated = await approveOrRejectTaskCreation({
               workRequestId: wrId,
               taskId,
               decision: 'reject',
               reason,
-              expectedVersion: task.version ?? 1,
+              expectedVersion: intent.version,
             });
             onTaskUpdated?.(updated);
           }}

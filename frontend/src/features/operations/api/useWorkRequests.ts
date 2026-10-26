@@ -1,5 +1,7 @@
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import { apiRequest, ApiError, queryClient } from '@/lib/api';
+import { operationsViewerRefresh } from './viewerRefresh';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiRequest, ApiError, queryClient, getScopeGeneration } from '@/lib/api';
+import { isConcurrencyConflictError } from '@/components/common/ConflictResolutionModal';
 import { isFeatureEnabled } from '@/lib/flags';
 import { broadcastEntityChange } from '@/lib/tabSync';
 import { useSessionStore } from '@/lib/session';
@@ -20,6 +22,8 @@ import type {
 } from './types';
 
 type QuerySnapshot = Array<[readonly unknown[], unknown]>;
+
+
 
 // ============================================================================
 // Queries
@@ -53,8 +57,9 @@ export function useWorkRequests(
       const res = await apiRequest<WorkRequestListResponse>(path, { signal });
       return res;
     },
-    placeholderData: keepPreviousData,
+    placeholderData: (previous, query) => query?.queryKey?.[3] === activeEntity ? previous : undefined,
     enabled: options?.enabled ?? true,
+    ...operationsViewerRefresh,
   });
 }
 
@@ -79,6 +84,7 @@ export function useWorkRequestDetail(
       return res.data;
     },
     enabled: Boolean(id) && (options?.enabled ?? true),
+    ...operationsViewerRefresh,
     // Instant feel: render the side peek from the matching list row (already
     // fetched) while the detail fetch completes. Scoped to active entity.
     placeholderData: (_prev): WorkRequest | undefined => {
@@ -129,10 +135,11 @@ export function useWorkRequestCreationApprovals(
       return res.data;
     },
     enabled: options?.enabled ?? true,
+    ...operationsViewerRefresh,
   });
 }
 
-export function useWorkRequestCounts() {
+export function useWorkRequestCounts(options?: { enabled?: boolean }) {
   const activeEntity = useSessionStore((state) => state.activeEntity);
 
   return useQuery({
@@ -141,6 +148,8 @@ export function useWorkRequestCounts() {
       const res = await apiRequest<WorkRequestCountsResponse>('/operations/counts');
       return res.data;
     },
+    enabled: options?.enabled ?? true,
+    ...operationsViewerRefresh,
   });
 }
 
@@ -159,6 +168,7 @@ export function useWorkRequestRelated(
       return res.data;
     },
     enabled: Boolean(id) && (options?.enabled ?? true),
+    ...operationsViewerRefresh,
   });
 }
 
@@ -240,7 +250,7 @@ export function useWorkRequestMutations() {
     WorkRequest,
     ApiError,
     { id: string; status: WorkRequestStatus; entity?: string; expectedVersion?: number },
-    { snapshots: QuerySnapshot }
+    { snapshots: QuerySnapshot; prevTargetWr?: WorkRequest; scopeGeneration: number }
   >({
     mutationFn: async ({ id, status, entity, expectedVersion }) => {
       const headers: Record<string, string> = {};
@@ -266,8 +276,15 @@ export function useWorkRequestMutations() {
       return res.data;
     },
     onMutate: async ({ id, status }) => {
+      const scopeGeneration = getScopeGeneration();
+
       // Cancel active workRequest queries so in-flight requests don't overwrite optimistic data
       await queryClient.cancelQueries({ queryKey: operationsKeys.workRequests() });
+
+      // Recheck scope generation after await cancelQueries before writing to optimistic cache
+      if (scopeGeneration !== getScopeGeneration()) {
+        throw new ApiError(499, 'Action cancelled: account or entity changed.');
+      }
 
       // Snapshot every operations/workRequests cache before mutating
       const snapshots = queryClient.getQueriesData<unknown>({
@@ -276,22 +293,23 @@ export function useWorkRequestMutations() {
 
       // Detail cache: store or update the bare WorkRequest
       const detailKey = operationsKeys.workRequestDetail(id);
-      const prevDetail = queryClient.getQueryData<WorkRequest>(detailKey);
-      if (prevDetail) {
-        queryClient.setQueryData<WorkRequest>(detailKey, { ...prevDetail, status });
+      let prevTargetWr = queryClient.getQueryData<WorkRequest>(detailKey);
+      if (prevTargetWr) {
+        queryClient.setQueryData<WorkRequest>(detailKey, { ...prevTargetWr, status });
       } else {
         // Seed detail cache from list snapshots if not yet populated
         for (const [, value] of snapshots) {
           const list = value as WorkRequestListResponse | undefined;
           const hit = list?.data?.find((wr) => wr.id === id);
           if (hit) {
+            prevTargetWr = hit;
             queryClient.setQueryData<WorkRequest>(detailKey, { ...hit, status });
             break;
           }
         }
       }
 
-      // List caches: rewrite the item in place
+      // List caches: rewrite ONLY the target item in place
       for (const [key, value] of snapshots) {
         const list = value as WorkRequestListResponse | undefined;
         if (list && typeof list === 'object' && Array.isArray(list.data)) {
@@ -304,15 +322,29 @@ export function useWorkRequestMutations() {
         }
       }
 
-      return { snapshots };
+      return { snapshots, prevTargetWr, scopeGeneration };
     },
-    onSuccess: (serverWr, { id }) => {
+    onSuccess: (serverWr, { id }, context) => {
+      if (context?.scopeGeneration !== undefined && context.scopeGeneration !== getScopeGeneration()) {
+        return;
+      }
       if (!serverWr) return;
-      // 1. Immediately pin confirmed server truth into the detail cache
+
+      // 1. Immediately pin confirmed server truth into detail cache IF not older than cached version
       const detailKey = operationsKeys.workRequestDetail(id);
+      const currentDetail = queryClient.getQueryData<WorkRequest>(detailKey);
+      if (
+        currentDetail &&
+        typeof currentDetail.version === 'number' &&
+        typeof serverWr.version === 'number' &&
+        currentDetail.version > serverWr.version
+      ) {
+        // Never pin older success response over higher-version cache
+        return;
+      }
       queryClient.setQueryData<WorkRequest>(detailKey, serverWr);
 
-      // 2. Immediately pin confirmed server truth into all list caches
+      // 2. Immediately pin confirmed server truth into list caches IF not older
       const allListQueries = queryClient.getQueriesData<WorkRequestListResponse>({
         queryKey: operationsKeys.workRequests(),
       });
@@ -321,7 +353,17 @@ export function useWorkRequestMutations() {
           if (value.data.some((wr) => wr.id === id)) {
             queryClient.setQueryData(key, {
               ...value,
-              data: value.data.map((wr) => (wr.id === id ? { ...wr, ...serverWr } : wr)),
+              data: value.data.map((wr) => {
+                if (wr.id !== id) return wr;
+                if (
+                  typeof wr.version === 'number' &&
+                  typeof serverWr.version === 'number' &&
+                  wr.version > serverWr.version
+                ) {
+                  return wr;
+                }
+                return { ...wr, ...serverWr };
+              }),
             });
           }
         }
@@ -334,14 +376,65 @@ export function useWorkRequestMutations() {
         entityData: serverWr,
       });
     },
-    onError: (_err, _vars, context) => {
-      if (context?.snapshots) {
-        for (const [key, value] of context.snapshots) {
-          queryClient.setQueryData(key, value);
+    onError: (err, variables, context) => {
+      if (context?.scopeGeneration !== undefined && context.scopeGeneration !== getScopeGeneration()) {
+        return;
+      }
+
+      const id = variables.id;
+      const prevTargetWr = context?.prevTargetWr;
+      const originalVersion = prevTargetWr?.version;
+
+      // Target detail cache: restore ONLY if current cached item is not higher version
+      const detailKey = operationsKeys.workRequestDetail(id);
+      const currentDetail = queryClient.getQueryData<WorkRequest>(detailKey);
+      if (currentDetail && prevTargetWr) {
+        if (
+          currentDetail.status === variables.status &&
+          (currentDetail.version ?? 0) <= (originalVersion ?? 0)
+        ) {
+          queryClient.setQueryData(detailKey, prevTargetWr);
         }
       }
+
+      // List caches: restore ONLY the target record; NEVER whole-snapshot restore over newer server state!
+      if (prevTargetWr) {
+        const allListQueries = queryClient.getQueriesData<WorkRequestListResponse>({
+          queryKey: operationsKeys.workRequests(),
+        });
+        for (const [key, value] of allListQueries) {
+          if (value && typeof value === 'object' && Array.isArray(value.data)) {
+            if (value.data.some((wr) => wr.id === id)) {
+              queryClient.setQueryData(key, {
+                ...value,
+                data: value.data.map((wr) => {
+                  if (wr.id !== id) return wr; // preserve all unrelated rows!
+                  if (
+                    wr.status !== variables.status ||
+                    (wr.version ?? 0) > (originalVersion ?? 0)
+                  ) {
+                    return wr; // preserve winning higher version!
+                  }
+                  return prevTargetWr;
+                }),
+              });
+            }
+          }
+        }
+      }
+
+      // WR status 409 must invalidate/refetch WR detail/list too (not just tasks/counts)
+      if (isConcurrencyConflictError(err) || (err instanceof ApiError && err.status === 409)) {
+        void queryClient.invalidateQueries({ queryKey: operationsKeys.workRequestDetail(id) });
+        void queryClient.invalidateQueries({ queryKey: operationsKeys.workRequests() });
+        void queryClient.invalidateQueries({ queryKey: operationsKeys.workRequestCounts(activeEntity) });
+        void queryClient.invalidateQueries({ queryKey: operationsKeys.tasks(id) });
+      }
     },
-    onSettled: (_data, _err, { id }) => {
+    onSettled: (_data, _err, { id }, context) => {
+      if (context?.scopeGeneration !== undefined && context.scopeGeneration !== getScopeGeneration()) {
+        return;
+      }
       // Reconcile secondary counters and tasks without blasting the confirmed detail cache
       queryClient.invalidateQueries({ queryKey: operationsKeys.tasks(id) });
       queryClient.invalidateQueries({
@@ -452,8 +545,25 @@ export function useWorkRequestMutations() {
         queryKey: operationsKeys.workRequestCounts(activeEntity),
       });
       queryClient.invalidateQueries({
+        queryKey: operationsKeys.workRequestCreationApprovals(),
+      });
+      queryClient.invalidateQueries({
         queryKey: operationsKeys.workRequestDetail(updated.id),
       });
+    },
+    onError: (err, variables) => {
+      if (isConcurrencyConflictError(err)) {
+        void queryClient.invalidateQueries({ queryKey: operationsKeys.workRequests() });
+        void queryClient.invalidateQueries({
+          queryKey: operationsKeys.workRequestCounts(activeEntity),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: operationsKeys.workRequestCreationApprovals(),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: operationsKeys.workRequestDetail(variables.id),
+        });
+      }
     },
   });
 
@@ -479,8 +589,25 @@ export function useWorkRequestMutations() {
         queryKey: operationsKeys.workRequestCounts(activeEntity),
       });
       queryClient.invalidateQueries({
+        queryKey: operationsKeys.workRequestCreationApprovals(),
+      });
+      queryClient.invalidateQueries({
         queryKey: operationsKeys.workRequestDetail(updated.id),
       });
+    },
+    onError: (err, variables) => {
+      if (isConcurrencyConflictError(err)) {
+        void queryClient.invalidateQueries({ queryKey: operationsKeys.workRequests() });
+        void queryClient.invalidateQueries({
+          queryKey: operationsKeys.workRequestCounts(activeEntity),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: operationsKeys.workRequestCreationApprovals(),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: operationsKeys.workRequestDetail(variables.id),
+        });
+      }
     },
   });
 

@@ -1,3 +1,4 @@
+import { operationsViewerRefresh } from '@/features/operations/api/viewerRefresh';
 import { WorkRequestSidePeek } from '@/features/operations/components/WorkRequestSidePeek';
 import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -155,7 +156,6 @@ export default function OperationsPage() {
   });
   useEntityRealtimeSync({
     table: 'tasks',
-    listRootKey: operationsKeys.workRequests(),
     activeEntity,
     enabled: canViewModule,
   });
@@ -187,6 +187,7 @@ export default function OperationsPage() {
       return res.data;
     },
     enabled: Boolean(canViewModule && hasApprovalAuthority),
+    ...operationsViewerRefresh,
   });
   const { data: wrCounts } = useWorkRequestCounts();
   const { data: retainerTemplates = [] } = useRetainerTemplates({ enabled: canAccessRetainerTemplates, type: 'retainer' });

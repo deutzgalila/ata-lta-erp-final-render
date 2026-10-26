@@ -195,8 +195,10 @@ export function WorkRequestSidePeek({
 
   const isCurrentWrErrorDenied = Boolean(
     isWrError &&
-      ((wrError as { status?: number })?.status === 403 ||
+      ((wrError as { status?: number })?.status === 401 ||
+        (wrError as { status?: number })?.status === 403 ||
         (wrError as { status?: number })?.status === 404 ||
+        String(wrError?.message || '').includes('401') ||
         String(wrError?.message || '').includes('403') ||
         String(wrError?.message || '').includes('404'))
   );
@@ -241,8 +243,18 @@ export function WorkRequestSidePeek({
   const [taskToReject, setTaskToReject] = useState<Task | null>(null);
   const [taskToResubmit, setTaskToResubmit] = useState<Task | null>(null);
 
+  // Clear pending review dialogs on WR, entity, or account context switch to prevent stale retargeting
+  useEffect(() => {
+    setTaskToReject(null);
+    setTaskToResubmit(null);
+  }, [workRequestId, activeEntity, user?.id, user?.role]);
+
   const handleApproveTask = async (task: Task) => {
     if (!workRequestId) return;
+    if (task.workRequestId && task.workRequestId !== workRequestId) {
+      toast.error('Task does not belong to the active work request');
+      return;
+    }
     try {
       await approveOrRejectTaskCreation({
         workRequestId,
@@ -1539,6 +1551,9 @@ export function WorkRequestSidePeek({
           onClose={() => setTaskToReject(null)}
           onReject={async (taskId, reason) => {
             if (!workRequestId) return;
+            if (taskToReject.workRequestId && taskToReject.workRequestId !== workRequestId) {
+              throw new Error('Task does not belong to the active work request');
+            }
             await approveOrRejectTaskCreation({
               workRequestId,
               taskId,
