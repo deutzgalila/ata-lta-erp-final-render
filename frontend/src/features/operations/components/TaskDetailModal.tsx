@@ -524,7 +524,9 @@ export function TaskDetailModal({
   const incompletePredecessors = useMemo(() => {
     if (!task?.predecessors?.length) return [];
     const predIds = new Set(task.predecessors);
-    return siblingTasks.filter((t) => predIds.has(t.id) && t.status !== 'Completed');
+    return siblingTasks.filter(
+      (t) => predIds.has(t.id) && t.status !== 'Completed' && t.status !== 'Cancelled'
+    );
   }, [task?.predecessors, siblingTasks]);
 
   const isPrereqBlocked = incompletePredecessors.length > 0;
@@ -533,10 +535,21 @@ export function TaskDetailModal({
     : undefined;
 
   // Task B.4: Client-side phase gate for non-active phases
+  const PHASES_ORDER = ['pre_processing', 'processing', 'quality_assurance', 'completion'];
   const isPhaseBlocked = Boolean(
     workRequest?.phase && task?.phase && task.phase !== workRequest.phase
   );
   const phaseBlockedTooltip = isPhaseBlocked
+    ? `Task is locked because the Work Request is currently in the ${getPhaseBadgeInfo(workRequest?.phase).label} phase.`
+    : undefined;
+
+  const isInvoicePhaseBlocked = Boolean(
+    workRequest?.phase &&
+      task?.phase &&
+      (workRequest.phase === 'completion' ||
+        PHASES_ORDER.indexOf(task.phase) > PHASES_ORDER.indexOf(workRequest.phase))
+  );
+  const invoicePhaseBlockedTooltip = isInvoicePhaseBlocked
     ? `Task is locked because the Work Request is currently in the ${getPhaseBadgeInfo(workRequest?.phase).label} phase.`
     : undefined;
 
@@ -1650,8 +1663,14 @@ export function TaskDetailModal({
                     type="button"
                     variant="outline"
                     size="xs"
-                    disabled={isPhaseBlocked}
-                    title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
+                    disabled={isPhaseBlocked || isPrereqBlocked}
+                    title={
+                      isPhaseBlocked
+                        ? phaseBlockedTooltip
+                        : isPrereqBlocked
+                          ? prereqBlockedTooltip
+                          : undefined
+                    }
                     onClick={() => setIsUploadDocModalOpen(true)}
                     className="text-xs gap-1 rounded-[8px] border-[#E2E8F0] hover:bg-[#F8FAFC]"
                     data-testid="task-upload-doc-btn"
@@ -1722,8 +1741,14 @@ export function TaskDetailModal({
                       type="button"
                       variant="outline"
                       size="xs"
-                      disabled={isPhaseBlocked}
-                      title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
+                      disabled={isInvoicePhaseBlocked || isPrereqBlocked}
+                      title={
+                        isInvoicePhaseBlocked
+                          ? invoicePhaseBlockedTooltip
+                          : isPrereqBlocked
+                            ? prereqBlockedTooltip
+                            : undefined
+                      }
                       onClick={() => setIsInvoiceModalOpen(true)}
                       className="text-xs gap-1 rounded-[8px] border-[#E2E8F0] hover:bg-[#F8FAFC]"
                       data-testid="link-invoice-btn"
@@ -1737,8 +1762,14 @@ export function TaskDetailModal({
                       variant="outline"
                       size="xs"
                       onClick={handleRequestInvoice}
-                      disabled={hasPendingInvoiceReq || isPhaseBlocked}
-                      title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
+                      disabled={hasPendingInvoiceReq || isInvoicePhaseBlocked || isPrereqBlocked}
+                      title={
+                        isInvoicePhaseBlocked
+                          ? invoicePhaseBlockedTooltip
+                          : isPrereqBlocked
+                            ? prereqBlockedTooltip
+                            : undefined
+                      }
                       className="text-xs gap-1 rounded-[8px] border-[#E2E8F0] bg-[#F8FAFC] hover:bg-[#E2E8F0] text-[#1E293B]"
                       data-testid="request-invoice-btn"
                     >
@@ -1751,8 +1782,14 @@ export function TaskDetailModal({
                       type="button"
                       variant="outline"
                       size="xs"
-                      disabled={isPhaseBlocked}
-                      title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
+                      disabled={isPhaseBlocked || isPrereqBlocked}
+                      title={
+                        isPhaseBlocked
+                          ? phaseBlockedTooltip
+                          : isPrereqBlocked
+                            ? prereqBlockedTooltip
+                            : undefined
+                      }
                       onClick={() => setIsDisbursementModalOpen(true)}
                       className="text-xs gap-1 rounded-[8px] border-[#E2E8F0] hover:bg-[#F8FAFC]"
                       data-testid="link-disbursement-btn"
@@ -1765,8 +1802,14 @@ export function TaskDetailModal({
                       type="button"
                       variant="outline"
                       size="xs"
-                      disabled={isPhaseBlocked}
-                      title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
+                      disabled={isPhaseBlocked || isPrereqBlocked}
+                      title={
+                        isPhaseBlocked
+                          ? phaseBlockedTooltip
+                          : isPrereqBlocked
+                            ? prereqBlockedTooltip
+                            : undefined
+                      }
                       onClick={() => setIsTransmittalModalOpen(true)}
                       className="text-xs gap-1 rounded-[8px] border-[#E2E8F0] hover:bg-[#F8FAFC]"
                       data-testid="link-transmittal-btn"
@@ -1780,8 +1823,14 @@ export function TaskDetailModal({
                       variant="outline"
                       size="xs"
                       onClick={handleRequestTransmittal}
-                      disabled={hasPendingTransmittalReq || isPhaseBlocked}
-                      title={isPhaseBlocked ? phaseBlockedTooltip : undefined}
+                      disabled={hasPendingTransmittalReq || isPhaseBlocked || isPrereqBlocked}
+                      title={
+                        isPhaseBlocked
+                          ? phaseBlockedTooltip
+                          : isPrereqBlocked
+                            ? prereqBlockedTooltip
+                            : undefined
+                      }
                       className="text-xs gap-1 rounded-[8px] border-[#E2E8F0] bg-[#F8FAFC] hover:bg-[#E2E8F0] text-[#1E293B]"
                       data-testid="request-transmittal-btn"
                     >
