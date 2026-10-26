@@ -630,12 +630,12 @@ describe('Phase Kanban Board & Routing Features (Milestone 3)', () => {
 
     // Simulate TanStack Query cache update from a work_requests CDC event changing phase to processing
     act(() => {
-      queryClient.setQueryData(
+      queryClient.setQueryData<WorkRequest>(
         operationsKeys.workRequestDetail('wr-101'),
-        (old: any) => ({
+        (old) => old ? ({
           ...old,
           phase: 'processing',
-        })
+        }) : old
       );
     });
 
