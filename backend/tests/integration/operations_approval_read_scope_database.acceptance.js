@@ -23,10 +23,15 @@
 const { Client } = require('pg');
 const migration = require('../../migrations/000075_operations_approval_read_scope.js');
 
-const DEFAULT_TEST_DB_URL = 'postgres://javvii@127.0.0.1:55493/read_scope_test';
-const testDbUrl = process.env.OPERATIONS_READ_SCOPE_TEST_DB_URL || DEFAULT_TEST_DB_URL;
+const testDbUrl = process.env.OPERATIONS_READ_SCOPE_TEST_DB_URL;
 
 function assertSafeLocalDatabase(urlStr) {
+  if (!urlStr) {
+    throw new Error(
+      'Missing OPERATIONS_READ_SCOPE_TEST_DB_URL environment variable. ' +
+      'An explicit local PostgreSQL test database URL is required (e.g. OPERATIONS_READ_SCOPE_TEST_DB_URL=postgres://<user>@127.0.0.1:55493/read_scope_test).'
+    );
+  }
   const parsed = new URL(urlStr);
   if (parsed.hostname !== '127.0.0.1' && parsed.hostname !== 'localhost') {
     throw new Error(`Safety guard triggered: only local databases allowed, got ${parsed.hostname}`);
