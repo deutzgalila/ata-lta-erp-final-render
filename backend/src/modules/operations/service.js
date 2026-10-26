@@ -1693,7 +1693,14 @@ const createWorkRequest = async ({ entityId, data, user }) => {
   return creationPromise;
 };
 
-const getWorkRequestById = async ({ id, entityId, user, includeTasks = false, allowPending = false }) => {
+const getWorkRequestById = async ({
+  id,
+  entityId,
+  user,
+  includeTasks = false,
+  allowPending = false,
+  allowCrossEntity = true,
+}) => {
   let query = supabaseAdmin
     .from('work_requests')
     .select('*, clients(name)')
@@ -1717,7 +1724,7 @@ const getWorkRequestById = async ({ id, entityId, user, includeTasks = false, al
   }
 
   // Cross-entity fallback: if not found under entityId, lookup by ID alone and verify user has access to that entity
-  if (!data && entityId && entityId !== 'ALL') {
+  if (!data && entityId && entityId !== 'ALL' && allowCrossEntity) {
     const fallbackRes = await supabaseAdmin
       .from('work_requests')
       .select('*, clients(name)')
@@ -1796,7 +1803,7 @@ const getWorkRequestById = async ({ id, entityId, user, includeTasks = false, al
 };
 
 const updateWorkRequest = async ({ id, entityId, data, user }) => {
-  const existing = await getWorkRequestById({ id, entityId, user });
+  const existing = await getWorkRequestById({ id, entityId, user, allowCrossEntity: false });
   if (!existing) {
     throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Work request not found' });
   }
@@ -2378,7 +2385,6 @@ const createTask = async ({ workRequestId, entityId, data, user: _user, caller }
   }
 
   const id = data.id && isValidUUID(data.id) ? data.id : randomUUID();
-  const now = new Date().toISOString();
   let assigneeName = data.assigneeName || null;
   const primaryAssigneeId =
     data.assigneeId ||
@@ -2387,47 +2393,7 @@ const createTask = async ({ workRequestId, entityId, data, user: _user, caller }
   if ((!assigneeName || isValidUUID(assigneeName)) && primaryAssigneeId) {
     assigneeName = await resolveAssigneeName(primaryAssigneeId, assigneeName);
   }
-  const approvalStatus = isEmployeeCaller ? 'pending' : 'approved';
-  const createdBy = effectiveUser?.id || null;
-  const reviewedBy = isEmployeeCaller ? null : (effectiveUser?.id || null);
-  const reviewedAt = isEmployeeCaller ? null : now;
 
-  const record = {
-    id,
-    work_request_id: workRequestId,
-    title: data.title,
-    description: data.description || null,
-    status: data.status || 'Draft',
-    version: 1,
-    phase,
-    qa_status: 'none',
-    approval_status: approvalStatus,
-    created_by: createdBy,
-    reviewed_by: reviewedBy,
-    reviewed_at: reviewedAt,
-    rejection_reason: null,
-    assignee_id: primaryAssigneeId,
-    assignee_name: assigneeName,
-    predecessors: Array.isArray(data.predecessors) ? data.predecessors.filter(isValidUUID) : [],
-    due_date: data.dueDate || null,
-    required_link_type: data.requiredLinkType || null,
-    display_order: data.displayOrder ?? 0,
-    assigned_by: effectiveUser?.id || null,
-    assigned_at: primaryAssigneeId ? now : null,
-    created_at: now,
-    updated_at: now,
-  };
-
-  const { error } = await supabaseAdmin.from('tasks').insert(record);
-  if (error) {
-    throw new AppError({
-      statusCode: 500,
-      title: 'Database Error',
-      detail: 'Unable to create task',
-    });
-  }
-
-  // Dual-write assignees to task_assignees join table
   const allAssigneeIds = Array.from(
     new Set(
       [
@@ -2438,17 +2404,36 @@ const createTask = async ({ workRequestId, entityId, data, user: _user, caller }
     )
   );
 
-  if (allAssigneeIds.length > 0) {
-    const taInserts = allAssigneeIds.map((userId) => ({
-      id: randomUUID(),
-      task_id: id,
-      user_id: userId,
-      assigned_by: _user?.id || null,
-      assigned_at: now,
-      created_at: now,
-    }));
-    await supabaseAdmin.from('task_assignees').insert(taInserts);
+  // Normalized snake_case payload for RPC. Privileged review identity/state/version/creator fields
+  // are strictly derived server-side in SQL and must be omitted from p_data.
+  const taskPatch = {
+    id,
+    title: data.title,
+    description: data.description || null,
+    status: data.status || 'Draft',
+    phase,
+    qa_status: data.qaStatus || data.qa_status || 'none',
+    assignee_id: primaryAssigneeId,
+    predecessors: Array.isArray(data.predecessors) ? data.predecessors.filter(isValidUUID) : [],
+    due_date: data.dueDate || data.due_date || null,
+    required_link_type: data.requiredLinkType || data.required_link_type || null,
+    display_order: data.displayOrder ?? data.display_order ?? 0,
+  };
+
+  const rpcResult = await supabaseAdmin.rpc('task_creation_review_create', {
+    p_work_request_id: workRequestId,
+    p_entity_id: wr.entity_id || entityId,
+    p_actor_id: effectiveUser.id,
+    p_data: taskPatch,
+    p_assignees: allAssigneeIds.length > 0 ? allAssigneeIds : null,
+  });
+
+  if (rpcResult.error) {
+    throw mapTaskReviewRpcError(rpcResult.error, 'Failed to create task');
   }
+
+  // Dual-write to task_assignees is performed inside the same SQL transaction by the RPC.
+  // Avoid duplicate post-RPC assignment writes.
 
   if (data.checklist?.length) {
     await upsertChecklist(id, data.checklist);
@@ -2690,7 +2675,7 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user, 
   if (effectiveWrId) {
     const { data: wrData } = await supabaseAdmin
       .from('work_requests')
-      .select('phase, status')
+      .select('phase, status, entity_id')
       .eq('id', effectiveWrId)
       .maybeSingle();
     parentWr = wrData;
@@ -2962,19 +2947,13 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user, 
     (data.requiredLinkType !== undefined && data.requiredLinkType !== (existing.requiredLinkType || existing.required_link_type))
   );
 
-  if (isEmployeeCaller && hasMaterialFieldEdit && currentApprovalStatus === 'approved') {
-    updates.approval_status = 'pending';
-    updates.reviewed_by = null;
-    updates.reviewed_at = null;
-    updates.rejection_reason = null;
-  }
+  const isMaterialReset = Boolean(isEmployeeCaller && hasMaterialFieldEdit && currentApprovalStatus === 'approved');
 
   // OCC (Spec 2.2 / R-10): version-guard the update when the client declares
   // the version it read; zero matching rows become a 409 conflict.
   // Always bump task version on update so CDC consumers receive monotonically increasing versions.
   // Completion also guards the version read with the checklist for older clients.
   const expectedVersion = resolveExpectedVersion(data) ?? (targetStatus === 'Completed' ? existing.version || 1 : null);
-  updates.version = (existing.version || 1) + 1;
 
   // B2.5: Immediately prior to writing task completion, re-verify prerequisite tasks remain in Completed status
   if (targetStatus === 'Completed' && validPredIds.length > 0) {
@@ -3004,61 +2983,112 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user, 
     }
   }
 
-  let query = supabaseAdmin
-    .from('tasks')
-    .update(updates)
-    .eq('id', taskId);
-  if (effectiveWrId) {
-    query = query.eq('work_request_id', effectiveWrId);
-  }
-  if (existing.status !== 'Completed' && targetStatus === 'Completed') {
-    query = query.neq('status', 'Completed');
-  }
-  if (expectedVersion !== null) {
-    query = query.eq('version', expectedVersion);
-  }
-  const { data: updatedRows, error } = await query.select();
-  if (error) {
+  if (isMaterialReset && targetStatus !== undefined && targetStatus !== existing.status) {
     throw new AppError({
-      statusCode: 500,
-      title: 'Database Error',
-      detail: 'Unable to update task',
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'Routine status transitions cannot be combined with material task revisions. Submit material updates and status transitions separately.',
+      code: 'INVALID_MIXED_TASK_UPDATE',
     });
   }
 
-  if (!updatedRows || updatedRows.length === 0) {
-    if (expectedVersion !== null) {
-      throw concurrencyConflict();
+  if (isMaterialReset) {
+    // Material reset path: integrate write via agreed service-only task_material_update RPC
+    // Locking parent WR + task row and resetting approval in SAME transaction.
+    const materialPatch = {};
+    if (data.title !== undefined) materialPatch.title = data.title;
+    if (data.description !== undefined) materialPatch.description = data.description;
+    if (data.dueDate !== undefined) materialPatch.due_date = data.dueDate;
+    if (data.requiredLinkType !== undefined) materialPatch.required_link_type = data.requiredLinkType || null;
+    if (data.displayOrder !== undefined) materialPatch.display_order = data.displayOrder;
+    if (data.predecessors !== undefined) {
+      materialPatch.predecessors = Array.isArray(data.predecessors) ? data.predecessors.filter(isValidUUID) : [];
+    }
+    if (assigneeId !== undefined) {
+      materialPatch.assignee_id = assigneeId;
+    }
+
+    const explicitAssignees =
+      Array.isArray(data.assignees) || Array.isArray(data.coAssignees)
+        ? [...new Set([...(data.assignees || []), ...(data.coAssignees || []), assigneeId].filter(isValidUUID))]
+        : data.assigneeId !== undefined && assigneeId
+          ? [assigneeId]
+          : null;
+
+    const rpcResult = await supabaseAdmin.rpc('task_material_update', {
+      p_task_id: taskId,
+      p_work_request_id: effectiveWrId,
+      p_entity_id: parentWr?.entity_id || existing.entityId || existing.entity_id || entityId,
+      p_actor_id: effectiveUser.id,
+      p_expected_version: expectedVersion || existing.version || 1,
+      p_data: materialPatch,
+      p_assignees: explicitAssignees,
+    });
+
+    if (rpcResult.error) {
+      throw mapTaskReviewRpcError(rpcResult.error, 'Failed to update task');
+    }
+    // SQL RPC atomically synchronizes task_assignees in the same transaction.
+    // Duplicate post-RPC assignment writes are skipped.
+  } else {
+    updates.version = (existing.version || 1) + 1;
+
+    let query = supabaseAdmin
+      .from('tasks')
+      .update(updates)
+      .eq('id', taskId);
+    if (effectiveWrId) {
+      query = query.eq('work_request_id', effectiveWrId);
     }
     if (existing.status !== 'Completed' && targetStatus === 'Completed') {
+      query = query.neq('status', 'Completed');
+    }
+    if (expectedVersion !== null) {
+      query = query.eq('version', expectedVersion);
+    }
+    const { data: updatedRows, error } = await query.select();
+    if (error) {
       throw new AppError({
-        statusCode: 409,
-        title: 'Conflict',
-        detail: 'Task was modified or completed concurrently. Please reload.',
-        code: 'CONCURRENT_MODIFICATION',
+        statusCode: 500,
+        title: 'Database Error',
+        detail: 'Unable to update task',
       });
     }
-  }
 
-  // Keep the join table aligned with explicit team edits and primary reassignment.
-  if (Array.isArray(data.assignees) || Array.isArray(data.coAssignees)) {
-    const { error: clearError } = await supabaseAdmin.from('task_assignees').delete().eq('task_id', taskId);
-    if (clearError) throw new AppError({ statusCode: 500, title: 'Database Error', detail: clearError.message });
-    const uniqueAssignees = [...new Set([
-      ...(data.assignees || []), ...(data.coAssignees || []), assigneeId,
-    ].filter(isValidUUID))];
-    if (uniqueAssignees.length) {
-      const now = new Date().toISOString();
-      const { error: assignError } = await supabaseAdmin.from('task_assignees').insert(uniqueAssignees.map((userId) => ({
-        id: randomUUID(), task_id: taskId, user_id: userId,
-        assigned_by: _user?.id || null, assigned_at: now, created_at: now,
-      })));
-      if (assignError) throw new AppError({ statusCode: 500, title: 'Database Error', detail: assignError.message });
+    if (!updatedRows || updatedRows.length === 0) {
+      if (expectedVersion !== null) {
+        throw concurrencyConflict();
+      }
+      if (existing.status !== 'Completed' && targetStatus === 'Completed') {
+        throw new AppError({
+          statusCode: 409,
+          title: 'Conflict',
+          detail: 'Task was modified or completed concurrently. Please reload.',
+          code: 'CONCURRENT_MODIFICATION',
+        });
+      }
     }
-  } else if (data.assigneeId !== undefined && assigneeId !== existing.assigneeId && existing.assigneeId) {
-    const { error: delError } = await supabaseAdmin.from('task_assignees').delete()
-      .eq('task_id', taskId).eq('user_id', existing.assigneeId);
-    if (delError) throw new AppError({ statusCode: 500, title: 'Database Error', detail: `Failed to clear assignee from task_assignees: ${delError.message || delError}` });
+
+    // Keep the join table aligned with explicit team edits and primary reassignment.
+    if (Array.isArray(data.assignees) || Array.isArray(data.coAssignees)) {
+      const { error: clearError } = await supabaseAdmin.from('task_assignees').delete().eq('task_id', taskId);
+      if (clearError) throw new AppError({ statusCode: 500, title: 'Database Error', detail: clearError.message });
+      const uniqueAssignees = [...new Set([
+        ...(data.assignees || []), ...(data.coAssignees || []), assigneeId,
+      ].filter(isValidUUID))];
+      if (uniqueAssignees.length) {
+        const now = new Date().toISOString();
+        const { error: assignError } = await supabaseAdmin.from('task_assignees').insert(uniqueAssignees.map((userId) => ({
+          id: randomUUID(), task_id: taskId, user_id: userId,
+          assigned_by: _user?.id || null, assigned_at: now, created_at: now,
+        })));
+        if (assignError) throw new AppError({ statusCode: 500, title: 'Database Error', detail: assignError.message });
+      }
+    } else if (data.assigneeId !== undefined && assigneeId !== existing.assigneeId && existing.assigneeId) {
+      const { error: delError } = await supabaseAdmin.from('task_assignees').delete()
+        .eq('task_id', taskId).eq('user_id', existing.assigneeId);
+      if (delError) throw new AppError({ statusCode: 500, title: 'Database Error', detail: `Failed to clear assignee from task_assignees: ${delError.message || delError}` });
+    }
   }
 
   if (data.checklist !== undefined) {
@@ -5050,6 +5080,22 @@ const mapTaskReviewRpcError = (error, defaultMsg = 'Task review error') => {
       code: 'TASK_REVIEW_FORBIDDEN',
     });
   }
+  if (msg.includes('MANAGER_LEAD_REQUIRED')) {
+    return new AppError({
+      statusCode: 400,
+      title: 'Validation Error',
+      detail: 'Work request must have an assigned Manager lead before tasks can be added by team members.',
+      code: 'MANAGER_LEAD_REQUIRED',
+    });
+  }
+  if (msg.includes('COMPLETED_WR_LOCKED')) {
+    return new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'Completed Work Requests are locked: tasks cannot be added to a completed request.',
+      code: 'COMPLETED_WR_LOCKED',
+    });
+  }
   if (msg.includes('TASK_REVIEW_CONFLICT') || msg.includes('CONCURRENT_MODIFICATION')) {
     return new AppError({
       statusCode: 409,
@@ -5070,7 +5116,7 @@ const mapTaskReviewRpcError = (error, defaultMsg = 'Task review error') => {
     return new AppError({
       statusCode: 409,
       title: 'Conflict',
-      detail: 'Task is rejected and locked against modification',
+      detail: 'Task is rejected and locked against direct modification. Use resubmit-creation to submit corrections.',
       code: 'TASK_REJECTED_LOCKED',
     });
   }
@@ -5115,9 +5161,10 @@ const mapTaskReviewRpcError = (error, defaultMsg = 'Task review error') => {
     });
   }
   return new AppError({
-    statusCode: 500,
-    title: 'Database Error',
+    statusCode: 400,
+    title: 'Error',
     detail: msg || defaultMsg,
+    code: code || 'DATABASE_ERROR',
   });
 };
 
