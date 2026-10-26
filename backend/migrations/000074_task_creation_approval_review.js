@@ -576,6 +576,41 @@ exports.up = (pgm) => {
         RAISE EXCEPTION 'TASK_REVIEW_FORBIDDEN: Only the task creator can resubmit' USING ERRCODE = '42501';
       END IF;
 
+      -- Current ordinary WR membership under lock (creator must still have active membership)
+      IF v_actor.role <> 'Admin' THEN
+        DECLARE
+          v_has_membership boolean := false;
+        BEGIN
+          IF v_wr.assigned_to = p_actor_id THEN
+            v_has_membership := true;
+          ELSIF v_wr.co_assignees IS NOT NULL AND (
+            v_wr.co_assignees @> to_jsonb(p_actor_id::text)
+            OR jsonb_path_exists(v_wr.co_assignees, '$[*] ? (@ == $actor)', jsonb_build_object('actor', p_actor_id::text))
+          ) THEN
+            v_has_membership := true;
+          ELSIF EXISTS (
+            SELECT 1 FROM public.tasks
+            WHERE work_request_id = v_wr.id
+              AND deleted_at IS NULL
+              AND assignee_id = p_actor_id
+          ) THEN
+            v_has_membership := true;
+          ELSIF to_regclass('public.task_assignees') IS NOT NULL THEN
+            EXECUTE 'SELECT EXISTS (
+              SELECT 1 FROM public.tasks t
+              JOIN public.task_assignees ta ON ta.task_id = t.id
+              WHERE t.work_request_id = $1
+                AND t.deleted_at IS NULL
+                AND ta.user_id = $2
+            )' INTO v_has_membership USING v_wr.id, p_actor_id;
+          END IF;
+
+          IF NOT v_has_membership THEN
+            RAISE EXCEPTION 'TASK_REVIEW_FORBIDDEN: Actor is not a member of this work request' USING ERRCODE = '42501';
+          END IF;
+        END;
+      END IF;
+
       -- Only rejected tasks can be resubmitted
       IF v_task.approval_status <> 'rejected' THEN
         RAISE EXCEPTION 'TASK_REVIEW_STATE: Only rejected tasks can be resubmitted' USING ERRCODE = 'P0002';

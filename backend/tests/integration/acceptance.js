@@ -829,8 +829,9 @@ describe('Task Creation Approval Review Database Acceptance Suite', () => {
       predTaskId = '11000000-0000-4000-8000-000000000055';
 
       await cleanFixtureData(`
-        DELETE FROM public.task_creation_review_events WHERE task_id IN ('${testTaskId}', '${predTaskId}');
-        DELETE FROM public.tasks WHERE id IN ('${testTaskId}', '${predTaskId}');
+        DELETE FROM public.task_creation_review_events WHERE task_id IN ('${testTaskId}', '${predTaskId}', '11000000-0000-4000-8000-000000000099');
+        DELETE FROM public.task_assignees WHERE task_id IN ('${testTaskId}', '${predTaskId}', '11000000-0000-4000-8000-000000000099');
+        DELETE FROM public.tasks WHERE id IN ('${testTaskId}', '${predTaskId}', '11000000-0000-4000-8000-000000000099');
         DELETE FROM public.work_requests WHERE id = '${testWrId}';
 
         INSERT INTO public.work_requests (
@@ -844,19 +845,19 @@ describe('Task Creation Approval Review Database Acceptance Suite', () => {
 
         INSERT INTO public.tasks (
           id, work_request_id, title, status, phase, approval_status,
-          created_by, version
+          created_by, version, assignee_id
         ) VALUES (
           '${predTaskId}', '${testWrId}', 'Predecessor Task',
-          'Draft', 'pre_processing', 'approved', '${USER_EMPLOYEE_ID}', 1
+          'Draft', 'pre_processing', 'approved', '${USER_EMPLOYEE_ID}', 1, '${USER_EMPLOYEE_ID}'
         );
 
         INSERT INTO public.tasks (
           id, work_request_id, title, description, status, phase,
-          approval_status, created_by, version, rejection_reason, reviewed_by, reviewed_at
+          approval_status, created_by, version, rejection_reason, reviewed_by, reviewed_at, assignee_id
         ) VALUES (
           '${testTaskId}', '${testWrId}', 'Rejected Task', 'Initial description',
           'In Progress', 'pre_processing', 'rejected', '${USER_EMPLOYEE_ID}', 2,
-          'Initial rejection reason', '${USER_LEAD_ID}', now()
+          'Initial rejection reason', '${USER_LEAD_ID}', now(), '${USER_EMPLOYEE_ID}'
         );
       `);
     });
@@ -876,6 +877,36 @@ describe('Task Creation Approval Review Database Acceptance Suite', () => {
             ]
           )
         ).rejects.toThrow(/TASK_REVIEW_FORBIDDEN.*Only the task creator can resubmit/);
+      });
+    });
+
+    it('denies former-creator who is no longer an active WR member from resubmitting', async () => {
+      const formerTaskId = '11000000-0000-4000-8000-000000000099';
+      await adminClient.query(`
+        INSERT INTO public.tasks (
+          id, work_request_id, title, description, status, phase,
+          approval_status, created_by, version, rejection_reason, reviewed_by, reviewed_at, assignee_id
+        ) VALUES (
+          '${formerTaskId}', '${testWrId}', 'Former Creator Task', 'Initial description',
+          'In Progress', 'pre_processing', 'rejected', '${USER_OTHER_EMPLOYEE_ID}', 2,
+          'Initial rejection reason', '${USER_LEAD_ID}', now(), '${USER_EMPLOYEE_ID}'
+        );
+      `);
+
+      await asServiceRole(async (client) => {
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_creation_review_resubmit($1, $2, $3, $4, $5, $6)',
+            [
+              formerTaskId,
+              testWrId,
+              ENTITY_ATA_ID,
+              USER_OTHER_EMPLOYEE_ID,
+              2,
+              JSON.stringify({ title: 'Fixed by former creator' }),
+            ]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_FORBIDDEN.*Actor is not a member of this work request/);
       });
     });
 
@@ -1061,10 +1092,10 @@ describe('Task Creation Approval Review Database Acceptance Suite', () => {
 
         INSERT INTO public.tasks (
           id, work_request_id, title, status, phase, approval_status,
-          created_by, version
+          created_by, version, assignee_id
         ) VALUES (
           '${testTaskId}', '${testWrId}', 'Lifecycle Task',
-          'Draft', 'pre_processing', 'pending', '${USER_EMPLOYEE_ID}', 1
+          'Draft', 'pre_processing', 'pending', '${USER_EMPLOYEE_ID}', 1, '${USER_EMPLOYEE_ID}'
         );
       `);
     });
@@ -1145,10 +1176,10 @@ describe('Task Creation Approval Review Database Acceptance Suite', () => {
 
         INSERT INTO public.tasks (
           id, work_request_id, title, status, phase, approval_status,
-          created_by, version
+          created_by, version, assignee_id
         ) VALUES (
           '${testTaskId}', '${testWrId}', 'Concurrent Task',
-          'Draft', 'pre_processing', 'pending', '${USER_EMPLOYEE_ID}', 1
+          'Draft', 'pre_processing', 'pending', '${USER_EMPLOYEE_ID}', 1, '${USER_EMPLOYEE_ID}'
         );
       `);
     });
