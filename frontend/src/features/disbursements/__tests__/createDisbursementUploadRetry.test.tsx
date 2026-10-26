@@ -1138,4 +1138,71 @@ describe('CreateDisbursementModal Upload Retention on Retry (R7 / V8 & R5)', () 
     expect(onClose).toHaveBeenCalled();
     expect(onSuccess).toHaveBeenCalled();
   });
+
+  it('automatically attaches copied image from clipboard when user pastes (CTRL + V) in open modal', async () => {
+    const { wrapper } = createHarness();
+    const onClose = vi.fn();
+    const onSuccess = vi.fn();
+
+    render(
+      <CreateDisbursementModal
+        isOpen={true}
+        onClose={onClose}
+        onSuccess={onSuccess}
+      />,
+      { wrapper }
+    );
+
+    const pastedImage = new File(['fake-png-bytes'], 'pasted-screenshot.png', { type: 'image/png' });
+
+    fireEvent.paste(window, {
+      clipboardData: {
+        files: [pastedImage],
+        items: [
+          {
+            type: 'image/png',
+            getAsFile: () => pastedImage,
+          },
+        ],
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('receipt-attached-filename')).toHaveTextContent('pasted-screenshot.png');
+    });
+  });
+
+  it('automatically attaches image from clipboard items if clipboard files list is empty', async () => {
+    const { wrapper } = createHarness();
+    const onClose = vi.fn();
+    const onSuccess = vi.fn();
+
+    render(
+      <CreateDisbursementModal
+        isOpen={true}
+        onClose={onClose}
+        onSuccess={onSuccess}
+      />,
+      { wrapper }
+    );
+
+    const blobFile = new File(['fake-png-bytes'], 'image.png', { type: 'image/png' });
+
+    fireEvent.paste(window, {
+      clipboardData: {
+        files: [],
+        items: [
+          {
+            type: 'image/png',
+            getAsFile: () => blobFile,
+          },
+        ],
+      },
+    });
+
+    await waitFor(() => {
+      const filenameEl = screen.getByTestId('receipt-attached-filename');
+      expect(filenameEl.textContent).toMatch(/clipboard-receipt-.*\.png/);
+    });
+  });
 });

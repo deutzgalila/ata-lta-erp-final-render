@@ -205,6 +205,69 @@ export function CreateDisbursementModal({
     }
   };
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePaste = (e: ClipboardEvent) => {
+      if (isUploadingReceipt || isPending) return;
+
+      const clipboardData = e.clipboardData;
+      if (!clipboardData) return;
+
+      let imageFile: File | null = null;
+
+      // 1. Check clipboard files
+      const files = clipboardData.files;
+      if (files && files.length > 0) {
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          if (file && file.type.startsWith('image/')) {
+            imageFile = file;
+            break;
+          }
+        }
+      }
+
+      // 2. Check clipboard items
+      if (!imageFile && clipboardData.items) {
+        for (let i = 0; i < clipboardData.items.length; i++) {
+          const item = clipboardData.items[i];
+          if (item && item.type.startsWith('image/')) {
+            const blob = item.getAsFile();
+            if (blob) {
+              imageFile = blob;
+              break;
+            }
+          }
+        }
+      }
+
+      if (imageFile) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const ext = imageFile.type === 'image/jpeg' ? 'jpg' : 'png';
+        const rawName = imageFile.name;
+        const finalName =
+          rawName && rawName !== 'image.png' && rawName !== 'blob'
+            ? rawName
+            : `clipboard-receipt-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now().toString().slice(-4)}.${ext}`;
+
+        const namedFile =
+          imageFile.name === finalName
+            ? imageFile
+            : new File([imageFile], finalName, { type: imageFile.type || 'image/png' });
+
+        handleSelectFile(namedFile);
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => {
+      window.removeEventListener('paste', handlePaste);
+    };
+  }, [isOpen, isUploadingReceipt, isPending]);
+
   const canFetch = React.useMemo(() => {
     if (!isOpen) return false;
     const isTest =

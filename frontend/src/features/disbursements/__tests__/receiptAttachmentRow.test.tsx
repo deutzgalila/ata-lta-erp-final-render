@@ -73,6 +73,45 @@ describe('Receipt attachment controls and viewer', () => {
     expect(retry).toHaveBeenCalledOnce();
   });
 
+  it('triggers blob fetch and direct file download when download button is clicked', async () => {
+    const mockBlob = new Blob(['fake image content'], { type: 'image/png' });
+    const originalFetch = globalThis.fetch;
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      blob: vi.fn().mockResolvedValue(mockBlob),
+    });
+    globalThis.fetch = fetchMock;
+
+    const createObjectURLMock = vi.fn().mockReturnValue('blob:https://storage.test/mock-blob-uuid');
+    const revokeObjectURLMock = vi.fn();
+    window.URL.createObjectURL = createObjectURLMock;
+    window.URL.revokeObjectURL = revokeObjectURLMock;
+
+    const originalCreateElement = document.createElement.bind(document);
+    const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
+      const el = originalCreateElement(tagName);
+      if (tagName.toLowerCase() === 'a') {
+        vi.spyOn(el, 'click').mockImplementation(() => {});
+      }
+      return el;
+    });
+
+    try {
+      render(<ReceiptViewer {...defaults} />, { wrapper });
+      const downloadBtn = screen.getByTestId('btn-download-receipt');
+      fireEvent.click(downloadBtn);
+
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledWith('https://storage.test/signed.png');
+        expect(createObjectURLMock).toHaveBeenCalledWith(mockBlob);
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+      createElementSpy.mockRestore();
+    }
+  });
+
   it('opens a read-only receipt preview without document-detail or document-download requests via Modal button', async () => {
     const fetch = vi
       .spyOn(global, 'fetch')

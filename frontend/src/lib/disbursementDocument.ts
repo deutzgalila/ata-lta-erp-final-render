@@ -63,7 +63,27 @@ const esc = (value: unknown): string =>
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
-const dateOnly = (value?: string | null): string => value?.slice(0, 10) ?? '';
+export function formatMmDdYyyy(value?: string | null): string {
+  if (!value) return '';
+  const trimmed = String(value).trim();
+  if (!trimmed) return '';
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
+    return trimmed;
+  }
+  const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const [, y, m, d] = match;
+    return `${m}/${d}/${y}`;
+  }
+  const parsed = new Date(trimmed);
+  if (!isNaN(parsed.getTime())) {
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    const d = String(parsed.getDate()).padStart(2, '0');
+    const y = parsed.getFullYear();
+    return `${m}/${d}/${y}`;
+  }
+  return trimmed;
+}
 
 export function getDisbursementPrintDetails(d: DisbursementDocumentData): DisbursementPrintDetails {
   const requester =
@@ -75,13 +95,13 @@ export function getDisbursementPrintDetails(d: DisbursementDocumentData): Disbur
     d.createdByName ||
     '';
   const paid = ['Released', 'Funded'].includes(d.status);
-  return {
+  const details: DisbursementPrintDetails = {
     requesterName: requester,
     referenceNumber: d.disbursement_number || d.disbursementNumber || d.id,
-    submittedDate: dateOnly(d.created_at || d.createdAt),
+    submittedDate: formatMmDdYyyy(d.created_at || d.createdAt),
     workRequestName: d.linked_work_request_name || d.linked_work_request_order_number || '',
     paymentDate: paid
-      ? dateOnly(d.payment_date || d.paymentDate || d.released_at || d.releasedAt)
+      ? formatMmDdYyyy(d.payment_date || d.paymentDate || d.released_at || d.releasedAt)
       : '',
     paymentMethod: paid ? d.payment_method || d.paymentMethod || '' : '',
     paymentReference: paid ? d.payment_reference || d.paymentReference || '' : '',
@@ -91,6 +111,13 @@ export function getDisbursementPrintDetails(d: DisbursementDocumentData): Disbur
     releasedBy: d.released_by_name || d.releasedByName || '',
     ...d.print_details,
   };
+  if (details.submittedDate) {
+    details.submittedDate = formatMmDdYyyy(details.submittedDate);
+  }
+  if (details.paymentDate) {
+    details.paymentDate = formatMmDdYyyy(details.paymentDate);
+  }
+  return details;
 }
 
 export function disbursementAmountInWords(amount: number): string {

@@ -48,6 +48,43 @@ export function ReceiptViewer({
   const [rotation, setRotation] = useState(0);
   const [imageLoadError, setImageLoadError] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!receiptData?.url || isDownloading) return;
+    setIsDownloading(true);
+    try {
+      const response = await fetch(receiptData.url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.statusText}`);
+      }
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const tempLink = document.createElement('a');
+      tempLink.href = objectUrl;
+      tempLink.download = fileName || 'receipt';
+      document.body.appendChild(tempLink);
+      tempLink.click();
+      document.body.removeChild(tempLink);
+      setTimeout(() => {
+        if (typeof URL.revokeObjectURL === 'function') {
+          URL.revokeObjectURL(objectUrl);
+        }
+      }, 100);
+    } catch {
+      const fallbackLink = document.createElement('a');
+      fallbackLink.href = receiptData.url;
+      fallbackLink.download = fileName || 'receipt';
+      fallbackLink.target = '_blank';
+      fallbackLink.rel = 'noopener noreferrer';
+      document.body.appendChild(fallbackLink);
+      fallbackLink.click();
+      document.body.removeChild(fallbackLink);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   useEffect(() => {
     setImageLoadError(false);
@@ -280,15 +317,19 @@ export function ReceiptViewer({
             <a
               href={receiptData.url}
               download={fileName}
+              onClick={handleDownload}
               target="_blank"
               rel="noopener noreferrer"
-              className="h-6 px-1 sm:px-1.5 text-[11px] font-medium text-ink bg-surface border-border rounded-[4px] hover:bg-hover inline-flex items-center gap-0.5 cursor-pointer transition-colors shrink-0 whitespace-nowrap"
+              className={cn(
+                'h-6 px-1 sm:px-1.5 text-[11px] font-medium text-ink bg-surface border-border rounded-[4px] hover:bg-hover inline-flex items-center gap-0.5 cursor-pointer transition-colors shrink-0 whitespace-nowrap',
+                isDownloading && 'opacity-60 pointer-events-none'
+              )}
               data-testid="btn-download-receipt"
               title="Download receipt"
               aria-label="Download"
             >
-              <Download className="h-3 w-3 text-muted shrink-0" />
-              <span>Download</span>
+              <Download className={cn('h-3 w-3 text-muted shrink-0', isDownloading && 'animate-spin')} />
+              <span>{isDownloading ? 'Saving…' : 'Download'}</span>
             </a>
 
             <Button
