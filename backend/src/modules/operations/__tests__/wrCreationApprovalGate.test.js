@@ -842,5 +842,97 @@ describe('Parcel 1: Work Request Creation Admission Gate', () => {
         .expect(200);
       expect(leadWr.body.data.id).toBe(wrId);
     });
+
+    it('rejects competing decision requests on same version with 409 CONCURRENT_MODIFICATION', async () => {
+      const createRes = await request(app)
+        .post('/v1/work-requests')
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          title: 'Competing Decisions WR',
+          clientId: client.id,
+          dueDate: '2026-12-31',
+          entity: 'ATA',
+        })
+        .expect(201);
+
+      const wr = createRes.body.data;
+      const initialVersion = wr.version;
+
+      const approveReq = request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/creation-approval`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          decision: 'approve',
+          expectedVersion: initialVersion,
+        });
+
+      const rejectReq = request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/creation-approval`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          decision: 'reject',
+          reason: 'Competing rejection landed late',
+          expectedVersion: initialVersion,
+        });
+
+      const [res1, res2] = await Promise.all([approveReq, rejectReq]);
+      const statuses = [res1.status, res2.status].sort();
+      expect(statuses).toEqual([200, 409]);
+    });
+
+    it('rejects competing resubmission requests on same version with 409 CONCURRENT_MODIFICATION', async () => {
+      const createRes = await request(app)
+        .post('/v1/work-requests')
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          title: 'Competing Resubmit WR',
+          clientId: client.id,
+          dueDate: '2026-12-31',
+          entity: 'ATA',
+        })
+        .expect(201);
+
+      const wr = createRes.body.data;
+      // Reject it first
+      const rejectRes = await request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/creation-approval`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          decision: 'reject',
+          reason: 'Needs correction',
+          expectedVersion: wr.version,
+        })
+        .expect(200);
+
+      const rejectedWr = rejectRes.body.data;
+      const rejectedVersion = rejectedWr.version;
+
+      const resubmit1 = request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/resubmit-creation`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          expectedVersion: rejectedVersion,
+          data: { description: 'Correction attempt 1' },
+        });
+
+      const resubmit2 = request(app)
+        .post(`/v1/operations/work-requests/${wr.id}/resubmit-creation`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          expectedVersion: rejectedVersion,
+          data: { description: 'Correction attempt 2' },
+        });
+
+      const [r1, r2] = await Promise.all([resubmit1, resubmit2]);
+      const statuses = [r1.status, r2.status].sort();
+      expect(statuses).toEqual([200, 409]);
+    });
   });
 });

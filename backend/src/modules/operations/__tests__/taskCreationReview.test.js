@@ -930,5 +930,121 @@ describe('Parcel 2: Task Creation Approval Review', () => {
         })
         .expect(404);
     });
+
+    it('ordinary updateTask CAS compares existing.version even when expectedVersion is omitted', async () => {
+      // Create a task on admitted WR
+      const taskRes = await request(app)
+        .post(`/v1/work-requests/${admittedWr.id}/tasks`)
+        .set('Authorization', `Bearer ${managerLeadToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          title: 'CAS Version Task',
+          phase: 'pre_processing',
+        })
+        .expect(201);
+
+      const task = taskRes.body.data;
+
+      // Simulate a concurrent update that bumps task version in DB
+      await request(app)
+        .put(`/v1/work-requests/${admittedWr.id}/tasks/${task.id}`)
+        .set('Authorization', `Bearer ${managerLeadToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          title: 'Concurrent Title Bump',
+        })
+        .expect(200);
+
+      // Now attempt an update with stale declared expectedVersion -> 409 ERR_CONCURRENCY_CONFLICT
+      const staleRes = await request(app)
+        .put(`/v1/work-requests/${admittedWr.id}/tasks/${task.id}`)
+        .set('Authorization', `Bearer ${managerLeadToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          title: 'Stale Attempt',
+          expectedVersion: task.version, // stale version
+        })
+        .expect(409);
+
+      expect(staleRes.body.code).toBe('ERR_CONCURRENCY_CONFLICT');
+    });
+
+    it('ordinary updateTask blocks intervening rejection with 409 TASK_REJECTED_LOCKED', async () => {
+      // Employee creates a pending task
+      const taskRes = await request(app)
+        .post(`/v1/work-requests/${admittedWr.id}/tasks`)
+        .set('Authorization', `Bearer ${employeeToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          title: 'Task Before Intervening Rejection',
+          phase: 'pre_processing',
+        })
+        .expect(201);
+
+      const task = taskRes.body.data;
+      expect(task.approvalStatus).toBe('pending');
+
+      // Manager lead rejects the task
+      await request(app)
+        .post(`/v1/work-requests/${admittedWr.id}/tasks/${task.id}/creation-approval`)
+        .set('Authorization', `Bearer ${managerLeadToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          decision: 'reject',
+          reason: 'Scope too vague',
+          expectedVersion: task.version,
+        })
+        .expect(200);
+
+      // Ordinary update must be rejected with 409 TASK_REJECTED_LOCKED, not overwrite rejection
+      const updateRes = await request(app)
+        .put(`/v1/work-requests/${admittedWr.id}/tasks/${task.id}`)
+        .set('Authorization', `Bearer ${employeeToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          title: 'Ordinary Overwrite Attempt',
+        })
+        .expect(409);
+
+      expect(updateRes.body.code).toBe('TASK_REJECTED_LOCKED');
+    });
+
+    it('rejects competing task decisions on same version with 409 TASK_REVIEW_CONFLICT', async () => {
+      // Employee creates a pending task
+      const taskRes = await request(app)
+        .post(`/v1/work-requests/${admittedWr.id}/tasks`)
+        .set('Authorization', `Bearer ${employeeToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          title: 'Task for Competing Decisions',
+          phase: 'pre_processing',
+        })
+        .expect(201);
+
+      const task = taskRes.body.data;
+
+      const approveReq = request(app)
+        .post(`/v1/work-requests/${admittedWr.id}/tasks/${task.id}/creation-approval`)
+        .set('Authorization', `Bearer ${managerLeadToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          decision: 'approve',
+          expectedVersion: task.version,
+        });
+
+      const rejectReq = request(app)
+        .post(`/v1/work-requests/${admittedWr.id}/tasks/${task.id}/creation-approval`)
+        .set('Authorization', `Bearer ${managerLeadToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          decision: 'reject',
+          reason: 'Late rejection decision',
+          expectedVersion: task.version,
+        });
+
+      const [res1, res2] = await Promise.all([approveReq, rejectReq]);
+      const statuses = [res1.status, res2.status].sort();
+      expect(statuses).toEqual([200, 409]);
+    });
   });
 });

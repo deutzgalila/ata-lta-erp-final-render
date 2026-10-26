@@ -1808,6 +1808,15 @@ const updateWorkRequest = async ({ id, entityId, data, user }) => {
     throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Work request not found' });
   }
 
+  if (existing.creationApprovalStatus && existing.creationApprovalStatus !== 'approved') {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Unadmitted work requests cannot be modified through ordinary updates',
+      code: 'INVALID_APPROVAL_STATE',
+    });
+  }
+
   if (existing.status === 'Completed') {
     const isReopen = data.status === 'Draft' || data.status === 'Processing';
     if (!isReopen) {
@@ -1937,7 +1946,8 @@ const updateWorkRequest = async ({ id, entityId, data, user }) => {
     .from('work_requests')
     .update(updates)
     .eq('id', id)
-    .is('deleted_at', null);
+    .is('deleted_at', null)
+    .or('creation_approval_status.is.null,creation_approval_status.eq.approved');
 
   if (existing.status !== 'Completed') {
     // Prevent overwriting a completed request if completed concurrently
@@ -1948,7 +1958,16 @@ const updateWorkRequest = async ({ id, entityId, data, user }) => {
   }
 
   if (expectedVersion !== null) {
-    query = query.eq('version', expectedVersion);
+    const expVer = Number(expectedVersion);
+    if (expVer !== (existing.version || 1)) {
+      throw new AppError({
+        statusCode: 409,
+        title: 'Conflict',
+        detail: 'Work request was modified concurrently. Please reload.',
+        code: 'CONCURRENT_MODIFICATION',
+      });
+    }
+    query = query.eq('version', expVer);
   }
   const { data: updatedRows, error } = await query.select();
   if (error) {
@@ -2953,7 +2972,18 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user, 
   // the version it read; zero matching rows become a 409 conflict.
   // Always bump task version on update so CDC consumers receive monotonically increasing versions.
   // Completion also guards the version read with the checklist for older clients.
-  const expectedVersion = resolveExpectedVersion(data) ?? (targetStatus === 'Completed' ? existing.version || 1 : null);
+  const declaredExpectedVersion = resolveExpectedVersion(data);
+  const suppliedRawVersion = data && data.expectedVersion !== undefined ? data.expectedVersion : null;
+
+  // Stale supplied version check (Spec 2.2 / R-10):
+  if (!isMaterialReset) {
+    if (declaredExpectedVersion !== null && declaredExpectedVersion !== (existing.version || 1)) {
+      throw concurrencyConflict();
+    }
+    if (suppliedRawVersion !== null && declaredExpectedVersion === null) {
+      throw concurrencyConflict();
+    }
+  }
 
   // B2.5: Immediately prior to writing task completion, re-verify prerequisite tasks remain in Completed status
   if (targetStatus === 'Completed' && validPredIds.length > 0) {
@@ -2995,6 +3025,25 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user, 
   if (isMaterialReset) {
     // Material reset path: integrate write via agreed service-only task_material_update RPC
     // Locking parent WR + task row and resetting approval in SAME transaction.
+    // Never rebase supplied stale material version: if supplied, it must match.
+    if (suppliedRawVersion !== null && declaredExpectedVersion === null) {
+      throw new AppError({
+        statusCode: 409,
+        title: 'Conflict',
+        detail: 'expectedVersion must be a positive integer for material revisions',
+        code: 'TASK_REVIEW_CONFLICT',
+      });
+    }
+    if (declaredExpectedVersion !== null && declaredExpectedVersion !== (existing.version || 1)) {
+      throw new AppError({
+        statusCode: 409,
+        title: 'Conflict',
+        detail: 'Task was modified concurrently. Please reload.',
+        code: 'TASK_REVIEW_CONFLICT',
+      });
+    }
+    const materialExpectedVersion = declaredExpectedVersion ?? (existing.version || 1);
+
     const materialPatch = {};
     if (data.title !== undefined) materialPatch.title = data.title;
     if (data.description !== undefined) materialPatch.description = data.description;
@@ -3020,7 +3069,7 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user, 
       p_work_request_id: effectiveWrId,
       p_entity_id: parentWr?.entity_id || existing.entityId || existing.entity_id || entityId,
       p_actor_id: effectiveUser.id,
-      p_expected_version: expectedVersion || existing.version || 1,
+      p_expected_version: materialExpectedVersion,
       p_data: materialPatch,
       p_assignees: explicitAssignees,
     });
@@ -3032,20 +3081,22 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user, 
     // Duplicate post-RPC assignment writes are skipped.
   } else {
     updates.version = (existing.version || 1) + 1;
+    const casVersion = declaredExpectedVersion ?? (existing.version || 1);
 
     let query = supabaseAdmin
       .from('tasks')
       .update(updates)
-      .eq('id', taskId);
+      .eq('id', taskId)
+      .eq('version', casVersion)
+      .neq('approval_status', 'rejected');
+
     if (effectiveWrId) {
       query = query.eq('work_request_id', effectiveWrId);
     }
     if (existing.status !== 'Completed' && targetStatus === 'Completed') {
       query = query.neq('status', 'Completed');
     }
-    if (expectedVersion !== null) {
-      query = query.eq('version', expectedVersion);
-    }
+
     const { data: updatedRows, error } = await query.select();
     if (error) {
       throw new AppError({
@@ -3056,9 +3107,22 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user, 
     }
 
     if (!updatedRows || updatedRows.length === 0) {
-      if (expectedVersion !== null) {
-        throw concurrencyConflict();
+      // Intervening rejection check: if task was rejected concurrently, reject with TASK_REJECTED_LOCKED
+      const { data: latestTask } = await supabaseAdmin
+        .from('tasks')
+        .select('approval_status, version')
+        .eq('id', taskId)
+        .maybeSingle();
+
+      if (latestTask?.approval_status === 'rejected') {
+        throw new AppError({
+          statusCode: 409,
+          title: 'Conflict',
+          detail: 'Task is rejected and locked against direct modification. Use resubmit-creation to submit corrections.',
+          code: 'TASK_REJECTED_LOCKED',
+        });
       }
+
       if (existing.status !== 'Completed' && targetStatus === 'Completed') {
         throw new AppError({
           statusCode: 409,
@@ -3067,6 +3131,8 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user, 
           code: 'CONCURRENT_MODIFICATION',
         });
       }
+
+      throw concurrencyConflict();
     }
 
     // Keep the join table aligned with explicit team edits and primary reassignment.
@@ -4678,7 +4744,22 @@ const rerouteWorkRequest = async ({ id, entityId, toPhase, reason, user }) => {
 };
 
 const listCreationApprovals = async ({ entityId, user, status = 'pending', scope = 'mine', page, limit }) => {
-  if (!user || (user.role !== 'Admin' && user.role !== 'Manager')) {
+  if (!user) {
+    throw new AppError({
+      statusCode: 401,
+      title: 'Unauthorized',
+      detail: 'Authentication required',
+    });
+  }
+
+  // Atomically verify current active actor role at list time to prevent stale memoized authority
+  const { data: currentActor, error: actorErr } = await supabaseAdmin
+    .from('users')
+    .select('id, role, is_active, entities')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (actorErr || !currentActor || currentActor.is_active === false || (currentActor.role !== 'Admin' && currentActor.role !== 'Manager')) {
     throw new AppError({
       statusCode: 403,
       title: 'Forbidden',
@@ -4687,7 +4768,7 @@ const listCreationApprovals = async ({ entityId, user, status = 'pending', scope
   }
 
   // Managers may see own submissions only; Admins may see 'all' or 'mine'
-  const effectiveScope = user.role === 'Manager' ? 'mine' : (scope === 'mine' ? 'mine' : 'all');
+  const effectiveScope = currentActor.role === 'Manager' ? 'mine' : (scope === 'mine' ? 'mine' : 'all');
   const validStatus = ['pending', 'rejected', 'approved'].includes(status) ? status : 'pending';
 
   let query = supabaseAdmin
@@ -4702,7 +4783,7 @@ const listCreationApprovals = async ({ entityId, user, status = 'pending', scope
   }
 
   if (effectiveScope === 'mine') {
-    query = query.or(`created_by.eq.${user.id},and(created_by.is.null,requested_by.eq.${user.id})`);
+    query = query.or(`created_by.eq.${currentActor.id},and(created_by.is.null,requested_by.eq.${currentActor.id})`);
   }
 
   const { data, error } = await query;
@@ -4716,23 +4797,21 @@ const listCreationApprovals = async ({ entityId, user, status = 'pending', scope
 
   let visibleRows = data || [];
   // Admin entity entitlement filtering when in ALL view
-  if (user) {
-    const allowed = [];
-    for (const r of visibleRows) {
-      if (await isUserEntitledToEntity(r.entity_id, user)) {
-        // Creator submission access must not confer ongoing project membership after admission (CONTRACT R2).
-        // For approved rows, require ordinary membership before returning current details/children.
-        if (validStatus === 'approved' && user.role !== 'Admin') {
-          const isMember = await isUserMemberOfWorkRequest(r.id, user, { entityId: r.entity_id });
-          if (!isMember) {
-            continue;
-          }
+  const allowed = [];
+  for (const r of visibleRows) {
+    if (await isUserEntitledToEntity(r.entity_id, currentActor)) {
+      // Creator submission access must not confer ongoing project membership after admission (CONTRACT R2).
+      // For approved rows, require ordinary membership before returning current details/children.
+      if (validStatus === 'approved' && currentActor.role !== 'Admin') {
+        const isMember = await isUserMemberOfWorkRequest(r.id, currentActor, { entityId: r.entity_id });
+        if (!isMember) {
+          continue;
         }
-        allowed.push(r);
       }
+      allowed.push(r);
     }
-    visibleRows = allowed;
   }
+  visibleRows = allowed;
 
   const isPaginated = page !== undefined || limit !== undefined;
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -4860,7 +4939,15 @@ const decideWorkRequestCreationApproval = async ({ id, entityId, decision, reaso
   }
 
   const currentVersion = wr.version || 1;
-  if (expectedVersion !== undefined && expectedVersion !== null && expectedVersion !== currentVersion) {
+  if (expectedVersion === undefined || expectedVersion === null || !Number.isInteger(Number(expectedVersion)) || Number(expectedVersion) <= 0) {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'expectedVersion is required and must be a positive integer',
+      code: 'CONCURRENT_MODIFICATION',
+    });
+  }
+  if (Number(expectedVersion) !== currentVersion) {
     throw new AppError({
       statusCode: 409,
       title: 'Conflict',
@@ -4885,8 +4972,9 @@ const decideWorkRequestCreationApproval = async ({ id, entityId, decision, reaso
       updated_at: now,
     })
     .eq('id', id)
-    .eq('version', currentVersion)
+    .eq('version', Number(expectedVersion))
     .eq('creation_approval_status', 'pending')
+    .is('deleted_at', null)
     .select();
 
   if (updateResult.error) {
@@ -4935,6 +5023,22 @@ const resubmitWorkRequestCreation = async ({ id, entityId, expectedVersion, data
     throw new AppError({ statusCode: 401, title: 'Unauthorized', detail: 'Authentication required' });
   }
 
+  // Verify current active actor at decision time to protect against concurrent account deactivation
+  const { data: currentActor, error: actorErr } = await supabaseAdmin
+    .from('users')
+    .select('id, role, is_active, entities')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (actorErr || !currentActor || currentActor.is_active === false) {
+    throw new AppError({
+      statusCode: 403,
+      title: 'Forbidden',
+      detail: 'Active account required to resubmit work requests',
+      code: 'INACTIVE_USER',
+    });
+  }
+
   let query = supabaseAdmin
     .from('work_requests')
     .select('*')
@@ -4954,13 +5058,13 @@ const resubmitWorkRequestCreation = async ({ id, entityId, expectedVersion, data
   }
 
   // Entitlement
-  const entitled = await isUserEntitledToEntity(wr.entity_id, user);
+  const entitled = await isUserEntitledToEntity(wr.entity_id, currentActor);
   if (!entitled) {
     throw new AppError({ statusCode: 403, title: 'Forbidden', detail: 'Not entitled to work request entity' });
   }
 
   // Creator check (strict canonical created_by with fallback to requested_by only if created_by is null)
-  const isCreator = isCreatorUser(user, wr);
+  const isCreator = isCreatorUser(currentActor, wr);
   if (!isCreator) {
     throw new AppError({
       statusCode: 403,
@@ -4979,7 +5083,15 @@ const resubmitWorkRequestCreation = async ({ id, entityId, expectedVersion, data
   }
 
   const currentVersion = wr.version || 1;
-  if (expectedVersion !== undefined && expectedVersion !== null && expectedVersion !== currentVersion) {
+  if (expectedVersion === undefined || expectedVersion === null || !Number.isInteger(Number(expectedVersion)) || Number(expectedVersion) <= 0) {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'expectedVersion is required and must be a positive integer',
+      code: 'CONCURRENT_MODIFICATION',
+    });
+  }
+  if (Number(expectedVersion) !== currentVersion) {
     throw new AppError({
       statusCode: 409,
       title: 'Conflict',
@@ -5040,8 +5152,9 @@ const resubmitWorkRequestCreation = async ({ id, entityId, expectedVersion, data
     .from('work_requests')
     .update(updates)
     .eq('id', id)
-    .eq('version', currentVersion)
+    .eq('version', Number(expectedVersion))
     .eq('creation_approval_status', 'rejected')
+    .is('deleted_at', null)
     .select();
 
   if (updateResult.error) {
@@ -5307,7 +5420,15 @@ const decideTaskCreationApproval = async ({
   }
 
   const currentVersion = task.version || 1;
-  if (expectedVersion !== undefined && expectedVersion !== null && expectedVersion !== currentVersion) {
+  if (expectedVersion === undefined || expectedVersion === null || !Number.isInteger(Number(expectedVersion)) || Number(expectedVersion) <= 0) {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'expectedVersion is required and must be a positive integer',
+      code: 'TASK_REVIEW_CONFLICT',
+    });
+  }
+  if (Number(expectedVersion) !== currentVersion) {
     throw new AppError({
       statusCode: 409,
       title: 'Conflict',
@@ -5321,7 +5442,7 @@ const decideTaskCreationApproval = async ({
     p_work_request_id: effectiveWrId,
     p_entity_id: wr.entity_id,
     p_actor_id: user.id,
-    p_expected_version: expectedVersion || currentVersion,
+    p_expected_version: Number(expectedVersion),
     p_decision: decision,
     p_reason: decision === 'reject' ? reason.trim() : null,
   });
@@ -5447,8 +5568,24 @@ const resubmitTaskCreation = async ({
     throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'Task not found', code: 'TASK_NOT_FOUND' });
   }
 
+  // Verify current active actor to ensure authorization freshness
+  const { data: currentActor, error: actorErr } = await supabaseAdmin
+    .from('users')
+    .select('id, role, is_active, entities')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (actorErr || !currentActor || currentActor.is_active === false) {
+    throw new AppError({
+      statusCode: 403,
+      title: 'Forbidden',
+      detail: 'Active account required to resubmit task creation',
+      code: 'TASK_REVIEW_FORBIDDEN',
+    });
+  }
+
   // Strict creator check
-  const isCreator = isCreatorUser(user, task);
+  const isCreator = isCreatorUser(currentActor, task);
   if (!isCreator) {
     throw new AppError({
       statusCode: 403,
@@ -5468,7 +5605,15 @@ const resubmitTaskCreation = async ({
   }
 
   const currentVersion = task.version || 1;
-  if (expectedVersion !== undefined && expectedVersion !== null && expectedVersion !== currentVersion) {
+  if (expectedVersion === undefined || expectedVersion === null || !Number.isInteger(Number(expectedVersion)) || Number(expectedVersion) <= 0) {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'expectedVersion is required and must be a positive integer',
+      code: 'TASK_REVIEW_CONFLICT',
+    });
+  }
+  if (Number(expectedVersion) !== currentVersion) {
     throw new AppError({
       statusCode: 409,
       title: 'Conflict',
@@ -5503,7 +5648,7 @@ const resubmitTaskCreation = async ({
     p_work_request_id: effectiveWrId,
     p_entity_id: wr.entity_id,
     p_actor_id: user.id,
-    p_expected_version: expectedVersion || currentVersion,
+    p_expected_version: Number(expectedVersion),
     p_data: editData || {},
   });
 

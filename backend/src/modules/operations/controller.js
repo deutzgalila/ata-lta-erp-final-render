@@ -805,7 +805,7 @@ const listCreationApprovals = async (req, res, next) => {
 
 const decideCreationApproval = async (req, res, next) => {
   try {
-    const payload = validate(creationApprovalDecisionSchema, req.body);
+    const payload = validate(creationApprovalDecisionSchema, injectExpectedVersion(req, req.body || {}));
     const result = await operationsService.decideWorkRequestCreationApproval({
       id: req.params.id,
       entityId: req.entityUUID,
@@ -822,7 +822,7 @@ const decideCreationApproval = async (req, res, next) => {
 
 const resubmitCreation = async (req, res, next) => {
   try {
-    const payload = validate(resubmitCreationSchema, req.body);
+    const payload = validate(resubmitCreationSchema, injectExpectedVersion(req, req.body || {}));
     const result = await operationsService.resubmitWorkRequestCreation({
       id: req.params.id,
       entityId: req.entityUUID,
@@ -838,7 +838,7 @@ const resubmitCreation = async (req, res, next) => {
 
 const decideTaskCreationApproval = async (req, res, next) => {
   try {
-    const payload = validate(taskCreationApprovalDecisionSchema, req.body);
+    const payload = validate(taskCreationApprovalDecisionSchema, injectExpectedVersion(req, req.body || {}));
     const result = await operationsService.decideTaskCreationApproval({
       workRequestId: req.params.wrId || req.params.id,
       taskId: req.params.taskId,
@@ -856,7 +856,7 @@ const decideTaskCreationApproval = async (req, res, next) => {
 
 const resubmitTaskCreation = async (req, res, next) => {
   try {
-    const payload = validate(taskResubmitCreationSchema, req.body);
+    const payload = validate(taskResubmitCreationSchema, injectExpectedVersion(req, req.body || {}));
     const result = await operationsService.resubmitTaskCreation({
       workRequestId: req.params.wrId || req.params.id,
       taskId: req.params.taskId,
