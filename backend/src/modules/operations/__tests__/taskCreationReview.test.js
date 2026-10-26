@@ -669,7 +669,7 @@ describe('Parcel 2: Task Creation Approval Review', () => {
       expect(res.body.code).toBe('TASK_REVIEW_STATE');
     });
 
-    it.only('material employee edits on approved task reset approvalStatus to pending', async () => {
+    it('material employee edits on approved task reset approvalStatus to pending', async () => {
       // Create approved task
       const approvedTaskRes = await request(app)
         .post(`/v1/work-requests/${admittedWr.id}/tasks`)
