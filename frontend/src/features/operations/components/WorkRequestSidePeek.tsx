@@ -620,7 +620,6 @@ export function WorkRequestSidePeek({
                     size="sm"
                     onClick={() => {
                       onViewInBoard(workRequestId);
-                      onClose();
                     }}
                     className="text-xs tracking-normal rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B] hover:bg-[#F8FAFC] gap-1.5"
                     data-testid="side-peek-board-btn"
@@ -1338,7 +1337,6 @@ export function WorkRequestSidePeek({
                     size="sm"
                     onClick={() => {
                       onViewInBoard(workRequestId);
-                      onClose();
                     }}
                     className="text-xs tracking-normal rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B] hover:bg-[#F8FAFC] gap-1.5"
                   >

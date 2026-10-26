@@ -51,6 +51,7 @@ import { runBlockingAction } from './BlockingActionModal';
 import { RerouteModal } from './RerouteModal';
 import { WorkRequestModal } from './WorkRequestModal';
 import { TaskDetailModal } from './TaskDetailModal';
+import { WorkRequestSidePeek } from './WorkRequestSidePeek';
 import { QuickAddCard } from './QuickAddCard';
 import { TaskTypeBadge } from '../lib/taskTypes';
 import { operationsKeys } from '../api/queryKeys';
@@ -174,6 +175,7 @@ function PhaseKanbanBoardInner({
   } | null>(null);
   const [isDeletingTask, setIsDeletingTask] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isSidePeekOpen, setIsSidePeekOpen] = useState(false);
 
   const handleConfirmDeleteTask = async () => {
     if (!taskToDelete) return;
@@ -514,16 +516,8 @@ function PhaseKanbanBoardInner({
               onClick={() => {
                 if (onBackToSidePeek) {
                   onBackToSidePeek(activeWr.id);
-                } else {
-                  setSearchParams((prev) => {
-                    const next = new URLSearchParams(prev);
-                    next.set('tab', 'work-requests');
-                    next.set('view', 'list');
-                    next.set('peekWrId', activeWr.id);
-                    next.delete('wrId');
-                    return next;
-                  });
                 }
+                setIsSidePeekOpen(true);
               }}
               className="text-xs tracking-normal rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] hover:bg-[#F8FAFC] text-[#1E293B] gap-1.5 cursor-pointer shadow-2xs"
               data-testid="kanban-back-sidepeek-btn"
@@ -1146,6 +1140,19 @@ function PhaseKanbanBoardInner({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Side Peek Panel directly mounted in Kanban Board */}
+      <WorkRequestSidePeek
+        isOpen={isSidePeekOpen}
+        workRequestId={activeWr?.id || null}
+        onClose={() => setIsSidePeekOpen(false)}
+        onViewInBoard={() => setIsSidePeekOpen(false)}
+        onEdit={(wr) => {
+          setIsSidePeekOpen(false);
+          if (onEditWorkRequest) onEditWorkRequest(wr);
+          else setIsEditModalOpen(true);
+        }}
+      />
     </div>
   );
 }

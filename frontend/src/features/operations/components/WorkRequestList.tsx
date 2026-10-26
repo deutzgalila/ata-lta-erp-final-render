@@ -19,7 +19,6 @@ import {
   Building,
   ChevronDown,
   Check,
-  User,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -590,23 +589,6 @@ export function WorkRequestList({
             </SelectContent>
           </Select>
 
-          {/* Assigned to Me Toggle (Task B.10) */}
-          {user?.id && (
-            <Button
-              type="button"
-              variant={assigneeFilter === user.id ? 'default' : 'outline'}
-              size="xs"
-              onClick={() => {
-                setAssigneeFilter(assigneeFilter === user.id ? 'all' : user.id);
-                setPage(1);
-              }}
-              className={`h-7 text-xs tracking-normal font-bold gap-1 shrink-0 rounded-[8px] border-[#E2E8F0] ${assigneeFilter === user.id ? 'bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs' : 'bg-[#FFFFFF] text-[#1E293B] hover:bg-[#F8FAFC]'}`}
-              data-testid="assigned-to-me-btn"
-            >
-              <User className="h-3 w-3" />
-              Assigned to Me
-            </Button>
-          )}
 
           {/* Due Date Filter */}
           <Select
@@ -1282,7 +1264,10 @@ export function WorkRequestList({
           }
         }}
         onEdit={onEdit}
-        onViewInBoard={onViewDetails}
+        onViewInBoard={(wrId) => {
+          setPeekWrId(null);
+          onViewDetails?.(wrId);
+        }}
       />
 
       {/* OCC Concurrency Conflict Resolution Modal */}

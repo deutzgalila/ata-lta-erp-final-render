@@ -11,7 +11,6 @@ import {
   Receipt,
   AlertCircle,
   FileText,
-  Eye,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -69,7 +68,6 @@ export function ReceiptViewer({
       /\.(jpg|jpeg|png|webp|gif|svg)$/i.test(fileName)
   );
 
-  const fileType = isPdf ? 'PDF receipt' : isImage ? 'Image receipt' : 'Receipt attachment';
   const unavailable = receiptData?.status === 'unavailable';
   const canView = Boolean(receiptData?.url && !isReceiptError && !unavailable);
 
@@ -146,54 +144,6 @@ export function ReceiptViewer({
 
   return (
     <div className="flex-1 min-h-0 flex flex-col space-y-2.5 h-full" data-testid="receipt-viewer-container">
-      {/* Compact attachment row */}
-      <div
-        className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-surface p-2.5 shrink-0"
-        data-testid="receipt-attachment-row"
-      >
-        <FileText className="h-4 w-4 shrink-0 text-muted" />
-        <div className="min-w-0 flex-1 basis-32">
-          <p className="break-words text-xs font-medium text-ink" data-testid="receipt-file-name">
-            {fileName}
-          </p>
-          <p className="text-[11px] text-muted">{fileType}</p>
-        </div>
-        <div
-          className="flex flex-wrap items-center gap-2"
-          role="group"
-          aria-label="Receipt attachment actions"
-        >
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!canView}
-            onClick={() => setIsModalOpen(true)}
-            className="h-7 px-2.5 text-xs font-medium text-ink hover:bg-hover inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
-            data-testid="btn-preview-receipt"
-            aria-label="View"
-            title="Open canonical document viewer modal"
-          >
-            <Eye className="h-3 w-3" />
-            <span>View</span>
-          </Button>
-          {canView && (
-            <a
-              href={receiptData?.url}
-              download={fileName}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-border px-2.5 text-xs font-medium text-ink hover:bg-hover"
-              data-testid="btn-download-receipt"
-              aria-label="Download"
-            >
-              <Download className="h-3 w-3" />
-              <span>Download</span>
-            </a>
-          )}
-        </div>
-      </div>
-
       {/* Loading signed URL status */}
       {(isLoadingReceipt || (isFetchingReceipt && !receiptData?.url)) && (
         <p role="status" className="text-xs text-muted">
@@ -325,6 +275,20 @@ export function ReceiptViewer({
             >
               <ExternalLink className="h-3 w-3 text-muted shrink-0" />
               <span>New tab</span>
+            </a>
+
+            <a
+              href={receiptData.url}
+              download={fileName}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="h-6 px-1.5 text-xs font-medium text-ink bg-surface border-border rounded-[4px] hover:bg-hover inline-flex items-center gap-1 cursor-pointer transition-colors shrink-0 whitespace-nowrap"
+              data-testid="btn-download-receipt"
+              title="Download receipt"
+              aria-label="Download"
+            >
+              <Download className="h-3 w-3 text-muted shrink-0" />
+              <span>Download</span>
             </a>
 
             <Button

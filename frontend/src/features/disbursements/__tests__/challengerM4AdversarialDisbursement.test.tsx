@@ -834,8 +834,8 @@ describe('Adversarial Challenge: CreateDisbursementModal & DisbursementDetailDra
       );
 
       // Inline image is rendered initially
-      await waitFor(() => expect(screen.getByTestId('btn-preview-receipt')).toBeEnabled());
-      fireEvent.click(screen.getByTestId('btn-preview-receipt'));
+      await waitFor(() => expect(screen.getByTestId('btn-open-modal-receipt')).toBeInTheDocument());
+      fireEvent.click(screen.getByTestId('btn-open-modal-receipt'));
       await waitFor(() => {
         expect(screen.getByTestId('doc-preview-image')).toBeInTheDocument();
       });
