@@ -17,21 +17,21 @@ const wrapper = ({ children }: { children: React.ReactNode }) => (
   </QueryClientProvider>
 );
 
-describe('Receipt attachment row', () => {
-  it('shows only a friendly filename for a path-valued API filename and removes the generated UUID', () => {
+describe('Receipt attachment controls and viewer', () => {
+  it('removes redundant top attachment card and renders compact toolbar with download', () => {
     render(<ReceiptViewer {...defaults} />, { wrapper });
-    expect(screen.getByTestId('receipt-file-name')).toHaveTextContent('client-receipt.png');
+    expect(screen.queryByTestId('receipt-attachment-row')).not.toBeInTheDocument();
     expect(screen.getByTestId('receipt-viewer-container').textContent).not.toContain('entities/');
     expect(screen.getByTestId('receipt-viewer-container').textContent).not.toContain('aaaaaaaa');
     expect(screen.getByRole('img')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Download' })).toHaveAttribute(
+    expect(screen.getByTestId('btn-download-receipt')).toHaveAttribute(
       'download',
       'client-receipt.png'
     );
     expect(receiptDisplayName('C:\\receipts\\receipt.pdf')).toBe('receipt.pdf');
   });
 
-  it('uses a generic attachment name when only an internal key exists', () => {
+  it('keeps internal storage path details out of the viewer container text', () => {
     render(
       <ReceiptViewer
         {...defaults}
@@ -39,23 +39,21 @@ describe('Receipt attachment row', () => {
       />,
       { wrapper }
     );
-    expect(screen.getByTestId('receipt-file-name')).toHaveTextContent(/^Receipt$/);
     expect(screen.getByTestId('receipt-viewer-container').textContent).not.toContain(key);
   });
 
-  it('shows loading and unavailable states without offering a usable View or Download action', () => {
+  it('shows loading and unavailable states without offering a usable Download action', () => {
     const { rerender } = render(
       <ReceiptViewer {...defaults} receiptData={undefined} isLoadingReceipt />,
       { wrapper }
     );
     expect(screen.getByRole('status')).toHaveTextContent('Loading receipt');
-    expect(screen.getByRole('button', { name: 'View' })).toBeDisabled();
-    expect(screen.queryByRole('link', { name: 'Download' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('btn-download-receipt')).not.toBeInTheDocument();
     rerender(<ReceiptViewer {...defaults} receiptData={{ status: 'unavailable' }} />);
     expect(screen.getByTestId('receipt-legacy-unavailable')).toHaveTextContent(
       'Supporting document unavailable'
     );
-    expect(screen.getByRole('button', { name: 'View' })).toBeDisabled();
+    expect(screen.queryByTestId('btn-download-receipt')).not.toBeInTheDocument();
   });
 
   it('keeps internal storage error details out of the attachment and offers retry', () => {
@@ -70,18 +68,18 @@ describe('Receipt attachment row', () => {
       { wrapper }
     );
     expect(screen.getByRole('alert')).not.toHaveTextContent('entities/');
-    expect(screen.queryByRole('link', { name: 'Download' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('btn-download-receipt')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('btn-retry-receipt'));
     expect(retry).toHaveBeenCalledOnce();
   });
 
-  it('opens a read-only receipt preview without document-detail or document-download requests', async () => {
+  it('opens a read-only receipt preview without document-detail or document-download requests via Modal button', async () => {
     const fetch = vi
       .spyOn(global, 'fetch')
       .mockResolvedValue(new Response(JSON.stringify({ data: [] }), { status: 200 }));
     try {
       render(<ReceiptViewer {...defaults} />, { wrapper });
-      fireEvent.click(screen.getByRole('button', { name: 'View' }));
+      fireEvent.click(screen.getByTestId('btn-open-modal-receipt'));
       expect(await screen.findByTestId('doc-preview-image')).toHaveAttribute(
         'src',
         'https://storage.test/signed.png'

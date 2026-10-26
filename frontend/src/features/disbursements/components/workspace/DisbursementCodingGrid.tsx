@@ -471,7 +471,7 @@ export function DisbursementCodingGrid({
                 <th className="text-xs font-semibold text-text-secondary h-9 px-3 py-1.5 whitespace-nowrap">
                   Invoice / Transmittal
                 </th>
-                <th className="text-xs font-semibold text-text-secondary h-9 px-3 py-1.5 text-right whitespace-nowrap">
+                <th className="text-xs font-semibold text-text-secondary h-9 pl-3 pr-16 py-1.5 text-right whitespace-nowrap">
                   Amount (PHP)
                 </th>
               </tr>
@@ -701,7 +701,7 @@ export function DisbursementCodingGrid({
                   {/* 9. Amount (PHP) (Editable for Admin on v2 Draft) */}
                   <td
                     className={cn(
-                      'px-3 py-1.5 whitespace-nowrap text-right',
+                      'pl-3 pr-16 py-1.5 whitespace-nowrap text-right',
                       isFinancialEditable && 'cursor-pointer hover:bg-hover/80'
                     )}
                     data-testid="coding-grid-amount"
