@@ -134,6 +134,38 @@ describe('Phase Kanban Board & Routing Features (Milestone 3)', () => {
     });
   });
 
+  it.each([
+    { approvalStatus: 'pending', status: 'Completed', blocked: true },
+    { approvalStatus: 'rejected', status: 'Cancelled', blocked: true },
+    { approvalStatus: 'approved', status: 'Completed', blocked: false },
+    { approvalStatus: undefined, status: 'Completed', blocked: false },
+  ] as const)('keeps review sign-off separate from execution: $approvalStatus / $status', async ({ approvalStatus, status, blocked }) => {
+    const { wrapper } = createTestHarness();
+    const taskRows = mockPreTasks.map((task, index) => ({
+      ...task,
+      status: index === 0 ? status : 'Completed',
+      approvalStatus: index === 0 ? approvalStatus : undefined,
+    }));
+    vi.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      const data = url.includes('/wr-101/tasks') ? taskRows
+        : url.includes('/operations/work-requests?') ? mockWorkRequests
+          : url.includes('/operations/work-requests/wr-101') ? mockWorkRequests[0] : [];
+      return new Response(JSON.stringify({ data }), { status: 200 });
+    });
+    render(<PhaseKanbanBoard initialWorkRequestId="wr-101" />, { wrapper });
+    const advance = await screen.findByTestId('admin-advance-btn');
+    await waitFor(() => {
+      if (blocked) {
+        expect(advance).toBeDisabled();
+        expect(screen.getByTestId('task-review-signoff-blocker')).toHaveTextContent('Manager lead approval');
+      } else {
+        expect(advance).toBeEnabled();
+        expect(screen.queryByTestId('task-review-signoff-blocker')).not.toBeInTheDocument();
+      }
+    });
+  });
+
   it('renders all 4 phase columns and displays gate progress', async () => {
     const { wrapper } = createTestHarness();
 
@@ -598,12 +630,12 @@ describe('Phase Kanban Board & Routing Features (Milestone 3)', () => {
 
     // Simulate TanStack Query cache update from a work_requests CDC event changing phase to processing
     act(() => {
-      queryClient.setQueryData(
+      queryClient.setQueryData<WorkRequest>(
         operationsKeys.workRequestDetail('wr-101'),
-        (old: any) => ({
+        (old) => old ? ({
           ...old,
           phase: 'processing',
-        })
+        }) : old
       );
     });
 

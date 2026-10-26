@@ -150,6 +150,7 @@ export function WorkRequestList({
   const permissions = useSessionStore((state) => state.permissions);
   const user = useSessionStore((state) => state.user);
   const canEdit = hasPermission(permissions, 'workflow:edit');
+  const canCreateWr = (user?.role === 'Admin' || user?.role === 'Manager') && canEdit;
   const canAdvance = hasPermission(permissions, 'workflow:phase_transition');
   const isAdmin = isUserAdmin(user);
 
@@ -162,14 +163,21 @@ export function WorkRequestList({
     if (Array.isArray(rawWorkRequests)) return rawWorkRequests;
     return rawWorkRequests?.data ?? [];
   }, [rawWorkRequests]);
-  const { data: clients = [] } = useClients();
-  const { data: team = [] } = useTeam();
+  const { data: rawClients } = useClients();
+  const clients = Array.isArray(rawClients) ? rawClients : [];
+  const { data: rawTeam } = useTeam();
+  const team = Array.isArray(rawTeam) ? rawTeam : [];
   const { advancePhase } = usePhaseTransitions();
   const { archiveWorkRequest, cancelWorkRequest, statusOptimistic } = useWorkRequestMutations();
 
   // Filter application
   const filteredRequests = useMemo(() => {
     return workRequests.filter((wr) => {
+      // Creation Gate Filter: exclude pending or rejected WRs from regular list
+      if (wr.creationApprovalStatus === 'pending' || wr.creationApprovalStatus === 'rejected') {
+        return false;
+      }
+
       // Phase Filter
       if (phaseFilter !== 'all' && wr.phase !== phaseFilter) return false;
 
@@ -458,7 +466,7 @@ export function WorkRequestList({
             </div>
 
             {/* + New Work Request */}
-            {canEdit && onCreateNew && (
+            {canCreateWr && onCreateNew && (
               <Button
                 type="button"
                 size="sm"
@@ -704,7 +712,7 @@ export function WorkRequestList({
               <p className="text-xs text-[#475569] max-w-sm mx-auto">
                 Create your first work request to start tracking client deliverables and phase progress.
               </p>
-              {canEdit && onCreateNew && (
+              {canCreateWr && onCreateNew && (
                 <Button
                   type="button"
                   size="sm"

@@ -1,3 +1,5 @@
+import { usePendingWorkRequestCreationCount } from '@/features/operations/api/useWorkRequests';
+import { operationsViewerRefresh } from '@/features/operations/api/viewerRefresh';
 import { WorkRequestSidePeek } from '@/features/operations/components/WorkRequestSidePeek';
 import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -53,6 +55,7 @@ export default function OperationsPage() {
   // Permission Checks
   const canViewModule = hasPermission(permissions, 'workflow:view');
   const canEdit = hasPermission(permissions, 'workflow:edit');
+  const canCreateWr = (user?.role === 'Admin' || user?.role === 'Manager') && canEdit;
   const canUseRetainers = hasPermission(permissions, 'retainers:use');
   const canEditRetainers = hasPermission(permissions, 'retainers:edit') || user?.role === 'Admin';
 
@@ -154,7 +157,6 @@ export default function OperationsPage() {
   });
   useEntityRealtimeSync({
     table: 'tasks',
-    listRootKey: operationsKeys.workRequests(),
     activeEntity,
     enabled: canViewModule,
   });
@@ -186,7 +188,9 @@ export default function OperationsPage() {
       return res.data;
     },
     enabled: Boolean(canViewModule && hasApprovalAuthority),
+    ...operationsViewerRefresh,
   });
+  const pendingWrCreationCount = usePendingWorkRequestCreationCount({ enabled: canViewModule });
   const { data: wrCounts } = useWorkRequestCounts();
   const { data: retainerTemplates = [] } = useRetainerTemplates({ enabled: canAccessRetainerTemplates, type: 'retainer' });
   const { data: otherTemplates = [] } = useRetainerTemplates({ enabled: canUseRetainers, type: 'other' });
@@ -237,7 +241,7 @@ export default function OperationsPage() {
     });
   };
 
-  const pendingApprovalsCount = requestCounts?.pending ?? 0;
+  const pendingApprovalsCount = (requestCounts?.pending ?? 0) + pendingWrCreationCount;
   const archivedCount = wrCounts?.archived ?? 0;
   const workRequestsCount = wrCounts?.active ?? wrCounts?.all ?? 0;
 
@@ -317,7 +321,7 @@ export default function OperationsPage() {
             </Button>
           )}
 
-          {canEdit && activeTab !== 'work-requests' && (
+          {canCreateWr && activeTab !== 'work-requests' && (
             <Button
               type="button"
               size="sm"
