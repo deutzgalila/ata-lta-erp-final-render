@@ -18,7 +18,10 @@ const {
   validateRecordProjectLinkage,
   filterValidProjectRecords,
 } = require('../../lib/projectLinkage');
-const { resolveTrustedUser } = require('../../lib/taskAssignment');
+const {
+  resolveTrustedUser,
+  assertTaskPhaseAndPrerequisitesSelectable,
+} = require('../../lib/taskAssignment');
 
 const resolveEffectiveUser = async (user, userId, internal = false) => {
   const effective = user || (await resolveTrustedUser({ user, userId }));
@@ -207,7 +210,7 @@ const validateTransmittalRelationships = async ({
   const hasLinkedTask =
     linkedTaskId && typeof linkedTaskId === 'string' && linkedTaskId.trim() !== '';
 
-  if ((enforceMandatoryTask ? Boolean(workRequestId) || isDoc : isDoc) && !hasLinkedTask) {
+  if ((enforceMandatoryTask || isDoc) && !hasLinkedTask) {
     throw new AppError({
       statusCode: 400,
       title: 'Bad Request',
@@ -220,7 +223,7 @@ const validateTransmittalRelationships = async ({
   if (hasLinkedTask) {
     const { data: taskRow, error: taskErr } = await supabaseAdmin
       .from('tasks')
-      .select('id, work_request_id, assignee_id, status, deleted_at')
+      .select('id, work_request_id, assignee_id, status, phase, predecessors, deleted_at')
       .eq('id', linkedTaskId)
       .maybeSingle();
 
@@ -287,10 +290,11 @@ const validateTransmittalRelationships = async ({
   }
 
   const effectiveWrId = workRequestId || (task ? task.work_request_id : null);
+  let wr = null;
   if (effectiveWrId) {
     const { data: wrRow, error: wrErr } = await supabaseAdmin
       .from('work_requests')
-      .select('id, client_id, entity_id, deleted_at')
+      .select('id, client_id, entity_id, phase, deleted_at')
       .eq('id', effectiveWrId)
       .maybeSingle();
 
@@ -309,6 +313,8 @@ const validateTransmittalRelationships = async ({
         detail: 'Work request not found or has been deleted',
       });
     }
+
+    wr = wrRow;
 
     if (entityId && entityId !== 'ALL' && wrRow.entity_id && wrRow.entity_id !== entityId) {
       const wrCode = await resolveEntityCode(wrRow.entity_id);
@@ -335,6 +341,10 @@ const validateTransmittalRelationships = async ({
         detail: 'Client does not match work request client',
       });
     }
+  }
+
+  if (task && enforceMandatoryTask && isNewOrChanged) {
+    await assertTaskPhaseAndPrerequisitesSelectable(task, wr, 'transmittal');
   }
 };
 
@@ -553,9 +563,10 @@ const updateTransmittal = async ({ entityId, id, userId, user, data, internal = 
 
   if (isLinkageInPayload) {
     if (
-      effectiveWorkRequestId &&
-      (!effectiveLinkedTaskId ||
-        (typeof effectiveLinkedTaskId === 'string' && effectiveLinkedTaskId.trim() === ''))
+      !effectiveLinkedTaskId ||
+      String(effectiveLinkedTaskId).trim() === '' ||
+      !effectiveWorkRequestId ||
+      String(effectiveWorkRequestId).trim() === ''
     ) {
       throw new AppError({
         statusCode: 400,

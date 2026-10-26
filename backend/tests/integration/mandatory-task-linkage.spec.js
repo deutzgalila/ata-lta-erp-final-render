@@ -2,7 +2,7 @@
  * Integration Test Suite: Mandatory Linked Task Specification
  *
  * Verifies all rules from spec sections 3, 4, 5:
- * 1. Task required on create (all 4; documents only when WR set; document with no WR & no task allowed).
+ * 1. Task required on create (all 4 modules: invoices, disbursements, transmittals, documents — no floating documents or transmittals).
  * 2. Task WR mismatch rejects with 400 TASK_WR_MISMATCH (all 4).
  * 3. Assignment authorization:
  *    - Only Admin bypasses assignment.
@@ -259,7 +259,7 @@ describe('Mandatory Linked Task Specification Suite', () => {
       expect(res.body.code).toBe('TASK_REQUIRED');
     });
 
-    it('allows document creation without WR and without task (201 Created)', async () => {
+    it('rejects document creation without WR and without task with 400 TASK_REQUIRED (no floating documents)', async () => {
       const res = await request(app)
         .post('/v1/documents')
         .set('Authorization', `Bearer ${adminToken}`)
@@ -268,10 +268,25 @@ describe('Mandatory Linked Task Specification Suite', () => {
           fileName: 'general-contract.pdf',
           clientId: CLIENT_ID,
         })
+        .expect(400);
+
+      expect(res.body.code).toBe('TASK_REQUIRED');
+    });
+
+    it('derives work_request_id from task when creating document with linkedTaskId only (201 Created)', async () => {
+      const res = await request(app)
+        .post('/v1/documents')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({
+          fileName: 'task-linked-contract.pdf',
+          clientId: CLIENT_ID,
+          linkedTaskId: TASK_ACTIVE_ASSIGNED,
+        })
         .expect(201);
 
-      expect(res.body.data.document.linked_task_id).toBeNull();
-      expect(res.body.data.document.work_request_id).toBeNull();
+      expect(res.body.data.document.linked_task_id).toBe(TASK_ACTIVE_ASSIGNED);
+      expect(res.body.data.document.work_request_id).toBe(WR_1_ID);
     });
   });
 
@@ -861,6 +876,71 @@ describe('Mandatory Linked Task Specification Suite', () => {
         .expect(200);
 
       expect(res.body.data.description).toBe('Updated description only');
+    });
+
+    it('rejects updateDocument attempting to clear workRequestId: null or linkedTaskId: null with 400 TASK_REQUIRED', async () => {
+      const docId = 'doc-clear-linkage';
+      mockTables.documents.set(docId, {
+        id: docId,
+        entity_id: 'ent-ata',
+        client_id: CLIENT_ID,
+        work_request_id: WR_1_ID,
+        linked_task_id: TASK_ACTIVE_ASSIGNED,
+        file_name: 'linked-doc.pdf',
+        original_name: 'linked-doc.pdf',
+        description: 'Linked document',
+        uploaded_by: USER_ADMIN_ID,
+        deleted_at: null,
+      });
+
+      const clearTaskRes = await request(app)
+        .put(`/v1/documents/${docId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ linkedTaskId: null })
+        .expect(400);
+      expect(clearTaskRes.body.code).toBe('TASK_REQUIRED');
+
+      const clearWrRes = await request(app)
+        .put(`/v1/documents/${docId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ workRequestId: null })
+        .expect(400);
+      expect(clearWrRes.body.code).toBe('TASK_REQUIRED');
+    });
+
+    it('rejects updateTransmittal attempting to clear workRequestId: null or linkedTaskId: null with 400 TASK_REQUIRED', async () => {
+      const trId = 'tr-clear-linkage';
+      mockTables.transmittals.set(trId, {
+        id: trId,
+        tracking_number: 'TR-ATA-2026-0998',
+        entity_id: 'ent-ata',
+        client_id: CLIENT_ID,
+        work_request_id: WR_1_ID,
+        linked_task_id: TASK_ACTIVE_ASSIGNED,
+        status: 'Draft',
+        approved: false,
+        created_by: USER_ADMIN_ID,
+        version: 1,
+        deleted_at: null,
+      });
+
+      const clearTaskRes = await request(app)
+        .put(`/v1/transmittals/${trId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ linkedTaskId: null })
+        .expect(400);
+      expect(clearTaskRes.body.code).toBe('TASK_REQUIRED');
+
+      const clearWrRes = await request(app)
+        .put(`/v1/transmittals/${trId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('X-Active-Entity', 'ATA')
+        .send({ workRequestId: null })
+        .expect(400);
+      expect(clearWrRes.body.code).toBe('TASK_REQUIRED');
     });
   });
 
