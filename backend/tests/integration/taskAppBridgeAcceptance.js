@@ -41,12 +41,12 @@ function assertSafeLoopbackTarget(urlStr) {
   const dbName = parsed.pathname.replace(/^\//, '');
   if (['postgres', 'read_scope_test', 'task_review_test'].includes(dbName)) {
     throw new Error(
-      `Safety guard: database '${dbName}' is reserved and cannot be modified.`
+      `Safety guard triggered: database '${dbName}' is reserved and cannot be modified. Never use root postgres/read_scope_test/task_review_test state.`
     );
   }
   if (dbName !== 'task_app_integration_test') {
     throw new Error(
-      `Safety guard: expected dedicated DB 'task_app_integration_test', got '${dbName}'`
+      `Safety guard triggered: expected dedicated DB 'task_app_integration_test', got '${dbName}'`
     );
   }
 }
@@ -58,6 +58,7 @@ describe('Task Write Real PostgreSQL Acceptance Bridge Suite', () => {
   const ENTITY_ATA_ID = 'e0000000-0000-4000-8000-000000000001';
   const WR_ID = 'f0000000-0000-4000-8000-000000000001';
   const USER_EMPLOYEE_ID = 'c0000000-0000-4000-8000-000000000001';
+  const USER_OTHER_EMPLOYEE_ID = 'c0000000-0000-4000-8000-000000000002';
   const USER_LEAD_ID = 'b0000000-0000-4000-8000-000000000001';
   const USER_ADMIN_ID = 'a0000000-0000-4000-8000-000000000001';
 
@@ -113,12 +114,15 @@ describe('Task Write Real PostgreSQL Acceptance Bridge Suite', () => {
       const keys = Object.keys(args);
       recordedRpcCalls.push({ name, keys, args });
 
+      const savepoint = `sp_rpc_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+      await db.query(`SAVEPOINT ${savepoint}`);
       try {
         const query = `SELECT * FROM public.${name}(${keys
           .map((k, i) => `${k} => $${i + 1}`)
           .join(', ')})`;
         const values = keys.map((k) => args[k]);
         const res = await db.query(query, values);
+        await db.query(`RELEASE SAVEPOINT ${savepoint}`);
 
         for (const row of res.rows) {
           fixture.mockTables.tasks.set(row.id, row);
@@ -134,6 +138,7 @@ describe('Task Write Real PostgreSQL Acceptance Bridge Suite', () => {
 
         return { data: res.rows, error: null };
       } catch (err) {
+        await db.query(`ROLLBACK TO SAVEPOINT ${savepoint}`).catch(() => {});
         return {
           data: null,
           error: { message: err.message, code: err.code || 'PGRPC_ERROR' },
@@ -402,6 +407,139 @@ describe('Task Write Real PostgreSQL Acceptance Bridge Suite', () => {
         'p_task_id',
         'p_work_request_id',
       ].sort()
+    );
+  });
+
+  it('routes service.createTask by Manager to real PostgreSQL deriving approved status directly with multiple assignees', async () => {
+    const mgrTask = await service.createTask({
+      workRequestId: WR_ID,
+      entityId: ENTITY_ATA_ID,
+      user: managerLeadUser,
+      data: {
+        title: 'Manager Direct Approved Task',
+        description: 'Lead creating task is auto-approved by PostgreSQL',
+        phase: 'pre_processing',
+        status: 'Draft',
+        assigneeId: USER_EMPLOYEE_ID,
+        assignees: [USER_EMPLOYEE_ID, USER_OTHER_EMPLOYEE_ID],
+      },
+    });
+
+    assert.equal(mgrTask.approvalStatus, 'approved');
+    assert.equal(mgrTask.createdBy, USER_LEAD_ID);
+    assert.equal(mgrTask.reviewedBy, null);
+    assert.equal(mgrTask.reviewedAt, null);
+    assert.equal(mgrTask.version, 1);
+
+    // Verify in real PostgreSQL: task was created with approved status
+    const pgTask = (
+      await db.query('SELECT * FROM public.tasks WHERE id = $1', [mgrTask.id])
+    ).rows[0];
+    assert.equal(pgTask.approval_status, 'approved');
+    assert.equal(pgTask.created_by, USER_LEAD_ID);
+    assert.equal(pgTask.reviewed_by, null);
+
+    // Verify task_assignees synchronized atomically in real PostgreSQL
+    const pgAssignees = (
+      await db.query(
+        'SELECT user_id FROM public.task_assignees WHERE task_id = $1 ORDER BY user_id ASC',
+        [mgrTask.id]
+      )
+    ).rows.map((r) => r.user_id);
+    assert.deepEqual(
+      pgAssignees.sort(),
+      [USER_EMPLOYEE_ID, USER_OTHER_EMPLOYEE_ID].sort()
+    );
+  });
+
+  it('rejects stale expectedVersion on material update with TASK_REVIEW_CONFLICT in real PostgreSQL', async () => {
+    // 1. Employee creates a task
+    const task = await service.createTask({
+      workRequestId: WR_ID,
+      entityId: ENTITY_ATA_ID,
+      user: employeeUser,
+      data: {
+        title: 'OCC Verification Task',
+        phase: 'pre_processing',
+      },
+    });
+
+    // 2. Manager approves (version becomes 2)
+    const approved = await service.decideTaskCreationApproval({
+      workRequestId: WR_ID,
+      taskId: task.id,
+      entityId: ENTITY_ATA_ID,
+      user: managerLeadUser,
+      decision: 'approve',
+      expectedVersion: task.version,
+    });
+    assert.equal(approved.version, 2);
+
+    // 3. Employee attempts material update with stale expectedVersion = 1
+    await db.query('SAVEPOINT sp_occ_conflict');
+    try {
+      await assert.rejects(
+        async () => {
+          await service.updateTask({
+            workRequestId: WR_ID,
+            taskId: approved.id,
+            entityId: ENTITY_ATA_ID,
+            user: employeeUser,
+            data: {
+              title: 'Stale Title Revision',
+              expectedVersion: 1, // Stale! Current version is 2
+            },
+          });
+        },
+        (err) =>
+          err.statusCode === 409 &&
+          (err.code === 'TASK_REVIEW_CONFLICT' ||
+            /concurrent/i.test(err.message))
+      );
+    } finally {
+      await db.query('ROLLBACK TO SAVEPOINT sp_occ_conflict');
+    }
+  });
+
+  it('strictly rejects combining status updates with material updates when material reset is triggered', async () => {
+    // 1. Employee creates a task
+    const task = await service.createTask({
+      workRequestId: WR_ID,
+      entityId: ENTITY_ATA_ID,
+      user: employeeUser,
+      data: {
+        title: 'Mixed Update Task',
+        phase: 'pre_processing',
+      },
+    });
+
+    // 2. Manager approves
+    const approved = await service.decideTaskCreationApproval({
+      workRequestId: WR_ID,
+      taskId: task.id,
+      entityId: ENTITY_ATA_ID,
+      user: managerLeadUser,
+      decision: 'approve',
+      expectedVersion: task.version,
+    });
+
+    // 3. Employee attempts mixed status + title change
+    await assert.rejects(
+      async () => {
+        await service.updateTask({
+          workRequestId: WR_ID,
+          taskId: approved.id,
+          entityId: ENTITY_ATA_ID,
+          user: employeeUser,
+          data: {
+            status: 'In Progress',
+            title: 'Changed Title In Same Request',
+            expectedVersion: approved.version,
+          },
+        });
+      },
+      (err) =>
+        err.statusCode === 400 && err.code === 'INVALID_MIXED_TASK_UPDATE'
     );
   });
 });

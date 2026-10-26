@@ -71,13 +71,17 @@ exports.up = (pgm) => {
     CREATE INDEX IF NOT EXISTS idx_task_creation_review_events_wr_id
       ON public.task_creation_review_events (work_request_id);
 
-    REVOKE ALL ON TABLE public.task_creation_review_events FROM PUBLIC, anon, authenticated;
-    GRANT ALL ON TABLE public.task_creation_review_events TO service_role;
+    REVOKE ALL ON TABLE public.task_creation_review_events FROM PUBLIC, anon, authenticated, service_role;
+    GRANT SELECT, INSERT ON TABLE public.task_creation_review_events TO service_role;
     ALTER TABLE public.task_creation_review_events ENABLE ROW LEVEL SECURITY;
 
     DROP POLICY IF EXISTS task_creation_review_events_service_role ON public.task_creation_review_events;
     CREATE POLICY task_creation_review_events_service_role ON public.task_creation_review_events
-      FOR ALL TO service_role USING (true) WITH CHECK (true);
+      FOR SELECT TO service_role USING (true);
+
+    DROP POLICY IF EXISTS task_creation_review_events_insert_service_role ON public.task_creation_review_events;
+    CREATE POLICY task_creation_review_events_insert_service_role ON public.task_creation_review_events
+      FOR INSERT TO service_role WITH CHECK (true);
 
     -- Enforce append-only denial trigger: UPDATE and DELETE are strictly prohibited even for service_role
     CREATE OR REPLACE FUNCTION public.deny_task_creation_review_events_mutation()
@@ -87,9 +91,6 @@ exports.up = (pgm) => {
     SET search_path = public, pg_temp
     AS $$
     BEGIN
-      IF current_setting('task_review.allow_cleanup', true) = 'on' THEN
-        RETURN OLD;
-      END IF;
       RAISE EXCEPTION 'TASK_REVIEW_STATE: task_creation_review_events is append-only and cannot be updated or deleted'
         USING ERRCODE = '42501';
     END;
@@ -99,6 +100,12 @@ exports.up = (pgm) => {
     CREATE TRIGGER trg_task_creation_review_events_immutable
       BEFORE UPDATE OR DELETE ON public.task_creation_review_events
       FOR EACH ROW
+      EXECUTE FUNCTION public.deny_task_creation_review_events_mutation();
+
+    DROP TRIGGER IF EXISTS trg_task_creation_review_events_truncate ON public.task_creation_review_events;
+    CREATE TRIGGER trg_task_creation_review_events_truncate
+      BEFORE TRUNCATE ON public.task_creation_review_events
+      FOR EACH STATEMENT
       EXECUTE FUNCTION public.deny_task_creation_review_events_mutation();
 
     -- 3. Helper: Phase ranking for advancement check
@@ -835,6 +842,7 @@ exports.down = (pgm) => {
 
     -- 2. Drop triggers & trigger functions
     DROP TRIGGER IF EXISTS trg_task_creation_review_events_immutable ON public.task_creation_review_events;
+    DROP TRIGGER IF EXISTS trg_task_creation_review_events_truncate ON public.task_creation_review_events;
     DROP FUNCTION IF EXISTS public.deny_task_creation_review_events_mutation();
 
     DROP TRIGGER IF EXISTS trg_work_requests_task_review_guard ON public.work_requests;

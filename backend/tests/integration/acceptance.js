@@ -82,11 +82,24 @@ describe('Task Creation Approval Review Database Acceptance Suite', () => {
   }
 
   async function cleanFixtureData(sql) {
-    await adminClient.query(`
-      SET task_review.allow_cleanup = 'on';
-      ${sql}
-      RESET task_review.allow_cleanup;
-    `);
+    const tableRes = await adminClient.query(
+      "SELECT to_regclass('public.task_creation_review_events') as tbl"
+    );
+    const hasTable = Boolean(tableRes.rows[0]?.tbl);
+    if (hasTable) {
+      await adminClient.query(
+        'ALTER TABLE public.task_creation_review_events DISABLE TRIGGER USER'
+      );
+    }
+    try {
+      await adminClient.query(sql);
+    } finally {
+      if (hasTable) {
+        await adminClient.query(
+          'ALTER TABLE public.task_creation_review_events ENABLE TRIGGER USER'
+        );
+      }
+    }
   }
 
   beforeAll(async () => {
@@ -142,7 +155,6 @@ describe('Task Creation Approval Review Database Acceptance Suite', () => {
       },
     });
     await adminClient.query(upSql76);
-    await adminClient.query("SET task_review.allow_cleanup = 'on';");
 
     pool = new Pool({ connectionString: testDbUrl, max: 12 });
   });
@@ -281,7 +293,7 @@ describe('Task Creation Approval Review Database Acceptance Suite', () => {
       `);
 
       await asServiceRole(async (client) => {
-        // Attempt UPDATE
+        // Attempt UPDATE by service_role (denied by immutable trigger)
         await expect(
           client.query(
             "UPDATE public.task_creation_review_events SET reason = 'Tampered' WHERE id = $1",
@@ -289,10 +301,118 @@ describe('Task Creation Approval Review Database Acceptance Suite', () => {
           )
         ).rejects.toThrow(/TASK_REVIEW_STATE.*append-only/);
 
-        // Attempt DELETE
+        // Attempt DELETE by service_role (denied by immutable trigger)
         await expect(
           client.query('DELETE FROM public.task_creation_review_events WHERE id = $1', [eventId])
         ).rejects.toThrow(/TASK_REVIEW_STATE.*append-only/);
+      });
+
+      // Attempt UPDATE by table owner (denied by immutable trigger)
+      await expect(
+        adminClient.query(
+          "UPDATE public.task_creation_review_events SET reason = 'Tampered' WHERE id = $1",
+          [eventId]
+        )
+      ).rejects.toThrow(/TASK_REVIEW_STATE.*append-only/);
+
+      // Attempt DELETE by table owner (denied by immutable trigger)
+      await expect(
+        adminClient.query('DELETE FROM public.task_creation_review_events WHERE id = $1', [eventId])
+      ).rejects.toThrow(/TASK_REVIEW_STATE.*append-only/);
+    });
+
+    it('denies service_role and owner from updating or deleting rows even when SET task_review.allow_cleanup = on', async () => {
+      const eventId = '22000000-0000-4000-8000-000000000002';
+      await cleanFixtureData(`
+        DELETE FROM public.task_creation_review_events WHERE id = '${eventId}';
+        INSERT INTO public.task_creation_review_events (
+          id, task_id, work_request_id, entity_id, event_type, decision, actor_id, reason
+        ) VALUES (
+          '${eventId}', '10000000-0000-4000-8000-000000000001', 'f0000000-0000-4000-8000-000000000001',
+          '${ENTITY_ATA_ID}', 'decision', 'rejected', '${USER_LEAD_ID}', 'Initial reason'
+        );
+      `);
+
+      await asServiceRole(async (client) => {
+        // Attempt to set custom GUC bypass
+        await client.query("SET task_review.allow_cleanup = 'on'");
+
+        // Attempt UPDATE with allow_cleanup = on (must remain denied)
+        await expect(
+          client.query(
+            "UPDATE public.task_creation_review_events SET reason = 'Bypassed' WHERE id = $1",
+            [eventId]
+          )
+        ).rejects.toThrow(/permission denied for table task_creation_review_events/i);
+
+        // Attempt DELETE with allow_cleanup = on (must remain denied)
+        await expect(
+          client.query('DELETE FROM public.task_creation_review_events WHERE id = $1', [eventId])
+        ).rejects.toThrow(/permission denied for table task_creation_review_events/i);
+
+        await client.query("RESET task_review.allow_cleanup");
+      });
+
+      // Verify table owner cannot bypass immutable trigger with allow_cleanup = on
+      await adminClient.query("SET task_review.allow_cleanup = 'on'");
+      await expect(
+        adminClient.query(
+          "UPDATE public.task_creation_review_events SET reason = 'Bypassed' WHERE id = $1",
+          [eventId]
+        )
+      ).rejects.toThrow(/TASK_REVIEW_STATE.*append-only/);
+
+      await expect(
+        adminClient.query('DELETE FROM public.task_creation_review_events WHERE id = $1', [eventId])
+      ).rejects.toThrow(/TASK_REVIEW_STATE.*append-only/);
+      await adminClient.query("RESET task_review.allow_cleanup");
+    });
+
+    it('denies service_role from disabling trg_task_creation_review_events_immutable trigger', async () => {
+      await asServiceRole(async (client) => {
+        await expect(
+          client.query(
+            'ALTER TABLE public.task_creation_review_events DISABLE TRIGGER trg_task_creation_review_events_immutable'
+          )
+        ).rejects.toThrow(/must be owner of table/i);
+      });
+    });
+
+    it('denies service_role from truncating task_creation_review_events', async () => {
+      await asServiceRole(async (client) => {
+        await expect(
+          client.query('TRUNCATE TABLE public.task_creation_review_events')
+        ).rejects.toThrow(/permission denied for table task_creation_review_events/i);
+      });
+
+      // Table owner is denied by TRUNCATE trigger
+      await expect(
+        adminClient.query('TRUNCATE TABLE public.task_creation_review_events')
+      ).rejects.toThrow(/TASK_REVIEW_STATE.*append-only/);
+    });
+
+    it('allows service_role to select and insert rows in task_creation_review_events', async () => {
+      const allowedEventId = '22000000-0000-4000-8000-000000000095';
+      await cleanFixtureData(`
+        DELETE FROM public.task_creation_review_events WHERE id = '${allowedEventId}';
+      `);
+
+      await asServiceRole(async (client) => {
+        await client.query(`
+          INSERT INTO public.task_creation_review_events (
+            id, task_id, work_request_id, entity_id, event_type, decision, actor_id, reason
+          ) VALUES (
+            '${allowedEventId}', '10000000-0000-4000-8000-000000000001', 'f0000000-0000-4000-8000-000000000001',
+            '${ENTITY_ATA_ID}', 'decision', 'approved', '${USER_LEAD_ID}', NULL
+          )
+        `);
+
+        const res = await client.query(
+          'SELECT id, decision FROM public.task_creation_review_events WHERE id = $1',
+          [allowedEventId]
+        );
+        expect(res.rows.length).toBe(1);
+        expect(res.rows[0].decision).toBe('approved');
       });
     });
   });
@@ -1500,9 +1620,7 @@ describe('Task Creation Approval Review Database Acceptance Suite', () => {
           downSql76 = query;
         },
       });
-      await adminClient.query("SET task_review.allow_cleanup = 'on';");
       await adminClient.query(downSql76);
-      await adminClient.query("RESET task_review.allow_cleanup;");
 
       let downSql = '';
       migration.down({
@@ -1537,12 +1655,105 @@ describe('Task Creation Approval Review Database Acceptance Suite', () => {
         },
       });
       await adminClient.query(upSql76);
-      await adminClient.query("SET task_review.allow_cleanup = 'on';");
 
       const funcRecheck = await adminClient.query(
         "SELECT proname FROM pg_proc WHERE proname LIKE 'task_creation_review%' OR proname = 'task_material_update';"
       );
       expect(funcRecheck.rows.length).toBe(4);
+    });
+
+    it('preserves actual material review history when rolling back migration 76 down (fail-closed, no event deletion)', async () => {
+      const materialEventId = '22000000-0000-4000-8000-000000000099';
+      const resetEventId = '22000000-0000-4000-8000-000000000098';
+      await cleanFixtureData(`
+        DELETE FROM public.task_creation_review_events WHERE id IN ('${materialEventId}', '${resetEventId}');
+        INSERT INTO public.task_creation_review_events (
+          id, task_id, work_request_id, entity_id, event_type, actor_id, metadata
+        ) VALUES (
+          '${materialEventId}', '10000000-0000-4000-8000-000000000001', 'f0000000-0000-4000-8000-000000000001',
+          '${ENTITY_ATA_ID}', 'material_update', '${USER_EMPLOYEE_ID}', '{"changed_fields": ["description"]}'::jsonb
+        ), (
+          '${resetEventId}', '10000000-0000-4000-8000-000000000001', 'f0000000-0000-4000-8000-000000000001',
+          '${ENTITY_ATA_ID}', 'material_reset', '${USER_EMPLOYEE_ID}', '{"reset_reason": "policy reset"}'::jsonb
+        );
+      `);
+
+      // Verify the events exist and have material event types
+      const preEvents = await adminClient.query(
+        'SELECT id, event_type FROM public.task_creation_review_events WHERE id IN ($1, $2) ORDER BY event_type',
+        [materialEventId, resetEventId]
+      );
+      expect(preEvents.rows.length).toBe(2);
+      expect(preEvents.rows.map((r) => r.event_type)).toEqual(['material_reset', 'material_update']);
+
+      // Execute migration 76 DOWN without setting any GUC or disabling triggers
+      let downSql76 = '';
+      migration76.down({
+        sql: (query) => {
+          downSql76 = query;
+        },
+      });
+      await adminClient.query(downSql76);
+
+      // Verify new RPCs are dropped
+      const funcRes = await adminClient.query(
+        "SELECT proname FROM pg_proc WHERE proname IN ('task_creation_review_create', 'task_material_update');"
+      );
+      expect(funcRes.rows.length).toBe(0);
+
+      // Verify the material events were NOT deleted and remain intact in immutable history
+      const postEvents = await adminClient.query(
+        'SELECT id, event_type FROM public.task_creation_review_events WHERE id IN ($1, $2) ORDER BY event_type',
+        [materialEventId, resetEventId]
+      );
+      expect(postEvents.rows.length).toBe(2);
+      expect(postEvents.rows.map((r) => r.event_type)).toEqual(['material_reset', 'material_update']);
+
+      // Verify permissive event vocabulary is preserved (check constraint allows material events)
+      const chkRes = await adminClient.query(`
+        SELECT pg_get_constraintdef(c.oid) AS condef
+        FROM pg_constraint c
+        JOIN pg_class t ON c.conrelid = t.oid
+        WHERE t.relname = 'task_creation_review_events'
+          AND c.conname = 'task_creation_review_events_event_type_check';
+      `);
+      expect(chkRes.rows.length).toBe(1);
+      expect(chkRes.rows[0].condef).toContain('material_update');
+      expect(chkRes.rows[0].condef).toContain('material_reset');
+
+      // Verify service_role DELETE is denied at privilege level
+      await asServiceRole(async (client) => {
+        await expect(
+          client.query('DELETE FROM public.task_creation_review_events WHERE id = $1', [materialEventId])
+        ).rejects.toThrow(/permission denied for table task_creation_review_events/i);
+      });
+
+      // Verify table owner DELETE is denied by immutable trigger
+      await expect(
+        adminClient.query('DELETE FROM public.task_creation_review_events WHERE id = $1', [materialEventId])
+      ).rejects.toThrow(/TASK_REVIEW_STATE.*append-only/);
+
+      // Re-apply migration 76 UP
+      let upSql76 = '';
+      migration76.up({
+        sql: (query) => {
+          upSql76 = query;
+        },
+      });
+      await adminClient.query(upSql76);
+
+      // Verify RPCs restored and events still intact
+      const funcRecheck = await adminClient.query(
+        "SELECT proname FROM pg_proc WHERE proname IN ('task_creation_review_create', 'task_material_update');"
+      );
+      expect(funcRecheck.rows.length).toBe(2);
+
+      const finalEvents = await adminClient.query(
+        'SELECT id, event_type FROM public.task_creation_review_events WHERE id IN ($1, $2) ORDER BY event_type',
+        [materialEventId, resetEventId]
+      );
+      expect(finalEvents.rows.length).toBe(2);
+      expect(finalEvents.rows.map((r) => r.event_type)).toEqual(['material_reset', 'material_update']);
     });
   });
 
@@ -1651,7 +1862,18 @@ describe('Task Creation Approval Review Database Acceptance Suite', () => {
       });
     });
 
-    it('rejects task creation if actor is not entitled to WR entity', async () => {
+    it('rejects task creation if actor is inactive', async () => {
+      await asServiceRole(async (client) => {
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+            [testWrId, ENTITY_ATA_ID, USER_INACTIVE_ID, JSON.stringify({ title: 'New Task' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_FORBIDDEN.*Inactive or invalid actor/);
+      });
+    });
+
+    it('rejects task creation if WR entity does not match passed entity_id', async () => {
       await asServiceRole(async (client) => {
         await expect(
           client.query(
@@ -1659,6 +1881,18 @@ describe('Task Creation Approval Review Database Acceptance Suite', () => {
             [testWrId, ENTITY_LTA_ID, USER_EMPLOYEE_ID, JSON.stringify({ title: 'New Task' })]
           )
         ).rejects.toThrow(/TASK_REVIEW_FORBIDDEN.*Work request entity mismatch/);
+      });
+    });
+
+    it('rejects task creation if actor is not entitled to WR entity', async () => {
+      const ltaOnlyActorId = 'b0000000-0000-4000-8000-000000000099';
+      await asServiceRole(async (client) => {
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+            [testWrId, ENTITY_ATA_ID, ltaOnlyActorId, JSON.stringify({ title: 'New Task' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_FORBIDDEN.*Actor not entitled to entity/);
       });
     });
 
@@ -1873,8 +2107,8 @@ describe('Task Creation Approval Review Database Acceptance Suite', () => {
     it('rejects employee task creation if assigned lead is not entitled to WR entity', async () => {
       const unentitledLeadId = 'b0000000-0000-4000-8000-000000000099';
       await cleanFixtureData(`
-        INSERT INTO public.users (id, name, role, email, is_active, entities)
-        VALUES ('${unentitledLeadId}', 'LTA Only Lead', 'Manager', 'lta-lead@example.test', true, ARRAY['LTA'])
+        INSERT INTO public.users (id, auth_user_id, name, role, email, is_active, entities)
+        VALUES ('${unentitledLeadId}', '${unentitledLeadId}', 'LTA Only Lead', 'Manager', 'lta-lead@example.test', true, ARRAY['LTA'])
         ON CONFLICT (id) DO UPDATE SET entities = ARRAY['LTA'], role = 'Manager', is_active = true;
         UPDATE public.work_requests SET assigned_to = '${unentitledLeadId}' WHERE id = '${testWrId}';
       `);
@@ -1936,6 +2170,54 @@ describe('Task Creation Approval Review Database Acceptance Suite', () => {
         await client2.query('RESET ROLE').catch(() => {});
         client1.release();
         client2.release();
+      }
+    });
+
+    it('enforces dynamic actor active revocation under database lock during create', async () => {
+      const client1 = await pool.connect();
+      const client2 = await pool.connect();
+
+      try {
+        await client1.query('SET ROLE service_role');
+        await client2.query('SET ROLE service_role');
+
+        // Client 1 holds row lock on WR
+        await client1.query('BEGIN');
+        await client1.query('SELECT * FROM public.work_requests WHERE id = $1 FOR UPDATE', [testWrId]);
+
+        // Client 2 attempts employee task creation (blocks on parent row lock)
+        let client2Resolved = false;
+        let client2Error = null;
+        const client2Promise = (async () => {
+          try {
+            await client2.query(
+              'SELECT * FROM public.task_creation_review_create($1, $2, $3, $4)',
+              [testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, JSON.stringify({ title: 'Race Actor Task' })]
+            );
+            client2Resolved = true;
+          } catch (err) {
+            client2Error = err.message;
+          }
+        })();
+
+        await new Promise((r) => setTimeout(r, 100));
+        expect(client2Resolved).toBe(false);
+
+        // Client 1 deactivates actor
+        await client1.query('UPDATE public.users SET is_active = false WHERE id = $1', [USER_EMPLOYEE_ID]);
+        await client1.query('COMMIT');
+
+        // Client 2 unblocks, re-evaluates actor under lock, and fails
+        await client2Promise;
+        expect(client2Error).toMatch(/TASK_REVIEW_FORBIDDEN.*Inactive or invalid actor/);
+      } finally {
+        await client1.query('ROLLBACK').catch(() => {});
+        await client2.query('ROLLBACK').catch(() => {});
+        await client1.query('RESET ROLE').catch(() => {});
+        await client2.query('RESET ROLE').catch(() => {});
+        client1.release();
+        client2.release();
+        await adminClient.query('UPDATE public.users SET is_active = true WHERE id = $1', [USER_EMPLOYEE_ID]);
       }
     });
 
@@ -2058,6 +2340,150 @@ describe('Task Creation Approval Review Database Acceptance Suite', () => {
             )
           ).rejects.toThrow(/permission denied.*task_material_update/i);
         });
+      }
+    });
+
+    it('rejects material update if actor is inactive', async () => {
+      await asServiceRole(async (client) => {
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+            [testTaskId, testWrId, ENTITY_ATA_ID, USER_INACTIVE_ID, 1, JSON.stringify({ title: 'New' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_FORBIDDEN.*Inactive or invalid actor/);
+      });
+    });
+
+    it('rejects material update if actor is not entitled to WR entity', async () => {
+      const ltaOnlyActorId = 'b0000000-0000-4000-8000-000000000099';
+      await asServiceRole(async (client) => {
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+            [testTaskId, testWrId, ENTITY_ATA_ID, ltaOnlyActorId, 1, JSON.stringify({ title: 'New' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_FORBIDDEN.*Actor not entitled to entity/);
+      });
+    });
+
+    it('rejects material update if actor is not a member of work request', async () => {
+      await asServiceRole(async (client) => {
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+            [testTaskId, testWrId, ENTITY_ATA_ID, USER_OTHER_LEAD_ID, 1, JSON.stringify({ title: 'New' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_FORBIDDEN.*Actor is not a member of this work request/);
+      });
+    });
+
+    it('rejects material update if parent WR is not admitted', async () => {
+      await adminClient.query(
+        "UPDATE public.work_requests SET creation_approval_status = 'pending' WHERE id = $1",
+        [testWrId]
+      );
+      await asServiceRole(async (client) => {
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+            [testTaskId, testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, 1, JSON.stringify({ title: 'New' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_STATE.*not admitted/);
+      });
+    });
+
+    it('rejects material update if parent WR is Completed, Cancelled, or archived', async () => {
+      await asServiceRole(async (client) => {
+        // Completed
+        await adminClient.query(
+          "UPDATE public.work_requests SET status = 'Completed' WHERE id = $1",
+          [testWrId]
+        );
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+            [testTaskId, testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, 1, JSON.stringify({ title: 'New' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_STATE.*archived, cancelled, or completed/);
+
+        // Cancelled
+        await adminClient.query(
+          "UPDATE public.work_requests SET status = 'Cancelled' WHERE id = $1",
+          [testWrId]
+        );
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+            [testTaskId, testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, 1, JSON.stringify({ title: 'New' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_STATE.*archived, cancelled, or completed/);
+
+        // Archived
+        await adminClient.query(
+          "UPDATE public.work_requests SET status = 'Pre-processing', archived = true WHERE id = $1",
+          [testWrId]
+        );
+        await expect(
+          client.query(
+            'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+            [testTaskId, testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, 1, JSON.stringify({ title: 'New' })]
+          )
+        ).rejects.toThrow(/TASK_REVIEW_STATE.*archived, cancelled, or completed/);
+      });
+    });
+
+    it('enforces dynamic actor active revocation under database lock during material update', async () => {
+      const client1 = await pool.connect();
+      const client2 = await pool.connect();
+
+      try {
+        await client1.query('SET ROLE service_role');
+        await client2.query('SET ROLE service_role');
+
+        // Client 1 holds row lock on WR
+        await client1.query('BEGIN');
+        await client1.query('SELECT * FROM public.work_requests WHERE id = $1 FOR UPDATE', [testWrId]);
+
+        // Client 2 attempts employee material update (blocks on parent row lock)
+        let client2Resolved = false;
+        let client2Error = null;
+        const client2Promise = (async () => {
+          try {
+            await client2.query(
+              'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
+              [
+                testTaskId,
+                testWrId,
+                ENTITY_ATA_ID,
+                USER_EMPLOYEE_ID,
+                1,
+                JSON.stringify({ description: 'Dynamic Material Change' }),
+              ]
+            );
+            client2Resolved = true;
+          } catch (err) {
+            client2Error = err.message;
+          }
+        })();
+
+        await new Promise((r) => setTimeout(r, 100));
+        expect(client2Resolved).toBe(false);
+
+        // Client 1 deactivates actor
+        await client1.query('UPDATE public.users SET is_active = false WHERE id = $1', [USER_EMPLOYEE_ID]);
+        await client1.query('COMMIT');
+
+        // Client 2 unblocks, re-evaluates actor under lock, and fails
+        await client2Promise;
+        expect(client2Error).toMatch(/TASK_REVIEW_FORBIDDEN.*Inactive or invalid actor/);
+      } finally {
+        await client1.query('ROLLBACK').catch(() => {});
+        await client2.query('ROLLBACK').catch(() => {});
+        await client1.query('RESET ROLE').catch(() => {});
+        await client2.query('RESET ROLE').catch(() => {});
+        client1.release();
+        client2.release();
+        await adminClient.query('UPDATE public.users SET is_active = true WHERE id = $1', [USER_EMPLOYEE_ID]);
       }
     });
 
@@ -2249,7 +2675,7 @@ describe('Task Creation Approval Review Database Acceptance Suite', () => {
 
     it('updates legacy task with NULL created_by and resets to pending on employee material change', async () => {
       const legacyTaskId = '21000000-0000-4000-8000-000000000088';
-      await adminClient.query(`
+      await cleanFixtureData(`
         DELETE FROM public.task_creation_review_events WHERE task_id = '${legacyTaskId}';
         DELETE FROM public.tasks WHERE id = '${legacyTaskId}';
         INSERT INTO public.tasks (
@@ -2304,91 +2730,6 @@ describe('Task Creation Approval Review Database Acceptance Suite', () => {
           [testTaskId]
         );
         expect(events.rows.length).toBe(0);
-      });
-    });
-
-    it('rejects missing or non-positive expectedVersion in task_material_update', async () => {
-      await asServiceRole(async (client) => {
-        await expect(
-          client.query(
-            'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
-            [testTaskId, testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, null, JSON.stringify({ title: 'New' })]
-          )
-        ).rejects.toThrow(/TASK_REVIEW_CONFLICT.*expectedVersion is required and must be a positive integer/);
-
-        await expect(
-          client.query(
-            'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
-            [testTaskId, testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, 0, JSON.stringify({ title: 'New' })]
-          )
-        ).rejects.toThrow(/TASK_REVIEW_CONFLICT.*expectedVersion is required and must be a positive integer/);
-
-        await expect(
-          client.query(
-            'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
-            [testTaskId, testWrId, ENTITY_ATA_ID, USER_EMPLOYEE_ID, -5, JSON.stringify({ title: 'New' })]
-          )
-        ).rejects.toThrow(/TASK_REVIEW_CONFLICT.*expectedVersion is required and must be a positive integer/);
-      });
-    });
-
-    it('supports explicit p_assignees parameter in task_material_update', async () => {
-      await asServiceRole(async (client) => {
-        const res = await client.query(
-          'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6, $7)',
-          [
-            testTaskId,
-            testWrId,
-            ENTITY_ATA_ID,
-            USER_EMPLOYEE_ID,
-            1,
-            JSON.stringify({ title: 'Updated Title' }),
-            [USER_OTHER_EMPLOYEE_ID],
-          ]
-        );
-        expect(res.rows.length).toBe(1);
-        expect(res.rows[0].assignee_id).toBe(USER_OTHER_EMPLOYEE_ID);
-        expect(res.rows[0].approval_status).toBe('pending');
-
-        const ta = await client.query(
-          'SELECT user_id FROM public.task_assignees WHERE task_id = $1',
-          [testTaskId]
-        );
-        expect(ta.rows.map((r) => r.user_id)).toContain(USER_OTHER_EMPLOYEE_ID);
-      });
-    });
-
-    it('updates legacy task with NULL created_by and resets to pending on employee material change', async () => {
-      const legacyTaskId = '21000000-0000-4000-8000-000000000088';
-      await adminClient.query(`
-        DELETE FROM public.task_creation_review_events WHERE task_id = '${legacyTaskId}';
-        DELETE FROM public.tasks WHERE id = '${legacyTaskId}';
-        INSERT INTO public.tasks (
-          id, work_request_id, title, description, status, phase,
-          approval_status, created_by, version, assignee_id
-        ) VALUES (
-          '${legacyTaskId}', '${testWrId}', 'Legacy Task', 'Old description',
-          'Draft', 'pre_processing', 'approved', NULL, 1, '${USER_EMPLOYEE_ID}'
-        );
-      `);
-
-      await asServiceRole(async (client) => {
-        const res = await client.query(
-          'SELECT * FROM public.task_material_update($1, $2, $3, $4, $5, $6)',
-          [
-            legacyTaskId,
-            testWrId,
-            ENTITY_ATA_ID,
-            USER_EMPLOYEE_ID,
-            1,
-            JSON.stringify({ description: 'New description for legacy task' }),
-          ]
-        );
-
-        expect(res.rows.length).toBe(1);
-        expect(res.rows[0].approval_status).toBe('pending');
-        expect(res.rows[0].version).toBe(2);
-        expect(res.rows[0].description).toBe('New description for legacy task');
       });
     });
   });
