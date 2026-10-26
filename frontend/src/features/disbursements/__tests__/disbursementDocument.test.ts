@@ -47,7 +47,8 @@ describe('Canonical expense document', () => {
       expect(html).toContain('A. Reyes');
       expect(html).toContain('R. Tan');
       expect(html).toContain('1,500.50');
-      expect(html).toContain('FIFTY CENTAVOS');
+      expect(html).not.toContain('Amount in Words');
+      expect(html).not.toContain('amount-in-words');
       expect(html).toContain('2026-10-15');
       expect(html).toContain('Manila audit');
     }
