@@ -352,8 +352,13 @@ export function WorkRequestSidePeek({
 
   // Compute blocker info
   const blockerInfo = useMemo(() => {
-    if (!workRequest || !tasks.length) return { hasBlockers: false, incomplete: [] };
-    const activeTasks = tasks.filter((t) => t.status !== 'Cancelled');
+    if (!workRequest || !tasks.length) return { hasBlockers: false, incomplete: [], reviewBlockers: [] };
+    const nonDeletedTasks = tasks.filter((t) => {
+      const record = t as Task & { deletedAt?: string | null; deleted_at?: string | null };
+      return !record.deletedAt && !record.deleted_at;
+    });
+    const reviewBlockers = nonDeletedTasks.filter((t) => isTaskPendingApproval(t) || isTaskRejected(t));
+    const activeTasks = nonDeletedTasks.filter((t) => t.status !== 'Cancelled');
     const phase = workRequest.phase as Phase;
 
     let incomplete: Task[] = [];
@@ -372,8 +377,9 @@ export function WorkRequestSidePeek({
     }
 
     return {
-      hasBlockers: incomplete.length > 0,
+      hasBlockers: incomplete.length > 0 || reviewBlockers.length > 0,
       incomplete,
+      reviewBlockers,
     };
   }, [workRequest, tasks]);
 
@@ -382,6 +388,10 @@ export function WorkRequestSidePeek({
   // verbatim server error surfaces via toast.
   const handleStatusChange = async (newStatus: WorkRequestStatus) => {
     if (!workRequest || workRequest.status === newStatus) return;
+    if (newStatus === 'Completed' && blockerInfo.reviewBlockers.length > 0) {
+      toast.error('Manager lead approval is required before completing this work request.');
+      return;
+    }
     try {
       await statusOptimistic({
         id: workRequest.id,
@@ -719,8 +729,9 @@ export function WorkRequestSidePeek({
                         <span>Phase Advancement Blocked</span>
                       </div>
                       <p className="text-xs text-[#DC2626] pl-6 leading-relaxed">
-                        {blockerInfo.incomplete.length} task(s) in phase &quot;
-                        {workRequest.phase.replace('_', ' ')}&quot; must be completed before advancing.
+                        {blockerInfo.reviewBlockers.length > 0
+                          ? `${blockerInfo.reviewBlockers.length} task(s) require Manager lead approval before phase sign-off or completion.`
+                          : `${blockerInfo.incomplete.length} task(s) in phase "${workRequest.phase.replace('_', ' ')}" must be completed before advancing.`}
                       </p>
                     </div>
                   )}

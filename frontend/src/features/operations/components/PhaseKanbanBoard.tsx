@@ -331,10 +331,12 @@ function PhaseKanbanBoardInner({
 
   // Task Gate & Blocker Logic
   const gateInfo = useMemo(() => {
-    const activeTasks = tasks.filter((t) => {
+    const nonDeletedTasks = tasks.filter((t) => {
       const rec = (t as unknown as Record<string, unknown>) || {};
-      return t.status !== 'Cancelled' && !rec.deletedAt && !rec.deleted_at;
+      return !rec.deletedAt && !rec.deleted_at;
     });
+    const reviewBlockers = nonDeletedTasks.filter((t) => isTaskPendingApproval(t) || isTaskRejected(t));
+    const activeTasks = nonDeletedTasks.filter((t) => t.status !== 'Cancelled');
     const preTasks = activeTasks.filter((t) => t.phase === 'pre_processing');
     const procTasks = activeTasks.filter((t) => t.phase === 'processing');
 
@@ -350,17 +352,18 @@ function PhaseKanbanBoardInner({
     });
 
     return {
+      reviewBlockers,
       pre: {
         total: preTasks.length,
         completed: preTasks.filter((t) => t.status === 'Completed').length,
         incomplete: preIncomplete,
-        canAdvance: preTasks.length > 0 && preIncomplete.length === 0,
+        canAdvance: preTasks.length > 0 && preIncomplete.length === 0 && reviewBlockers.length === 0,
       },
       proc: {
         total: procTasks.length,
         completed: procTasks.filter((t) => t.status === 'Completed').length,
         incomplete: procIncomplete,
-        canAdvance: procTasks.length > 0 && procIncomplete.length === 0,
+        canAdvance: procTasks.length > 0 && procIncomplete.length === 0 && reviewBlockers.length === 0,
       },
       qa: {
         total: activeTasks.length,
@@ -369,7 +372,7 @@ function PhaseKanbanBoardInner({
         ).length,
         incomplete: qaIncomplete,
         failed: qaFailed,
-        canAdvance: activeTasks.length > 0 && qaIncomplete.length === 0,
+        canAdvance: activeTasks.length > 0 && qaIncomplete.length === 0 && reviewBlockers.length === 0,
       },
     };
   }, [tasks]);
@@ -597,6 +600,12 @@ function PhaseKanbanBoardInner({
           )}
         </div>
       </div>
+
+      {gateInfo.reviewBlockers.length > 0 && (
+        <div role="status" className="rounded-[6px] border border-[#FDE68A] bg-[#FFFBEB] px-3 py-2 text-xs text-[#92400E]" data-testid="task-review-signoff-blocker">
+          {gateInfo.reviewBlockers.length} task(s) require Manager lead approval before phase sign-off or completion.
+        </div>
+      )}
 
       {/* 4-Phase Kanban Grid */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4" data-testid="kanban-phase-grid">
