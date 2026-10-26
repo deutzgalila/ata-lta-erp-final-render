@@ -25,6 +25,7 @@ import {
   Users,
   Plus,
   CheckCircle2,
+  XCircle,
   AlertCircle,
   FileQuestion,
   Eye,
@@ -70,8 +71,14 @@ import {
   isTaskAssignee,
   isChecklistEditor,
   filterTaskRelatedRecords,
+  canReviewTaskCreation,
+  isTaskRejected,
+  isTaskPendingApproval,
+  canResubmitTask,
 } from '../lib/taskScope';
 import { runBlockingAction } from './BlockingActionModal';
+import { RejectReasonModal } from './RejectReasonModal';
+import { TaskResubmitModal } from './TaskResubmitModal';
 import { operationsKeys } from '../api/queryKeys';
 import { TaskChecklist } from './TaskChecklist';
 import { TaskTimeEntry } from './TaskTimeEntry';
@@ -390,7 +397,50 @@ export function TaskDetailModal({
 
   // Mutations
   const createTimeEntryMutation = useCreateTimeEntry();
-  const { updateTask, updateMutation } = useTaskMutations(task?.workRequestId || '');
+  const {
+    updateTask,
+    updateMutation,
+    approveOrRejectTaskCreation,
+  } = useTaskMutations(task?.workRequestId || '');
+
+  const permissions = useSessionStore((state) => state.permissions);
+  const isAdmin = isUserAdmin(currentUser);
+  const isCompletedWr = workRequest?.status === 'Completed';
+  const isTaskRejectedState = isTaskRejected(task);
+  const isTaskPendingState = isTaskPendingApproval(task);
+  const canLeadReview = canReviewTaskCreation(currentUser, task, workRequest);
+  const canResubmit = canResubmitTask(currentUser, task, workRequest);
+
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [isResubmitModalOpen, setIsResubmitModalOpen] = useState(false);
+
+  const handleApproveTask = async () => {
+    if (!task) return;
+    const wrId = effectiveWrId || task.workRequestId;
+    if (!wrId) return;
+    await runBlockingAction({
+      title: 'Approving Task Creation',
+      message: 'Please wait while the task creation is approved...',
+      apiCall: async () => {
+        const updated = await approveOrRejectTaskCreation({
+          workRequestId: wrId,
+          taskId: task.id,
+          decision: 'approve',
+          expectedVersion: task.version ?? 1,
+        });
+        onTaskUpdated?.(updated);
+        return updated;
+      },
+      successTitle: 'Task Approved',
+      successMessage: 'Task creation has been approved successfully.',
+      invalidateQueries: [
+        operationsKeys.tasks(wrId),
+        operationsKeys.taskDetail(wrId, task.id),
+        operationsKeys.workRequestDetail(wrId),
+      ],
+    });
+  };
+
   const checklistReady = !isTaskError && !isTaskPlaceholder && liveTask?.id === task?.id && Array.isArray(liveTask?.checklist);
   const uncheckedChecklistCount = task?.checklist?.filter((item) => !item.completed).length ?? 0;
   const checklistCompletionBlocked = !checklistReady || isTaskFetching || updateMutation.isPending || uncheckedChecklistCount > 0;
@@ -400,12 +450,9 @@ export function TaskDetailModal({
       ? 'Wait for checklist changes to finish saving.'
       : `Check all checklist items first (${uncheckedChecklistCount} remaining).`;
 
-  const permissions = useSessionStore((state) => state.permissions);
-  const isAdmin = isUserAdmin(currentUser);
-  const isCompletedWr = workRequest?.status === 'Completed';
-  const canEdit = !isCompletedWr && hasPermission(permissions, 'workflow:edit');
-  const canEditChecklist = canEdit && isChecklistEditor(currentUser);
-  const canCompleteChecklist = !isCompletedWr && (isChecklistEditor(currentUser) || isTaskAssignee(currentUser, task));
+  const canEdit = !isCompletedWr && !isTaskRejectedState && hasPermission(permissions, 'workflow:edit');
+  const canEditChecklist = canEdit && isChecklistEditor(currentUser, task);
+  const canCompleteChecklist = !isCompletedWr && !isTaskRejectedState && (isChecklistEditor(currentUser, task) || isTaskAssignee(currentUser, task));
 
   // Task description editing state (OA.5)
   const [isEditingDesc, setIsEditingDesc] = useState(false);
@@ -602,18 +649,18 @@ export function TaskDetailModal({
   }, [task, currentAssigneeIds, teamList]);
 
   // Task Scoping Rules:
-  // 1. Only assigned employee or Admin can mutate status, log time, upload docs
-  const canMutateStatus = !isCompletedWr && canMutateTaskStatus(currentUser, task);
-  const canLogTime = !isCompletedWr && hasPermission(permissions, 'timelog:create') && canLogTaskTime(currentUser, task);
-  const canUploadDoc = !isCompletedWr && canUploadTaskDocument(currentUser, task);
+  // 1. Only assigned employee or Admin can mutate status, log time, upload docs (and rejected tasks locked)
+  const canMutateStatus = !isCompletedWr && !isTaskRejectedState && canMutateTaskStatus(currentUser, task);
+  const canLogTime = !isCompletedWr && !isTaskRejectedState && hasPermission(permissions, 'timelog:create') && canLogTaskTime(currentUser, task);
+  const canUploadDoc = !isCompletedWr && !isTaskRejectedState && canUploadTaskDocument(currentUser, task);
 
   // 2. Financial record linking vs requesting:
-  const canLinkInv = !isCompletedWr && canLinkInvoice(currentUser, task, workRequest, siblingTasks) && canCreateInvoice;
-  const canLinkTrans = !isCompletedWr && canLinkTransmittal(currentUser, task, workRequest, siblingTasks) && canCreateTransmittal;
-  const canLinkDisb = !isCompletedWr && canLinkDisbursement(currentUser, task, canCreateDisbursement);
+  const canLinkInv = !isCompletedWr && !isTaskRejectedState && canLinkInvoice(currentUser, task, workRequest, siblingTasks) && canCreateInvoice;
+  const canLinkTrans = !isCompletedWr && !isTaskRejectedState && canLinkTransmittal(currentUser, task, workRequest, siblingTasks) && canCreateTransmittal;
+  const canLinkDisb = !isCompletedWr && !isTaskRejectedState && canLinkDisbursement(currentUser, task, canCreateDisbursement);
 
-  const canReqInv = !isCompletedWr && canRequestInvoice(currentUser, task, workRequest, siblingTasks);
-  const canReqTrans = !isCompletedWr && canRequestTransmittal(currentUser, task, workRequest, siblingTasks);
+  const canReqInv = !isCompletedWr && !isTaskRejectedState && canRequestInvoice(currentUser, task, workRequest, siblingTasks);
+  const canReqTrans = !isCompletedWr && !isTaskRejectedState && canRequestTransmittal(currentUser, task, workRequest, siblingTasks);
 
   // Handle adding a co-assignee (UAT2-8 + multi-assignee)
   const handleAddCoAssignee = async (employeeId: string) => {
@@ -1007,6 +1054,28 @@ export function TaskDetailModal({
                     QA: Under Review
                   </Badge>
                 ) : null}
+                {isTaskPendingState && (
+                  <Badge
+                    variant="outline"
+                    size="compact"
+                    className="rounded-[6px] text-xs bg-[#FFFBEB] text-[#92400E] border-[#FDE68A] flex items-center gap-1"
+                    data-testid="task-detail-approval-badge"
+                  >
+                    <Clock className="h-3 w-3" />
+                    <span>Pending Creation Approval</span>
+                  </Badge>
+                )}
+                {isTaskRejectedState && (
+                  <Badge
+                    variant="destructive"
+                    size="compact"
+                    className="rounded-[6px] text-xs bg-[#FEF2F2] text-[#DC2626] border-[#FCA5A5] flex items-center gap-1"
+                    data-testid="task-detail-approval-badge"
+                  >
+                    <XCircle className="h-3 w-3" />
+                    <span>Creation Rejected</span>
+                  </Badge>
+                )}
               </div>
               <DialogTitle
                 className="text-lg font-bold text-[#1E293B] leading-tight"
@@ -1020,6 +1089,32 @@ export function TaskDetailModal({
                 </p>
               )}
             </div>
+
+            {isTaskPendingState && canLeadReview && (
+              <div className="flex items-center gap-1.5 shrink-0" data-testid="task-detail-approval-controls">
+                <Button
+                  type="button"
+                  size="sm"
+                  className="text-xs font-bold gap-1 rounded-[6px] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF]"
+                  onClick={handleApproveTask}
+                  data-testid="task-detail-approve-btn"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span>Approve Task</span>
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="text-xs font-bold gap-1 rounded-[6px] border-[#DC2626] text-[#DC2626] hover:bg-[#FEF2F2]"
+                  onClick={() => setIsRejectModalOpen(true)}
+                  data-testid="task-detail-reject-btn"
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                  <span>Reject Task</span>
+                </Button>
+              </div>
+            )}
 
             {canMutateStatus && (
               <div className="flex items-center gap-2 shrink-0">
@@ -1081,6 +1176,40 @@ export function TaskDetailModal({
 
           {/* Modal Body: Scrollable */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#FFFFFF]">
+            {isTaskRejectedState && (
+              <div
+                className="p-3 bg-[#FEF2F2] border border-[#FCA5A5] rounded-[8px] space-y-2 text-xs"
+                data-testid="task-detail-rejection-banner"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 font-bold text-[#DC2626]">
+                    <Lock className="h-4 w-4" />
+                    <span>Task Creation Rejected</span>
+                  </div>
+                  {canResubmit && (
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="outline"
+                      className="h-7 text-xs font-semibold gap-1.5 rounded-[6px] border-[#1D4ED8] text-[#1D4ED8] hover:bg-[#EFF6FF]"
+                      onClick={() => setIsResubmitModalOpen(true)}
+                      data-testid="task-resubmit-btn"
+                    >
+                      <Pencil className="h-3 w-3" />
+                      <span>Edit & Resubmit Task</span>
+                    </Button>
+                  )}
+                </div>
+                <p className="text-[#991B1B] leading-relaxed">
+                  <span className="font-semibold">Reason: </span>
+                  {task.rejectionReason ?? (task as { rejection_reason?: string | null }).rejection_reason ?? 'No reason provided.'}
+                </p>
+                <div className="text-[11px] text-[#7F1D1D] flex items-center justify-between border-t border-[#FCA5A5]/60 pt-1.5">
+                  <span>This task is locked against status changes, time logging, checklists, and document uploads until resubmitted and approved.</span>
+                  {task.reviewedBy && <span>Reviewed by {task.reviewedBy}</span>}
+                </div>
+              </div>
+            )}
             {isCompletedWr && (
               <div
                 className="bg-[#F8FAFC] border-[#E2E8F0] text-[#1E293B] text-xs px-3 py-2 rounded-[6px] flex items-center gap-2"
@@ -2100,6 +2229,51 @@ export function TaskDetailModal({
               void queryClient.invalidateQueries({ queryKey: operationsKeys.taskRelated(task.id) });
             }
           }}
+        />
+      )}
+      {/* 6. Task Creation Rejection Modal */}
+      {isRejectModalOpen && task && (
+        <RejectReasonModal
+          isOpen={isRejectModalOpen}
+          requestId={task.id}
+          workRequestTitle={workRequest?.title}
+          title="Reject Task Creation"
+          description="Provide a required explanation for why this task creation is being rejected."
+          submitLabel="Reject Task"
+          successTitle="Task Rejected"
+          successMessage="The task creation has been rejected."
+          onClose={() => setIsRejectModalOpen(false)}
+          onReject={async (taskId, reason) => {
+            const wrId = effectiveWrId || task.workRequestId;
+            if (!wrId) return;
+            const updated = await approveOrRejectTaskCreation({
+              workRequestId: wrId,
+              taskId,
+              decision: 'reject',
+              reason,
+              expectedVersion: task.version ?? 1,
+            });
+            onTaskUpdated?.(updated);
+          }}
+          invalidateQueries={[
+            operationsKeys.tasks(effectiveWrId || task.workRequestId || ''),
+            operationsKeys.taskDetail(effectiveWrId || task.workRequestId || '', task.id),
+            operationsKeys.workRequestDetail(effectiveWrId || task.workRequestId || ''),
+          ]}
+        />
+      )}
+
+      {/* 7. Task Resubmit Modal */}
+      {isResubmitModalOpen && task && (
+        <TaskResubmitModal
+          isOpen={isResubmitModalOpen}
+          task={task}
+          workRequest={workRequest}
+          onSuccess={(updated) => {
+            onTaskUpdated?.(updated);
+            setIsResubmitModalOpen(false);
+          }}
+          onClose={() => setIsResubmitModalOpen(false)}
         />
       )}
     </>

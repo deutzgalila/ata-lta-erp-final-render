@@ -201,6 +201,19 @@ export interface TaskDocumentAttachment {
 // 3. Core Task & Work Request Entities
 // ============================================================================
 
+export type TaskApprovalStatus = 'approved' | 'pending' | 'rejected';
+
+export interface TaskCreationApprovalInput {
+  decision: 'approve' | 'reject';
+  reason?: string;
+  expectedVersion: number;
+}
+
+export interface ResubmitTaskCreationInput {
+  expectedVersion: number;
+  data?: UpdateTaskInput;
+}
+
 export interface Task {
   id: string;
   workRequestId: string;
@@ -230,6 +243,20 @@ export interface Task {
   timeLogs?: TaskTimeLog[];
   taskDocuments?: TaskDocumentAttachment[];
   hasDocuments?: boolean;
+  approvalStatus?: TaskApprovalStatus;
+  approval_status?: TaskApprovalStatus;
+  createdBy?: string | null;
+  created_by?: string | null;
+  reviewedBy?: string | null;
+  reviewed_by?: string | null;
+  reviewedAt?: string | null;
+  reviewed_at?: string | null;
+  rejectionReason?: string | null;
+  rejection_reason?: string | null;
+  canReview?: boolean;
+  can_review?: boolean;
+  canResubmit?: boolean;
+  can_resubmit?: boolean;
   createdAt: string;
   updatedAt: string;
 }

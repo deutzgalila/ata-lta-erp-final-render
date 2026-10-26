@@ -1,5 +1,5 @@
 import { dashboardKeys } from '@/features/dashboard/api/queryKeys';
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest, ApiError } from '@/lib/api';
 import { useSessionStore } from '@/lib/session';
 import { broadcastEntityChange } from '@/lib/tabSync';
@@ -46,8 +46,9 @@ export function useWorkRequestTasks(
       return res.data;
     },
     enabled: Boolean(workRequestId) && (options?.enabled ?? true),
-    // Instant feel: kanban columns/list keep previous rows during refetch.
-    placeholderData: keepPreviousData,
+  // Instant feel: kanban columns/list keep previous rows during refetch of the SAME WR.
+    placeholderData: (previousData, previousQuery) =>
+      previousQuery?.queryKey?.[3] === workRequestId ? previousData : undefined,
   });
 }
 
@@ -68,9 +69,19 @@ export function useTaskDetail(
         { signal }
       );
       if (Array.isArray(res?.data)) {
-        return (res.data.find((t) => t?.id === taskId) || res.data[0] || null) as Task | null;
+        const found = res.data.find((t) => t?.id === taskId);
+        if (!found) return null;
+        const taskWrId = found.workRequestId ?? (found as { work_request_id?: string }).work_request_id;
+        if (taskWrId && taskWrId !== workRequestId) return null;
+        return found as Task;
       }
-      return (res?.data ?? null) as Task | null;
+      const single = (res?.data ?? null) as Task | null;
+      if (single) {
+        if (single.id !== taskId) return null;
+        const taskWrId = single.workRequestId ?? (single as { work_request_id?: string }).work_request_id;
+        if (taskWrId && taskWrId !== workRequestId) return null;
+      }
+      return single;
     },
     enabled: Boolean(workRequestId && taskId) && (options?.enabled ?? true),
     // Instant feel: seed from the work request's task list cache while the
@@ -135,6 +146,21 @@ export interface AddTimeLogsVariables {
   workRequestId?: string;
   taskId: string;
   logs: TaskTimeLogInput[];
+}
+
+export interface TaskCreationApprovalVariables {
+  workRequestId?: string;
+  taskId: string;
+  decision: 'approve' | 'reject';
+  reason?: string;
+  expectedVersion: number;
+}
+
+export interface ResubmitTaskCreationVariables {
+  workRequestId?: string;
+  taskId: string;
+  expectedVersion: number;
+  data?: UpdateTaskInput;
 }
 
 export function useTaskMutations(boundWorkRequestId?: string) {
@@ -338,6 +364,67 @@ export function useTaskMutations(boundWorkRequestId?: string) {
     },
   });
 
+  // 6. Task Creation Approval (Lead Manager decision)
+  const creationApprovalMutation = useMutation<Task, ApiError, TaskCreationApprovalVariables>({
+    mutationFn: async ({
+      workRequestId = boundWorkRequestId,
+      taskId,
+      decision,
+      reason,
+      expectedVersion,
+    }) => {
+      if (!workRequestId) throw new Error('Work request ID is required');
+      const res = await apiRequest<{ data: Task }>(
+        `/operations/work-requests/${workRequestId}/tasks/${taskId}/creation-approval`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ decision, reason, expectedVersion }),
+        }
+      );
+      return res.data;
+    },
+    onSuccess: (updatedTask, variables) => {
+      const wrId = variables.workRequestId || boundWorkRequestId || updatedTask.workRequestId;
+      if (wrId) {
+        queryClient.invalidateQueries({ queryKey: operationsKeys.tasks(wrId) });
+        queryClient.invalidateQueries({
+          queryKey: operationsKeys.taskDetail(wrId, updatedTask.id),
+        });
+        queryClient.invalidateQueries({ queryKey: operationsKeys.workRequestDetail(wrId) });
+      }
+    },
+  });
+
+  // 7. Resubmit Task Creation (Creator correction after rejection)
+  const resubmitCreationMutation = useMutation<Task, ApiError, ResubmitTaskCreationVariables>({
+    mutationFn: async ({
+      workRequestId = boundWorkRequestId,
+      taskId,
+      expectedVersion,
+      data,
+    }) => {
+      if (!workRequestId) throw new Error('Work request ID is required');
+      const res = await apiRequest<{ data: Task }>(
+        `/operations/work-requests/${workRequestId}/tasks/${taskId}/resubmit-creation`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ expectedVersion, data }),
+        }
+      );
+      return res.data;
+    },
+    onSuccess: (updatedTask, variables) => {
+      const wrId = variables.workRequestId || boundWorkRequestId || updatedTask.workRequestId;
+      if (wrId) {
+        queryClient.invalidateQueries({ queryKey: operationsKeys.tasks(wrId) });
+        queryClient.invalidateQueries({
+          queryKey: operationsKeys.taskDetail(wrId, updatedTask.id),
+        });
+        queryClient.invalidateQueries({ queryKey: operationsKeys.workRequestDetail(wrId) });
+      }
+    },
+  });
+
   return {
     createTask: async (arg: CreateTaskInput | CreateTaskVariables) => {
       const payload: CreateTaskVariables =
@@ -365,16 +452,22 @@ export function useTaskMutations(boundWorkRequestId?: string) {
     },
     reorderTasks: reorderMutation.mutateAsync,
     addTimeLogs: addTimeLogsMutation.mutateAsync,
+    approveOrRejectTaskCreation: creationApprovalMutation.mutateAsync,
+    resubmitTaskCreation: resubmitCreationMutation.mutateAsync,
     createMutation,
     updateMutation,
     deleteMutation,
     reorderMutation,
     addTimeLogsMutation,
+    creationApprovalMutation,
+    resubmitCreationMutation,
     isPending:
       createMutation.isPending ||
       updateMutation.isPending ||
       deleteMutation.isPending ||
       reorderMutation.isPending ||
-      addTimeLogsMutation.isPending,
+      addTimeLogsMutation.isPending ||
+      creationApprovalMutation.isPending ||
+      resubmitCreationMutation.isPending,
   };
 }

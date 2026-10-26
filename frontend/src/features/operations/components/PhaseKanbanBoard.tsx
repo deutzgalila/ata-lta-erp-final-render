@@ -15,6 +15,8 @@ import {
   MoreVertical,
   Trash2,
   PanelRightOpen,
+  Clock,
+  Pencil,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -53,6 +55,8 @@ import { WorkRequestModal } from './WorkRequestModal';
 import { TaskDetailModal } from './TaskDetailModal';
 import { WorkRequestSidePeek } from './WorkRequestSidePeek';
 import { QuickAddCard } from './QuickAddCard';
+import { RejectReasonModal } from './RejectReasonModal';
+import { TaskResubmitModal } from './TaskResubmitModal';
 import { TaskTypeBadge } from '../lib/taskTypes';
 import { operationsKeys } from '../api/queryKeys';
 import { getPhaseBadgeInfo, getStatusBadgeInfo } from '../lib/statusBadges';
@@ -60,7 +64,14 @@ import { useSearchParams, useInRouterContext } from 'react-router-dom';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
 import { getTaskDeletionReason } from '../lib/taskDeletion';
-import { isUserAdmin } from '../lib/taskScope';
+import {
+  isUserAdmin,
+  canReviewTaskCreation,
+  canEmployeeCreateTask,
+  isTaskRejected,
+  isTaskPendingApproval,
+  canResubmitTask,
+} from '../lib/taskScope';
 import type {
   Phase,
   Task,
@@ -160,6 +171,7 @@ function PhaseKanbanBoardInner({
 
   // Active Work Request Details & Tasks
   const { data: currentWr } = useWorkRequestDetail(effectiveWrId);
+  const activeWr = currentWr || workRequests.find((w) => w.id === effectiveWrId);
   const { data: tasks = [] } = useWorkRequestTasks(effectiveWrId, {
     enabled: Boolean(effectiveWrId),
   });
@@ -167,10 +179,47 @@ function PhaseKanbanBoardInner({
   // Mutations
   const { advancePhase, requestTransition } = usePhaseTransitions(effectiveWrId);
   const { submitQaReview } = useQaReview(effectiveWrId);
-  const { createTask, deleteTask } = useTaskMutations(effectiveWrId);
+  const {
+    createTask,
+    deleteTask,
+    approveOrRejectTaskCreation,
+  } = useTaskMutations(effectiveWrId);
+
+  const canEmployeeCreate = canEmployeeCreateTask(currentUser, activeWr);
+  const isEmployeeMissingLead = Boolean(
+    currentUser?.role !== 'Admin' &&
+      currentUser?.role !== 'Manager' &&
+      !canEmployeeCreate
+  );
   const canAddTask =
-    hasPermission(permissions, 'workflow:task_add') ||
-    hasPermission(permissions, 'workflow:edit');
+    canEmployeeCreate &&
+    (hasPermission(permissions, 'workflow:task_add') ||
+      hasPermission(permissions, 'workflow:edit'));
+
+  const [taskToReject, setTaskToReject] = useState<Task | null>(null);
+  const [taskToResubmit, setTaskToResubmit] = useState<Task | null>(null);
+
+  const handleApproveTask = async (task: Task) => {
+    if (!activeWr) return;
+    await runBlockingAction({
+      title: 'Approving Task Creation',
+      message: 'Please wait while the task creation is approved...',
+      apiCall: async () => {
+        return await approveOrRejectTaskCreation({
+          workRequestId: activeWr.id,
+          taskId: task.id,
+          decision: 'approve',
+          expectedVersion: task.version ?? 1,
+        });
+      },
+      successTitle: 'Task Approved',
+      successMessage: 'Task creation has been approved successfully.',
+      invalidateQueries: [
+        operationsKeys.tasks(effectiveWrId),
+        operationsKeys.workRequestDetail(effectiveWrId),
+      ],
+    });
+  };
 
   const [taskToDelete, setTaskToDelete] = useState<{
     id: string;
@@ -278,7 +327,6 @@ function PhaseKanbanBoardInner({
     }
   }, [tasks]);
 
-  const activeWr = currentWr || workRequests.find((w) => w.id === effectiveWrId);
   const currentPhase: Phase = (activeWr?.phase as Phase) || 'pre_processing';
 
   // Task Gate & Blocker Logic
@@ -664,6 +712,19 @@ function PhaseKanbanBoardInner({
                         <Plus className="h-3.5 w-3.5" />
                       </Button>
                     )}
+                    {isEmployeeMissingLead && activeWr && activeWr.status !== 'Completed' && (col.id === 'pre_processing' || col.id === 'processing') && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        disabled
+                        className="h-5 w-5 p-0 rounded-[6px] text-[#94A3B8] cursor-not-allowed opacity-50"
+                        title="Task creation requires an assigned Manager lead on this work request."
+                        data-testid={`quick-add-task-disabled-${col.id}`}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -711,6 +772,15 @@ function PhaseKanbanBoardInner({
 
               {/* Tasks List Drop Area */}
               <div className="flex-1 space-y-2 overflow-y-auto min-h-36">
+                {isEmployeeMissingLead && activeWr && (col.id === 'pre_processing' || col.id === 'processing') && (
+                  <div
+                    className="p-2 rounded-[6px] bg-[#FFFBEB] border border-[#FDE68A] text-[#92400E] text-xs flex items-center gap-1.5"
+                    data-testid="missing-lead-guard"
+                  >
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    <span>Task creation requires an assigned Manager lead on this work request.</span>
+                  </div>
+                )}
                 {/* Inline Quick-Add Form (UAT2-10) */}
                 {quickAddPhase === col.id && canAddTask && activeWr && activeWr.status !== 'Completed' &&
                   (col.id === 'pre_processing' || col.id === 'processing') && (
@@ -730,7 +800,13 @@ function PhaseKanbanBoardInner({
                   </div>
                 ) : (
                   phaseTasks.map((task) => {
-                    const deletionReason = getTaskDeletionReason(task, activeWr);
+                    const isRejected = isTaskRejected(task);
+                    const isPendingApproval = isTaskPendingApproval(task);
+                    const canLeadReview = canReviewTaskCreation(currentUser, task, activeWr);
+                    const canResubmit = canResubmitTask(currentUser, task, activeWr);
+                    const deletionReason = isRejected
+                      ? 'Rejected tasks cannot be deleted.'
+                      : getTaskDeletionReason(task, activeWr);
                     const isTaskFailed = task.qaStatus === 'failed';
                     const isTaskPassed = task.qaStatus === 'passed';
 
@@ -740,17 +816,21 @@ function PhaseKanbanBoardInner({
                         draggable={false}
                         onClick={() => setSelectedTask(task)}
                         className={`p-3 bg-[#FFFFFF] border rounded-[8px] shadow-card space-y-2 hover:bg-[#F8FAFC] hover:border-[#E2E8F0] transition-none cursor-pointer ${
-                          isTaskFailed
-                            ? 'border-2 border-[#FCA5A5] bg-[#DC2626]/5'
-                            : isTaskPassed
-                              ? 'border-[#E2E8F0] bg-[#FFFFFF]'
-                              : 'border-[#E2E8F0]'
+                          isRejected
+                            ? 'border-2 border-[#FCA5A5] bg-[#FEF2F2]/20'
+                            : isTaskFailed
+                              ? 'border-2 border-[#FCA5A5] bg-[#DC2626]/5'
+                              : isPendingApproval
+                                ? 'border-[#FDE68A] bg-[#FFFBEB]/10'
+                                : isTaskPassed
+                                  ? 'border-[#E2E8F0] bg-[#FFFFFF]'
+                                  : 'border-[#E2E8F0]'
                         }`}
                         data-testid={`kanban-task-card-${task.id}`}
                       >
                         {/* Task Card Header */}
                         <div className="flex items-start justify-between gap-1.5">
-                          <div className="min-w-0 flex-1 flex items-center gap-1.5">
+                          <div className="min-w-0 flex-1 flex flex-wrap items-center gap-1.5">
                             <TaskTypeBadge
                               value={
                                 task.requiredLinkType ??
@@ -758,7 +838,29 @@ function PhaseKanbanBoardInner({
                               }
                               data-testid={`kanban-task-type-${task.id}`}
                             />
-                            <span className="font-semibold text-xs text-[#1E293B] leading-tight block">
+                            {isPendingApproval && (
+                              <Badge
+                                variant="outline"
+                                size="compact"
+                                className="text-xs font-semibold rounded-[6px] bg-[#FFFBEB] text-[#92400E] border-[#FDE68A] flex items-center gap-1"
+                                data-testid={`task-approval-badge-${task.id}`}
+                              >
+                                <Clock className="h-3 w-3" />
+                                <span>Pending Approval</span>
+                              </Badge>
+                            )}
+                            {isRejected && (
+                              <Badge
+                                variant="destructive"
+                                size="compact"
+                                className="text-xs font-semibold rounded-[6px] bg-[#FEF2F2] text-[#DC2626] border-[#FCA5A5] flex items-center gap-1"
+                                data-testid={`task-approval-badge-${task.id}`}
+                              >
+                                <XCircle className="h-3 w-3" />
+                                <span>Creation Rejected</span>
+                              </Badge>
+                            )}
+                            <span className="font-semibold text-xs text-[#1E293B] leading-tight block w-full mt-0.5">
                               {task.title}
                             </span>
                           </div>
@@ -817,6 +919,40 @@ function PhaseKanbanBoardInner({
                           </div>
                         </div>
 
+                        {isRejected && (
+                          <div
+                            className="p-2 rounded-[6px] bg-[#FEF2F2] border border-[#FCA5A5] text-xs text-[#DC2626] space-y-1.5"
+                            data-testid={`task-rejection-box-${task.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="flex items-center gap-1 font-semibold text-[#B91C1C]">
+                              <XCircle className="h-3.5 w-3.5 shrink-0" />
+                              <span>Task Creation Rejected</span>
+                            </div>
+                            <p
+                              className="text-[#991B1B] text-xs line-clamp-2 pl-4"
+                              data-testid={`task-rejection-reason-${task.id}`}
+                            >
+                              Reason: {task.rejectionReason ??
+                                (task as { rejection_reason?: string | null }).rejection_reason ??
+                                'No rejection reason provided.'}
+                            </p>
+                            {canResubmit && (
+                              <Button
+                                type="button"
+                                size="xs"
+                                variant="outline"
+                                className="w-full text-xs font-semibold h-6 gap-1 rounded-[6px] border-[#1D4ED8] text-[#1D4ED8] hover:bg-[#EFF6FF]"
+                                onClick={() => setTaskToResubmit(task)}
+                                data-testid={`task-resubmit-btn-${task.id}`}
+                              >
+                                <Pencil className="h-3 w-3" />
+                                <span>Edit & Resubmit</span>
+                              </Button>
+                            )}
+                          </div>
+                        )}
+
                         {task.description && (
                           <p className="text-xs text-[#475569] line-clamp-2">
                             {task.description}
@@ -838,6 +974,37 @@ function PhaseKanbanBoardInner({
                             </div>
                           )}
                         </div>
+
+                        {/* Lead Manager Creation Approval Controls */}
+                        {isPendingApproval && canLeadReview && (
+                          <div
+                            className="pt-2 border-t border-[#E2E8F0] flex items-center gap-1.5"
+                            data-testid={`task-approval-controls-${task.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Button
+                              type="button"
+                              size="xs"
+                              className="flex-1 text-xs font-bold h-6 gap-1 rounded-[6px] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] shadow-2xs"
+                              onClick={() => handleApproveTask(task)}
+                              data-testid={`task-approve-btn-${task.id}`}
+                            >
+                              <CheckCircle2 className="h-3 w-3" />
+                              Approve
+                            </Button>
+                            <Button
+                              type="button"
+                              size="xs"
+                              variant="outline"
+                              className="flex-1 text-xs font-bold h-6 gap-1 rounded-[6px] border-[#DC2626] text-[#DC2626] hover:bg-[#FEF2F2] shadow-2xs"
+                              onClick={() => setTaskToReject(task)}
+                              data-testid={`task-reject-btn-${task.id}`}
+                            >
+                              <XCircle className="h-3 w-3" />
+                              Reject
+                            </Button>
+                          </div>
+                        )}
 
                         {/* QA Compliance Controls (in Quality Assurance column) */}
                         {col.id === 'quality_assurance' && (
@@ -1157,6 +1324,45 @@ function PhaseKanbanBoardInner({
           else setIsEditModalOpen(true);
         }}
       />
+
+      {/* Reject Reason Modal for Task Creation Rejection */}
+      {taskToReject && (
+        <RejectReasonModal
+          isOpen={Boolean(taskToReject)}
+          requestId={taskToReject.id}
+          workRequestTitle={activeWr?.title}
+          title="Reject Task Creation"
+          description="Provide a required explanation for why this task creation is being rejected. The employee creator will be able to correct and resubmit."
+          placeholder="State what needs to be corrected or why this task cannot proceed..."
+          submitLabel="Reject Task"
+          successTitle="Task Rejected"
+          successMessage="The task creation has been rejected with feedback."
+          onClose={() => setTaskToReject(null)}
+          onReject={async (taskId, reason) => {
+            await approveOrRejectTaskCreation({
+              workRequestId: activeWr?.id,
+              taskId,
+              decision: 'reject',
+              reason,
+              expectedVersion: taskToReject.version ?? 1,
+            });
+          }}
+          invalidateQueries={[
+            operationsKeys.tasks(effectiveWrId),
+            operationsKeys.workRequestDetail(effectiveWrId),
+          ]}
+        />
+      )}
+
+      {/* Task Resubmit Modal for Rejected Task Correction */}
+      {taskToResubmit && (
+        <TaskResubmitModal
+          isOpen={Boolean(taskToResubmit)}
+          task={taskToResubmit}
+          workRequest={activeWr}
+          onClose={() => setTaskToResubmit(null)}
+        />
+      )}
     </div>
   );
 }
