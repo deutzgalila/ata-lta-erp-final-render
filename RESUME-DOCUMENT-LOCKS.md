@@ -23,7 +23,9 @@ This lane completes the security review and implementation for task-linked docum
 ## 2. Concrete Mutation Paths & Shared Guard Architecture
 
 ### Implementation:
-- Located in `backend/src/modules/documents/service.js` and `controller.js`.
+- Located in `backend/src/modules/documents/service.js`, `controller.js`, and `backend/src/lib/projectLinkage.js`.
+- In `backend/src/lib/projectLinkage.js`:
+  - `validateRecordProjectLinkage` enforces that parent work requests have `creation_approval_status === 'approved'` (unless `internal: true`), aligning single-record project visibility with `filterValidProjectRecords` so unadmitted (pending/rejected) WR documents return 404 in DMS even for Admin.
 - Shared guard: `assertTaskDocumentMutationAllowed({ taskId, entityId, user, workRequestId, action, requireAssignment })`:
   - Fetches task `approval_status`, `work_request_id`, `assignee_id`, `deleted_at`.
   - Rejects rejected task with `409 TASK_REJECTED_LOCKED` (`detail: 'Task is rejected and locked against document attachments'` for attachment action; `'Task is rejected and locked against document modifications'` for other mutations).

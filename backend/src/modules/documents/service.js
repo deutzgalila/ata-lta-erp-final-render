@@ -11,7 +11,11 @@ const { supabaseAdmin } = require('../../services/supabaseClient');
 const { getSignedUploadUrl, getSignedDownloadUrl } = require('../../services/storageService');
 const auditService = require('../../services/auditService');
 const AppError = require('../../lib/AppError');
-const { getUserConcernedWorkRequestIds, fetchInPages } = require('../../lib/userScope');
+const {
+  getUserConcernedWorkRequestIds,
+  fetchInPages,
+  isUserEntitledToEntity,
+} = require('../../lib/userScope');
 const { resolveTrustedUser, isUserAssignedToTask } = require('../../lib/taskAssignment');
 const { buildPermissionSet, hasPermission } = require('../../lib/permissions');
 const {

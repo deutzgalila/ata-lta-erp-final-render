@@ -211,7 +211,7 @@ const validateRecordProjectLinkage = async ({
   if (effectiveWrId) {
     const { data: wr, error: wrErr } = await supabaseAdmin
       .from('work_requests')
-      .select('id, entity_id, deleted_at')
+      .select('id, entity_id, deleted_at, creation_approval_status')
       .eq('id', effectiveWrId)
       .maybeSingle();
 
@@ -224,6 +224,14 @@ const validateRecordProjectLinkage = async ({
     }
 
     if (!wr || wr.deleted_at) {
+      throw new AppError({
+        statusCode: 404,
+        title: 'Not Found',
+        detail: 'Parent work request not found or deleted',
+      });
+    }
+
+    if (!internal && wr.creation_approval_status && wr.creation_approval_status !== 'approved') {
       throw new AppError({
         statusCode: 404,
         title: 'Not Found',
