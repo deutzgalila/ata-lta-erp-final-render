@@ -53,6 +53,7 @@ export default function OperationsPage() {
   // Permission Checks
   const canViewModule = hasPermission(permissions, 'workflow:view');
   const canEdit = hasPermission(permissions, 'workflow:edit');
+  const canCreateWr = (user?.role === 'Admin' || user?.role === 'Manager') && canEdit;
   const canUseRetainers = hasPermission(permissions, 'retainers:use');
   const canEditRetainers = hasPermission(permissions, 'retainers:edit') || user?.role === 'Admin';
 
@@ -317,7 +318,7 @@ export default function OperationsPage() {
             </Button>
           )}
 
-          {canEdit && activeTab !== 'work-requests' && (
+          {canCreateWr && activeTab !== 'work-requests' && (
             <Button
               type="button"
               size="sm"

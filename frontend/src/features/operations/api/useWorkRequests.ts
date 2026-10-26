@@ -14,6 +14,9 @@ import type {
   WorkRequestDetailResponse,
   WorkRequestCountsResponse,
   WorkRequestRelatedResponse,
+  WorkRequestCreationApprovalsParams,
+  WorkRequestCreationApprovalInput,
+  ResubmitWorkRequestCreationInput,
 } from './types';
 
 type QuerySnapshot = Array<[readonly unknown[], unknown]>;
@@ -105,6 +108,27 @@ export function prefetchWorkRequestDetail(id: string): void {
       return res.data;
     },
     staleTime: 30 * 1000,
+  });
+}
+
+export function useWorkRequestCreationApprovals(
+  params?: WorkRequestCreationApprovalsParams,
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    queryKey: operationsKeys.workRequestCreationApprovals(params?.status, params?.scope),
+    queryFn: async ({ signal }) => {
+      const searchParams = new URLSearchParams();
+      if (params?.status) searchParams.append('status', params.status);
+      if (params?.scope) searchParams.append('scope', params.scope);
+      const queryStr = searchParams.toString();
+      const res = await apiRequest<{ data: WorkRequest[]; meta?: unknown }>(
+        `/operations/work-requests/creation-approvals${queryStr ? `?${queryStr}` : ''}`,
+        { signal }
+      );
+      return res.data;
+    },
+    enabled: options?.enabled ?? true,
   });
 }
 
@@ -406,6 +430,60 @@ export function useWorkRequestMutations() {
     },
   });
 
+  // 7. Creation Approval (Admin decision)
+  const creationApprovalMutation = useMutation<
+    WorkRequest,
+    ApiError,
+    { id: string } & WorkRequestCreationApprovalInput
+  >({
+    mutationFn: async ({ id, decision, reason, expectedVersion }) => {
+      const res = await apiRequest<{ data: WorkRequest }>(
+        `/operations/work-requests/${id}/creation-approval`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ decision, reason, expectedVersion }),
+        }
+      );
+      return res.data;
+    },
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: operationsKeys.workRequests() });
+      queryClient.invalidateQueries({
+        queryKey: operationsKeys.workRequestCounts(activeEntity),
+      });
+      queryClient.invalidateQueries({
+        queryKey: operationsKeys.workRequestDetail(updated.id),
+      });
+    },
+  });
+
+  // 8. Resubmit Creation (Manager correction after rejection)
+  const resubmitCreationMutation = useMutation<
+    WorkRequest,
+    ApiError,
+    { id: string } & ResubmitWorkRequestCreationInput
+  >({
+    mutationFn: async ({ id, expectedVersion, data }) => {
+      const res = await apiRequest<{ data: WorkRequest }>(
+        `/operations/work-requests/${id}/resubmit-creation`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ expectedVersion, data }),
+        }
+      );
+      return res.data;
+    },
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: operationsKeys.workRequests() });
+      queryClient.invalidateQueries({
+        queryKey: operationsKeys.workRequestCounts(activeEntity),
+      });
+      queryClient.invalidateQueries({
+        queryKey: operationsKeys.workRequestDetail(updated.id),
+      });
+    },
+  });
+
   return {
     createWorkRequest: createMutation.mutateAsync,
     updateWorkRequest: async (
@@ -430,6 +508,8 @@ export function useWorkRequestMutations() {
       const payload = typeof arg === 'string' ? { id: arg } : arg;
       return cancelMutation.mutateAsync(payload);
     },
+    approveOrRejectCreation: creationApprovalMutation.mutateAsync,
+    resubmitCreation: resubmitCreationMutation.mutateAsync,
     statusOptimistic: statusOptimisticMutation.mutateAsync,
     isStatusOptimisticPending: statusOptimisticMutation.isPending,
     createMutation,
@@ -437,11 +517,15 @@ export function useWorkRequestMutations() {
     archiveMutation,
     restoreMutation,
     cancelMutation,
+    creationApprovalMutation,
+    resubmitCreationMutation,
     isPending:
       createMutation.isPending ||
       updateMutation.isPending ||
       archiveMutation.isPending ||
       restoreMutation.isPending ||
-      cancelMutation.isPending,
+      cancelMutation.isPending ||
+      creationApprovalMutation.isPending ||
+      resubmitCreationMutation.isPending,
   };
 }

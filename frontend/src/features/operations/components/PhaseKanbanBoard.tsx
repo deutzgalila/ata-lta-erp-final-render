@@ -110,8 +110,12 @@ function PhaseKanbanBoardInner({
     archived: false,
   });
   const workRequests: WorkRequest[] = useMemo(() => {
-    if (Array.isArray(rawRequests)) return rawRequests;
-    return rawRequests?.data ?? [];
+    const list = Array.isArray(rawRequests) ? rawRequests : rawRequests?.data ?? [];
+    return list.filter(
+      (wr) =>
+        wr.creationApprovalStatus !== 'pending' &&
+        wr.creationApprovalStatus !== 'rejected'
+    );
   }, [rawRequests]);
 
   const [selectedWrId, setSelectedWrId] = useState<string>(() => {

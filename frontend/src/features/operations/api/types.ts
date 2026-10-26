@@ -245,6 +245,24 @@ export interface WorkRequestPhases {
   completion?: PhaseContainer;
 }
 
+export type CreationApprovalStatus = 'approved' | 'pending' | 'rejected';
+
+export interface WorkRequestCreationApprovalsParams {
+  status?: 'pending' | 'rejected' | 'approved';
+  scope?: 'mine' | 'all';
+}
+
+export interface WorkRequestCreationApprovalInput {
+  decision: 'approve' | 'reject';
+  reason?: string;
+  expectedVersion: number;
+}
+
+export interface ResubmitWorkRequestCreationInput {
+  expectedVersion: number;
+  data?: UpdateWorkRequestInput;
+}
+
 export interface WorkRequest {
   id: string;
   entity: EntityCode;
@@ -276,6 +294,22 @@ export interface WorkRequest {
   version: number;
   tasks?: Task[];
   phases?: WorkRequestPhases;
+  creationApprovalStatus?: CreationApprovalStatus;
+  creation_approval_status?: CreationApprovalStatus;
+  createdBy?: string | null;
+  created_by?: string | null;
+  reviewedBy?: string | null;
+  reviewed_by?: string | null;
+  reviewedAt?: string | null;
+  reviewed_at?: string | null;
+  rejectionReason?: string | null;
+  rejection_reason?: string | null;
+  canReviewCreation?: boolean;
+  can_review_creation?: boolean;
+  canResubmit?: boolean;
+  can_resubmit?: boolean;
+  hasManagerLead?: boolean;
+  has_manager_lead?: boolean;
 }
 
 // ============================================================================
