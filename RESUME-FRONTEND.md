@@ -46,50 +46,65 @@
 - [x] Implement rejection reason modal flow and creator-only edit/resubmit path (`TaskResubmitModal.tsx`).
 - [x] Ensure pending tasks remain fully usable, rejected tasks visibly locked across status mutation, time logging, checklists, document uploads, and financial links.
 - [x] Fix stale `canResubmit` capability bug across account switch by strictly checking canonical creator identity (`createdBy === user.id`).
-- [x] Verify Vitest (138/138 passed across 8 test suites), typecheck (`tsc -b` 0 errors), lint (0 errors / 0 warnings on modified files), and production build (`vite build` exit 0).
-- [x] Commit Parcel 4 to `feat/task-creation-review-enterprise-v2`.
+- [x] Make side-peek task row and review controls responsive (`WorkRequestSidePeek.tsx`): stack/wrap controls on narrow viewports (<640px / 390px), preserving task identity readability and button usability without horizontal clipping (`clientWidth 333` matches `scrollWidth 333`).
+- [x] Verify mobile browser layout with Playwright: screenshot captured to `/tmp/wr-approval-browser/lead-task-sidepeek-mobile.png` and verification json saved to `/tmp/wr-approval-browser/task-mobile-result.json`.
+- [x] Verify Vitest (32/32 passed in `taskCreationReview.test.tsx`), typecheck (`tsc -b` 0 diagnostics), lint (0 errors / 0 warnings), and production build.
+- [x] Commit Parcel 4 to `feat/task-creation-review-enterprise-v2` (`commit 11428d42`).
+
+---
+
+### WR Dialog Safety & Stale Action Guard (`fix/wr-dialog-safety-enterprise-v2`)
+- [x] Create dedicated safety branch `fix/wr-dialog-safety-enterprise-v2` branching directly from Parcel 4 commit (`11428d42`).
+- [x] Remove fallback `creationApprovals.find(id) || selectedWr` in `handleRejectWrCreation`: require exact target ID and capture `expectedVersion` when opening review intent (`rejectingWrIntent`).
+- [x] Strict verification preventing stale retargeting if intended WR is removed or changed prior to confirmation.
+- [x] Automatically clear dialogs, selection, and active review intent upon switching entity, account, category, or subtabs (`useEffect` hook).
+- [x] Removed misleading "All" tab from creation approvals subtabs (strictly `pending`, `rejected`, `approved`), correctly reflecting backend contract.
+- [x] Add focused negative test in `workRequestCreationGate.test.tsx` verifying intended WR removed before confirmation does not retarget surviving WR.
+- [x] Add focused subtab test in `workRequestCreationGate.test.tsx` verifying only `pending`, `rejected`, `approved` tabs render.
+- [x] Verify full operations suite (106/106 passed across 6 test suites), typecheck (`tsc -b` 0 diagnostics), lint (0 errors / 0 warnings), and production build.
+- [x] Commit safety fixes to `fix/wr-dialog-safety-enterprise-v2` (`commit 5fc3fd8e`).
 
 ---
 
 ## 3. Actual Verification Evidence
 
-### A. Vitest Test Execution (138/138 Passed)
+### A. Vitest Test Execution (106/106 Passed across 6 suites)
 ```bash
-cd frontend && npx vitest run \
-  src/features/operations/__tests__/taskCreationReview.test.tsx \
-  src/features/operations/__tests__/taskScopingRules.test.tsx \
-  src/features/operations/__tests__/pendingApprovals.test.tsx \
-  src/features/operations/__tests__/taskRequestAuthorization.test.tsx \
+npm --prefix frontend test -- \
   src/features/operations/__tests__/workRequestCreationGate.test.tsx \
-  src/features/operations/__tests__/taskDetailModal.test.tsx \
-  src/features/operations/__tests__/phaseKanban.test.tsx \
-  src/features/operations/__tests__/taskChecklist.test.tsx
+  src/features/operations/__tests__/taskCreationReview.test.tsx \
+  src/features/operations/__tests__/pendingApprovals.test.tsx \
+  src/features/operations/__tests__/taskScopingRules.test.tsx \
+  src/features/operations/__tests__/taskRequestAuthorization.test.tsx \
+  src/features/operations/__tests__/taskDetailModal.test.tsx
 ```
 **Output:**
 ```
-Test Files  8 passed (8)
-     Tests  138 passed (138)
-  Duration  27.27s
+Test Files  6 passed (6)
+     Tests  106 passed (106)
+  Duration  23.18s
 ```
 
 ### B. Typecheck (`tsc -b`)
 ```bash
-cd frontend && npx tsc -b
+npm --prefix frontend run typecheck
 ```
-**Output:** Exit code 0, 0 diagnostics/errors. No `@ts-ignore` or `any` suppressions added.
+**Output:** Exit code 0, zero diagnostics/errors. No `@ts-ignore` or `any` suppressions added.
 
-### C. Linting (Modified and New Files)
+### C. Linting (All modified and new files)
 ```bash
-cd frontend && npx eslint \
+(cd frontend && npx eslint \
   src/features/operations/api/types.ts \
   src/features/operations/api/useTasks.ts \
   src/features/operations/components/PhaseKanbanBoard.tsx \
   src/features/operations/components/QuickAddCard.tsx \
   src/features/operations/components/TaskDetailModal.tsx \
+  src/features/operations/components/TaskResubmitModal.tsx \
   src/features/operations/components/WorkRequestSidePeek.tsx \
+  src/features/operations/components/PendingApprovalsInbox.tsx \
   src/features/operations/lib/taskScope.ts \
   src/features/operations/__tests__/taskCreationReview.test.tsx \
-  src/features/operations/components/TaskResubmitModal.tsx
+  src/features/operations/__tests__/workRequestCreationGate.test.tsx)
 ```
 **Output:** Exit code 0, 0 errors, 0 warnings.
 
@@ -101,6 +116,52 @@ npm --prefix frontend run build
 ```
 vite v6.4.5 building for production...
 ✓ 3088 modules transformed.
-✓ built in 10.10s
+✓ built in 9.24s
+Exit code: 0
+```
+
+### E. Real Browser Review Verification
+1. **Desktop Task Review (`node /tmp/wr-approval-browser/check-task-review.cjs`)**:
+```json
+[
+  {"role":"lead","pendingVisible":true,"boardApprove":1,"sidePeekApprove":1,"errors":[]},
+  {"role":"admin","pendingVisible":true,"boardApprove":0,"sidePeekApprove":0,"errors":[]},
+  {"role":"employee","pendingVisible":true,"boardApprove":0,"sidePeekApprove":0,"errors":[]}
+]
+```
+2. **Mobile Side-Peek Review at 390px Viewport (`node /tmp/wr-approval-browser/check-task-review-mobile.cjs`)**:
+```json
+[
+  {
+    "role": "lead",
+    "pendingVisible": true,
+    "boardApprove": 1,
+    "sidePeekApprove": 1,
+    "approveBounds": { "x": 195.5, "y": 910.5, "width": 87.453125, "height": 24 },
+    "row": { "client": 333, "scroll": 333 },
+    "errors": []
+  }
+]
+```
+- Screenshot: `/tmp/wr-approval-browser/lead-task-sidepeek-mobile.png` (52,844 bytes)
+- Result fixture: `/tmp/wr-approval-browser/task-mobile-result.json`
+- Horizontal overflow: none (`clientWidth 333 === scrollWidth 333`).
+
+3. **Pending Approvals Inbox Review (`node /tmp/wr-approval-browser/check-inbox.cjs`)**:
+```json
+{"inboxVisible":true,"approveVisible":true,"rejectVisible":true,"horizontalOverflow":false,"errors":[]}
+```
+```
+**Output:** Exit code 0, 0 errors, 0 warnings.
+
+### D. Production Build (`vite build`)
+```bash
+npm --prefix frontend run build
+```
+**Output:**
+```
+vite v6.4.5 building for production...
+✓ 3088 modules transformed.
+✓ built in 9.52s
 Exit code: 0
 ```
