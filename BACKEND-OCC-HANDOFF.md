@@ -49,7 +49,7 @@ This parcel resolves concurrency and cache correctness gaps identified in multi-
 
 ## 3. Verification Evidence
 
-All tests executed locally against real loopback PostgreSQL instances on `127.0.0.1:55493` with zero remote migration or remote data mutation:
+HTTP/service suites use the project test fixtures. Only the explicitly named PostgreSQL acceptance and service bridge suites execute against the isolated loopback database at `127.0.0.1:55493`. No remote migration or business data mutation was performed in this follow-up:
 
 | Test Suite | Location | Result | Details |
 | --- | --- | --- | --- |
@@ -74,3 +74,7 @@ All tests executed locally against real loopback PostgreSQL instances on `127.0.
 3. **No Target Merge / Deploy**:
    - Changes are committed exclusively to dedicated branch `fix/approval-occ-cache-staging`.
    - No remote branch was pushed or merged. Backend code is ready for staging composition when authorized.
+
+## Root follow-up verification
+
+After agy quota exhaustion, Codex completed review directly. Commit7bb4190 also guards ordinary WR writes with the version read when a legacy client omits expectedVersion, and requires an explicit version for approved employee material edits. Final focused backend checks:218/218 across14suites; selected changed source/test lint clean. The real application-service/PostgreSQL bridge was rerun after this patch:6/6. The unchanged87SQL and34RLS acceptance results above remain earlier evidence, not part of the218fixture-based test count. Frontend supplies captured versions for material task edits. No additional migration was required.
