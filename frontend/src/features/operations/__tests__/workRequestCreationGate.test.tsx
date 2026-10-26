@@ -555,5 +555,145 @@ describe('Parcel 3: Work Request Creation Gate UI', () => {
         expect(screen.getByText('Resubmit Work Request')).toBeInTheDocument();
       });
     });
+
+    it('prevents stale rejection and does not retarget surviving WR if the intended WR is removed before confirmation', async () => {
+      useSessionStore.getState().setSession({
+        user: {
+          id: 'u-admin-1',
+          email: 'admin@ata-lta.ph',
+          name: 'Super Admin',
+          role: 'Admin',
+          departments: ['Management'],
+          entities: ['ATA'],
+        },
+        permissions: ['workflow:view', 'workflow:edit', 'workflow:phase_transition'],
+        activeEntity: 'ATA',
+      });
+
+      let currentApprovals = [
+        {
+          id: 'wr-pending-intended',
+          title: 'Target Intended WR',
+          clientId: 'c-1',
+          entity: 'ATA',
+          status: 'Received',
+          phase: 'pre_processing',
+          creationApprovalStatus: 'pending' as const,
+          version: 1,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        {
+          id: 'wr-pending-surviving',
+          title: 'Surviving Other WR',
+          clientId: 'c-1',
+          entity: 'ATA',
+          status: 'Received',
+          phase: 'pre_processing',
+          creationApprovalStatus: 'pending' as const,
+          version: 1,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ];
+
+      vi.mocked(global.fetch).mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+        const u = typeof input === 'string' ? input : 'url' in input ? input.url : input.toString();
+        const method = init?.method || 'GET';
+        if (u.includes('/operations/work-requests/creation-approvals')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: currentApprovals }),
+          } as Response);
+        }
+        if (u.includes('/creation-approval') && method === 'POST') {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: { id: 'mock-rejected' } }),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ data: {} }),
+        } as Response);
+      });
+
+      const { wrapper, queryClient } = createHarness();
+      render(<PendingApprovalsInbox />, { wrapper });
+
+      // Click WR Creation Approvals
+      fireEvent.click(screen.getByTestId('inbox-category-wr-creation'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('wr-creation-card-wr-pending-intended')).toBeInTheDocument();
+      });
+
+      // Select intended WR
+      fireEvent.click(screen.getByTestId('wr-creation-card-wr-pending-intended'));
+
+      // Click Reject -> captures intent for wr-pending-intended
+      fireEvent.click(screen.getByTestId('reject-wr-creation-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('reject-reason-modal')).toBeInTheDocument();
+      });
+
+      // Simulate target WR removed/deleted from server queue while modal was open
+      currentApprovals = [currentApprovals[1]!]; // only wr-pending-surviving remains
+      queryClient.setQueryData(
+        ['operations', 'workRequests', 'creationApprovals', 'pending', 'all'],
+        currentApprovals
+      );
+
+      // Enter rejection reason
+      const textarea = screen.getByTestId('reject-reason-textarea');
+      fireEvent.change(textarea, { target: { value: 'Rejecting intended item' } });
+
+      // Submit rejection
+      fireEvent.click(screen.getByTestId('reject-reason-submit-btn'));
+
+      // Ensure NO call was made to reject the surviving WR (never retarget stale action!)
+      await waitFor(() => {
+        const calls = vi.mocked(global.fetch).mock.calls;
+        const badCall = calls.find(
+          ([url, init]) =>
+            String(url).includes('/operations/work-requests/wr-pending-surviving/creation-approval') &&
+            init?.method === 'POST'
+        );
+        expect(badCall).toBeUndefined();
+      });
+    });
+
+    it('renders only pending, rejected, approved tabs (no misleading All tab)', async () => {
+      useSessionStore.getState().setSession({
+        user: {
+          id: 'u-admin-1',
+          email: 'admin@ata-lta.ph',
+          name: 'Super Admin',
+          role: 'Admin',
+          departments: ['Management'],
+          entities: ['ATA'],
+        },
+        permissions: ['workflow:view', 'workflow:edit', 'workflow:phase_transition'],
+        activeEntity: 'ATA',
+      });
+
+      const { wrapper } = createHarness();
+      render(<PendingApprovalsInbox />, { wrapper });
+
+      fireEvent.click(screen.getByTestId('inbox-category-wr-creation'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('wr-creation-subtabs')).toBeInTheDocument();
+      });
+
+      expect(screen.getByTestId('wr-creation-tab-pending')).toBeInTheDocument();
+      expect(screen.getByTestId('wr-creation-tab-rejected')).toBeInTheDocument();
+      expect(screen.getByTestId('wr-creation-tab-approved')).toBeInTheDocument();
+      expect(screen.queryByTestId('wr-creation-tab-all')).not.toBeInTheDocument();
+    });
   });
 });

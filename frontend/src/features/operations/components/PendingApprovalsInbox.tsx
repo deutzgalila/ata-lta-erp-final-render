@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   CheckCircle2,
   XCircle,
@@ -62,12 +62,14 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
   const isManager = currentUser?.role === 'Manager';
 
   // WR Creation Approvals State
-  const [wrCreationTab, setWrCreationTab] = useState<'pending' | 'rejected' | 'approved' | 'all'>(
-    isAdmin ? 'pending' : 'all'
-  );
+  const [wrCreationTab, setWrCreationTab] = useState<'pending' | 'rejected' | 'approved'>('pending');
   const [wrSearch, setWrSearch] = useState('');
   const [selectedWrId, setSelectedWrId] = useState<string | null>(null);
-  const [isRejectWrModalOpen, setIsRejectWrModalOpen] = useState(false);
+  const [rejectingWrIntent, setRejectingWrIntent] = useState<{
+    id: string;
+    expectedVersion: number;
+    title: string;
+  } | null>(null);
   const [resubmitWr, setResubmitWr] = useState<WorkRequest | null>(null);
 
   const canApprove = hasPermission(permissions, 'workflow:phase_transition');
@@ -143,7 +145,7 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
     refetch: refetchCreationApprovals,
   } = useWorkRequestCreationApprovals(
     {
-      status: wrCreationTab === 'all' ? undefined : wrCreationTab,
+      status: wrCreationTab,
       scope: wrScope,
     },
     { enabled: isAdmin || isManager }
@@ -183,10 +185,18 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
     }
     return (
       filteredCreationApprovals.find((w) => w.id === selectedWrId) ||
-      filteredCreationApprovals[0] ||
       null
     );
   }, [filteredCreationApprovals, selectedWrId]);
+
+  // Clear dialogs and selections on account, entity, or category change to prevent stale retargeting
+  useEffect(() => {
+    setIsRejectModalOpen(false);
+    setRejectingWrIntent(null);
+    setResubmitWr(null);
+    setSelectedWrId(null);
+    setSelectedRequestId(null);
+  }, [activeEntity, currentUserId, category, activeSubTab, wrCreationTab]);
 
   const handleApproveWrCreation = async (wr: WorkRequest) => {
     await runBlockingAction({
@@ -213,14 +223,24 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
   };
 
   const handleRejectWrCreation = async (wrId: string, reason: string) => {
-    const wr = creationApprovals.find((w) => w.id === wrId) || selectedWr;
-    if (!wr) return;
+    // Exact match verification against captured review intent
+    if (!rejectingWrIntent || rejectingWrIntent.id !== wrId) {
+      setRejectingWrIntent(null);
+      return;
+    }
+    const wr = creationApprovals.find((w) => w.id === wrId);
+    if (!wr) {
+      // Intended WR removed or changed; abort without retargeting any other WR
+      setRejectingWrIntent(null);
+      return;
+    }
     await approveOrRejectCreation({
       id: wr.id,
       decision: 'reject',
       reason,
-      expectedVersion: wr.version,
+      expectedVersion: rejectingWrIntent.expectedVersion,
     });
+    setRejectingWrIntent(null);
     void refetchCreationApprovals();
   };
 
@@ -1049,7 +1069,7 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
           {/* Sub-tabs for WR Creation */}
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#E2E8F0] bg-[#F8FAFC]">
             <div className="flex items-center gap-1.5" data-testid="wr-creation-subtabs">
-              {(['pending', 'rejected', 'approved', 'all'] as const).map((tab) => (
+              {(['pending', 'rejected', 'approved'] as const).map((tab) => (
                 <Button
                   key={tab}
                   type="button"
@@ -1329,7 +1349,13 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
                             type="button"
                             variant="destructive"
                             size="sm"
-                            onClick={() => setIsRejectWrModalOpen(true)}
+                            onClick={() => {
+                              setRejectingWrIntent({
+                                id: selectedWr.id,
+                                expectedVersion: selectedWr.version,
+                                title: selectedWr.title,
+                              });
+                            }}
                             className="text-xs tracking-normal rounded-[6px] bg-[#DC2626] text-[#FFFFFF] hover:bg-[#B91C1C] shadow-2xs gap-1"
                             data-testid="reject-wr-creation-btn"
                           >
@@ -1386,20 +1412,20 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
       )}
 
       {/* Reject Reason Modal for WR Creation Approvals */}
-      {selectedWr && (
+      {rejectingWrIntent && (
         <RejectReasonModal
-          isOpen={isRejectWrModalOpen}
-          requestId={selectedWr.id}
-          workRequestTitle={selectedWr.title}
+          isOpen={Boolean(rejectingWrIntent)}
+          requestId={rejectingWrIntent.id}
+          workRequestTitle={rejectingWrIntent.title}
           title="Reject Work Request Creation"
           description="Please provide an explicit rejection reason for the submitter. This will be visible to the Manager to correct and resubmit."
           submitLabel="Reject Work Request"
           successTitle="Work Request Rejected"
           successMessage="The work request creation has been rejected with feedback."
           onReject={handleRejectWrCreation}
-          onClose={() => setIsRejectWrModalOpen(false)}
+          onClose={() => setRejectingWrIntent(null)}
           onSuccess={() => {
-            setIsRejectWrModalOpen(false);
+            setRejectingWrIntent(null);
             void refetchCreationApprovals();
           }}
           invalidateQueries={[
