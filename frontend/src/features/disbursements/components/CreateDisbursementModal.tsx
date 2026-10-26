@@ -205,66 +205,97 @@ export function CreateDisbursementModal({
     }
   };
 
-  useEffect(() => {
-    if (!isOpen) return;
+  const processClipboardData = (clipboardData: DataTransfer | null): boolean => {
+    if (isUploadingReceipt || isPending || !clipboardData) return false;
 
-    const handlePaste = (e: ClipboardEvent) => {
-      if (isUploadingReceipt || isPending) return;
+    let imageFile: File | null = null;
 
-      const clipboardData = e.clipboardData;
-      if (!clipboardData) return;
-
-      let imageFile: File | null = null;
-
-      // 1. Check clipboard files
-      const files = clipboardData.files;
-      if (files && files.length > 0) {
-        for (let i = 0; i < files.length; i++) {
-          const file = files[i];
-          if (file && file.type.startsWith('image/')) {
-            imageFile = file;
-            break;
-          }
+    // 1. Check clipboard files
+    const files = clipboardData.files;
+    if (files && files.length > 0) {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (
+          file &&
+          (file.type.startsWith('image/') ||
+            file.type === 'application/pdf' ||
+            /\.(png|jpe?g|webp|gif|bmp|pdf)$/i.test(file.name))
+        ) {
+          imageFile = file;
+          break;
         }
       }
+    }
 
-      // 2. Check clipboard items
-      if (!imageFile && clipboardData.items) {
-        for (let i = 0; i < clipboardData.items.length; i++) {
-          const item = clipboardData.items[i];
-          if (item && item.type.startsWith('image/')) {
+    // 2. Check clipboard items
+    if (!imageFile && clipboardData.items) {
+      for (let i = 0; i < clipboardData.items.length; i++) {
+        const item = clipboardData.items[i];
+        if (item) {
+          if (item.type.startsWith('image/') || item.type === 'application/pdf') {
             const blob = item.getAsFile();
             if (blob) {
+              imageFile = blob;
+              break;
+            }
+          } else if (item.kind === 'file') {
+            const blob = item.getAsFile();
+            if (
+              blob &&
+              (blob.type.startsWith('image/') ||
+                blob.type === 'application/pdf' ||
+                /\.(png|jpe?g|webp|gif|bmp|pdf)$/i.test(blob.name))
+            ) {
               imageFile = blob;
               break;
             }
           }
         }
       }
+    }
 
-      if (imageFile) {
+    if (imageFile) {
+      const ext =
+        imageFile.type === 'image/jpeg'
+          ? 'jpg'
+          : imageFile.type === 'application/pdf'
+            ? 'pdf'
+            : 'png';
+      const rawName = imageFile.name;
+      const finalName =
+        rawName && rawName !== 'image.png' && rawName !== 'blob'
+          ? rawName
+          : `clipboard-receipt-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now().toString().slice(-4)}.${ext}`;
+
+      const namedFile =
+        imageFile.name === finalName
+          ? imageFile
+          : new File([imageFile], finalName, {
+              type: imageFile.type || (ext === 'pdf' ? 'application/pdf' : 'image/png'),
+            });
+
+      handleSelectFile(namedFile);
+      return true;
+    }
+    return false;
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const handled = processClipboardData(e.clipboardData);
+      if (handled) {
         e.preventDefault();
         e.stopPropagation();
-
-        const ext = imageFile.type === 'image/jpeg' ? 'jpg' : 'png';
-        const rawName = imageFile.name;
-        const finalName =
-          rawName && rawName !== 'image.png' && rawName !== 'blob'
-            ? rawName
-            : `clipboard-receipt-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now().toString().slice(-4)}.${ext}`;
-
-        const namedFile =
-          imageFile.name === finalName
-            ? imageFile
-            : new File([imageFile], finalName, { type: imageFile.type || 'image/png' });
-
-        handleSelectFile(namedFile);
       }
     };
 
-    window.addEventListener('paste', handlePaste);
+    window.addEventListener('paste', handlePaste, { capture: true });
+    document.addEventListener('paste', handlePaste, { capture: true });
     return () => {
-      window.removeEventListener('paste', handlePaste);
+      window.removeEventListener('paste', handlePaste, { capture: true });
+      document.removeEventListener('paste', handlePaste, { capture: true });
     };
   }, [isOpen, isUploadingReceipt, isPending]);
 
@@ -293,10 +324,6 @@ export function CreateDisbursementModal({
     setIsUploadingReceipt(false);
     setIsNoReceiptConfirmOpen(false);
     setNeedsCreateReview(hasPendingCreate(pendingCreateKey));
-    setUploadedReceipt(null);
-    setReceiptFile(null);
-    setReceiptFilename('');
-    if (fileInputRef.current) fileInputRef.current.value = '';
   }, [contextKey, pendingCreateKey]);
 
   const { data: clientsData = [] } = useQuery<ClientSummary[]>({
@@ -363,9 +390,13 @@ export function CreateDisbursementModal({
     activeEntity,
   ]);
 
+  const prevIsOpenRef = React.useRef(isOpen);
   // Synchronize prefill contract and defaults on modal open, reset on close
   useEffect(() => {
-    if (isOpen) {
+    const wasOpen = prevIsOpenRef.current;
+    prevIsOpenRef.current = isOpen;
+
+    if (isOpen && !wasOpen) {
       setLinkedWorkRequestId(prefill?.workRequestId || defaultWorkRequestId || '');
       setClientId(prefill?.clientId || defaultClientId || '');
       setSelectedTaskId(prefill?.taskId || '');
@@ -375,7 +406,7 @@ export function CreateDisbursementModal({
       setUploadedReceipt(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       setErrors({});
-    } else {
+    } else if (!isOpen && wasOpen) {
       setCategory(DISBURSEMENT_CATEGORIES[0]);
       setCustomCategory('');
       setDescription('');
@@ -392,8 +423,30 @@ export function CreateDisbursementModal({
       setUploadedReceipt(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       setErrors({});
+    } else if (isOpen) {
+      // Modal is already open; only update prefilled fields if explicitly provided and changed,
+      // without wiping user-attached receipts or in-progress inputs.
+      if (prefill?.workRequestId && prefill.workRequestId !== linkedWorkRequestId) {
+        setLinkedWorkRequestId(prefill.workRequestId);
+      }
+      if (prefill?.clientId && prefill.clientId !== clientId) {
+        setClientId(prefill.clientId);
+      }
+      if (prefill?.taskId && prefill.taskId !== selectedTaskId) {
+        setSelectedTaskId(prefill.taskId);
+      }
     }
-  }, [isOpen, prefill, defaultWorkRequestId, defaultClientId]);
+  }, [
+    isOpen,
+    prefill?.workRequestId,
+    prefill?.clientId,
+    prefill?.taskId,
+    defaultWorkRequestId,
+    defaultClientId,
+    linkedWorkRequestId,
+    clientId,
+    selectedTaskId,
+  ]);
 
   // Auto-detect client and target entity from selected work request
   const selectedWr = workRequests.find((wr) => wr.id === linkedWorkRequestId);
@@ -893,6 +946,12 @@ export function CreateDisbursementModal({
       <DialogContent
         className="max-h-[90vh] space-y-4 overflow-y-auto border p-6 border-border shadow-float rounded-[12px] bg-surface max-w-lg"
         data-testid="create-disbursement-modal"
+        onPaste={(e) => {
+          if (processClipboardData(e.clipboardData)) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }}
       >
         <DialogHeader>
           <DialogTitle className="text-lg font-bold text-ink">{modalTitle}</DialogTitle>
@@ -1216,6 +1275,12 @@ export function CreateDisbursementModal({
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
+              onPaste={(e) => {
+                if (processClipboardData(e.clipboardData)) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+              }}
               onClick={() => {
                 if (isPending || isUploadingReceipt) return;
                 if (!receiptFile && !receiptFilename) {
