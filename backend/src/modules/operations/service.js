@@ -1939,7 +1939,26 @@ const updateWorkRequest = async ({ id, entityId, data, user }) => {
   // the version it read; zero matching rows means a concurrent edit landed
   // first and is reported as 409 instead of being silently overwritten.
   // Always bump work request version on update so CDC consumers receive monotonically increasing versions.
-  const expectedVersion = resolveExpectedVersion(data);
+  const declaredExpectedVersion = resolveExpectedVersion(data);
+  const suppliedRawVersion = data && data.expectedVersion !== undefined ? data.expectedVersion : null;
+
+  if (declaredExpectedVersion !== null && declaredExpectedVersion !== (existing.version || 1)) {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'Work request was modified concurrently. Please reload.',
+      code: 'CONCURRENT_MODIFICATION',
+    });
+  }
+  if (suppliedRawVersion !== null && declaredExpectedVersion === null) {
+    throw new AppError({
+      statusCode: 409,
+      title: 'Conflict',
+      detail: 'expectedVersion must be a positive integer',
+      code: 'CONCURRENT_MODIFICATION',
+    });
+  }
+
   updates.version = (existing.version || 1) + 1;
 
   let query = supabaseAdmin
@@ -1957,18 +1976,10 @@ const updateWorkRequest = async ({ id, entityId, data, user }) => {
     query = query.eq('status', 'Completed');
   }
 
-  if (expectedVersion !== null) {
-    const expVer = Number(expectedVersion);
-    if (expVer !== (existing.version || 1)) {
-      throw new AppError({
-        statusCode: 409,
-        title: 'Conflict',
-        detail: 'Work request was modified concurrently. Please reload.',
-        code: 'CONCURRENT_MODIFICATION',
-      });
-    }
-    query = query.eq('version', expVer);
-  }
+  // CAS: guard against concurrent updates even if legacy client omitted expectedVersion
+  const casVersion = declaredExpectedVersion ?? (existing.version || 1);
+  query = query.eq('version', casVersion);
+
   const { data: updatedRows, error } = await query.select();
   if (error) {
     throw new AppError({
@@ -3025,24 +3036,16 @@ const updateTask = async ({ workRequestId, taskId, entityId, data, user: _user, 
   if (isMaterialReset) {
     // Material reset path: integrate write via agreed service-only task_material_update RPC
     // Locking parent WR + task row and resetting approval in SAME transaction.
-    // Never rebase supplied stale material version: if supplied, it must match.
-    if (suppliedRawVersion !== null && declaredExpectedVersion === null) {
+    // Mandatory optimistic version where approval-changing; no fallback rebases that silently lose edits.
+    if (declaredExpectedVersion === null || declaredExpectedVersion <= 0) {
       throw new AppError({
         statusCode: 409,
         title: 'Conflict',
-        detail: 'expectedVersion must be a positive integer for material revisions',
+        detail: 'expectedVersion is mandatory and must be a positive integer for material revisions',
         code: 'TASK_REVIEW_CONFLICT',
       });
     }
-    if (declaredExpectedVersion !== null && declaredExpectedVersion !== (existing.version || 1)) {
-      throw new AppError({
-        statusCode: 409,
-        title: 'Conflict',
-        detail: 'Task was modified concurrently. Please reload.',
-        code: 'TASK_REVIEW_CONFLICT',
-      });
-    }
-    const materialExpectedVersion = declaredExpectedVersion ?? (existing.version || 1);
+    const materialExpectedVersion = declaredExpectedVersion;
 
     const materialPatch = {};
     if (data.title !== undefined) materialPatch.title = data.title;
