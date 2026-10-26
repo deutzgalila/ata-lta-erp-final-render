@@ -1054,7 +1054,7 @@ const rpcImpl = {
         task_id: taskId,
         work_request_id: wrId,
         entity_id: entityId,
-        event_type: 'material_reset',
+        event_type: 'material_update',
         decision: null,
         actor_id: actorId,
         reason: null,
