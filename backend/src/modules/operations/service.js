@@ -4678,6 +4678,23 @@ const rerouteWorkRequest = async ({ id, entityId, toPhase, reason, user }) => {
 
   const failedTasks = (tasks || []).filter((t) => t.qa_status === 'failed');
   const failedTaskIds = failedTasks.map((t) => t.id);
+
+  if (toPhase === 'processing') {
+    const hasOnlyProcessingFailures =
+      failedTasks.length > 0 &&
+      failedTasks.every((t) => t.phase === 'processing');
+
+    if (!hasOnlyProcessingFailures) {
+      throw new AppError({
+        statusCode: 409,
+        title: 'Conflict',
+        detail:
+          'Rerouting to Processing requires at least one failed task, and every failed task must belong to Processing. Otherwise, reroute to Pre-processing.',
+        code: 'FAILED_TASKS_REQUIRE_PRE_PROCESSING',
+      });
+    }
+  }
+
   const now = new Date().toISOString();
 
   // Reopen ONLY failed tasks: status := 'In Progress', qa_status := 'none'
