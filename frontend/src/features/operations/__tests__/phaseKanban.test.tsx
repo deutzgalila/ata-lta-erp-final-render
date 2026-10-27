@@ -499,6 +499,42 @@ describe('Phase Kanban Board & Routing Features (Milestone 3)', () => {
     });
   });
 
+  it.each(['passed', 'failed'] as const)('disables the current QA action for a %s task and reacts to updated task data', async (qaStatus) => {
+    const { queryClient, wrapper } = createTestHarness();
+    const qaWr = { ...mockWorkRequests[0]!, phase: 'quality_assurance' };
+    const task = { ...mockPreTasks[0]!, status: 'Completed', qaStatus };
+    const reviewBodies: unknown[] = [];
+    vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/qa-review')) {
+        reviewBodies.push(JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify({ data: qaWr }), { status: 200 });
+      }
+      const data = url.includes('/wr-101/tasks') ? [task]
+        : url.includes('/work-requests?') ? [qaWr]
+          : url.includes('/work-requests/wr-101') ? qaWr : [];
+      return new Response(JSON.stringify({ data }), { status: 200 });
+    });
+    render(<PhaseKanbanBoard initialWorkRequestId="wr-101" />, { wrapper });
+    const current = await screen.findByTestId(`qa-${qaStatus === 'passed' ? 'pass' : 'fail'}-btn-${task.id}`);
+    const opposite = screen.getByTestId(`qa-${qaStatus === 'passed' ? 'fail' : 'pass'}-btn-${task.id}`);
+    expect(current).toBeDisabled();
+    expect(opposite).toBeEnabled();
+    fireEvent.click(current);
+    expect(reviewBodies).toEqual([]);
+
+    const nextStatus = qaStatus === 'passed' ? 'failed' : 'passed';
+    fireEvent.click(opposite);
+    await waitFor(() => expect(reviewBodies).toEqual([{
+      results: [{ task_id: task.id, qa_status: nextStatus, taskId: task.id, qaStatus: nextStatus }],
+    }]));
+    act(() => {
+      queryClient.setQueryData(operationsKeys.tasks('wr-101'), [{ ...task, qaStatus: nextStatus }]);
+    });
+    await waitFor(() => expect(opposite).toBeDisabled());
+    expect(current).toBeEnabled();
+  });
+
   it('RerouteModal requires a non-empty reason and submits reroute payload', async () => {
     let rerouteBody: unknown = null;
     vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {

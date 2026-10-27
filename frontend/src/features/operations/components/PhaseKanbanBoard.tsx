@@ -1081,11 +1081,12 @@ function PhaseKanbanBoardInner({
                                   type="button"
                                   size="xs"
                                   variant={task.qaStatus === 'failed' ? 'destructive' : 'outline'}
+                                  disabled={task.qaStatus === 'failed'}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleQaReview(task.id, 'failed');
                                   }}
-                                  className="flex-1 text-xs tracking-normal font-bold h-6 gap-1 rounded-[6px] bg-[#DC2626] text-[#FFFFFF] hover:bg-[#B91C1C] shadow-2xs"
+                                  className="flex-1 text-xs tracking-normal font-bold h-6 gap-1 rounded-[6px] bg-[#DC2626] text-[#FFFFFF] hover:bg-[#B91C1C] disabled:bg-[#E2E8F0] disabled:text-[#64748B] disabled:border-[#CBD5E1] disabled:opacity-100 shadow-2xs"
                                   data-testid={`qa-fail-btn-${task.id}`}
                                 >
                                   <XCircle className="h-3 w-3" />
