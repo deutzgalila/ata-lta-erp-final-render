@@ -360,7 +360,8 @@ function PhaseKanbanBoardInner({
       const rec = (t as unknown as Record<string, unknown>) || {};
       return t.status !== 'Completed' || (t.qaStatus !== 'passed' && rec.qa_status !== 'passed');
     });
-    const qaFailed = activeTasks.filter((t) => {
+    // Rerouting reopens every non-deleted QA failure, including cancelled tasks.
+    const qaFailed = nonDeletedTasks.filter((t) => {
       const rec = (t as unknown as Record<string, unknown>) || {};
       return t.qaStatus === 'failed' || rec.qa_status === 'failed';
     });
@@ -1243,7 +1244,7 @@ function PhaseKanbanBoardInner({
           isOpen={isRerouteOpen}
           onClose={() => setIsRerouteOpen(false)}
           workRequestId={effectiveWrId}
-          failedTasks={gateInfo.qa.failed.map((t) => ({ id: t.id, title: t.title }))}
+          failedTasks={gateInfo.qa.failed.map((t) => ({ id: t.id, title: t.title, phase: t.phase }))}
         />
       )}
 
