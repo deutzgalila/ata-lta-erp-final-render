@@ -54,6 +54,8 @@ export interface DisbursementClient {
   name: string;
   address?: string | null;
   tin?: string | null;
+  client_number?: string | null;
+  clientNumber?: string | null;
 }
 
 export interface DisbursementAuditLog {
@@ -149,6 +151,10 @@ export interface Disbursement {
   updatedBy?: string | null;
   deleted_at?: string | null;
   deletedAt?: string | null;
+  client_number?: string | null;
+  clientNumber?: string | null;
+  work_request_number?: string | null;
+  workRequestNumber?: string | null;
   clients?: DisbursementClient | null;
   client_name?: string | null;
   clientName?: string | null;
@@ -273,6 +279,12 @@ export interface DisbursementFilters {
  * Anti-forgery guard: status MUST NOT be included.
  */
 export interface CreateDisbursementInput {
+  disbursementNumber?: string | null;
+  disbursement_number?: string | null;
+  clientNumber?: string | null;
+  client_number?: string | null;
+  workRequestNumber?: string | null;
+  work_request_number?: string | null;
   category: DisbursementCategory | string;
   description: string;
   amount: number;
@@ -295,6 +307,12 @@ export interface CreateDisbursementInput {
  * Payload for PUT /v1/disbursements/:id
  */
 export interface UpdateDisbursementInput {
+  disbursementNumber?: string | null;
+  disbursement_number?: string | null;
+  clientNumber?: string | null;
+  client_number?: string | null;
+  workRequestNumber?: string | null;
+  work_request_number?: string | null;
   printDetails?: DisbursementPrintDetails;
   category?: DisbursementCategory | string;
   description?: string;

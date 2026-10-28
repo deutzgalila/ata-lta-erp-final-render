@@ -404,6 +404,16 @@ export function getAuditItemIdentifier(
   const actionLower = (entry.action || '').toLowerCase();
   const tableLower = (entry.tableName || entry.table_name || '').toLowerCase();
 
+  // Helper to format "CODE · TITLE" without duplicate prefix
+  const formatCodeAndText = (code: string | number, text?: unknown): string => {
+    const codeStr = String(code).trim();
+    if (!text) return codeStr;
+    const textStr = String(text).trim();
+    if (!textStr || textStr === codeStr) return codeStr;
+    if (textStr.startsWith(codeStr)) return textStr;
+    return `${codeStr} · ${textStr}`;
+  };
+
   // 1. Task special handling
   if (tableLower.includes('task') || actionLower.includes('task')) {
     const taskName =
@@ -412,10 +422,12 @@ export function getAuditItemIdentifier(
       (d.taskTitle as string) ||
       (d.task_title as string);
     const wrTitle =
-      (d.workRequestTitle as string) ||
-      (d.work_request_title as string) ||
+      (d.workRequestNumber as string) ||
+      (d.work_request_number as string) ||
       (d.workRequestNo as string) ||
-      (d.work_request_no as string);
+      (d.work_request_no as string) ||
+      (d.workRequestTitle as string) ||
+      (d.work_request_title as string);
     if (taskName && wrTitle) {
       return `${taskName} (WR: ${wrTitle})`;
     }
@@ -424,7 +436,69 @@ export function getAuditItemIdentifier(
     }
   }
 
-  // 2. Explicit business numbers and titles in details
+  // 2. Cross-module enriched formatting for work requests, clients, users
+  const wrCode =
+    (d.workRequestNumber as string) ||
+    (d.work_request_number as string) ||
+    (d.workRequestNo as string) ||
+    (d.work_request_no as string);
+  const wrTitle =
+    (d.title as string) ||
+    (d.name as string) ||
+    (d.workRequestTitle as string) ||
+    (d.work_request_title as string);
+
+  if (wrCode && (tableLower.includes('work_request') || actionLower.includes('work_request'))) {
+    return formatCodeAndText(wrCode, wrTitle);
+  }
+
+  const clientCode =
+    (d.clientNumber as string) ||
+    (d.client_number as string);
+  const clientTitle =
+    (d.clientName as string) ||
+    (d.client_name as string) ||
+    (d.name as string) ||
+    (d.tradeName as string) ||
+    (d.trade_name as string);
+
+  if (clientCode && (tableLower.includes('client') || actionLower.includes('client'))) {
+    return formatCodeAndText(clientCode, clientTitle);
+  }
+
+  const recId =
+    (d.recordId as string) ||
+    (d.record_id as string) ||
+    (d.id as string) ||
+    (d.parentRecordId as string) ||
+    entry.recordId ||
+    entry.record_id;
+
+  if (tableLower.includes('user') || actionLower.includes('user')) {
+    const targetUser = recId && usersMap ? usersMap.get(String(recId)) : undefined;
+    const userCode =
+      (d.userNumber as string) ||
+      (d.user_number as string) ||
+      targetUser?.userNumber ||
+      targetUser?.user_number;
+    const userName =
+      (d.name as string) ||
+      targetUser?.name ||
+      (d.email as string) ||
+      targetUser?.email;
+
+    if (userCode && userName) {
+      return formatCodeAndText(userCode, userName);
+    }
+    if (userCode) {
+      return String(userCode);
+    }
+    if (userName) {
+      return String(userName);
+    }
+  }
+
+  // 3. Explicit business numbers and titles in details
   const businessId =
     d.disbursementNumber ||
     d.disbursement_number ||
@@ -434,8 +508,14 @@ export function getAuditItemIdentifier(
     d.invoice_number ||
     d.voucherNumber ||
     d.voucher_number ||
+    d.workRequestNumber ||
+    d.work_request_number ||
     d.workRequestNo ||
     d.work_request_no ||
+    d.clientNumber ||
+    d.client_number ||
+    d.userNumber ||
+    d.user_number ||
     d.workRequestTitle ||
     d.work_request_title ||
     d.title ||
@@ -448,18 +528,10 @@ export function getAuditItemIdentifier(
     return String(businessId);
   }
 
-  // 3. Resolve target record ID from details or root log object
-  const recId =
-    (d.recordId as string) ||
-    (d.record_id as string) ||
-    (d.id as string) ||
-    (d.parentRecordId as string) ||
-    entry.recordId ||
-    entry.record_id;
-
+  // 4. Resolve target record ID from details or root log object
   if (!recId) return '—';
 
-  // 4. Lookup in usersMap if user table/action
+  // Lookup in usersMap if user table/action
   if (
     usersMap &&
     (tableLower.includes('user') || actionLower.includes('user'))
@@ -737,6 +809,11 @@ function formatPhpCurrency(amount: number): string {
 }
 
 /**
+ * Alias for getAuditItemRouteLink for backward compatibility with target route resolvers.
+ */
+export const getAuditTargetRoute = getAuditItemRouteLink;
+
+/**
  * Resolves contextual business metadata from an audit log entry for the Detail Modal.
  */
 export function resolveAuditBusinessContext(
@@ -761,10 +838,18 @@ export function resolveAuditBusinessContext(
   if (tableLower.includes('user') || actionLower.includes('user')) {
     const recId = (d.id as string) || entry.recordId || entry.record_id;
     const targetUser = recId ? usersMap?.get(String(recId)) : undefined;
+    const userNo =
+      (d.userNumber as string) ||
+      (d.user_number as string) ||
+      targetUser?.userNumber ||
+      targetUser?.user_number;
     const userName = (d.name as string) || targetUser?.name;
     const userEmail = (d.email as string) || targetUser?.email;
     const userRole = (d.role as string) || targetUser?.role;
 
+    if (userNo) {
+      items.push({ label: 'User ID', value: String(userNo), isCode: true });
+    }
     if (userName) {
       items.push({
         label: 'Target User',
@@ -871,7 +956,11 @@ export function resolveAuditBusinessContext(
         }
       : undefined;
 
-    const wrNo = d.workRequestNo || d.work_request_no;
+    const wrNo =
+      d.workRequestNumber ||
+      d.work_request_number ||
+      d.workRequestNo ||
+      d.work_request_no;
     const wrTitle = d.workRequestTitle || d.work_request_title;
     const taskTitle =
       tableLower.includes('task') || actionLower.includes('task')
@@ -882,6 +971,7 @@ export function resolveAuditBusinessContext(
     const invNo = d.invoiceNumber || d.invoice_number;
     const disbNo = d.disbursementNumber || d.disbursement_number || d.voucherNumber || d.voucher_number;
     const trkNo = d.trackingNumber || d.tracking_number;
+    const clientNo = d.clientNumber || d.client_number;
     const clientName = d.clientName || d.client_name;
     const statusVal = d.status || d.newStatus || d.new_status;
     const priorityVal = d.priority;
@@ -890,6 +980,8 @@ export function resolveAuditBusinessContext(
 
     if (wrNo) items.push({ label: 'Work Request No.', value: String(wrNo), isCode: true, routeLink: wrLink });
     if (wrTitle) items.push({ label: 'Work Request', value: String(wrTitle), routeLink: wrLink });
+    if (clientNo) items.push({ label: 'Client No.', value: String(clientNo), isCode: true, routeLink: clientLink });
+    if (clientName) items.push({ label: 'Client', value: String(clientName), routeLink: clientLink });
     if (taskTitle) items.push({ label: 'Task Title', value: String(taskTitle), routeLink: taskLink });
     if (generalTitle && generalTitle !== wrTitle) {
       items.push({ label: 'Record Name', value: generalTitle, routeLink: primaryRouteLink ?? undefined });
@@ -897,7 +989,6 @@ export function resolveAuditBusinessContext(
     if (invNo) items.push({ label: 'Invoice No.', value: String(invNo), isCode: true, routeLink: invLink });
     if (disbNo) items.push({ label: 'Disbursement No.', value: String(disbNo), isCode: true, routeLink: disbLink });
     if (trkNo) items.push({ label: 'Tracking No.', value: String(trkNo), isCode: true, routeLink: trkLink });
-    if (clientName) items.push({ label: 'Client', value: String(clientName), routeLink: clientLink });
     if (assignedVal && typeof assignedVal === 'string') {
       items.push({ label: 'Assigned To', value: resolveUserDisplay(assignedVal) });
     }

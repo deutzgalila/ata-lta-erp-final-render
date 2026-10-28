@@ -75,6 +75,7 @@ export function UserDetailModal({
       ? user.isActive
       : user.status !== 'Disabled';
   const version = user.version ?? 1;
+  const userCode = user.userNumber || user.user_number;
 
   return (
     <Dialog open={modalOpen} onOpenChange={(next) => !next && handleClose()}>
@@ -107,6 +108,15 @@ export function UserDetailModal({
               </div>
             </div>
             <div className="flex items-center gap-1.5">
+              {userCode && (
+                <Badge
+                  variant="outline"
+                  data-testid="user-detail-code"
+                  className="rounded-[6px] border-[#BFDBFE] bg-[#EFF6FF] px-2 py-0.5 font-mono text-xs font-semibold tabular-nums text-[#1D4ED8]"
+                >
+                  {userCode}
+                </Badge>
+              )}
               <Badge
                 variant="outline"
                 data-testid="user-detail-version"

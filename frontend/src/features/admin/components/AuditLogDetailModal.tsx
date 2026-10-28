@@ -95,6 +95,30 @@ export function AuditLogDetailModal({
   const businessContext = resolveAuditBusinessContext(entry, usersMap);
   const diffRows = parseAuditDiffRows(entry.details, usersMap);
 
+  const auditCode =
+    entry.auditNumber ||
+    entry.audit_number ||
+    `AUR-${entry.id.slice(0, 8).toUpperCase()}`;
+
+  const attachedItemNumber = (
+    entry.details?.workRequestNumber ||
+    entry.details?.work_request_number ||
+    entry.details?.workRequestNo ||
+    entry.details?.work_request_no ||
+    entry.details?.clientNumber ||
+    entry.details?.client_number ||
+    entry.details?.userNumber ||
+    entry.details?.user_number ||
+    entry.details?.invoiceNumber ||
+    entry.details?.invoice_number ||
+    entry.details?.disbursementNumber ||
+    entry.details?.disbursement_number ||
+    entry.details?.voucherNumber ||
+    entry.details?.voucher_number ||
+    entry.details?.trackingNumber ||
+    entry.details?.tracking_number
+  ) as string | undefined;
+
   const navigateToLink = (link: AuditItemRouteLink | null | undefined) => {
     if (!link) return;
     const targetEntity = (entry.entity || '').toUpperCase();
@@ -129,9 +153,10 @@ export function AuditLogDetailModal({
             </div>
             <Badge
               variant="outline"
+              data-testid="audit-detail-aur-badge"
               className="rounded-[6px] border-[#BFDBFE] bg-[#EFF6FF] px-2.5 py-0.5 font-mono text-xs font-semibold text-[#1D4ED8] tabular-nums"
             >
-              AUR-001 · {moduleLabel}
+              {auditCode} · {moduleLabel}
             </Badge>
           </div>
           <DialogDescription className="text-xs text-[#475569] pt-1">
@@ -221,7 +246,16 @@ export function AuditLogDetailModal({
                   <div className="text-xs font-medium text-[#475569]">
                     Target Record
                   </div>
-                  <div className="mt-1 min-w-0">
+                  <div className="mt-1 min-w-0 flex items-center gap-1.5 flex-wrap">
+                    {attachedItemNumber && !targetIdentifier.includes(attachedItemNumber) && (
+                      <Badge
+                        variant="outline"
+                        className="rounded-[6px] border-[#BFDBFE] bg-[#EFF6FF] px-1.5 py-0.5 font-mono text-[11px] font-semibold text-[#1D4ED8] tabular-nums"
+                        data-testid="audit-detail-attached-badge"
+                      >
+                        {attachedItemNumber}
+                      </Badge>
+                    )}
                     {routeLink && targetIdentifier !== '—' ? (
                       <button
                         type="button"
@@ -412,7 +446,16 @@ export function AuditLogDetailModal({
         </div>
 
         <DialogFooter className="border-t border-[#E2E8F0] pt-4 flex items-center justify-between gap-2 sm:justify-between">
-          <div>
+          <div className="flex items-center gap-2">
+            {attachedItemNumber && (
+              <Badge
+                variant="outline"
+                className="rounded-[6px] border-[#E2E8F0] bg-[#F8FAFC] px-2 py-1 font-mono text-xs font-semibold text-[#1E293B] tabular-nums"
+                data-testid="audit-detail-attached-number"
+              >
+                {attachedItemNumber}
+              </Badge>
+            )}
             {routeLink && (
               <Button
                 type="button"

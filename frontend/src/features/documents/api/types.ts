@@ -124,6 +124,12 @@ export interface DmsDocument {
   originalName?: string;
   uploaderName?: string | null;
   workRequestId?: string | null;
+  work_request_number?: string | null;
+  workRequestNumber?: string | null;
+  client_number?: string | null;
+  clientNumber?: string | null;
+  client_name?: string | null;
+  clientName?: string | null;
   linkedTaskId?: string | null;
   clientId?: string | null;
   documentType?: string | null;
@@ -185,6 +191,10 @@ export interface CreateDocumentInput {
   workRequestId?: string | null;
   linkedTaskId?: string | null;
   clientId?: string | null;
+  clientNumber?: string | null;
+  client_number?: string | null;
+  workRequestNumber?: string | null;
+  work_request_number?: string | null;
   documentType?: string;
   category?: DocumentCategory;
   description?: string;

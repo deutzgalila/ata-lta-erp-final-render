@@ -383,7 +383,7 @@ export function DisbursementDetailBody({
               <div className="flex items-center justify-between gap-2">
                 <div className="space-y-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-base font-bold text-ink truncate">
+                    <h2 className="text-base font-bold text-ink truncate font-mono">
                       {disbNumber || 'Disbursement Details'}
                     </h2>
                     {item && (
@@ -685,8 +685,13 @@ export function DisbursementDetailBody({
                     <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
                       <div>
                         <dt className="text-muted text-[10px] uppercase font-medium">Client Association</dt>
-                        <dd className="font-semibold text-ink text-xs flex items-center gap-1">
+                        <dd className="font-semibold text-ink text-xs flex items-center gap-1.5 flex-wrap">
                           <Building className="h-3.5 w-3.5 text-muted shrink-0" />
+                          {Boolean(item.clientNumber || item.client_number || item.clients?.clientNumber || item.clients?.client_number) && (
+                            <span className="font-mono text-xs font-medium text-text-secondary tabular-nums bg-canvas border border-border px-1 py-0.2 rounded">
+                              {item.clientNumber || item.client_number || item.clients?.clientNumber || item.clients?.client_number}
+                            </span>
+                          )}
                           <span className="truncate">{clientName}</span>
                         </dd>
                       </div>
@@ -725,10 +730,15 @@ export function DisbursementDetailBody({
                       <div className="col-span-2">
                         <dt className="text-muted text-[10px] uppercase font-medium">Linked Work Request</dt>
                         <dd
-                          className="text-ink flex items-center gap-1 font-medium text-xs"
+                          className="text-ink flex items-center gap-1.5 font-medium text-xs flex-wrap"
                           data-testid="drawer-work-request"
                         >
                           <FileText className="h-3.5 w-3.5 text-muted shrink-0" />
+                          {Boolean(item.workRequestNumber || item.work_request_number) && (
+                            <span className="font-mono text-xs font-medium text-text-secondary tabular-nums bg-canvas border border-border px-1 py-0.2 rounded">
+                              {item.workRequestNumber || item.work_request_number}
+                            </span>
+                          )}
                           <span className="truncate">
                             {effectiveWrOrder && effectiveWrName
                               ? `${effectiveWrOrder} — ${effectiveWrName}`

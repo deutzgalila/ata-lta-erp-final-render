@@ -47,7 +47,11 @@ export const transmittalItemSchema = z.object({
 export const createTransmittalSchema = z
   .object({
     clientId: z.string().guid('Client ID must be a valid UUID'),
+    clientNumber: z.string().max(50).optional().nullable(),
+    client_number: z.string().max(50).optional().nullable(),
     workRequestId: z.string().guid('Work request ID must be a valid UUID'),
+    workRequestNumber: z.string().max(50).optional().nullable(),
+    work_request_number: z.string().max(50).optional().nullable(),
     trackingNumber: z
       .string()
       .min(1, 'Tracking number is required')
@@ -88,7 +92,11 @@ export const createTransmittalSchema = z
 export const updateTransmittalSchema = z
   .object({
     clientId: z.string().guid('Client ID must be a valid UUID').optional(),
+    clientNumber: z.string().max(50).optional().nullable(),
+    client_number: z.string().max(50).optional().nullable(),
     workRequestId: z.string().guid('Work request ID must be a valid UUID').optional(),
+    workRequestNumber: z.string().max(50).optional().nullable(),
+    work_request_number: z.string().max(50).optional().nullable(),
     trackingNumber: z
       .string()
       .min(1, 'Tracking number is required')

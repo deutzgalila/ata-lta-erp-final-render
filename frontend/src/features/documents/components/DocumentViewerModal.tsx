@@ -780,13 +780,35 @@ export function DocumentViewerModal({
                 </div>
                 <div className="flex items-start justify-between gap-2">
                   <span className="text-[#475569] shrink-0">Work Request:</span>
-                  <span
-                    className="font-medium text-[#1E293B] text-right truncate"
-                    data-testid="doc-work-request"
-                  >
-                    {doc?.work_request_title || workRequest?.title || 'None / Not Linked'}
-                  </span>
+                  <div className="flex flex-col items-end min-w-0">
+                    <span
+                      className="font-medium text-[#1E293B] text-right truncate"
+                      data-testid="doc-work-request"
+                    >
+                      {doc?.work_request_title || workRequest?.title || 'None / Not Linked'}
+                    </span>
+                    {(doc?.work_request_number || doc?.workRequestNumber) && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium text-text-secondary bg-canvas border border-border mt-0.5">
+                        {doc.work_request_number || doc.workRequestNumber}
+                      </span>
+                    )}
+                  </div>
                 </div>
+                {(doc?.client_name || doc?.clientName || doc?.client_number || doc?.clientNumber) && (
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-[#475569] shrink-0">Client:</span>
+                    <div className="flex flex-col items-end min-w-0">
+                      <span className="font-medium text-[#1E293B] text-right truncate" data-testid="doc-client">
+                        {doc.client_name || doc.clientName || 'Client'}
+                      </span>
+                      {(doc.client_number || doc.clientNumber) && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium text-text-secondary bg-canvas border border-border mt-0.5">
+                          {doc.client_number || doc.clientNumber}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-start justify-between gap-2">
                   <span className="text-[#475569] shrink-0">Linked Task:</span>
                   <span

@@ -113,7 +113,9 @@ export function UserListTable({
         const query = search.toLowerCase();
         const matchesName = u.name.toLowerCase().includes(query);
         const matchesEmail = u.email.toLowerCase().includes(query);
-        if (!matchesName && !matchesEmail) return false;
+        const userNo = (u.userNumber || u.user_number || '').toLowerCase();
+        const matchesId = userNo.includes(query);
+        if (!matchesName && !matchesEmail && !matchesId) return false;
       }
 
       if (departmentFilter !== 'ALL') {
@@ -274,7 +276,7 @@ export function UserListTable({
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#475569]" />
             <Input
               type="text"
-              placeholder="Search by name or email..."
+              placeholder="Search by ID, name, or email..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 h-9 text-xs bg-[#FFFFFF] rounded-[6px] border-[#E2E8F0] text-[#1E293B] focus-visible:border-[#1D4ED8]"
@@ -422,9 +424,9 @@ export function UserListTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.map((user, idx) => {
+              {filteredUsers.map((user) => {
                 const isSelf = user.id === currentUser?.id;
-                const rowKey = `USR-${String(idx + 1).padStart(2, '0')}`;
+                const userCode = user.userNumber || user.user_number || '—';
 
                 return (
                   <TableRow
@@ -434,8 +436,11 @@ export function UserListTable({
                     className="border-b border-[#E2E8F0] hover:bg-[#F8FAFC] cursor-pointer transition-colors"
                   >
                     {/* Index / Key Tag */}
-                    <TableCell className="py-3 text-xs text-[#475569] font-mono tabular-nums font-medium">
-                      {rowKey}
+                    <TableCell
+                      className="py-3 text-xs text-[#475569] font-mono tabular-nums font-medium"
+                      data-testid={`user-id-${user.id}`}
+                    >
+                      {userCode}
                     </TableCell>
 
                     {/* Name + Self Indicator */}

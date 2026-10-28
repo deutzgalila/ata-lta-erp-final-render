@@ -46,6 +46,8 @@ export const updateClientSchema = createClientSchema.partial().extend({
 
 export const clientSchema = z.object({
   id: z.string(),
+  clientNumber: z.string().nullable().optional(),
+  client_number: z.string().nullable().optional(),
   entity: z.string(),
   name: z.string(),
   tin: z.string(),
