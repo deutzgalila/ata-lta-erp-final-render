@@ -11,12 +11,12 @@ export const lineItemSchema = z.object({
 
 export const createInvoiceSchema = z
   .object({
-    clientId: z.string().uuid('Please select a valid client'),
-    workRequestId: z.string().uuid('Please select an associated work request'),
-    linkedTaskId: z.string().uuid('Please select a valid linked task').optional().nullable(),
-    taskId: z.string().uuid('Please select a valid linked task').optional().nullable(),
-    task_id: z.string().uuid('Please select a valid linked task').optional().nullable(),
-    linkedTransmittalId: z.string().uuid().optional().nullable(),
+    clientId: z.string().guid('Please select a valid client'),
+    workRequestId: z.string().guid('Please select an associated work request'),
+    linkedTaskId: z.string().guid('Please select a valid linked task').optional().nullable(),
+    taskId: z.string().guid('Please select a valid linked task').optional().nullable(),
+    task_id: z.string().guid('Please select a valid linked task').optional().nullable(),
+    linkedTransmittalId: z.string().guid().optional().nullable(),
     invoiceNumber: z.string().min(1, 'Invoice number is required').max(50, 'Max 50 characters'),
     issueDate: z.string().min(1, 'Issue date is required'),
     dueDate: z.string().min(1, 'Due date is required'),
@@ -34,10 +34,10 @@ export const createInvoiceSchema = z
   );
 
 export const updateInvoiceSchema = z.object({
-  clientId: z.string().uuid().optional(),
-  workRequestId: z.string().uuid().optional().nullable(),
-  linkedTaskId: z.string().uuid().optional().nullable(),
-  linkedTransmittalId: z.string().uuid().optional().nullable(),
+  clientId: z.string().guid().optional(),
+  workRequestId: z.string().guid().optional().nullable(),
+  linkedTaskId: z.string().guid().optional().nullable(),
+  linkedTransmittalId: z.string().guid().optional().nullable(),
   invoiceNumber: z.string().min(1).max(50).optional(),
   issueDate: z.string().optional(),
   dueDate: z.string().optional(),

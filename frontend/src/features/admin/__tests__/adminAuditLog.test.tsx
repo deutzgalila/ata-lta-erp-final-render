@@ -158,6 +158,9 @@ describe('Admin Audit Log View, Detail Modal & Formatters', () => {
           action: 'task.updated',
           tableName: 'tasks',
           recordId: 'tsk-42',
+          entity: 'ATA',
+          userId: 'usr-admin',
+          createdAt: '2026-03-29T10:00:00Z',
           details: { workRequestId: 'wr-99', name: 'Draft Contract' },
         })
       ).toEqual({
@@ -172,6 +175,9 @@ describe('Admin Audit Log View, Detail Modal & Formatters', () => {
           action: 'work_request.archived',
           tableName: 'work_requests',
           recordId: 'wr-99',
+          entity: 'ATA',
+          userId: 'usr-admin',
+          createdAt: '2026-03-29T10:00:00Z',
           details: { title: 'Annual Filing' },
         })
       ).toEqual({
@@ -186,6 +192,9 @@ describe('Admin Audit Log View, Detail Modal & Formatters', () => {
           action: 'disbursement.released',
           tableName: 'disbursements',
           recordId: 'disb-11',
+          entity: 'ATA',
+          userId: 'usr-admin',
+          createdAt: '2026-03-29T10:00:00Z',
           details: { disbursementNumber: 'DSB-0011' },
         })
       ).toEqual({
@@ -200,6 +209,9 @@ describe('Admin Audit Log View, Detail Modal & Formatters', () => {
           action: 'transmittal.sent',
           tableName: 'transmittals',
           recordId: 'trk-22',
+          entity: 'ATA',
+          userId: 'usr-admin',
+          createdAt: '2026-03-29T10:00:00Z',
           details: { trackingNumber: 'TRK-0022' },
         })
       ).toEqual({
@@ -214,6 +226,9 @@ describe('Admin Audit Log View, Detail Modal & Formatters', () => {
           action: 'document.confirm-upload',
           tableName: 'documents',
           recordId: 'doc-33',
+          entity: 'ATA',
+          userId: 'usr-admin',
+          createdAt: '2026-03-29T10:00:00Z',
           details: { name: 'Permit.pdf' },
         })
       ).toEqual({
@@ -228,6 +243,9 @@ describe('Admin Audit Log View, Detail Modal & Formatters', () => {
           action: 'client.updated',
           tableName: 'clients',
           recordId: 'cli-44',
+          entity: 'ATA',
+          userId: 'usr-admin',
+          createdAt: '2026-03-29T10:00:00Z',
           details: { name: 'Acme Corp' },
         })
       ).toEqual({

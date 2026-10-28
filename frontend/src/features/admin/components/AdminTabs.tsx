@@ -40,16 +40,15 @@ export function AdminTabs({ defaultTab }: AdminTabsProps = {}) {
   // Realtime CDC Subscriptions for Admin Domain
   useEntityRealtimeSync({
     table: 'users',
-    queryKey: ['admin', 'users'],
+    listRootKey: ['admin', 'users'],
   });
   useEntityRealtimeSync({
     table: 'user_departments',
-    queryKey: ['admin', 'users'],
+    listRootKey: ['admin', 'users'],
   });
   useEntityRealtimeSync({
     table: 'audit_logs',
-    queryKey: ['admin', 'audit'],
-    countQueryKey: ['admin', 'audit', 'count'],
+    listRootKey: ['admin', 'audit'],
   });
 
   // Tab Counts

@@ -649,8 +649,8 @@ export function UserListTable({
       <ConflictResolutionModal
         open={conflictOpen}
         onOpenChange={setConflictOpen}
-        entityLabel="user account"
-        onReload={() => {
+        entityType="User Account"
+        onRefreshLatest={() => {
           setConflictOpen(false);
           void refetch();
         }}

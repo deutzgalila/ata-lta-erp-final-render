@@ -101,6 +101,7 @@ export interface AuditLogFilterParams {
   module?: string;
   action?: string;
   table?: string;
+  tableName?: string;
   userId?: string;
   actor?: string;
   search?: string;

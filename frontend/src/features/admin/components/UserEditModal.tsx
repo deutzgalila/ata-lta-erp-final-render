@@ -393,8 +393,8 @@ export function UserEditModal({
       <ConflictResolutionModal
         open={conflictOpen}
         onOpenChange={setConflictOpen}
-        entityLabel="user account"
-        onReload={() => {
+        entityType="User Account"
+        onRefreshLatest={() => {
           void handleConflictReload();
         }}
       />
