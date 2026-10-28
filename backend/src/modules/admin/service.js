@@ -14,6 +14,7 @@ const transmittalsService = require('../transmittals/service');
 const { computePermissions } = require('../../middleware/rbac');
 const { hasPermission } = require('../../lib/permissions');
 const { evictUserProfile } = require('../../middleware/auth');
+const { concurrencyConflict, resolveExpectedVersion } = require('../../lib/concurrency');
 const { filterValidProjectRecords } = require('../../lib/projectLinkage');
 const { normalizeTaskAndParentAliases } = require('../../lib/taskAssignment');
 const {
@@ -24,28 +25,42 @@ const {
 
 const ALLOWED_DEPARTMENTS = ['Management', 'Accounting', 'Operations', 'Documentation', 'HR'];
 
-const toApiUser = (row, departments = []) => ({
-  id: row.id,
-  email: row.email,
-  name: row.name,
-  role: row.role,
-  departments,
-  entities: row.entities || [],
-  isActive: row.is_active,
-  createdAt: row.created_at,
-  updatedAt: row.updated_at,
-});
+const toApiUser = (row, departments = []) => {
+  const isActive = row.is_active !== false;
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    role: row.role,
+    departments,
+    entities: row.entities || [],
+    isActive,
+    status: isActive ? 'Active' : 'Disabled',
+    version: row.version ?? 1,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+};
 
-const loadUserDepartments = async (userId) => {
+const extractEmbeddedDepartments = (userRow) => {
+  if (!Array.isArray(userRow?.user_departments)) return [];
+  return userRow.user_departments
+    .map((ud) => ud?.departments?.name || ud?.name)
+    .filter(Boolean);
+};
+
+const loadUserDepartments = async (userId, userRow = null) => {
   const { data: udRows, error } = await supabaseAdmin
     .from('user_departments')
     .select('department_id')
     .eq('user_id', userId);
 
-  if (error) return [];
+  if (error) return extractEmbeddedDepartments(userRow);
 
   const deptIds = (udRows || []).map((row) => row.department_id).filter(Boolean);
-  if (!deptIds.length) return [];
+  if (!deptIds.length) {
+    return extractEmbeddedDepartments(userRow);
+  }
 
   const { data: deptRows } = await supabaseAdmin
     .from('departments')
@@ -54,6 +69,53 @@ const loadUserDepartments = async (userId) => {
 
   const nameById = new Map((deptRows || []).map((d) => [d.id, d.name]));
   return deptIds.map((id) => nameById.get(id)).filter(Boolean);
+};
+
+const loadUsersDepartmentsMap = async (users = []) => {
+  const result = new Map();
+  if (!Array.isArray(users) || users.length === 0) return result;
+
+  const userIds = Array.from(new Set(users.map((u) => u?.id).filter(Boolean)));
+  if (userIds.length === 0) return result;
+
+  const { data: udRows, error } = await supabaseAdmin
+    .from('user_departments')
+    .select('user_id, department_id')
+    .in('user_id', userIds);
+
+  if (!error && Array.isArray(udRows) && udRows.length > 0) {
+    const deptIds = Array.from(
+      new Set(udRows.map((row) => row.department_id).filter(Boolean))
+    );
+    let nameById = new Map();
+    if (deptIds.length > 0) {
+      const { data: deptRows } = await supabaseAdmin
+        .from('departments')
+        .select('id, name')
+        .in('id', deptIds);
+      nameById = new Map((deptRows || []).map((d) => [d.id, d.name]));
+    }
+
+    for (const row of udRows) {
+      if (!row?.user_id) continue;
+      const deptName = nameById.get(row.department_id);
+      if (!deptName) continue;
+      const list = result.get(row.user_id) || [];
+      if (!list.includes(deptName)) {
+        list.push(deptName);
+      }
+      result.set(row.user_id, list);
+    }
+  }
+
+  for (const u of users) {
+    if (!u?.id) continue;
+    if (!result.has(u.id)) {
+      result.set(u.id, extractEmbeddedDepartments(u));
+    }
+  }
+
+  return result;
 };
 
 const resolveEntityId = async (code) => {
@@ -117,32 +179,7 @@ const setDepartments = async (userId, departmentNames) => {
   await supabaseAdmin.from('user_departments').insert(rows);
 };
 
-const listUsers = async ({ entityId } = {}) => {
-  const query = supabaseAdmin.from('users').select('*').eq('is_active', true);
-
-  const { data, error } = await query.order('name', { ascending: true });
-
-  if (error) {
-    throw new AppError({
-      statusCode: 500,
-      title: 'Database Error',
-      detail: 'Unable to list users',
-    });
-  }
-
-  const rows = (data || []).filter(
-    (u) => !entityId || entityId === 'ALL' || (u.entities || []).includes(entityId)
-  );
-  const usersWithDepts = await Promise.all(
-    rows.map(async (u) => {
-      const departments = await loadUserDepartments(u.id);
-      return toApiUser(u, departments);
-    })
-  );
-  return usersWithDepts;
-};
-
-const createUser = async ({ data, createdBy: _createdBy }) => {
+const assertAccountCapNotReached = async () => {
   // Enforce a global cap of 15 active user accounts.
   const { count, error: countError } = await supabaseAdmin
     .from('users')
@@ -165,6 +202,33 @@ const createUser = async ({ data, createdBy: _createdBy }) => {
         'Maximum number of user accounts (15) reached. Contact the administrator to disable an existing account before adding a new one.',
       code: 'USER_LIMIT_REACHED',
     });
+  }
+};
+
+const listUsers = async ({ entityId, entityCode } = {}) => {
+  const scopeEntity = entityId || entityCode;
+  const query = supabaseAdmin.from('users').select('*');
+
+  const { data, error } = await query.order('name', { ascending: true });
+
+  if (error) {
+    throw new AppError({
+      statusCode: 500,
+      title: 'Database Error',
+      detail: 'Unable to list users',
+    });
+  }
+
+  const rows = (data || []).filter(
+    (u) => !scopeEntity || scopeEntity === 'ALL' || (u.entities || []).includes(scopeEntity)
+  );
+  const departmentsByUserId = await loadUsersDepartmentsMap(rows);
+  return rows.map((u) => toApiUser(u, departmentsByUserId.get(u.id) || []));
+};
+
+const createUser = async ({ data, createdBy: _createdBy }) => {
+  if (data.isActive !== false) {
+    await assertAccountCapNotReached();
   }
 
   const password = data.password || 'ChangeMe123!';
@@ -192,6 +256,7 @@ const createUser = async ({ data, createdBy: _createdBy }) => {
     role: data.role,
     entities: data.entities || [],
     is_active: data.isActive !== false,
+    version: 1,
     created_at: now,
     updated_at: now,
   };
@@ -222,23 +287,53 @@ const getUserById = async (id) => {
     });
   }
   if (!data) return null;
-  const departments = await loadUserDepartments(id);
+  const departments = await loadUserDepartments(id, data);
   return toApiUser(data, departments);
 };
 
-const updateUser = async ({ id, data, updatedBy: _updatedBy }) => {
-  const existing = await getUserById(id);
+const updateUser = async ({ id, data = {}, currentUserId, updatedBy: _updatedBy }) => {
+  const { data: existing, error: fetchError } = await supabaseAdmin
+    .from('users')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (fetchError) {
+    throw new AppError({
+      statusCode: 500,
+      title: 'Database Error',
+      detail: 'Unable to retrieve user',
+    });
+  }
+
   if (!existing) {
     throw new AppError({ statusCode: 404, title: 'Not Found', detail: 'User not found' });
   }
 
-  const { data: userRow } = await supabaseAdmin
-    .from('users')
-    .select('auth_user_id')
-    .eq('id', id)
-    .maybeSingle();
+  let nextIsActive;
+  if (data.isActive !== undefined) {
+    nextIsActive = Boolean(data.isActive);
+  } else if (data.status !== undefined) {
+    nextIsActive = data.status === 'Active';
+  } else {
+    nextIsActive = existing.is_active !== false;
+  }
 
-  const authUserId = userRow?.auth_user_id;
+  if (currentUserId && String(currentUserId) === String(id) && nextIsActive === false) {
+    throw new AppError({
+      statusCode: 400,
+      title: 'Bad Request',
+      detail: 'Cannot disable your own account',
+      code: 'SELF_DEACTIVATION_FORBIDDEN',
+    });
+  }
+
+  if (existing.is_active === false && nextIsActive === true) {
+    await assertAccountCapNotReached();
+  }
+
+  const expectedVersion = resolveExpectedVersion(data);
+  const authUserId = existing.auth_user_id;
 
   if (authUserId) {
     if (data.email && data.email !== existing.email) {
@@ -273,17 +368,27 @@ const updateUser = async ({ id, data, updatedBy: _updatedBy }) => {
     email: data.email ?? existing.email,
     role: data.role ?? existing.role,
     entities: data.entities ?? existing.entities,
-    is_active: data.isActive ?? existing.isActive,
+    is_active: nextIsActive,
+    version: (existing.version || 1) + 1,
     updated_at: new Date().toISOString(),
   };
 
-  const { error } = await supabaseAdmin.from('users').update(updates).eq('id', id);
+  let updateQuery = supabaseAdmin.from('users').update(updates).eq('id', id);
+  if (expectedVersion !== null) {
+    updateQuery = updateQuery.eq('version', expectedVersion);
+  }
+
+  const { data: updatedRows, error } = await updateQuery.select();
   if (error) {
     throw new AppError({
       statusCode: 500,
       title: 'Database Error',
       detail: 'Unable to update user',
     });
+  }
+
+  if (expectedVersion !== null && (!updatedRows || updatedRows.length === 0)) {
+    throw concurrencyConflict();
   }
 
   if (data.departments !== undefined) {
@@ -295,17 +400,49 @@ const updateUser = async ({ id, data, updatedBy: _updatedBy }) => {
   // permissions for up to the cache TTL.
   evictUserProfile(id);
 
-  return getUserById(id);
+  const updatedRow = updatedRows?.[0] || { ...existing, ...updates };
+  const departments =
+    data.departments !== undefined && data.departments.length === 0
+      ? []
+      : await loadUserDepartments(id, updatedRow);
+  return toApiUser(updatedRow, departments);
 };
 
-const deleteUser = async ({ id, deletedBy: _deletedBy }) => {
-  const existing = await getUserById(id);
-  if (!existing) return false;
-
-  const { error } = await supabaseAdmin
+const deleteUser = async ({ id, expectedVersion: rawExpectedVersion, deletedBy: _deletedBy }) => {
+  const { data: existing, error: fetchError } = await supabaseAdmin
     .from('users')
-    .update({ is_active: false, updated_at: new Date().toISOString() })
-    .eq('id', id);
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (fetchError) {
+    throw new AppError({
+      statusCode: 500,
+      title: 'Database Error',
+      detail: 'Unable to retrieve user',
+    });
+  }
+  if (!existing) return null;
+
+  const expectedVersion =
+    typeof rawExpectedVersion === 'number' &&
+    Number.isInteger(rawExpectedVersion) &&
+    rawExpectedVersion > 0
+      ? rawExpectedVersion
+      : resolveExpectedVersion({ expectedVersion: rawExpectedVersion });
+
+  const updates = {
+    is_active: false,
+    version: (existing.version || 1) + 1,
+    updated_at: new Date().toISOString(),
+  };
+
+  let updateQuery = supabaseAdmin.from('users').update(updates).eq('id', id);
+  if (expectedVersion !== null) {
+    updateQuery = updateQuery.eq('version', expectedVersion);
+  }
+
+  const { data: updatedRows, error } = await updateQuery.select();
 
   if (error) {
     throw new AppError({
@@ -315,11 +452,17 @@ const deleteUser = async ({ id, deletedBy: _deletedBy }) => {
     });
   }
 
+  if (expectedVersion !== null && (!updatedRows || updatedRows.length === 0)) {
+    throw concurrencyConflict();
+  }
+
   // R-13: the account is disabled — evict immediately so in-flight tokens no
   // longer authenticate against the stale cached profile.
   evictUserProfile(id);
 
-  return true;
+  const updatedRow = updatedRows?.[0] || { ...existing, ...updates };
+  const departments = await loadUserDepartments(id, updatedRow);
+  return toApiUser(updatedRow, departments);
 };
 
 const toApiPendingChange = (row) => ({
@@ -741,37 +884,6 @@ const approvePending = async ({ id, user }) => {
   return { id, status: 'approved' };
 };
 
-/**
- * Count audit log entries for the active entity.
- * @param {object} params
- * @param {string} params.entityCode
- * @returns {Promise<number>}
- */
-const getAuditLogCount = async ({ entityCode }) => {
-  let query = supabaseAdmin.from('audit_logs').select('*', { count: 'exact', head: true });
-
-  if (entityCode && entityCode !== 'ALL') {
-    const entityUuid = await resolveEntityId(entityCode).catch(() => null);
-    if (entityUuid && entityUuid !== entityCode) {
-      query = query.or(`entity.eq.${entityCode},entity.eq.${entityUuid}`);
-    } else {
-      query = query.eq('entity', entityCode);
-    }
-  }
-
-  const { count, error } = await query;
-
-  if (error) {
-    throw new AppError({
-      statusCode: 500,
-      title: 'Database Error',
-      detail: 'Unable to count audit logs',
-    });
-  }
-
-  return count || 0;
-};
-
 const MODULE_TABLE_MAP = {
   operations: ['work_requests', 'tasks'],
   billing: ['invoices', 'invoice_line_items', 'invoice_payments'],
@@ -789,14 +901,15 @@ const MODULE_TABLE_MAP = {
   ],
 };
 
-/**
- * List audit log entries with optional filters and pagination.
- * @param {object} params
- * @param {string} params.entityCode
- * @param {object} params.filters
- * @returns {Promise<{ data: object[], meta: object }>}
- */
-const getAuditLogs = async ({ entityCode, filters = {} }) => {
+const normalizeAuditParams = (params = {}) => {
+  const { entityCode, filters = {}, ...topLevel } = params;
+  return {
+    entityCode,
+    mergedFilters: { ...filters, ...topLevel },
+  };
+};
+
+const applyAuditBaseFilters = async (query, { entityCode, filters = {} }) => {
   const {
     userId,
     action,
@@ -806,31 +919,23 @@ const getAuditLogs = async ({ entityCode, filters = {} }) => {
     date,
     from,
     to,
-    page: pageParam,
-    limit = 20,
-    offset: offsetParam = 0,
   } = filters;
 
-  const limitNum = Number(limit);
-  const page = pageParam ? Number(pageParam) : Math.floor(Number(offsetParam) / limitNum) + 1;
-  const offset = pageParam ? (page - 1) * limitNum : Number(offsetParam);
-
-  let query = supabaseAdmin.from('audit_logs').select('*', { count: 'exact' });
+  let q = query;
 
   if (entityCode && entityCode !== 'ALL') {
     const entityUuid = await resolveEntityId(entityCode).catch(() => null);
     if (entityUuid && entityUuid !== entityCode) {
-      query = query.or(`entity.eq.${entityCode},entity.eq.${entityUuid}`);
+      q = q.or(`entity.eq.${entityCode},entity.eq.${entityUuid}`);
     } else {
-      query = query.eq('entity', entityCode);
+      q = q.eq('entity', entityCode);
     }
   }
 
-  // Actor / User filter
   if (actor) {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(actor);
     if (isUuid) {
-      query = query.eq('user_id', actor);
+      q = q.eq('user_id', actor);
     } else {
       const { data: matchedUsers } = await supabaseAdmin
         .from('users')
@@ -838,65 +943,215 @@ const getAuditLogs = async ({ entityCode, filters = {} }) => {
         .or(`email.ilike.%${actor}%,name.ilike.%${actor}%`);
       const matchedIds = (matchedUsers || []).map((u) => u.id);
       if (matchedIds.length > 0) {
-        query = query.in('user_id', matchedIds);
+        q = q.in('user_id', matchedIds);
       } else {
-        return {
-          data: [],
-          meta: {
-            total: 0,
-            page,
-            limit: limitNum,
-            offset,
-            hasMore: false,
-          },
-        };
+        return { query: q, empty: true };
       }
     }
   } else if (userId) {
-    query = query.eq('user_id', userId);
+    q = q.eq('user_id', userId);
   }
 
   if (action) {
-    query = query.eq('action', action);
+    q = q.eq('action', action);
   }
 
   if (table) {
-    query = query.eq('table_name', table);
+    q = q.eq('table_name', table);
   } else if (moduleFilter) {
     const modKey = moduleFilter.toLowerCase();
     const tables = MODULE_TABLE_MAP[modKey];
     if (tables && tables.length > 0) {
-      query = query.in('table_name', tables);
+      q = q.in('table_name', tables);
     }
   }
 
   if (date) {
     const dateStr = date.includes('T') ? date.split('T')[0] : date;
-    query = query.gte('created_at', `${dateStr}T00:00:00.000Z`);
-    query = query.lte('created_at', `${dateStr}T23:59:59.999Z`);
+    q = q.gte('created_at', `${dateStr}T00:00:00.000Z`);
+    q = q.lte('created_at', `${dateStr}T23:59:59.999Z`);
   } else {
     if (from) {
-      query = query.gte('created_at', from);
+      const fromIso = from.includes('T') ? from : `${from}T00:00:00.000Z`;
+      q = q.gte('created_at', fromIso);
     }
     if (to) {
-      query = query.lte('created_at', to);
+      const toIso = to.includes('T') ? to : `${to}T23:59:59.999Z`;
+      q = q.lte('created_at', toIso);
     }
   }
 
-  const { data, error, count } = await query
-    .order('created_at', { ascending: false })
-    .range(offset, offset + limitNum - 1);
+  return { query: q, empty: false };
+};
 
+const resolveMatchingUserIdsForSearch = async (searchTerm) => {
+  if (!searchTerm) return new Set();
+  const { data: matchedUsers } = await supabaseAdmin
+    .from('users')
+    .select('id, name, email')
+    .or(`email.ilike.%${searchTerm}%,name.ilike.%${searchTerm}%`);
+  return new Set((matchedUsers || []).map((u) => u.id));
+};
+
+const matchesAuditSearch = (row, searchTerm, matchedUserIds) => {
+  const actionRaw = String(row.action || '').toLowerCase();
+  const actionHuman = actionRaw.replace(/[._-]+/g, ' ');
+  const tableRaw = String(row.table_name || '').toLowerCase();
+  const tableHuman = tableRaw.replace(/[._-]+/g, ' ');
+  const recordId = String(row.record_id || '').toLowerCase();
+  const entity = String(row.entity || '').toLowerCase();
+  const userId = String(row.user_id || '').toLowerCase();
+  const detailsText =
+    row.details !== null && row.details !== undefined
+      ? (typeof row.details === 'string' ? row.details : JSON.stringify(row.details)).toLowerCase()
+      : '';
+
+  return (
+    actionRaw.includes(searchTerm) ||
+    actionHuman.includes(searchTerm) ||
+    tableRaw.includes(searchTerm) ||
+    tableHuman.includes(searchTerm) ||
+    recordId.includes(searchTerm) ||
+    entity.includes(searchTerm) ||
+    userId.includes(searchTerm) ||
+    detailsText.includes(searchTerm) ||
+    (Boolean(row.user_id) && matchedUserIds.has(row.user_id))
+  );
+};
+
+/**
+ * Count audit log entries for the active entity.
+ * @param {object} params
+ * @param {string} params.entityCode
+ * @returns {Promise<number>}
+ */
+const getAuditLogCount = async (params = {}) => {
+  const { entityCode, mergedFilters } = normalizeAuditParams(params);
+  const searchTerm =
+    typeof mergedFilters.search === 'string' ? mergedFilters.search.trim().toLowerCase() : '';
+
+  if (!searchTerm) {
+    const baseQuery = supabaseAdmin.from('audit_logs').select('*', { count: 'exact', head: true });
+    const { query, empty } = await applyAuditBaseFilters(baseQuery, {
+      entityCode,
+      filters: mergedFilters,
+    });
+    if (empty) return 0;
+
+    const { count, error } = await query;
+
+    if (error) {
+      throw new AppError({
+        statusCode: 500,
+        title: 'Database Error',
+        detail: 'Unable to count audit logs',
+      });
+    }
+
+    return count || 0;
+  }
+
+  const baseQuery = supabaseAdmin.from('audit_logs').select('*');
+  const { query, empty } = await applyAuditBaseFilters(baseQuery, {
+    entityCode,
+    filters: mergedFilters,
+  });
+  if (empty) return 0;
+
+  const { data, error } = await query;
   if (error) {
     throw new AppError({
       statusCode: 500,
       title: 'Database Error',
-      detail: 'Unable to list audit logs',
+      detail: 'Unable to count audit logs',
     });
   }
 
-  const rows = data || [];
-  const total = count !== undefined && count !== null ? count : rows.length;
+  const matchedUserIds = await resolveMatchingUserIdsForSearch(searchTerm);
+  const filteredRows = (data || []).filter((row) =>
+    matchesAuditSearch(row, searchTerm, matchedUserIds)
+  );
+  return filteredRows.length;
+};
+
+/**
+ * List audit log entries with optional filters and pagination.
+ * @param {object} params
+ * @param {string} params.entityCode
+ * @param {object} params.filters
+ * @returns {Promise<{ data: object[], meta: object }>}
+ */
+const getAuditLogs = async (params = {}) => {
+  const { entityCode, mergedFilters } = normalizeAuditParams(params);
+  const {
+    page: pageParam,
+    limit = 20,
+    offset: offsetParam = 0,
+    search,
+    sortOrder = 'desc',
+  } = mergedFilters;
+
+  const limitNum = Number(limit);
+  const page = pageParam ? Number(pageParam) : Math.floor(Number(offsetParam) / limitNum) + 1;
+  const offset = pageParam ? (page - 1) * limitNum : Number(offsetParam);
+  const ascending = sortOrder === 'asc';
+  const searchTerm = typeof search === 'string' ? search.trim().toLowerCase() : '';
+
+  const baseQuery = supabaseAdmin
+    .from('audit_logs')
+    .select('*', searchTerm ? undefined : { count: 'exact' });
+  const { query, empty } = await applyAuditBaseFilters(baseQuery, {
+    entityCode,
+    filters: mergedFilters,
+  });
+
+  if (empty) {
+    return {
+      data: [],
+      meta: {
+        total: 0,
+        page,
+        limit: limitNum,
+        offset,
+        hasMore: false,
+      },
+    };
+  }
+
+  let rows = [];
+  let total = 0;
+
+  if (searchTerm) {
+    const { data, error } = await query.order('created_at', { ascending });
+    if (error) {
+      throw new AppError({
+        statusCode: 500,
+        title: 'Database Error',
+        detail: 'Unable to list audit logs',
+      });
+    }
+    const matchedUserIds = await resolveMatchingUserIdsForSearch(searchTerm);
+    const filteredRows = (data || []).filter((row) =>
+      matchesAuditSearch(row, searchTerm, matchedUserIds)
+    );
+    total = filteredRows.length;
+    rows = filteredRows.slice(offset, offset + limitNum);
+  } else {
+    const { data, error, count } = await query
+      .order('created_at', { ascending })
+      .range(offset, offset + limitNum - 1);
+
+    if (error) {
+      throw new AppError({
+        statusCode: 500,
+        title: 'Database Error',
+        detail: 'Unable to list audit logs',
+      });
+    }
+
+    rows = data || [];
+    total = count !== undefined && count !== null ? count : rows.length;
+  }
 
   // Enrich actor metadata
   const userIds = Array.from(new Set(rows.map((r) => r.user_id).filter(Boolean)));
@@ -1006,6 +1261,10 @@ const rejectPending = async ({ id, user, reason }) => {
 };
 
 module.exports = {
+  toApiUser,
+  loadUserDepartments,
+  loadUsersDepartmentsMap,
+  assertAccountCapNotReached,
   listUsers,
   createUser,
   getUserById,
@@ -1018,5 +1277,7 @@ module.exports = {
   rejectPending,
   resolveEntityId,
   getAuditLogCount,
+  countAuditLogs: getAuditLogCount,
   getAuditLogs,
+  listAuditLogs: getAuditLogs,
 };
