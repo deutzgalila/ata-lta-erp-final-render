@@ -89,6 +89,24 @@ export interface Transmittal {
   deletedAt?: string | null;
   clients?: TransmittalClientInfo | null;
   items?: TransmittalItem[];
+  linked_disbursements?: Array<{
+    id: string;
+    disbursement_number: string;
+    category: string;
+    description: string;
+    amount: number;
+    fund_source: string;
+    status: string;
+    receipt_filename?: string | null;
+  }>;
+  linked_invoices?: Array<{
+    id: string;
+    invoice_number: string;
+    status: string;
+    total: number;
+    amount_paid: number;
+    balance: number;
+  }>;
 }
 
 export interface TransmittalWithItems extends Transmittal {
@@ -122,6 +140,8 @@ export interface CreateTransmittalInput {
   recipientName?: string | null;
   recipientDetails?: string | null;
   linkedTaskId?: string | null;
+  linkedDisbursementIds?: string[];
+  linkedInvoiceIds?: string[];
   boardOrder?: number;
 }
 
@@ -134,6 +154,8 @@ export interface UpdateTransmittalInput {
   recipientName?: string | null;
   recipientDetails?: string | null;
   linkedTaskId?: string | null;
+  linkedDisbursementIds?: string[];
+  linkedInvoiceIds?: string[];
   boardOrder?: number;
   expectedVersion?: number;
 }
@@ -149,6 +171,7 @@ export interface AcknowledgeTransmittalInput {
 export interface TransmittalFilters {
   status?: TransmittalStatus | string;
   clientId?: string;
+  workRequestId?: string;
   search?: string;
   archived?: boolean | string;
   includeDeleted?: boolean | string;

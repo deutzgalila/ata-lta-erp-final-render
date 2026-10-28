@@ -309,7 +309,10 @@ export function DisbursementCodingGrid({
       : effectiveWrName || effectiveWrOrder || '—';
 
   const taskDisplay =
-    disbursement?.linked_task_id || disbursement?.linkedTaskId || '—';
+    disbursement?.linked_task_title ||
+    disbursement?.linked_task_id ||
+    disbursement?.linkedTaskId ||
+    '—';
 
   const clientName =
     disbursement?.clients?.name ||
@@ -327,9 +330,15 @@ export function DisbursementCodingGrid({
     '—';
 
   const inv =
-    disbursement?.linked_invoice_id || disbursement?.linkedInvoiceId;
+    disbursement?.linked_invoice_number ||
+    disbursement?.linked_invoice?.invoice_number ||
+    disbursement?.linked_invoice_id ||
+    disbursement?.linkedInvoiceId;
   const trans =
-    disbursement?.linked_transmittal_id || disbursement?.linkedTransmittalId;
+    disbursement?.linked_transmittal_tracking_number ||
+    disbursement?.linked_transmittal?.tracking_number ||
+    disbursement?.linked_transmittal_id ||
+    disbursement?.linkedTransmittalId;
   const invTransDisplay = inv && trans ? `${inv} / ${trans}` : inv || trans || '—';
 
   return (
@@ -831,7 +840,10 @@ export function DisbursementCodingDefinitionList({
       : wrName || wrOrder || '—';
 
   const taskDisplay =
-    disbursement.linked_task_id || disbursement.linkedTaskId || '—';
+    disbursement.linked_task_title ||
+    disbursement.linked_task_id ||
+    disbursement.linkedTaskId ||
+    '—';
 
   const fundSource =
     disbursement.fund_source || disbursement.fundSource || 'Firm Fund';
@@ -852,9 +864,15 @@ export function DisbursementCodingDefinitionList({
     '—';
 
   const inv =
-    disbursement.linked_invoice_id || disbursement.linkedInvoiceId;
+    disbursement.linked_invoice_number ||
+    disbursement.linked_invoice?.invoice_number ||
+    disbursement.linked_invoice_id ||
+    disbursement.linkedInvoiceId;
   const trans =
-    disbursement.linked_transmittal_id || disbursement.linkedTransmittalId;
+    disbursement.linked_transmittal_tracking_number ||
+    disbursement.linked_transmittal?.tracking_number ||
+    disbursement.linked_transmittal_id ||
+    disbursement.linkedTransmittalId;
   const invTransDisplay = inv && trans ? `${inv} / ${trans}` : inv || trans || '—';
 
   const formattedAmount =
