@@ -336,7 +336,7 @@ export function InvoiceCreateModal({
 
     const validation = createInvoiceSchema.safeParse(payload);
     if (!validation.success) {
-      setFormError(validation.error.errors[0]?.message || 'Validation error');
+      setFormError(validation.error.issues[0]?.message || 'Validation error');
       return;
     }
 
