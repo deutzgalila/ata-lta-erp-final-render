@@ -32,6 +32,9 @@ export type RealtimeTable =
   | 'disbursements'
   | 'time_entries'
   | 'task_time_logs'
+  | 'users'
+  | 'user_departments'
+  | 'audit_logs'
   | string;
 
 export interface UseEntityRealtimeSyncOptions<T = Record<string, unknown>> {
@@ -96,6 +99,12 @@ export function getDefaultDetailQueryKey(
     case 'time_entries':
     case 'task_time_logs':
       return dashboardKeys.timeEntries.detail(id);
+    case 'users':
+      return ['admin', 'users', 'detail', id];
+    case 'user_departments':
+      return undefined;
+    case 'audit_logs':
+      return ['admin', 'audit', 'detail', id];
     default:
       return [table, 'detail', id];
   }
@@ -121,6 +130,11 @@ export function getDefaultListRootKey(table: string): readonly unknown[] {
     case 'time_entries':
     case 'task_time_logs':
       return dashboardKeys.timeEntries.all;
+    case 'users':
+    case 'user_departments':
+      return ['admin', 'users'];
+    case 'audit_logs':
+      return ['admin', 'audit'];
     default:
       return [table, 'list'];
   }
@@ -340,6 +354,72 @@ export function normalizeCdcTaskTimeLog(record: Record<string, unknown>): Record
 }
 
 /**
+ * Normalizes PostgreSQL CDC users records into unified objects with both
+ * camelCase and snake_case properties.
+ */
+export function normalizeCdcUser(record: Record<string, unknown>): Record<string, unknown> {
+  if (!record || typeof record !== 'object') return record;
+  const rawIsActive = record.is_active !== undefined ? record.is_active : record.isActive;
+  const isActive =
+    rawIsActive !== undefined
+      ? Boolean(rawIsActive)
+      : record.status !== undefined
+        ? record.status !== 'Disabled'
+        : true;
+  const status = isActive === false ? 'Disabled' : 'Active';
+  const createdAt = record.created_at ?? record.createdAt;
+  const updatedAt = record.updated_at ?? record.updatedAt;
+  const version = Number(record.version ?? 1);
+
+  const normalized: Record<string, unknown> = {
+    ...record,
+    isActive,
+    is_active: isActive,
+    status,
+    createdAt,
+    created_at: createdAt,
+    updatedAt,
+    updated_at: updatedAt,
+    version,
+  };
+
+  if (Array.isArray(record.entities)) {
+    normalized.entities = record.entities;
+  }
+  if (Array.isArray(record.departments)) {
+    normalized.departments = record.departments;
+  }
+
+  return normalized;
+}
+
+/**
+ * Normalizes PostgreSQL CDC audit_logs records into unified objects with both
+ * camelCase and snake_case properties.
+ */
+export function normalizeCdcAuditLog(record: Record<string, unknown>): Record<string, unknown> {
+  if (!record || typeof record !== 'object') return record;
+  const userId = record.user_id ?? record.userId ?? null;
+  const tableName = record.table_name ?? record.tableName ?? null;
+  const recordId = record.record_id ?? record.recordId ?? null;
+  const createdAt = record.created_at ?? record.createdAt;
+  const timestamp = record.timestamp ?? createdAt;
+
+  return {
+    ...record,
+    userId,
+    user_id: userId,
+    tableName,
+    table_name: tableName,
+    recordId,
+    record_id: recordId,
+    createdAt,
+    created_at: createdAt,
+    timestamp,
+  };
+}
+
+/**
  * Dispatches raw incoming CDC payloads to table-specific normalizers.
  */
 export function normalizeCdcPayload(
@@ -361,6 +441,10 @@ export function normalizeCdcPayload(
       return normalizeCdcTimeEntry(record);
     case 'task_time_logs':
       return normalizeCdcTaskTimeLog(record);
+    case 'users':
+      return normalizeCdcUser(record);
+    case 'audit_logs':
+      return normalizeCdcAuditLog(record);
     default:
       return record;
   }
@@ -628,6 +712,16 @@ function invalidateCounts(queryClient: QueryClient, table: string): void {
     case 'notifications':
       void queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] });
       break;
+    case 'users':
+    case 'user_departments':
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'audit'] });
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'audit', 'count'] });
+      break;
+    case 'audit_logs':
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'audit'] });
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'audit', 'count'] });
+      break;
     default:
       void queryClient.invalidateQueries({ queryKey: [table, 'counts'] });
       break;
@@ -835,7 +929,11 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
         (incomingRecord.user_id || incomingRecord.userId)
           ? `${String(incomingRecord.task_id ?? incomingRecord.taskId)}:${String(incomingRecord.user_id ?? incomingRecord.userId)}`
           : undefined)
-      : undefined);
+      : options.table === 'user_departments'
+        ? ((incomingRecord.user_id || incomingRecord.userId)
+            ? `${String(incomingRecord.user_id ?? incomingRecord.userId)}:${String(incomingRecord.department_id ?? incomingRecord.departmentId ?? incomingRecord.department ?? 'dept')}`
+            : undefined)
+        : undefined);
   if (!id) {
     return false;
   }
@@ -867,9 +965,14 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
       : useSessionStore.getState().activeEntity;
   const targetUUID = options.activeEntityUUID || resolveEntityUUID(activeEntity);
 
-  if (options.table === 'task_assignees') {
-    // task_assignees has no entity_id column in its relational schema (task_id, user_id, assigned_at).
-    // Never discard mounted assignment events via tenant entity guards.
+  if (
+    options.table === 'task_assignees' ||
+    options.table === 'users' ||
+    options.table === 'user_departments' ||
+    options.table === 'audit_logs'
+  ) {
+    // task_assignees, users, user_departments, and audit_logs are cross-entity or relational tables.
+    // Never discard mounted assignment or admin events via single-entity tenant guards.
   } else if (activeEntity !== 'ALL') {
     // Preserve explicit null values; do not coalesce null into undefined
     const recordEntityId =
@@ -1208,7 +1311,7 @@ export function handleRealtimePayload<T = Record<string, unknown>>(
       invalidateAllProjectProtectedCaches(queryClient, activeEntity);
     }
   } else if (
-    ['work_requests', 'tasks', 'operations_requests'].includes(options.table) ||
+    ['work_requests', 'tasks', 'operations_requests', 'user_departments'].includes(options.table) ||
     (String(useSessionStore.getState().user?.role || '').trim().toLowerCase() !== 'admin' &&
     ['invoices', 'disbursements', 'transmittals', 'documents', 'time_entries', 'task_time_logs', 'task_assignees'].includes(options.table))
   ) {
