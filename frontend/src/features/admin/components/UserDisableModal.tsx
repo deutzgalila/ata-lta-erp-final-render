@@ -70,16 +70,16 @@ export function UserDisableModal({
     <>
       <Dialog open={isOpen && !conflictOpen} onOpenChange={(open) => !open && onClose()}>
         <DialogContent
-          className="max-w-md border border-[#CBD5E1] rounded-[6px] p-6 bg-white"
+          className="max-w-md rounded-[12px] border border-[#E2E8F0] bg-[#FFFFFF] p-6 shadow-float space-y-4"
           data-testid="user-disable-modal"
         >
-          <DialogHeader>
+          <DialogHeader className="border-b border-[#E2E8F0] pb-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[4px] bg-[#FEF2F2] text-[#DC2626] border border-[#FECACA]">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-[#FEF2F2] text-[#DC2626] border border-[#FECACA]">
                 <AlertTriangle className="h-5 w-5" />
               </div>
               <div>
-                <DialogTitle className="text-base font-bold text-[#0F172A]">
+                <DialogTitle className="text-lg font-semibold tracking-tight text-[#1E293B]">
                   Disable User Account
                 </DialogTitle>
                 <DialogDescription className="text-xs text-[#475569] pt-0.5">
@@ -90,17 +90,17 @@ export function UserDisableModal({
           </DialogHeader>
 
           {isSelf ? (
-            <div className="rounded-[4px] bg-[#FEF2F2] border border-[#FECACA] p-3 text-xs text-[#991B1B]">
+            <div className="rounded-[8px] bg-[#FEF2F2] border border-[#FECACA] p-3.5 text-xs text-[#991B1B]">
               <strong>Self-Action Blocked:</strong> You cannot disable your own active administrator account ({user?.email}). Another administrator must make this change.
             </div>
           ) : (
-            <div className="space-y-3 py-2 text-xs text-[#475569]">
+            <div className="space-y-3 text-xs text-[#475569]">
               <p>
                 Are you sure you want to deactivate account access for{' '}
-                <strong className="text-[#0F172A]">{user?.name}</strong> (
-                <span className="font-mono tabular-nums text-[#0F172A]">{user?.email}</span>)?
+                <strong className="text-[#1E293B]">{user?.name}</strong> (
+                <span className="font-mono tabular-nums text-[#1E293B]">{user?.email}</span>)?
               </p>
-              <div className="rounded-[4px] bg-[#FFFBEB] border border-[#FDE68A] p-2.5 text-xs text-[#92400E] space-y-1">
+              <div className="rounded-[8px] bg-[#FFFBEB] border border-[#FDE68A] p-3 text-xs text-[#92400E] space-y-1">
                 <p className="font-semibold">Consequences of soft-disabling:</p>
                 <ul className="list-disc pl-4 space-y-0.5">
                   <li>User session tokens will be evicted immediately.</li>
@@ -112,13 +112,13 @@ export function UserDisableModal({
             </div>
           )}
 
-          <DialogFooter className="pt-2">
+          <DialogFooter className="border-t border-[#E2E8F0] pt-4 gap-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={onClose}
-              className="text-xs h-8 rounded-[4px] border-[#CBD5E1]"
+              className="text-xs h-9 rounded-[6px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B] hover:bg-[#F8FAFC] cursor-pointer"
               data-testid="disable-user-cancel-btn"
             >
               Cancel
@@ -129,7 +129,7 @@ export function UserDisableModal({
                 variant="destructive"
                 size="sm"
                 onClick={handleConfirm}
-                className="text-xs h-8 rounded-[4px] bg-[#DC2626] text-white hover:bg-[#B91C1C]"
+                className="text-xs h-9 rounded-[6px] bg-[#DC2626] text-[#FFFFFF] hover:bg-[#B91C1C] font-medium shadow-2xs cursor-pointer"
                 data-testid="disable-user-confirm-btn"
               >
                 Disable Account

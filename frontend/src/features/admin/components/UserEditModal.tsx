@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { UserCog } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -187,35 +188,36 @@ export function UserEditModal({
     <>
       <Dialog open={isOpen && !conflictOpen} onOpenChange={(open) => !open && onClose()}>
         <DialogContent
-          className="max-w-lg border border-[#CBD5E1] rounded-[6px] p-6 bg-white max-h-[90vh] overflow-y-auto"
+          className="max-w-lg rounded-[12px] border border-[#E2E8F0] bg-[#FFFFFF] p-6 shadow-float max-h-[90vh] overflow-y-auto space-y-4"
           data-testid="user-edit-modal"
         >
-          <DialogHeader>
-            <DialogTitle className="text-base font-bold text-[#0F172A]">
-              Edit User Account: {user?.name}
+          <DialogHeader className="border-b border-[#E2E8F0] pb-4">
+            <DialogTitle className="text-lg font-semibold tracking-tight text-[#1E293B] flex items-center gap-2">
+              <UserCog className="h-5 w-5 text-[#1D4ED8]" />
+              <span>Edit User Account: {user?.name}</span>
             </DialogTitle>
-            <DialogDescription className="text-xs text-[#475569]">
+            <DialogDescription className="text-xs text-[#475569] pt-1">
               Update user information, department memberships, and system access scopes.
             </DialogDescription>
           </DialogHeader>
 
           {isSelf && (
-            <div className="rounded-[4px] bg-[#F8FAFC] border border-[#CBD5E1] p-2.5 text-xs text-[#0F172A]">
+            <div className="rounded-[8px] bg-[#EFF6FF] border border-[#BFDBFE] p-3 text-xs text-[#1E40AF]">
               <strong>Self-Account Notice:</strong> You are editing your currently active account. Self-deactivation is disabled for security.
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {/* Full Name */}
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#0F172A]">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-[#1E293B]">
                 Full Name <span className="text-[#DC2626]">*</span>
               </label>
               <Input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="h-9 text-xs rounded-[4px] border-[#CBD5E1]"
+                className="h-9 text-xs rounded-[6px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B] focus-visible:border-[#1D4ED8]"
                 data-testid="edit-user-name-input"
                 required
               />
@@ -223,15 +225,15 @@ export function UserEditModal({
             </div>
 
             {/* Email Address */}
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#0F172A]">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-[#1E293B]">
                 Email Address <span className="text-[#DC2626]">*</span>
               </label>
               <Input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-9 text-xs rounded-[4px] border-[#CBD5E1] font-mono tabular-nums"
+                className="h-9 text-xs rounded-[6px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B] font-mono tabular-nums focus-visible:border-[#1D4ED8]"
                 data-testid="edit-user-email-input"
                 required
               />
@@ -239,13 +241,13 @@ export function UserEditModal({
             </div>
 
             {/* Reset / Change Password Section */}
-            <div className="space-y-2 rounded-[4px] border border-[#CBD5E1] bg-[#F8FAFC] p-2.5">
-              <label className="flex items-center gap-2 text-xs font-semibold text-[#0F172A] cursor-pointer select-none">
+            <div className="space-y-2 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+              <label className="flex items-center gap-2 text-xs font-medium text-[#1E293B] cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={changePassword}
                   onChange={(e) => setChangePassword(e.target.checked)}
-                  className="rounded-[2px] border-[#CBD5E1] text-[#0F172A] h-3.5 w-3.5"
+                  className="rounded-[4px] border-[#CBD5E1] text-[#1D4ED8] h-3.5 w-3.5 accent-[#1D4ED8]"
                   data-testid="edit-user-change-password-toggle"
                 />
                 <span>Reset User Password</span>
@@ -266,18 +268,18 @@ export function UserEditModal({
             </div>
 
             {/* Role Selection */}
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-[#0F172A]">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-[#1E293B]">
                 Primary Role <span className="text-[#DC2626]">*</span>
               </label>
               <Select value={role} onValueChange={(val) => setRole(val as UserRole)}>
                 <SelectTrigger
-                  className="h-9 text-xs rounded-[4px] border-[#CBD5E1] bg-white"
+                  className="h-9 text-xs rounded-[6px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B]"
                   data-testid="edit-user-role-select"
                 >
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-[12px] border border-[#E2E8F0] bg-[#FFFFFF] shadow-float">
                   {ALL_ROLES.map((r) => (
                     <SelectItem key={r} value={r} className="text-xs">
                       {r} {r === 'Admin' ? '(Super-User)' : ''}
@@ -290,22 +292,22 @@ export function UserEditModal({
 
             {/* Department Checkboxes */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-[#0F172A]">
+              <label className="text-xs font-medium text-[#1E293B]">
                 Department Assignments {role !== 'Admin' && <span className="text-[#DC2626]">*</span>}
               </label>
-              <div className="grid grid-cols-2 gap-2 rounded-[4px] border border-[#CBD5E1] bg-[#F8FAFC] p-2.5">
+              <div className="grid grid-cols-2 gap-2.5 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3">
                 {ALL_DEPARTMENTS.map((dept) => {
                   const checked = departments.includes(dept);
                   return (
                     <label
                       key={dept}
-                      className="flex items-center gap-2 text-xs text-[#0F172A] cursor-pointer select-none"
+                      className="flex items-center gap-2 text-xs text-[#1E293B] cursor-pointer select-none"
                     >
                       <input
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggleDepartment(dept)}
-                        className="rounded-[2px] border-[#CBD5E1] text-[#0F172A] h-3.5 w-3.5"
+                        className="rounded-[4px] border-[#CBD5E1] text-[#1D4ED8] h-3.5 w-3.5 accent-[#1D4ED8]"
                         data-testid={`edit-user-dept-${dept}`}
                       />
                       <span>{dept}</span>
@@ -320,22 +322,22 @@ export function UserEditModal({
 
             {/* Entity Access Checkboxes */}
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-[#0F172A]">
+              <label className="text-xs font-medium text-[#1E293B]">
                 Entity Access <span className="text-[#DC2626]">*</span>
               </label>
-              <div className="flex gap-4 rounded-[4px] border border-[#CBD5E1] bg-[#F8FAFC] p-2.5">
+              <div className="flex gap-4 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3">
                 {(['ATA', 'LTA'] as EntityCode[]).map((ent) => {
                   const checked = entities.includes(ent);
                   return (
                     <label
                       key={ent}
-                      className="flex items-center gap-2 text-xs text-[#0F172A] cursor-pointer select-none"
+                      className="flex items-center gap-2 text-xs text-[#1E293B] cursor-pointer select-none"
                     >
                       <input
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggleEntity(ent)}
-                        className="rounded-[2px] border-[#CBD5E1] text-[#0F172A] h-3.5 w-3.5"
+                        className="rounded-[4px] border-[#CBD5E1] text-[#1D4ED8] h-3.5 w-3.5 accent-[#1D4ED8]"
                         data-testid={`edit-user-entity-${ent}`}
                       />
                       <span className="font-semibold font-mono">{ent}</span>
@@ -348,13 +350,13 @@ export function UserEditModal({
 
             {/* Active Status with Self-Protection */}
             <div className="flex items-center gap-2 pt-1">
-              <label className="flex items-center gap-2 text-xs text-[#0F172A] cursor-pointer select-none">
+              <label className="flex items-center gap-2 text-xs text-[#1E293B] cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={isActive}
                   disabled={isSelf}
                   onChange={(e) => setIsActive(e.target.checked)}
-                  className="rounded-[2px] border-[#CBD5E1] text-[#0F172A] h-3.5 w-3.5 disabled:opacity-50"
+                  className="rounded-[4px] border-[#CBD5E1] text-[#1D4ED8] h-3.5 w-3.5 accent-[#1D4ED8] disabled:opacity-50"
                   data-testid="edit-user-active-checkbox"
                 />
                 <span className={`font-medium ${isSelf ? 'text-[#475569]' : ''}`}>
@@ -364,13 +366,13 @@ export function UserEditModal({
               {errors.isActive && <p className="text-xs text-[#DC2626]">{errors.isActive}</p>}
             </div>
 
-            <DialogFooter className="pt-2">
+            <DialogFooter className="border-t border-[#E2E8F0] pt-4 gap-2">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={onClose}
-                className="text-xs h-8 rounded-[4px] border-[#CBD5E1]"
+                className="text-xs h-9 rounded-[6px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B] hover:bg-[#F8FAFC] cursor-pointer"
                 data-testid="edit-user-cancel-btn"
               >
                 Cancel
@@ -378,7 +380,7 @@ export function UserEditModal({
               <Button
                 type="submit"
                 size="sm"
-                className="text-xs h-8 rounded-[4px] bg-[#0F172A] text-white hover:bg-[#1E293B]"
+                className="text-xs h-9 rounded-[6px] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] font-medium shadow-2xs cursor-pointer"
                 data-testid="edit-user-submit-btn"
               >
                 Save Changes

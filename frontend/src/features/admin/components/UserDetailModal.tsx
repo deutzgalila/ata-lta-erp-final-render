@@ -77,21 +77,21 @@ export function UserDetailModal({
   return (
     <Dialog open={modalOpen} onOpenChange={(next) => !next && handleClose()}>
       <DialogContent
-        className="max-w-lg rounded-[6px] border border-[#CBD5E1] bg-white p-0 shadow-lg"
+        className="max-w-lg rounded-[12px] border border-[#E2E8F0] bg-[#FFFFFF] p-6 shadow-float space-y-5"
         data-testid="user-detail-modal"
       >
-        <DialogHeader className="border-b border-[#E2E8F0] bg-[#F8FAFC] px-5 py-4">
+        <DialogHeader className="border-b border-[#E2E8F0] pb-4">
           <div className="flex items-start justify-between gap-3 pr-6">
             <div className="flex items-center gap-3">
               <div
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[4px] border border-[#CBD5E1] bg-[#0F172A] font-mono text-xs font-bold text-white"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-[#BFDBFE] bg-[#EFF6FF] font-mono text-xs font-bold text-[#1D4ED8]"
                 data-testid="user-detail-initials"
               >
                 {getInitials(user.name)}
               </div>
               <div>
                 <DialogTitle
-                  className="text-base font-bold tracking-[-0.01em] text-[#0F172A]"
+                  className="text-lg font-semibold tracking-tight text-[#1E293B]"
                   data-testid="user-detail-name"
                 >
                   {user.name}
@@ -108,7 +108,7 @@ export function UserDetailModal({
               <Badge
                 variant="outline"
                 data-testid="user-detail-version"
-                className="rounded-[3px] border-[#CBD5E1] bg-white px-1.5 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-[#475569]"
+                className="rounded-[6px] border-[#E2E8F0] bg-[#F8FAFC] px-2 py-0.5 font-mono text-xs font-semibold tabular-nums text-[#475569]"
               >
                 v{version}
               </Badge>
@@ -117,8 +117,8 @@ export function UserDetailModal({
                 data-testid="user-detail-status"
                 className={
                   isActive
-                    ? 'rounded-[3px] border-[#10B981] bg-[#ECFDF5] px-2 py-0.5 text-[11px] font-semibold text-[#047857]'
-                    : 'rounded-[3px] border-[#CBD5E1] bg-[#F1F5F9] px-2 py-0.5 text-[11px] font-semibold text-[#475569]'
+                    ? 'rounded-[6px] border-[#A7F3D0] bg-[#ECFDF5] px-2 py-0.5 text-xs font-medium text-[#047857]'
+                    : 'rounded-[6px] border-[#E2E8F0] bg-[#F8FAFC] px-2 py-0.5 text-xs font-medium text-[#475569]'
                 }
               >
                 {isActive ? 'Active' : 'Disabled'}
@@ -127,17 +127,17 @@ export function UserDetailModal({
           </div>
         </DialogHeader>
 
-        <div className="space-y-4 px-5 py-4 text-xs text-[#0F172A]">
+        <div className="space-y-4 text-xs text-[#1E293B]">
           {/* 1. System Role & Role Summary */}
-          <div className="rounded-[4px] border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+          <div className="rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3.5">
             <div className="mb-1.5 flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[#475569]">
+              <span className="text-xs font-semibold text-[#1E293B]">
                 System Role
               </span>
               <Badge
                 variant="outline"
                 data-testid="user-detail-role"
-                className="rounded-[3px] border-[#0F172A] bg-[#0F172A] px-2 py-0.5 font-mono text-[11px] font-semibold text-white"
+                className="rounded-[6px] border-[#BFDBFE] bg-[#EFF6FF] px-2 py-0.5 font-mono text-xs font-semibold text-[#1D4ED8]"
               >
                 {user.role}
               </Badge>
@@ -149,7 +149,7 @@ export function UserDetailModal({
 
           {/* 2. Authorized Entities */}
           <div className="space-y-1.5">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[#475569]">
+            <div className="text-xs font-semibold text-[#1E293B]">
               Authorized Entities
             </div>
             <div
@@ -160,25 +160,32 @@ export function UserDetailModal({
                 user.entities.map((ent) => (
                   <div
                     key={ent}
-                    className="flex items-center gap-2 rounded-[4px] border border-[#CBD5E1] bg-white px-2.5 py-1.5"
+                    className="flex items-center gap-2 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2"
                   >
-                    <span className="rounded-[3px] bg-[#0F172A] px-1.5 py-0.5 font-mono text-[10px] font-bold text-white">
+                    <Badge
+                      variant="outline"
+                      className={
+                        ent === 'ATA'
+                          ? 'bg-[#1D4ED8] text-[#FFFFFF] border-[#E2E8F0] rounded-[6px] text-xs font-bold px-2 py-0.5'
+                          : 'bg-[#FFFFFF] text-[#1E293B] border-[#E2E8F0] rounded-[6px] text-xs font-bold px-2 py-0.5'
+                      }
+                    >
                       {ent}
-                    </span>
-                    <span className="text-xs font-medium text-[#334155]">
+                    </Badge>
+                    <span className="text-xs font-medium text-[#1E293B]">
                       {ENTITY_LABELS[ent] ?? ent}
                     </span>
                   </div>
                 ))
               ) : (
-                <span className="italic text-[#94A3B8]">No entities assigned</span>
+                <span className="italic text-[#475569]">No entities assigned</span>
               )}
             </div>
           </div>
 
           {/* 3. Assigned Departments */}
           <div className="space-y-1.5">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[#475569]">
+            <div className="text-xs font-semibold text-[#1E293B]">
               Assigned Departments
             </div>
             <div
@@ -190,13 +197,13 @@ export function UserDetailModal({
                   <Badge
                     key={dept}
                     variant="outline"
-                    className="rounded-[3px] border-[#CBD5E1] bg-[#F8FAFC] px-2.5 py-1 text-xs font-medium text-[#0F172A]"
+                    className="rounded-[6px] border-[#E2E8F0] bg-[#F8FAFC] px-2.5 py-1 text-xs font-medium text-[#1E293B]"
                   >
                     {dept}
                   </Badge>
                 ))
               ) : (
-                <span className="italic text-[#94A3B8]" data-testid="user-detail-no-departments">
+                <span className="italic text-[#475569]" data-testid="user-detail-no-departments">
                   No departments assigned
                 </span>
               )}
@@ -204,17 +211,17 @@ export function UserDetailModal({
           </div>
 
           {/* 4. Account Metadata */}
-          <div className="rounded-[4px] border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-            <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-[#475569]">
+          <div className="rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3.5">
+            <div className="mb-2 text-xs font-semibold text-[#1E293B]">
               Account Metadata
             </div>
-            <dl className="grid grid-cols-1 gap-1.5 sm:grid-cols-3">
+            <dl className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               <div>
-                <dt className="text-[10px] uppercase tracking-[0.05em] text-[#64748B]">
+                <dt className="text-[11px] font-medium text-[#475569]">
                   User ID
                 </dt>
                 <dd
-                  className="truncate font-mono text-[11px] font-medium tabular-nums text-[#0F172A]"
+                  className="truncate font-mono text-xs font-medium tabular-nums text-[#1E293B]"
                   title={user.id}
                   data-testid="user-detail-id"
                 >
@@ -222,22 +229,22 @@ export function UserDetailModal({
                 </dd>
               </div>
               <div>
-                <dt className="text-[10px] uppercase tracking-[0.05em] text-[#64748B]">
+                <dt className="text-[11px] font-medium text-[#475569]">
                   Created At
                 </dt>
                 <dd
-                  className="font-mono text-[11px] tabular-nums text-[#334155]"
+                  className="font-mono text-xs tabular-nums text-[#1E293B]"
                   data-testid="user-detail-created-at"
                 >
                   {formatTimestamp(user.createdAt)}
                 </dd>
               </div>
               <div>
-                <dt className="text-[10px] uppercase tracking-[0.05em] text-[#64748B]">
+                <dt className="text-[11px] font-medium text-[#475569]">
                   Updated At
                 </dt>
                 <dd
-                  className="font-mono text-[11px] tabular-nums text-[#334155]"
+                  className="font-mono text-xs tabular-nums text-[#1E293B]"
                   data-testid="user-detail-updated-at"
                 >
                   {formatTimestamp(user.updatedAt)}
@@ -247,13 +254,13 @@ export function UserDetailModal({
           </div>
         </div>
 
-        <DialogFooter className="border-t border-[#E2E8F0] bg-[#F8FAFC] px-5 py-3">
+        <DialogFooter className="border-t border-[#E2E8F0] pt-4">
           <Button
             type="button"
             variant="outline"
             onClick={handleClose}
             data-testid="user-detail-close-btn"
-            className="h-8 rounded-[4px] border-[#CBD5E1] bg-white px-4 text-xs font-semibold text-[#0F172A] hover:bg-[#F1F5F9]"
+            className="h-9 rounded-[6px] border-[#E2E8F0] bg-[#FFFFFF] px-4 text-xs font-medium text-[#1E293B] hover:bg-[#F8FAFC] cursor-pointer"
           >
             Close
           </Button>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { UserPlus } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -149,28 +150,29 @@ export function UserCreateModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent
-        className="max-w-lg border border-[#CBD5E1] rounded-[6px] p-6 bg-white max-h-[90vh] overflow-y-auto"
+        className="max-w-lg rounded-[12px] border border-[#E2E8F0] bg-[#FFFFFF] p-6 shadow-float max-h-[90vh] overflow-y-auto space-y-4"
         data-testid="user-create-modal"
       >
-        <DialogHeader>
-          <DialogTitle className="text-base font-bold text-[#0F172A]">
-            Create User Account
+        <DialogHeader className="border-b border-[#E2E8F0] pb-4">
+          <DialogTitle className="text-lg font-semibold tracking-tight text-[#1E293B] flex items-center gap-2">
+            <UserPlus className="h-5 w-5 text-[#1D4ED8]" />
+            <span>Create User Account</span>
           </DialogTitle>
-          <DialogDescription className="text-xs text-[#475569]">
+          <DialogDescription className="text-xs text-[#475569] pt-1">
             Provision a new enterprise team member with role-based permissions and entity scopes.
           </DialogDescription>
         </DialogHeader>
 
         {activeUsersCount >= 15 && (
-          <div className="rounded-[4px] bg-[#FFFBEB] border border-[#F59E0B] p-2.5 text-xs text-[#92400E]">
+          <div className="rounded-[8px] bg-[#FFFBEB] border border-[#FDE68A] p-3 text-xs text-[#92400E]">
             <strong>Active Account Cap Warning:</strong> The system has reached {activeUsersCount} active users. Creating a new active user may fail unless an existing account is disabled.
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {/* Full Name */}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#0F172A]">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-[#1E293B]">
               Full Name <span className="text-[#DC2626]">*</span>
             </label>
             <Input
@@ -178,7 +180,7 @@ export function UserCreateModal({
               placeholder="e.g. Maria Santos"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="h-9 text-xs rounded-[4px] border-[#CBD5E1]"
+              className="h-9 text-xs rounded-[6px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B] focus-visible:border-[#1D4ED8]"
               data-testid="create-user-name-input"
               required
             />
@@ -186,8 +188,8 @@ export function UserCreateModal({
           </div>
 
           {/* Email Address */}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#0F172A]">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-[#1E293B]">
               Email Address <span className="text-[#DC2626]">*</span>
             </label>
             <Input
@@ -195,7 +197,7 @@ export function UserCreateModal({
               placeholder="e.g. maria@ata-lta.ph"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="h-9 text-xs rounded-[4px] border-[#CBD5E1] font-mono tabular-nums"
+              className="h-9 text-xs rounded-[6px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B] font-mono tabular-nums focus-visible:border-[#1D4ED8]"
               data-testid="create-user-email-input"
               required
             />
@@ -203,8 +205,8 @@ export function UserCreateModal({
           </div>
 
           {/* Guarded Password Input */}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#0F172A]">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-[#1E293B]">
               Password <span className="text-[#DC2626]">*</span>
             </label>
             <GuardedPasswordInput
@@ -218,18 +220,18 @@ export function UserCreateModal({
           </div>
 
           {/* Role Selection */}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-[#0F172A]">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-[#1E293B]">
               Primary Role <span className="text-[#DC2626]">*</span>
             </label>
             <Select value={role} onValueChange={(val) => handleRoleChange(val as UserRole)}>
               <SelectTrigger
-                className="h-9 text-xs rounded-[4px] border-[#CBD5E1] bg-white"
+                className="h-9 text-xs rounded-[6px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B]"
                 data-testid="create-user-role-select"
               >
                 <SelectValue placeholder="Select role" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="rounded-[12px] border border-[#E2E8F0] bg-[#FFFFFF] shadow-float">
                 {ALL_ROLES.map((r) => (
                   <SelectItem key={r} value={r} className="text-xs">
                     {r} {r === 'Admin' ? '(Super-User)' : ''}
@@ -242,22 +244,22 @@ export function UserCreateModal({
 
           {/* Department Multi-Select Checkboxes */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-[#0F172A]">
+            <label className="text-xs font-medium text-[#1E293B]">
               Department Assignments {role !== 'Admin' && <span className="text-[#DC2626]">*</span>}
             </label>
-            <div className="grid grid-cols-2 gap-2 rounded-[4px] border border-[#CBD5E1] bg-[#F8FAFC] p-2.5">
+            <div className="grid grid-cols-2 gap-2.5 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3">
               {ALL_DEPARTMENTS.map((dept) => {
                 const checked = departments.includes(dept);
                 return (
                   <label
                     key={dept}
-                    className="flex items-center gap-2 text-xs text-[#0F172A] cursor-pointer select-none"
+                    className="flex items-center gap-2 text-xs text-[#1E293B] cursor-pointer select-none"
                   >
                     <input
                       type="checkbox"
                       checked={checked}
                       onChange={() => toggleDepartment(dept)}
-                      className="rounded-[2px] border-[#CBD5E1] text-[#0F172A] h-3.5 w-3.5"
+                      className="rounded-[4px] border-[#CBD5E1] text-[#1D4ED8] h-3.5 w-3.5 accent-[#1D4ED8]"
                       data-testid={`create-user-dept-${dept}`}
                     />
                     <span>{dept}</span>
@@ -272,22 +274,22 @@ export function UserCreateModal({
 
           {/* Entity Access Checkboxes */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-[#0F172A]">
+            <label className="text-xs font-medium text-[#1E293B]">
               Entity Access <span className="text-[#DC2626]">*</span>
             </label>
-            <div className="flex gap-4 rounded-[4px] border border-[#CBD5E1] bg-[#F8FAFC] p-2.5">
+            <div className="flex gap-4 rounded-[8px] border border-[#E2E8F0] bg-[#F8FAFC] p-3">
               {(['ATA', 'LTA'] as EntityCode[]).map((ent) => {
                 const checked = entities.includes(ent);
                 return (
                   <label
                     key={ent}
-                    className="flex items-center gap-2 text-xs text-[#0F172A] cursor-pointer select-none"
+                    className="flex items-center gap-2 text-xs text-[#1E293B] cursor-pointer select-none"
                   >
                     <input
                       type="checkbox"
                       checked={checked}
                       onChange={() => toggleEntity(ent)}
-                      className="rounded-[2px] border-[#CBD5E1] text-[#0F172A] h-3.5 w-3.5"
+                      className="rounded-[4px] border-[#CBD5E1] text-[#1D4ED8] h-3.5 w-3.5 accent-[#1D4ED8]"
                       data-testid={`create-user-entity-${ent}`}
                     />
                     <span className="font-semibold font-mono">{ent}</span>
@@ -300,25 +302,25 @@ export function UserCreateModal({
 
           {/* Active Status */}
           <div className="flex items-center gap-2 pt-1">
-            <label className="flex items-center gap-2 text-xs text-[#0F172A] cursor-pointer select-none">
+            <label className="flex items-center gap-2 text-xs text-[#1E293B] cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={isActive}
                 onChange={(e) => setIsActive(e.target.checked)}
-                className="rounded-[2px] border-[#CBD5E1] text-[#0F172A] h-3.5 w-3.5"
+                className="rounded-[4px] border-[#CBD5E1] text-[#1D4ED8] h-3.5 w-3.5 accent-[#1D4ED8]"
                 data-testid="create-user-active-checkbox"
               />
               <span className="font-medium">Active Account</span>
             </label>
           </div>
 
-          <DialogFooter className="pt-2">
+          <DialogFooter className="border-t border-[#E2E8F0] pt-4 gap-2">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={onClose}
-              className="text-xs h-8 rounded-[4px] border-[#CBD5E1]"
+              className="text-xs h-9 rounded-[6px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B] hover:bg-[#F8FAFC] cursor-pointer"
               data-testid="create-user-cancel-btn"
             >
               Cancel
@@ -326,7 +328,7 @@ export function UserCreateModal({
             <Button
               type="submit"
               size="sm"
-              className="text-xs h-8 rounded-[4px] bg-[#0F172A] text-white hover:bg-[#1E293B]"
+              className="text-xs h-9 rounded-[6px] bg-[#1D4ED8] text-[#FFFFFF] hover:bg-[#1E40AF] font-medium shadow-2xs cursor-pointer"
               data-testid="create-user-submit-btn"
             >
               Create User
