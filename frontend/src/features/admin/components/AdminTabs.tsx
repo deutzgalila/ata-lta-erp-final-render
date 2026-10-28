@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Users, History, Shield, Plus } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -24,6 +24,7 @@ export interface AdminTabsProps {
 export function AdminTabs({ defaultTab }: AdminTabsProps = {}) {
   const [searchParams, setSearchParams] = useSearchParams();
   const urlTab = searchParams.get('tab');
+  const urlUserId = searchParams.get('userId');
   const currentTab =
     urlTab === 'audit' || urlTab === 'users'
       ? urlTab
@@ -32,7 +33,7 @@ export function AdminTabs({ defaultTab }: AdminTabsProps = {}) {
   // Session & Entity Scope
   const user = useSessionStore((state) => state.user);
   const activeEntity = useSessionStore((state) => state.activeEntity);
-  const switchEntity = useSessionStore((state) => state.switchEntity);
+  const setActiveEntity = useSessionStore((state) => state.setActiveEntity);
   const canManageUsers = usePermission('users:manage');
   const userEntities = user?.entities ?? ['ATA', 'LTA'];
 
@@ -63,6 +64,16 @@ export function AdminTabs({ defaultTab }: AdminTabsProps = {}) {
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [disablingUser, setDisablingUser] = useState<AdminUser | null>(null);
   const [inspectingUser, setInspectingUser] = useState<AdminUser | null>(null);
+
+  // Support deep-link ?userId=... from Audit Log
+  useEffect(() => {
+    if (urlUserId && users.length > 0) {
+      const matched = users.find((u) => u.id === urlUserId);
+      if (matched) {
+        setInspectingUser(matched);
+      }
+    }
+  }, [urlUserId, users]);
 
   const handleTabChange = (value: string) => {
     setSearchParams({ tab: value });
@@ -107,7 +118,7 @@ export function AdminTabs({ defaultTab }: AdminTabsProps = {}) {
                   key={ent}
                   type="button"
                   disabled={!isAllowed}
-                  onClick={() => switchEntity(ent)}
+                  onClick={() => setActiveEntity(ent)}
                   data-testid={`admin-entity-pill-${ent}`}
                   className={`px-3 py-1.5 text-xs font-medium transition-colors rounded-[6px] cursor-pointer ${
                     isSelected
@@ -137,45 +148,47 @@ export function AdminTabs({ defaultTab }: AdminTabsProps = {}) {
       </div>
 
       {/* Main 2-Tab Navigation: Users & Audit Log */}
-      <Tabs value={currentTab} onValueChange={handleTabChange} className="w-full space-y-5">
-        <TabsList
-          className="w-full justify-start rounded-[8px] bg-[#F8FAFC] p-1 border border-[#E2E8F0] gap-1 h-auto overflow-x-auto scrollbar-none flex flex-nowrap"
-          data-testid="admin-tabs-list"
-        >
-          {/* Tab 1: User Management */}
-          <TabsTrigger
-            value="users"
-            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
-            data-testid="tab-trigger-users"
+      <Tabs value={currentTab} onValueChange={handleTabChange} className="w-full space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E2E8F0] pb-2">
+          <TabsList
+            className="w-full sm:w-auto justify-start rounded-[8px] bg-[#F8FAFC] p-1 border border-[#E2E8F0] gap-1 h-auto overflow-x-auto scrollbar-none flex flex-nowrap"
+            data-testid="admin-tabs-list"
           >
-            <Users className="h-3.5 w-3.5" />
-            <span>User Management</span>
-            <Badge
-              variant="secondary"
-              className="text-xs tabular-nums px-1.5 py-0 h-4 ml-1 rounded-[4px] border border-[#E2E8F0] bg-[#E2E8F0]/70 text-[#1E293B]"
-              data-testid="tab-users-count"
+            {/* Tab 1: User Management */}
+            <TabsTrigger
+              value="users"
+              className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+              data-testid="tab-trigger-users"
             >
-              {users.length}
-            </Badge>
-          </TabsTrigger>
+              <Users className="h-4 w-4" />
+              <span>User Management</span>
+              <Badge
+                variant="secondary"
+                className="text-xs tabular-nums px-1.5 py-0 h-4 ml-1 rounded-[4px] border border-[#E2E8F0] bg-[#E2E8F0]/70 text-[#1E293B]"
+                data-testid="tab-users-count"
+              >
+                {users.length}
+              </Badge>
+            </TabsTrigger>
 
-          {/* Tab 2: Audit Log */}
-          <TabsTrigger
-            value="audit"
-            className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
-            data-testid="tab-trigger-audit"
-          >
-            <History className="h-3.5 w-3.5" />
-            <span>Audit Log</span>
-            <Badge
-              variant="secondary"
-              className="text-xs tabular-nums px-1.5 py-0 h-4 ml-1 rounded-[4px] border border-[#E2E8F0] bg-[#E2E8F0]/70 text-[#1E293B]"
-              data-testid="tab-audit-count"
+            {/* Tab 2: Audit Log */}
+            <TabsTrigger
+              value="audit"
+              className="rounded-[6px] px-3.5 py-2 text-xs sm:text-sm font-medium text-[#475569] hover:bg-[#E2E8F0]/70 hover:text-[#1E293B] data-[state=active]:bg-[#FFFFFF] data-[state=active]:text-[#1E40AF] data-[state=active]:font-semibold data-[state=active]:shadow-2xs data-[state=active]:border-b-2 data-[state=active]:border-[#1D4ED8] transition-colors cursor-pointer shrink-0 flex items-center gap-1.5"
+              data-testid="tab-trigger-audit"
             >
-              {auditCount}
-            </Badge>
-          </TabsTrigger>
-        </TabsList>
+              <History className="h-4 w-4" />
+              <span>Audit Log</span>
+              <Badge
+                variant="secondary"
+                className="text-xs tabular-nums px-1.5 py-0 h-4 ml-1 rounded-[4px] border border-[#E2E8F0] bg-[#E2E8F0]/70 text-[#1E293B]"
+                data-testid="tab-audit-count"
+              >
+                {auditCount}
+              </Badge>
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Tab Content 1: Users */}
         <TabsContent value="users" className="mt-0 outline-none" data-testid="tab-content-users">
@@ -215,7 +228,16 @@ export function AdminTabs({ defaultTab }: AdminTabsProps = {}) {
       <UserDetailModal
         user={inspectingUser}
         isOpen={Boolean(inspectingUser)}
-        onClose={() => setInspectingUser(null)}
+        onClose={() => {
+          setInspectingUser(null);
+          if (urlUserId) {
+            setSearchParams((prev) => {
+              const next = new URLSearchParams(prev);
+              next.delete('userId');
+              return next;
+            }, { replace: true });
+          }
+        }}
       />
     </div>
   );

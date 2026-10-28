@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useSessionStore } from '@/lib/session';
 import {
+  buildAuditRouteHref,
   formatAuditAction,
   getAuditActionBadgeStyle,
   getAuditItemIdentifier,
@@ -27,6 +28,7 @@ import {
   getAuditModuleLabel,
   parseAuditDiffRows,
   resolveAuditBusinessContext,
+  type AuditItemRouteLink,
 } from '../utils/auditFormatters';
 import type { AdminUser, AuditLogEntry, EntityCode } from '../api/types';
 
@@ -66,7 +68,7 @@ export function AuditLogDetailModal({
 }: AuditLogDetailModalProps) {
   const navigate = useNavigate();
   const activeEntity = useSessionStore((s) => s.activeEntity);
-  const switchEntity = useSessionStore((s) => s.switchEntity);
+  const setActiveEntity = useSessionStore((s) => s.setActiveEntity);
   const currentUser = useSessionStore((s) => s.user);
 
   const [viewMode, setViewMode] = useState<'diff' | 'json'>('diff');
@@ -93,21 +95,22 @@ export function AuditLogDetailModal({
   const businessContext = resolveAuditBusinessContext(entry, usersMap);
   const diffRows = parseAuditDiffRows(entry.details, usersMap);
 
-  const handleViewRecord = () => {
-    if (!routeLink) return;
+  const navigateToLink = (link: AuditItemRouteLink | null | undefined) => {
+    if (!link) return;
     const targetEntity = (entry.entity || '').toUpperCase();
     if (
       (targetEntity === 'ATA' || targetEntity === 'LTA') &&
       activeEntity !== targetEntity &&
       currentUser?.entities?.includes(targetEntity as EntityCode)
     ) {
-      switchEntity(targetEntity as EntityCode);
+      setActiveEntity(targetEntity);
     }
     onClose();
-    const searchParams = new URLSearchParams(routeLink.search ?? {});
-    const qs = searchParams.toString();
-    const targetUrl = qs ? `${routeLink.to}?${qs}` : routeLink.to;
-    navigate(targetUrl);
+    navigate(buildAuditRouteHref(link));
+  };
+
+  const handleViewRecord = () => {
+    navigateToLink(routeLink);
   };
 
   return (
@@ -216,14 +219,29 @@ export function AuditLogDetailModal({
                 </div>
                 <div>
                   <div className="text-xs font-medium text-[#475569]">
-                    Log ID
+                    Target Record
                   </div>
-                  <div
-                    className="mt-1 truncate font-mono text-xs text-[#475569] tabular-nums"
-                    title={entry.id}
-                    data-testid="audit-detail-id"
-                  >
-                    {entry.id}
+                  <div className="mt-1 min-w-0">
+                    {routeLink && targetIdentifier !== '—' ? (
+                      <button
+                        type="button"
+                        onClick={handleViewRecord}
+                        title={routeLink.label}
+                        className="inline-flex max-w-full items-center gap-1 font-mono text-xs font-semibold text-[#1D4ED8] hover:text-[#1E40AF] hover:underline cursor-pointer text-left"
+                        data-testid="audit-detail-target-link"
+                      >
+                        <span className="truncate">{targetIdentifier}</span>
+                        <ExternalLink className="h-3 w-3 shrink-0" />
+                      </button>
+                    ) : (
+                      <span
+                        className="truncate font-mono text-xs text-[#475569] tabular-nums"
+                        title={targetIdentifier}
+                        data-testid="audit-detail-id"
+                      >
+                        {targetIdentifier !== '—' ? targetIdentifier : entry.id}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -241,26 +259,54 @@ export function AuditLogDetailModal({
                   <Briefcase className="h-3.5 w-3.5 text-[#1D4ED8]" />
                   Business Context
                 </span>
-                <span className="font-mono text-xs font-semibold text-[#1E293B]">
-                  {targetIdentifier}
-                </span>
+                {routeLink && targetIdentifier !== '—' ? (
+                  <button
+                    type="button"
+                    onClick={handleViewRecord}
+                    title={routeLink.label}
+                    className="inline-flex items-center gap-1 font-mono text-xs font-semibold text-[#1D4ED8] hover:text-[#1E40AF] hover:underline cursor-pointer"
+                  >
+                    <span>{targetIdentifier}</span>
+                    <ExternalLink className="h-3 w-3 shrink-0" />
+                  </button>
+                ) : (
+                  <span className="font-mono text-xs font-semibold text-[#1E293B]">
+                    {targetIdentifier}
+                  </span>
+                )}
               </div>
               {businessContext.length > 0 && (
                 <div className="grid grid-cols-1 gap-2.5 border-t border-[#E2E8F0] pt-2.5 sm:grid-cols-2">
                   {businessContext.map((ctx, idx) => (
-                    <div key={`${ctx.label}-${idx}`} className="flex flex-col">
+                    <div key={`${ctx.label}-${idx}`} className="flex flex-col items-start">
                       <span className="text-xs text-[#475569]">
                         {ctx.label}
                       </span>
-                      <span
-                        className={`mt-0.5 text-xs text-[#1E293B] ${
-                          ctx.isCode || ctx.isAmount
-                            ? 'font-mono font-semibold tabular-nums'
-                            : 'font-medium'
-                        }`}
-                      >
-                        {ctx.value}
-                      </span>
+                      {ctx.routeLink ? (
+                        <button
+                          type="button"
+                          onClick={() => navigateToLink(ctx.routeLink)}
+                          title={ctx.routeLink.label}
+                          className={`mt-0.5 inline-flex items-center gap-1 text-xs text-[#1D4ED8] hover:text-[#1E40AF] hover:underline cursor-pointer text-left ${
+                            ctx.isCode || ctx.isAmount
+                              ? 'font-mono font-semibold tabular-nums'
+                              : 'font-medium'
+                          }`}
+                        >
+                          <span>{ctx.value}</span>
+                          <ExternalLink className="h-3 w-3 shrink-0" />
+                        </button>
+                      ) : (
+                        <span
+                          className={`mt-0.5 text-xs text-[#1E293B] ${
+                            ctx.isCode || ctx.isAmount
+                              ? 'font-mono font-semibold tabular-nums'
+                              : 'font-medium'
+                          }`}
+                        >
+                          {ctx.value}
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>

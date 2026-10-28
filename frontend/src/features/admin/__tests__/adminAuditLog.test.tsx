@@ -141,15 +141,99 @@ describe('Admin Audit Log View, Detail Modal & Formatters', () => {
       const userLink = getAuditItemRouteLink(SAMPLE_AUDIT_LOGS[0]!);
       expect(userLink).toEqual({
         to: '/admin',
-        search: { tab: 'users' },
+        search: { tab: 'users', userId: 'usr-mgr' },
         label: 'View in User Management',
       });
 
       const invoiceLink = getAuditItemRouteLink(SAMPLE_AUDIT_LOGS[1]!);
       expect(invoiceLink).toEqual({
         to: '/billing',
-        search: { detailId: 'inv-1001' },
+        search: { invoiceId: 'inv-1001' },
         label: 'View in Billing',
+      });
+
+      expect(
+        getAuditItemRouteLink({
+          id: 'aud-task',
+          action: 'task.updated',
+          tableName: 'tasks',
+          recordId: 'tsk-42',
+          details: { workRequestId: 'wr-99', name: 'Draft Contract' },
+        })
+      ).toEqual({
+        to: '/operations',
+        search: { tab: 'work-requests', view: 'board', wrId: 'wr-99', taskId: 'tsk-42' },
+        label: 'View Task in Operations',
+      });
+
+      expect(
+        getAuditItemRouteLink({
+          id: 'aud-wr-arch',
+          action: 'work_request.archived',
+          tableName: 'work_requests',
+          recordId: 'wr-99',
+          details: { title: 'Annual Filing' },
+        })
+      ).toEqual({
+        to: '/operations',
+        search: { tab: 'archive', wrId: 'wr-99' },
+        label: 'View in Operations Archive',
+      });
+
+      expect(
+        getAuditItemRouteLink({
+          id: 'aud-disb',
+          action: 'disbursement.released',
+          tableName: 'disbursements',
+          recordId: 'disb-11',
+          details: { disbursementNumber: 'DSB-0011' },
+        })
+      ).toEqual({
+        to: '/disbursements',
+        search: { disbursementId: 'disb-11' },
+        label: 'View in Disbursements',
+      });
+
+      expect(
+        getAuditItemRouteLink({
+          id: 'aud-trk',
+          action: 'transmittal.sent',
+          tableName: 'transmittals',
+          recordId: 'trk-22',
+          details: { trackingNumber: 'TRK-0022' },
+        })
+      ).toEqual({
+        to: '/transmittals',
+        search: { transmittalId: 'trk-22' },
+        label: 'View in Transmittals',
+      });
+
+      expect(
+        getAuditItemRouteLink({
+          id: 'aud-doc',
+          action: 'document.confirm-upload',
+          tableName: 'documents',
+          recordId: 'doc-33',
+          details: { name: 'Permit.pdf' },
+        })
+      ).toEqual({
+        to: '/documents',
+        search: { docId: 'doc-33' },
+        label: 'View in Documents',
+      });
+
+      expect(
+        getAuditItemRouteLink({
+          id: 'aud-cli',
+          action: 'client.updated',
+          tableName: 'clients',
+          recordId: 'cli-44',
+          details: { name: 'Acme Corp' },
+        })
+      ).toEqual({
+        to: '/clients',
+        search: { clientId: 'cli-44' },
+        label: 'View in Clients',
       });
 
       const context = resolveAuditBusinessContext(SAMPLE_AUDIT_LOGS[1]!, usersMap);
@@ -244,6 +328,11 @@ describe('Admin Audit Log View, Detail Modal & Formatters', () => {
         </QueryClientProvider>
       );
 
+      // Deep-link navigation directly from table Target Record cell
+      fireEvent.click(screen.getByTestId('audit-target-aud-2'));
+      expect(mockNavigate).toHaveBeenCalledWith('/billing?invoiceId=inv-1001');
+      mockNavigate.mockClear();
+
       // Click Details button on aud-1
       fireEvent.click(screen.getByTestId('audit-details-btn-aud-1'));
 
@@ -269,7 +358,7 @@ describe('Admin Audit Log View, Detail Modal & Formatters', () => {
       // Deep-link navigation via View Record button
       fireEvent.click(screen.getByTestId('audit-view-record-btn'));
       await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/admin?tab=users');
+        expect(mockNavigate).toHaveBeenCalledWith('/admin?tab=users&userId=usr-mgr');
       });
     });
   });

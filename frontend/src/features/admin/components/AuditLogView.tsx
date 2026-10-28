@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Search,
   RotateCcw,
@@ -6,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FileSearch,
+  ExternalLink,
 } from 'lucide-react';
 import {
   Table,
@@ -25,16 +27,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useSessionStore } from '@/lib/session';
 import { useAuditLogsList } from '../api/useAuditLogs';
 import { useUsersList } from '../api/useUsers';
 import {
+  buildAuditRouteHref,
   formatAuditAction,
   getAuditActionBadgeStyle,
   getAuditItemIdentifier,
+  getAuditItemRouteLink,
   getAuditModuleLabel,
 } from '../utils/auditFormatters';
 import { AuditLogDetailModal } from './AuditLogDetailModal';
-import type { AdminUser, AuditLogEntry, AuditLogFilterParams } from '../api/types';
+import type { AdminUser, AuditLogEntry, AuditLogFilterParams, EntityCode } from '../api/types';
 
 const PAGE_LIMIT = 50;
 
@@ -69,6 +74,11 @@ function formatTableTimestamp(iso?: string): { date: string; time: string } {
 }
 
 export function AuditLogView() {
+  const navigate = useNavigate();
+  const activeEntity = useSessionStore((s) => s.activeEntity);
+  const setActiveEntity = useSessionStore((s) => s.setActiveEntity);
+  const currentUser = useSessionStore((s) => s.user);
+
   // Filter State
   const [searchQuery, setSearchQuery] = useState('');
   const [moduleFilter, setModuleFilter] = useState<string>('ALL');
@@ -379,7 +389,22 @@ export function AuditLogView() {
                 const moduleLabel = getAuditModuleLabel(entry);
                 const tableRaw = entry.tableName ?? entry.table_name ?? '';
                 const targetIdentifier = getAuditItemIdentifier(entry, usersMap);
+                const routeLink = getAuditItemRouteLink(entry);
                 const entityDisplay = entry.entity || 'System';
+
+                const handleTargetClick = (e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  if (!routeLink) return;
+                  const targetEntity = (entry.entity || '').toUpperCase();
+                  if (
+                    (targetEntity === 'ATA' || targetEntity === 'LTA') &&
+                    activeEntity !== targetEntity &&
+                    currentUser?.entities?.includes(targetEntity as EntityCode)
+                  ) {
+                    setActiveEntity(targetEntity);
+                  }
+                  navigate(buildAuditRouteHref(routeLink));
+                };
 
                 return (
                   <TableRow
@@ -440,12 +465,25 @@ export function AuditLogView() {
 
                     {/* 6. Target Record */}
                     <TableCell className="py-3">
-                      <span
-                        className="font-mono text-xs font-medium text-[#1E293B]"
-                        data-testid={`audit-target-${entry.id}`}
-                      >
-                        {targetIdentifier}
-                      </span>
+                      {routeLink && targetIdentifier !== '—' ? (
+                        <button
+                          type="button"
+                          onClick={handleTargetClick}
+                          title={routeLink.label}
+                          className="inline-flex items-center gap-1 font-mono text-xs font-medium text-[#1D4ED8] hover:text-[#1E40AF] hover:underline cursor-pointer text-left"
+                          data-testid={`audit-target-${entry.id}`}
+                        >
+                          <span>{targetIdentifier}</span>
+                          <ExternalLink className="h-3 w-3 shrink-0" />
+                        </button>
+                      ) : (
+                        <span
+                          className="font-mono text-xs font-medium text-[#1E293B]"
+                          data-testid={`audit-target-${entry.id}`}
+                        >
+                          {targetIdentifier}
+                        </span>
+                      )}
                     </TableCell>
 
                     {/* 7. Entity */}

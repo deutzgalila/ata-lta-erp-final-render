@@ -136,6 +136,13 @@ export default function OperationsPage() {
 
   // Modal Visibility States
   const [archivedWorkRequestId, setArchivedWorkRequestId] = useState<string | null>(null);
+  const urlWrId = searchParams.get('wrId');
+
+  useEffect(() => {
+    if (activeTab === 'archive' && urlWrId) {
+      setArchivedWorkRequestId(urlWrId);
+    }
+  }, [activeTab, urlWrId]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingWr, setEditingWr] = useState<WorkRequest | null>(null);
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
@@ -763,7 +770,16 @@ export default function OperationsPage() {
       <WorkRequestSidePeek
         workRequestId={archivedWorkRequestId}
         isOpen={Boolean(archivedWorkRequestId)}
-        onClose={() => setArchivedWorkRequestId(null)}
+        onClose={() => {
+          setArchivedWorkRequestId(null);
+          if (activeTab === 'archive' && urlWrId) {
+            setSearchParams((prev) => {
+              const next = new URLSearchParams(prev);
+              next.delete('wrId');
+              return next;
+            }, { replace: true });
+          }
+        }}
       />
 
       {/* Global Modals Mounted at Root */}

@@ -81,6 +81,14 @@ const EXACT_ACTION_MAP: Record<string, string> = {
   'work_request.archive': 'Archived Work Request',
   'work_request.unarchived': 'Restored Work Request',
   'work_request.restored': 'Restored Work Request',
+  'work_request.phase_advance': 'Advanced Work Request Phase',
+  'work_request.creation_approved': 'Approved Work Request Creation',
+  'work_request.creation_rejected': 'Rejected Work Request Creation',
+  'document.confirm-upload': 'Uploaded Document',
+  'document.comment.add': 'Added Document Comment',
+  'disbursement.create_from_task': 'Created Disbursement from Task',
+  'invoice.from_wr': 'Generated Invoice from Work Request',
+  'transmittal.receive': 'Received Transmittal',
   'task.created': 'Created Task',
   'task.create': 'Created Task',
   'task.updated': 'Updated Task',
@@ -473,7 +481,16 @@ export interface AuditItemRouteLink {
 }
 
 /**
- * Resolves the TanStack Router destination for an audit log's target record.
+ * Formats an AuditItemRouteLink into a full URL string with query parameters.
+ */
+export function buildAuditRouteHref(link: AuditItemRouteLink): string {
+  const searchParams = new URLSearchParams(link.search ?? {});
+  const qs = searchParams.toString();
+  return qs ? `${link.to}?${qs}` : link.to;
+}
+
+/**
+ * Resolves the v2 router destination for an audit log's target record.
  */
 export function getAuditItemRouteLink(
   entry: AuditLogEntry | null | undefined
@@ -491,24 +508,94 @@ export function getAuditItemRouteLink(
   const actionLower = (entry.action || '').toLowerCase();
   const tableLower = (entry.tableName || entry.table_name || '').toLowerCase();
 
-  // 1. Task -> /operations
+  // 1. Task -> /operations?tab=work-requests&view=board&wrId=...&taskId=...
   if (tableLower.includes('task') || actionLower.includes('task')) {
     const wrId =
       (d.workRequestId as string) ||
       (d.work_request_id as string) ||
+      (d.linkedWorkRequestId as string) ||
+      (d.linked_work_request_id as string) ||
       (d.parentRecordId as string);
-    const taskId = (d.taskId as string) || (d.task_id as string) || (recId ? String(recId) : undefined);
+    const taskId =
+      (d.taskId as string) ||
+      (d.task_id as string) ||
+      (recId ? String(recId) : undefined);
     return {
       to: '/operations',
       search: {
-        ...(wrId ? { detailId: String(wrId) } : {}),
+        tab: 'work-requests',
+        view: 'board',
+        ...(wrId ? { wrId: String(wrId) } : {}),
         ...(taskId ? { taskId: String(taskId) } : {}),
       },
       label: 'View Task in Operations',
     };
   }
 
-  // 2. Work Request / Operations Request -> /operations
+  // 2. Retainer Templates -> /operations?tab=retainer-templates
+  if (tableLower.includes('retainer') || actionLower.includes('retainer')) {
+    return {
+      to: '/operations',
+      search: { tab: 'retainer-templates' },
+      label: 'View Retainer Templates',
+    };
+  }
+
+  // 3. Operations Requests / Pending Approvals -> /operations
+  if (
+    tableLower.includes('operations_request') ||
+    tableLower.includes('pending') ||
+    actionLower.includes('operations_request') ||
+    actionLower.includes('pending')
+  ) {
+    const wrId =
+      (d.workRequestId as string) ||
+      (d.work_request_id as string) ||
+      (d.linkedWorkRequestId as string) ||
+      (d.linked_work_request_id as string);
+    const taskId = (d.taskId as string) || (d.task_id as string);
+    const invId =
+      (d.invoiceId as string) ||
+      (d.invoice_id as string) ||
+      (d.linkedInvoiceId as string) ||
+      (d.linked_invoice_id as string);
+    const disbId =
+      (d.disbursementId as string) || (d.disbursement_id as string);
+
+    if (wrId) {
+      return {
+        to: '/operations',
+        search: {
+          tab: 'work-requests',
+          view: 'board',
+          wrId: String(wrId),
+          ...(taskId ? { taskId: String(taskId) } : {}),
+        },
+        label: 'View in Operations',
+      };
+    }
+    if (invId) {
+      return {
+        to: '/billing',
+        search: { invoiceId: String(invId) },
+        label: 'View in Billing',
+      };
+    }
+    if (disbId) {
+      return {
+        to: '/disbursements',
+        search: { disbursementId: String(disbId) },
+        label: 'View in Disbursements',
+      };
+    }
+    return {
+      to: '/operations',
+      search: { tab: 'pending-approvals' },
+      label: 'View Pending Approvals',
+    };
+  }
+
+  // 4. Work Request -> /operations
   if (
     tableLower.includes('work') ||
     tableLower.includes('request') ||
@@ -519,67 +606,112 @@ export function getAuditItemRouteLink(
       (recId ? String(recId) : undefined) ||
       (d.workRequestId as string) ||
       (d.work_request_id as string);
+    const isArchived =
+      (actionLower.includes('archive') && !actionLower.includes('unarchive')) ||
+      d.archived === true;
+
+    if (isArchived) {
+      return {
+        to: '/operations',
+        search: {
+          tab: 'archive',
+          ...(wrId ? { wrId: String(wrId) } : {}),
+        },
+        label: 'View in Operations Archive',
+      };
+    }
+
     return {
       to: '/operations',
-      search: wrId ? { detailId: String(wrId) } : undefined,
+      search: wrId
+        ? { tab: 'work-requests', view: 'board', wrId: String(wrId) }
+        : { tab: 'work-requests' },
       label: 'View in Operations',
     };
   }
 
-  // 3. Billing / Invoice -> /billing
+  // 5. Billing / Invoice -> /billing?invoiceId=...
   if (
     tableLower.includes('billing') ||
     tableLower.includes('invoice') ||
     actionLower.includes('invoice') ||
     actionLower.includes('billing')
   ) {
+    const invId =
+      (d.invoiceId as string) ||
+      (d.invoice_id as string) ||
+      (recId ? String(recId) : undefined);
     return {
       to: '/billing',
-      search: recId ? { detailId: String(recId) } : undefined,
+      search: invId ? { invoiceId: String(invId) } : undefined,
       label: 'View in Billing',
     };
   }
 
-  // 4. Disbursement -> /disbursement
+  // 6. Disbursement -> /disbursements?disbursementId=...
   if (tableLower.includes('disbursement') || actionLower.includes('disbursement')) {
+    const disbId =
+      (d.disbursementId as string) ||
+      (d.disbursement_id as string) ||
+      (recId ? String(recId) : undefined);
     return {
-      to: '/disbursement',
-      search: recId ? { detailId: String(recId) } : undefined,
+      to: '/disbursements',
+      search: disbId ? { disbursementId: String(disbId) } : undefined,
       label: 'View in Disbursements',
     };
   }
 
-  // 5. Transmittal -> /transmittal
+  // 7. Transmittal -> /transmittals?transmittalId=...
   if (tableLower.includes('transmittal') || actionLower.includes('transmittal')) {
+    const trkId =
+      (d.transmittalId as string) ||
+      (d.transmittal_id as string) ||
+      (recId ? String(recId) : undefined);
     return {
-      to: '/transmittal',
-      search: recId ? { detailId: String(recId) } : undefined,
+      to: '/transmittals',
+      search: trkId ? { transmittalId: String(trkId) } : undefined,
       label: 'View in Transmittals',
     };
   }
 
-  // 6. Document -> /documents
+  // 8. Document -> /documents?docId=...
   if (tableLower.includes('document') || actionLower.includes('document')) {
+    const docId =
+      (d.documentId as string) ||
+      (d.document_id as string) ||
+      (recId ? String(recId) : undefined);
     return {
       to: '/documents',
-      search: recId ? { detailId: String(recId) } : undefined,
+      search: docId ? { docId: String(docId) } : undefined,
       label: 'View in Documents',
     };
   }
 
-  // 7. Client -> /clients
+  // 9. Client -> /clients?clientId=...
   if (tableLower.includes('client') || actionLower.includes('client')) {
+    const clientId =
+      (d.clientId as string) ||
+      (d.client_id as string) ||
+      (recId ? String(recId) : undefined);
     return {
       to: '/clients',
+      search: clientId ? { clientId: String(clientId) } : undefined,
       label: 'View in Clients',
     };
   }
 
-  // 8. User -> /admin?tab=users
+  // 10. User -> /admin?tab=users&userId=...
   if (tableLower.includes('user') || actionLower.includes('user')) {
+    const userId =
+      (d.userId as string) ||
+      (d.user_id as string) ||
+      (recId ? String(recId) : undefined);
     return {
       to: '/admin',
-      search: { tab: 'users' },
+      search: {
+        tab: 'users',
+        ...(userId ? { userId: String(userId) } : {}),
+      },
       label: 'View in User Management',
     };
   }
@@ -594,6 +726,7 @@ export interface AuditBusinessContextItem {
   isStatus?: boolean;
   isPriority?: boolean;
   isAmount?: boolean;
+  routeLink?: AuditItemRouteLink;
 }
 
 function formatPhpCurrency(amount: number): string {
@@ -616,6 +749,7 @@ export function resolveAuditBusinessContext(
   const actionLower = (entry.action || '').toLowerCase();
   const tableLower = (entry.tableName || entry.table_name || '').toLowerCase();
   const items: AuditBusinessContextItem[] = [];
+  const primaryRouteLink = getAuditItemRouteLink(entry);
 
   const resolveUserDisplay = (val: unknown): string => {
     if (!val) return '';
@@ -631,7 +765,13 @@ export function resolveAuditBusinessContext(
     const userEmail = (d.email as string) || targetUser?.email;
     const userRole = (d.role as string) || targetUser?.role;
 
-    if (userName) items.push({ label: 'Target User', value: String(userName) });
+    if (userName) {
+      items.push({
+        label: 'Target User',
+        value: String(userName),
+        routeLink: primaryRouteLink ?? undefined,
+      });
+    }
     if (userEmail) items.push({ label: 'Email', value: String(userEmail) });
     if (userRole) items.push({ label: 'Role', value: String(userRole), isStatus: true });
     if (Array.isArray(d.entities) && d.entities.length > 0) {
@@ -641,6 +781,96 @@ export function resolveAuditBusinessContext(
       items.push({ label: 'Departments', value: d.departments.join(', ') });
     }
   } else {
+    const recId =
+      (d.recordId as string) ||
+      (d.record_id as string) ||
+      (d.id as string) ||
+      entry.recordId ||
+      entry.record_id;
+    const wrId =
+      (d.workRequestId as string) ||
+      (d.work_request_id as string) ||
+      (d.linkedWorkRequestId as string) ||
+      (d.linked_work_request_id as string) ||
+      (tableLower.includes('work_request') && recId ? String(recId) : undefined);
+    const taskId =
+      (d.taskId as string) ||
+      (d.task_id as string) ||
+      (tableLower.includes('task') && recId ? String(recId) : undefined);
+    const invId =
+      (d.invoiceId as string) ||
+      (d.invoice_id as string) ||
+      (d.linkedInvoiceId as string) ||
+      (d.linked_invoice_id as string) ||
+      (tableLower.includes('invoice') && recId ? String(recId) : undefined);
+    const disbId =
+      (d.disbursementId as string) ||
+      (d.disbursement_id as string) ||
+      (tableLower.includes('disbursement') && recId ? String(recId) : undefined);
+    const trkId =
+      (d.transmittalId as string) ||
+      (d.transmittal_id as string) ||
+      (d.linkedTransmittalId as string) ||
+      (d.linked_transmittal_id as string) ||
+      (tableLower.includes('transmittal') && recId ? String(recId) : undefined);
+    const clientId =
+      (d.clientId as string) ||
+      (d.client_id as string) ||
+      (tableLower.includes('client') && recId ? String(recId) : undefined);
+
+    const wrLink: AuditItemRouteLink | undefined = wrId
+      ? {
+          to: '/operations',
+          search: { tab: 'work-requests', view: 'board', wrId: String(wrId) },
+          label: 'View Work Request in Operations',
+        }
+      : undefined;
+
+    const taskLink: AuditItemRouteLink | undefined = taskId
+      ? {
+          to: '/operations',
+          search: {
+            tab: 'work-requests',
+            view: 'board',
+            ...(wrId ? { wrId: String(wrId) } : {}),
+            taskId: String(taskId),
+          },
+          label: 'View Task in Operations',
+        }
+      : undefined;
+
+    const invLink: AuditItemRouteLink | undefined = invId
+      ? {
+          to: '/billing',
+          search: { invoiceId: String(invId) },
+          label: 'View Invoice in Billing',
+        }
+      : undefined;
+
+    const disbLink: AuditItemRouteLink | undefined = disbId
+      ? {
+          to: '/disbursements',
+          search: { disbursementId: String(disbId) },
+          label: 'View Disbursement',
+        }
+      : undefined;
+
+    const trkLink: AuditItemRouteLink | undefined = trkId
+      ? {
+          to: '/transmittals',
+          search: { transmittalId: String(trkId) },
+          label: 'View Transmittal',
+        }
+      : undefined;
+
+    const clientLink: AuditItemRouteLink | undefined = clientId
+      ? {
+          to: '/clients',
+          search: { clientId: String(clientId) },
+          label: 'View Client',
+        }
+      : undefined;
+
     const wrNo = d.workRequestNo || d.work_request_no;
     const wrTitle = d.workRequestTitle || d.work_request_title;
     const taskTitle =
@@ -658,14 +888,16 @@ export function resolveAuditBusinessContext(
     const assignedVal = d.assignedTo || d.assigned_to || d.assigneeId || d.assignee_id;
     const amountVal = d.amount ?? d.total ?? d.pfAmount ?? d.pf_amount;
 
-    if (wrNo) items.push({ label: 'Work Request No.', value: String(wrNo), isCode: true });
-    if (wrTitle) items.push({ label: 'Work Request', value: String(wrTitle) });
-    if (taskTitle) items.push({ label: 'Task Title', value: String(taskTitle) });
-    if (generalTitle) items.push({ label: 'Record Name', value: generalTitle });
-    if (invNo) items.push({ label: 'Invoice No.', value: String(invNo), isCode: true });
-    if (disbNo) items.push({ label: 'Disbursement No.', value: String(disbNo), isCode: true });
-    if (trkNo) items.push({ label: 'Tracking No.', value: String(trkNo), isCode: true });
-    if (clientName) items.push({ label: 'Client', value: String(clientName) });
+    if (wrNo) items.push({ label: 'Work Request No.', value: String(wrNo), isCode: true, routeLink: wrLink });
+    if (wrTitle) items.push({ label: 'Work Request', value: String(wrTitle), routeLink: wrLink });
+    if (taskTitle) items.push({ label: 'Task Title', value: String(taskTitle), routeLink: taskLink });
+    if (generalTitle && generalTitle !== wrTitle) {
+      items.push({ label: 'Record Name', value: generalTitle, routeLink: primaryRouteLink ?? undefined });
+    }
+    if (invNo) items.push({ label: 'Invoice No.', value: String(invNo), isCode: true, routeLink: invLink });
+    if (disbNo) items.push({ label: 'Disbursement No.', value: String(disbNo), isCode: true, routeLink: disbLink });
+    if (trkNo) items.push({ label: 'Tracking No.', value: String(trkNo), isCode: true, routeLink: trkLink });
+    if (clientName) items.push({ label: 'Client', value: String(clientName), routeLink: clientLink });
     if (assignedVal && typeof assignedVal === 'string') {
       items.push({ label: 'Assigned To', value: resolveUserDisplay(assignedVal) });
     }
