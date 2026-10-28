@@ -13,6 +13,8 @@ const MAX_AVATAR_SIZE_MB = 5;
 
 const toApiUser = (row, departments = []) => ({
   id: row.id,
+  userNumber: row.user_number || null,
+  user_number: row.user_number || null,
   email: row.email,
   name: row.name,
   role: row.role,
