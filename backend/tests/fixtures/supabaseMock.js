@@ -70,6 +70,7 @@ const nextId = () => {
 // the mock mirrors that so OCC guards (`eq('version', n)`) behave the same
 // here as they would against the live database.
 const VERSIONED_TABLES = new Set([
+  'users',
   'clients',
   'invoices',
   'invoice_line_items',
@@ -133,6 +134,7 @@ const registerUser = (user) => {
     role: user.role,
     entities: user.entities || ['ATA'],
     is_active: user.isActive !== false,
+    version: user.version || 1,
     avatar_url: user.avatarUrl || null,
     preferences: user.preferences || {},
     password_updated_at: user.passwordUpdatedAt || null,
@@ -193,6 +195,8 @@ const tableQuery = (table) => {
     if (rowValue === undefined) {
       if (column === 'creation_approval_status' || column === 'approval_status') {
         rowValue = 'approved';
+      } else if (column === 'version' && VERSIONED_TABLES.has(table)) {
+        rowValue = 1;
       }
     }
     if (fop === 'not') {
