@@ -1074,6 +1074,306 @@ const getAuditLogCount = async (params = {}) => {
   return filteredRows.length;
 };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isUuidStr = (val) => typeof val === 'string' && UUID_RE.test(val);
+
+const safeSelectByIds = async (table, ids) => {
+  const uniqueIds = Array.from(new Set(ids.filter(isUuidStr)));
+  if (uniqueIds.length === 0) return new Map();
+  try {
+    const res = await supabaseAdmin.from(table).select('*').in('id', uniqueIds);
+    const map = new Map();
+    (res?.data || []).forEach((item) => {
+      if (item && item.id) map.set(item.id, item);
+    });
+    return map;
+  } catch {
+    return new Map();
+  }
+};
+
+/**
+ * Batch-enriches paginated audit log rows with target record titles, business numbers,
+ * and parent foreign keys (e.g. workRequestId on task/document logs) so deep-links
+ * and Business Context cards work across all modules.
+ */
+const enrichAuditLogRows = async (rows = []) => {
+  if (!Array.isArray(rows) || rows.length === 0) return rows;
+
+  try {
+    const taskIds = [];
+    const wrIds = [];
+    const docIds = [];
+    const invoiceIds = [];
+    const disbursementIds = [];
+    const transmittalIds = [];
+    const clientIds = [];
+    const templateIds = [];
+    const opsReqIds = [];
+
+    for (const row of rows) {
+      const d = row.details && typeof row.details === 'object' ? row.details : {};
+      const recId = row.record_id || d.recordId || d.record_id || d.id;
+      const table = String(row.table_name || '').toLowerCase();
+
+      if (table === 'tasks' && isUuidStr(recId)) taskIds.push(recId);
+      if (isUuidStr(d.taskId || d.task_id)) taskIds.push(d.taskId || d.task_id);
+
+      if (table === 'work_requests' && isUuidStr(recId)) wrIds.push(recId);
+      if (isUuidStr(d.workRequestId || d.work_request_id || d.linkedWorkRequestId || d.linked_work_request_id)) {
+        wrIds.push(d.workRequestId || d.work_request_id || d.linkedWorkRequestId || d.linked_work_request_id);
+      }
+
+      if (table === 'documents' && isUuidStr(recId)) docIds.push(recId);
+      if (table === 'invoices' && isUuidStr(recId)) invoiceIds.push(recId);
+      if (isUuidStr(d.invoiceId || d.invoice_id || d.linkedInvoiceId || d.linked_invoice_id)) {
+        invoiceIds.push(d.invoiceId || d.invoice_id || d.linkedInvoiceId || d.linked_invoice_id);
+      }
+
+      if (table === 'disbursements' && isUuidStr(recId)) disbursementIds.push(recId);
+      if (isUuidStr(d.disbursementId || d.disbursement_id)) {
+        disbursementIds.push(d.disbursementId || d.disbursement_id);
+      }
+
+      if (table === 'transmittals' && isUuidStr(recId)) transmittalIds.push(recId);
+      if (isUuidStr(d.transmittalId || d.transmittal_id || d.linkedTransmittalId || d.linked_transmittal_id)) {
+        transmittalIds.push(d.transmittalId || d.transmittal_id || d.linkedTransmittalId || d.linked_transmittal_id);
+      }
+
+      if (table === 'clients' && isUuidStr(recId)) clientIds.push(recId);
+      if (isUuidStr(d.clientId || d.client_id)) clientIds.push(d.clientId || d.client_id);
+
+      if (table === 'retainer_templates' && isUuidStr(recId)) templateIds.push(recId);
+      if (table === 'operations_requests' && isUuidStr(recId)) opsReqIds.push(recId);
+    }
+
+    const [
+      tasksMap,
+      docMap,
+      invMap,
+      disbMap,
+      trkMap,
+      tplMap,
+      opsMap,
+    ] = await Promise.all([
+      safeSelectByIds('tasks', taskIds),
+      safeSelectByIds('documents', docIds),
+      safeSelectByIds('invoices', invoiceIds),
+      safeSelectByIds('disbursements', disbursementIds),
+      safeSelectByIds('transmittals', transmittalIds),
+      safeSelectByIds('retainer_templates', templateIds),
+      safeSelectByIds('operations_requests', opsReqIds),
+    ]);
+
+    for (const t of tasksMap.values()) {
+      if (isUuidStr(t.work_request_id)) wrIds.push(t.work_request_id);
+    }
+    for (const doc of docMap.values()) {
+      if (isUuidStr(doc.work_request_id)) wrIds.push(doc.work_request_id);
+      if (isUuidStr(doc.client_id)) clientIds.push(doc.client_id);
+    }
+    for (const inv of invMap.values()) {
+      if (isUuidStr(inv.work_request_id)) wrIds.push(inv.work_request_id);
+      if (isUuidStr(inv.client_id)) clientIds.push(inv.client_id);
+    }
+    for (const disb of disbMap.values()) {
+      if (isUuidStr(disb.linked_work_request_id)) wrIds.push(disb.linked_work_request_id);
+      if (isUuidStr(disb.client_id)) clientIds.push(disb.client_id);
+    }
+    for (const trk of trkMap.values()) {
+      if (isUuidStr(trk.work_request_id)) wrIds.push(trk.work_request_id);
+      if (isUuidStr(trk.client_id)) clientIds.push(trk.client_id);
+    }
+    for (const ops of opsMap.values()) {
+      if (isUuidStr(ops.work_request_id)) wrIds.push(ops.work_request_id);
+    }
+
+    const wrMap = await safeSelectByIds('work_requests', wrIds);
+    for (const wr of wrMap.values()) {
+      if (isUuidStr(wr.client_id)) clientIds.push(wr.client_id);
+    }
+    const clientMap = await safeSelectByIds('clients', clientIds);
+
+    const entityIds = rows.map((r) => r.entity).filter(isUuidStr);
+    const entityMap = await safeSelectByIds('entities', entityIds);
+    const normalizeEntityVal = (val) => {
+      if (!val) return val;
+      if (val === 'a0000000-0000-0000-0000-000000000001') return 'ATA';
+      if (val === 'a0000000-0000-0000-0000-000000000002') return 'LTA';
+      const ent = entityMap.get(val);
+      return ent?.code || val;
+    };
+
+    return rows.map((row) => {
+      const rawDetails = row.details && typeof row.details === 'object' ? { ...row.details } : {};
+      const recId = row.record_id || rawDetails.recordId || rawDetails.record_id || rawDetails.id;
+      const table = String(row.table_name || '').toLowerCase();
+
+      if (table === 'tasks' && recId && tasksMap.has(recId)) {
+        const task = tasksMap.get(recId);
+        if (!rawDetails.name && !rawDetails.title && task.title) rawDetails.name = task.title;
+        if (!rawDetails.taskTitle && task.title) rawDetails.taskTitle = task.title;
+        if (!rawDetails.workRequestId && !rawDetails.work_request_id && task.work_request_id) {
+          rawDetails.workRequestId = task.work_request_id;
+        }
+        if (!rawDetails.status && task.status) rawDetails.status = task.status;
+        if (!rawDetails.phase && task.phase) rawDetails.phase = task.phase;
+        if (!rawDetails.dueDate && !rawDetails.due_date && task.due_date) {
+          rawDetails.dueDate = task.due_date;
+        }
+        if (!rawDetails.assigneeId && !rawDetails.assignee_id && task.assignee_id) {
+          rawDetails.assigneeId = task.assignee_id;
+        }
+      }
+
+      if (table === 'work_requests' && recId && wrMap.has(recId)) {
+        const wr = wrMap.get(recId);
+        if (!rawDetails.title && !rawDetails.name && wr.title) rawDetails.title = wr.title;
+        if (!rawDetails.workRequestTitle && wr.title) rawDetails.workRequestTitle = wr.title;
+        if (!rawDetails.workRequestId) rawDetails.workRequestId = wr.id;
+        if (!rawDetails.status && wr.status) rawDetails.status = wr.status;
+        if (!rawDetails.priority && wr.priority) rawDetails.priority = wr.priority;
+        if (!rawDetails.phase && wr.phase) rawDetails.phase = wr.phase;
+        if (!rawDetails.dueDate && !rawDetails.due_date && wr.due_date) {
+          rawDetails.dueDate = wr.due_date;
+        }
+        if (!rawDetails.assignedTo && !rawDetails.assigned_to && wr.assigned_to) {
+          rawDetails.assignedTo = wr.assigned_to;
+        }
+        if (rawDetails.archived === undefined && wr.archived !== undefined) {
+          rawDetails.archived = wr.archived;
+        }
+        if (!rawDetails.clientId && !rawDetails.client_id && wr.client_id) {
+          rawDetails.clientId = wr.client_id;
+        }
+      }
+
+      if (table === 'documents' && recId && docMap.has(recId)) {
+        const doc = docMap.get(recId);
+        const docName = doc.original_name || doc.file_name;
+        if (!rawDetails.name && !rawDetails.title && docName) rawDetails.name = docName;
+        if (!rawDetails.category && (doc.category || doc.document_type)) {
+          rawDetails.category = doc.category || doc.document_type;
+        }
+        if (!rawDetails.status && (doc.document_lifecycle || doc.status)) {
+          rawDetails.status = doc.document_lifecycle || doc.status;
+        }
+        if (!rawDetails.workRequestId && !rawDetails.work_request_id && doc.work_request_id) {
+          rawDetails.workRequestId = doc.work_request_id;
+        }
+        if (!rawDetails.taskId && !rawDetails.task_id && doc.linked_task_id) {
+          rawDetails.taskId = doc.linked_task_id;
+        }
+        if (!rawDetails.clientId && !rawDetails.client_id && doc.client_id) {
+          rawDetails.clientId = doc.client_id;
+        }
+      }
+
+      if (table === 'disbursements' && recId && disbMap.has(recId)) {
+        const disb = disbMap.get(recId);
+        if (!rawDetails.disbursementNumber && !rawDetails.disbursement_number && disb.disbursement_number) {
+          rawDetails.disbursementNumber = disb.disbursement_number;
+        }
+        if (!rawDetails.description && disb.description) rawDetails.description = disb.description;
+        if (!rawDetails.category && disb.category) rawDetails.category = disb.category;
+        if (rawDetails.amount === undefined && disb.amount !== undefined) rawDetails.amount = disb.amount;
+        if (!rawDetails.status && disb.status) rawDetails.status = disb.status;
+        if (!rawDetails.workRequestId && disb.linked_work_request_id) {
+          rawDetails.workRequestId = disb.linked_work_request_id;
+        }
+        if (!rawDetails.invoiceId && disb.linked_invoice_id) {
+          rawDetails.invoiceId = disb.linked_invoice_id;
+        }
+        if (!rawDetails.transmittalId && disb.linked_transmittal_id) {
+          rawDetails.transmittalId = disb.linked_transmittal_id;
+        }
+        if (!rawDetails.clientId && disb.client_id) rawDetails.clientId = disb.client_id;
+      }
+
+      if (table === 'invoices' && recId && invMap.has(recId)) {
+        const inv = invMap.get(recId);
+        if (!rawDetails.invoiceNumber && !rawDetails.invoice_number && inv.invoice_number) {
+          rawDetails.invoiceNumber = inv.invoice_number;
+        }
+        if (rawDetails.amount === undefined && (inv.total_amount !== undefined || inv.amount !== undefined)) {
+          rawDetails.amount = inv.total_amount ?? inv.amount;
+        }
+        if (!rawDetails.status && inv.status) rawDetails.status = inv.status;
+        if (!rawDetails.workRequestId && inv.work_request_id) {
+          rawDetails.workRequestId = inv.work_request_id;
+        }
+        if (!rawDetails.clientId && inv.client_id) rawDetails.clientId = inv.client_id;
+      }
+
+      if (table === 'transmittals' && recId && trkMap.has(recId)) {
+        const trk = trkMap.get(recId);
+        const trkNum = trk.tracking_number || trk.transmittal_number;
+        if (!rawDetails.trackingNumber && !rawDetails.tracking_number && trkNum) {
+          rawDetails.trackingNumber = trkNum;
+        }
+        if (!rawDetails.status && trk.status) rawDetails.status = trk.status;
+        if (!rawDetails.workRequestId && trk.work_request_id) {
+          rawDetails.workRequestId = trk.work_request_id;
+        }
+        if (!rawDetails.clientId && trk.client_id) rawDetails.clientId = trk.client_id;
+      }
+
+      if (table === 'clients' && recId && clientMap.has(recId)) {
+        const cli = clientMap.get(recId);
+        if (!rawDetails.name && cli.name) rawDetails.name = cli.name;
+        if (!rawDetails.clientName && cli.name) rawDetails.clientName = cli.name;
+        if (!rawDetails.status && cli.status) rawDetails.status = cli.status;
+      }
+
+      if (table === 'retainer_templates' && recId && tplMap.has(recId)) {
+        const tpl = tplMap.get(recId);
+        const tplName = tpl.name || tpl.title;
+        if (!rawDetails.name && !rawDetails.title && tplName) rawDetails.name = tplName;
+      }
+
+      if (table === 'operations_requests' && recId && opsMap.has(recId)) {
+        const ops = opsMap.get(recId);
+        if (!rawDetails.workRequestId && ops.work_request_id) {
+          rawDetails.workRequestId = ops.work_request_id;
+        }
+        if (!rawDetails.taskId && ops.task_id) rawDetails.taskId = ops.task_id;
+        if (!rawDetails.status && ops.status) rawDetails.status = ops.status;
+      }
+
+      const resolvedWrId =
+        rawDetails.workRequestId ||
+        rawDetails.work_request_id ||
+        rawDetails.linkedWorkRequestId ||
+        rawDetails.linked_work_request_id;
+      if (resolvedWrId && wrMap.has(resolvedWrId)) {
+        const parentWr = wrMap.get(resolvedWrId);
+        if (!rawDetails.workRequestTitle && !rawDetails.work_request_title && parentWr.title) {
+          rawDetails.workRequestTitle = parentWr.title;
+        }
+        if (!rawDetails.clientId && !rawDetails.client_id && parentWr.client_id) {
+          rawDetails.clientId = parentWr.client_id;
+        }
+      }
+
+      const resolvedClientId = rawDetails.clientId || rawDetails.client_id;
+      if (resolvedClientId && clientMap.has(resolvedClientId)) {
+        const cli = clientMap.get(resolvedClientId);
+        if (!rawDetails.clientName && !rawDetails.client_name && cli.name) {
+          rawDetails.clientName = cli.name;
+        }
+      }
+
+      return {
+        ...row,
+        entity: normalizeEntityVal(row.entity),
+        details: Object.keys(rawDetails).length > 0 ? rawDetails : row.details,
+      };
+    });
+  } catch {
+    return rows;
+  }
+};
+
 /**
  * List audit log entries with optional filters and pagination.
  * @param {object} params
@@ -1152,6 +1452,9 @@ const getAuditLogs = async (params = {}) => {
     rows = data || [];
     total = count !== undefined && count !== null ? count : rows.length;
   }
+
+  // Enrich target record context and foreign keys for deep-linking
+  rows = await enrichAuditLogRows(rows);
 
   // Enrich actor metadata
   const userIds = Array.from(new Set(rows.map((r) => r.user_id).filter(Boolean)));
