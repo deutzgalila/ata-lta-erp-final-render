@@ -106,7 +106,7 @@ describe('Admin User Management Components (Parity, Re-enable, OCC & Brutalist-M
   });
 
   describe('UserListTable', () => {
-    it('renders user list with names, roles, departments, entities, status pills, and Eye profile button', async () => {
+    it('renders user list with names, departments, entities, status pills, Eye profile button, and omits the Role column', async () => {
       const onViewDetailsMock = vi.fn();
       const { wrapper } = createHarness();
       render(
@@ -127,6 +127,8 @@ describe('Admin User Management Components (Parity, Re-enable, OCC & Brutalist-M
 
       expect(screen.getByText('Admin Developer')).toBeInTheDocument();
       expect(screen.getByText('Doc Specialist')).toBeInTheDocument();
+      expect(screen.queryByRole('columnheader', { name: /^role$/i })).not.toBeInTheDocument();
+      expect(screen.queryByTestId('user-role-user-admin')).not.toBeInTheDocument();
       expect(screen.getByTestId('user-status-user-admin')).toHaveTextContent('Active');
       expect(screen.getByTestId('user-status-user-disabled')).toHaveTextContent('Disabled');
 

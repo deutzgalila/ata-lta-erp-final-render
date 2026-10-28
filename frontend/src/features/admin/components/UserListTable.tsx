@@ -51,15 +51,6 @@ export interface UserListTableProps {
   onViewDetails?: (user: AdminUser) => void;
 }
 
-const ROLE_BADGE_COLORS: Record<string, string> = {
-  Admin: 'bg-[#EFF6FF] text-[#1E40AF] border-[#BFDBFE]',
-  Manager: 'bg-[#EFF6FF] text-[#1D4ED8] border-[#BFDBFE]',
-  Accounting: 'bg-[#ECFDF5] text-[#047857] border-[#A7F3D0]',
-  Operations: 'bg-[#FFFBEB] text-[#B45309] border-[#FDE68A]',
-  Documentation: 'bg-[#F8FAFC] text-[#1E293B] border-[#E2E8F0]',
-  HR: 'bg-[#FFF1F2] text-[#BE123C] border-[#FECDD3]',
-};
-
 const DEPARTMENT_BADGE_COLORS: Record<string, string> = {
   Management: 'bg-[#EFF6FF] text-[#1D4ED8] border-[#BFDBFE]',
   Accounting: 'bg-[#ECFDF5] text-[#047857] border-[#A7F3D0]',
@@ -414,9 +405,6 @@ export function UserListTable({
                   User / Name
                 </TableHead>
                 <TableHead className="font-bold tracking-normal text-xs text-[#1E293B]">
-                  Role
-                </TableHead>
-                <TableHead className="font-bold tracking-normal text-xs text-[#1E293B]">
                   Departments
                 </TableHead>
                 <TableHead className="font-bold tracking-normal text-xs text-[#1E293B]">
@@ -475,20 +463,6 @@ export function UserListTable({
                           </div>
                         </div>
                       </div>
-                    </TableCell>
-
-                    {/* Role */}
-                    <TableCell className="py-3">
-                      <Badge
-                        variant="outline"
-                        className={`text-xs rounded-[6px] py-0.5 px-2 font-medium ${
-                          ROLE_BADGE_COLORS[user.role] ??
-                          'bg-[#F8FAFC] text-[#1E293B] border-[#E2E8F0]'
-                        }`}
-                        data-testid={`user-role-${user.id}`}
-                      >
-                        {user.role}
-                      </Badge>
                     </TableCell>
 
                     {/* Departments */}
