@@ -26,7 +26,7 @@ import { WorkRequestModal } from '@/features/operations/components/WorkRequestMo
 import { PendingApprovalsInbox } from '@/features/operations/components/PendingApprovalsInbox';
 import { OperationsArchiveTab } from '@/features/operations/components/OperationsArchiveTab';
 import { RetainerGenerateModal } from '@/features/operations/components/RetainerGenerateModal';
-import { RetainerTemplateModal } from '@/features/admin';
+import { RetainerTemplateModal } from '@/features/operations/components/RetainerTemplateModal';
 import { OtherTemplateModal } from '@/features/operations/components/OtherTemplateModal';
 import { OtherTemplateGenerateModal } from '@/features/operations/components/OtherTemplateGenerateModal';
 import { BlockingActionModal } from '@/features/operations/components/BlockingActionModal';
