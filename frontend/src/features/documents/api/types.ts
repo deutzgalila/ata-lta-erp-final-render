@@ -65,9 +65,15 @@ export interface DmsDocumentComment {
   id?: string;
   userId: string;
   user_id?: string;
+  author_id?: string;
   userName?: string;
   user_name?: string;
+  author_name?: string;
   author?: string;
+  avatarUrl?: string | null;
+  userAvatarUrl?: string | null;
+  authorAvatarUrl?: string | null;
+  author_avatar_url?: string | null;
   date: string;
   created_at?: string;
   text: string;

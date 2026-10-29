@@ -331,6 +331,7 @@ export function normalizeCdcTimeEntry(record: Record<string, unknown>): Record<s
   const userId = record.user_id ?? record.userId;
   const entryDate = record.entry_date ?? record.entryDate;
   const note = record.note ?? null;
+  const userAvatarUrl = (record.userAvatarUrl as string) || (record.user_avatar_url as string) || null;
   return {
     ...record,
     durationMinutes: Number(durationMinutes),
@@ -339,6 +340,8 @@ export function normalizeCdcTimeEntry(record: Record<string, unknown>): Record<s
     task_id: taskId,
     userId,
     user_id: userId,
+    userAvatarUrl,
+    user_avatar_url: userAvatarUrl,
     entryDate,
     entry_date: entryDate,
     note,
