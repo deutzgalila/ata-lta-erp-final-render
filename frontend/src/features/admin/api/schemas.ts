@@ -27,7 +27,7 @@ export const userStatusEnum = z.enum(['Active', 'Disabled']);
 
 export const nullableUuid = z
   .string()
-  .uuid()
+  .guid()
   .nullable()
   .optional()
   .or(z.literal('').transform(() => null));
@@ -86,6 +86,8 @@ export const adminUserResponseSchema = z.object({
   status: userStatusEnum.optional(),
   version: z.number().int().positive().optional(),
   avatarUrl: z.string().nullable().optional(),
+  userNumber: z.string().nullable().optional(),
+  user_number: z.string().nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -128,7 +130,9 @@ export const auditLogEntrySchema = z.object({
   actorName: z.string().nullable().optional(),
   actorEmail: z.string().nullable().optional(),
   ipAddress: z.string().nullable().optional(),
-  details: z.record(z.unknown()).nullable(),
+  auditNumber: z.string().nullable().optional(),
+  audit_number: z.string().nullable().optional(),
+  details: z.record(z.string(), z.unknown()).nullable(),
   createdAt: z.string(),
 });
 
@@ -152,5 +156,5 @@ export const problemDetailsSchema = z.object({
   status: z.number(),
   detail: z.string(),
   code: z.string().optional(),
-  errors: z.record(z.array(z.string())).optional(),
+  errors: z.record(z.string(), z.array(z.string())).optional(),
 });

@@ -41,8 +41,10 @@ const ENTITY_LABELS: Record<EntityCode, string> = {
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return 'U';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  if (parts.length === 1) return (parts[0] ?? 'U').slice(0, 2).toUpperCase();
+  const first = parts[0]?.[0] ?? '';
+  const last = parts[parts.length - 1]?.[0] ?? '';
+  return `${first}${last}`.toUpperCase() || 'U';
 }
 
 function formatTimestamp(iso?: string): string {
@@ -73,6 +75,7 @@ export function UserDetailModal({
       ? user.isActive
       : user.status !== 'Disabled';
   const version = user.version ?? 1;
+  const userCode = user.userNumber || user.user_number;
 
   return (
     <Dialog open={modalOpen} onOpenChange={(next) => !next && handleClose()}>
@@ -105,6 +108,15 @@ export function UserDetailModal({
               </div>
             </div>
             <div className="flex items-center gap-1.5">
+              {userCode && (
+                <Badge
+                  variant="outline"
+                  data-testid="user-detail-code"
+                  className="rounded-[6px] border-[#BFDBFE] bg-[#EFF6FF] px-2 py-0.5 font-mono text-xs font-semibold tabular-nums text-[#1D4ED8]"
+                >
+                  {userCode}
+                </Badge>
+              )}
               <Badge
                 variant="outline"
                 data-testid="user-detail-version"

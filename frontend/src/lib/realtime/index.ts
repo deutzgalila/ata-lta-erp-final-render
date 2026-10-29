@@ -22,6 +22,8 @@ export {
   normalizeCdcTaskTimeLog,
   normalizeCdcUser,
   normalizeCdcAuditLog,
+  normalizeCdcClient,
+  normalizePersistentItemNumbers,
   triggerTimeEntryCoInvalidation,
 } from './useEntityRealtimeSync';
 export type {

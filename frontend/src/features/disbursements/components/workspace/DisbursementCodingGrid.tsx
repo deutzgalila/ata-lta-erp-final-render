@@ -595,6 +595,11 @@ export function DisbursementCodingGrid({
                     data-testid="coding-grid-work-request"
                     title={wrDisplay}
                   >
+                    {Boolean(disbursement.workRequestNumber || disbursement.work_request_number) && (
+                      <span className="font-mono text-xs font-medium text-text-secondary tabular-nums mr-1 bg-canvas border border-border px-1 py-0.2 rounded">
+                        {disbursement.workRequestNumber || disbursement.work_request_number}
+                      </span>
+                    )}
                     {wrDisplay}
                   </td>
 
@@ -692,6 +697,11 @@ export function DisbursementCodingGrid({
                     data-testid="coding-grid-client"
                     title={clientName}
                   >
+                    {Boolean(disbursement.clientNumber || disbursement.client_number || disbursement.clients?.clientNumber || disbursement.clients?.client_number) && (
+                      <span className="font-mono text-xs font-medium text-text-secondary tabular-nums mr-1 bg-canvas border border-border px-1 py-0.2 rounded">
+                        {disbursement.clientNumber || disbursement.client_number || disbursement.clients?.clientNumber || disbursement.clients?.client_number}
+                      </span>
+                    )}
                     {clientName}
                   </td>
 
@@ -929,6 +939,11 @@ export function DisbursementCodingDefinitionList({
       <div className="space-y-1 sm:col-span-2">
         <dt className="text-xs font-medium text-muted">Work Request</dt>
         <dd className="text-xs font-semibold text-ink" data-testid="dl-coding-work-request">
+          {Boolean(disbursement.workRequestNumber || disbursement.work_request_number) && (
+            <span className="font-mono text-xs font-medium text-text-secondary tabular-nums mr-1.5 bg-canvas border border-border px-1 py-0.2 rounded">
+              {disbursement.workRequestNumber || disbursement.work_request_number}
+            </span>
+          )}
           {wrDisplay}
         </dd>
       </div>
@@ -953,6 +968,11 @@ export function DisbursementCodingDefinitionList({
       <div className="space-y-1">
         <dt className="text-xs font-medium text-muted">Client</dt>
         <dd className="text-xs font-semibold text-ink" data-testid="dl-coding-client">
+          {Boolean(disbursement.clientNumber || disbursement.client_number || disbursement.clients?.clientNumber || disbursement.clients?.client_number) && (
+            <span className="font-mono text-xs font-medium text-text-secondary tabular-nums mr-1.5 bg-canvas border border-border px-1 py-0.2 rounded">
+              {disbursement.clientNumber || disbursement.client_number || disbursement.clients?.clientNumber || disbursement.clients?.client_number}
+            </span>
+          )}
           {clientName}
         </dd>
       </div>

@@ -55,6 +55,7 @@ const SAMPLE_USERS: AdminUser[] = [
 const SAMPLE_AUDIT_LOGS: AuditLogEntry[] = [
   {
     id: 'aud-1',
+    auditNumber: 'AUR-0001',
     userId: 'usr-admin',
     action: 'user.updated',
     tableName: 'users',
@@ -71,6 +72,7 @@ const SAMPLE_AUDIT_LOGS: AuditLogEntry[] = [
   },
   {
     id: 'aud-2',
+    auditNumber: 'AUR-0002',
     userId: 'usr-mgr',
     action: 'invoice.paid',
     tableName: 'invoices',
@@ -158,6 +160,9 @@ describe('Admin Audit Log View, Detail Modal & Formatters', () => {
           action: 'task.updated',
           tableName: 'tasks',
           recordId: 'tsk-42',
+          entity: 'ATA',
+          userId: 'usr-admin',
+          createdAt: '2026-03-29T10:00:00Z',
           details: { workRequestId: 'wr-99', name: 'Draft Contract' },
         })
       ).toEqual({
@@ -172,6 +177,9 @@ describe('Admin Audit Log View, Detail Modal & Formatters', () => {
           action: 'work_request.archived',
           tableName: 'work_requests',
           recordId: 'wr-99',
+          entity: 'ATA',
+          userId: 'usr-admin',
+          createdAt: '2026-03-29T10:00:00Z',
           details: { title: 'Annual Filing' },
         })
       ).toEqual({
@@ -186,6 +194,9 @@ describe('Admin Audit Log View, Detail Modal & Formatters', () => {
           action: 'disbursement.released',
           tableName: 'disbursements',
           recordId: 'disb-11',
+          entity: 'ATA',
+          userId: 'usr-admin',
+          createdAt: '2026-03-29T10:00:00Z',
           details: { disbursementNumber: 'DSB-0011' },
         })
       ).toEqual({
@@ -200,6 +211,9 @@ describe('Admin Audit Log View, Detail Modal & Formatters', () => {
           action: 'transmittal.sent',
           tableName: 'transmittals',
           recordId: 'trk-22',
+          entity: 'ATA',
+          userId: 'usr-admin',
+          createdAt: '2026-03-29T10:00:00Z',
           details: { trackingNumber: 'TRK-0022' },
         })
       ).toEqual({
@@ -214,6 +228,9 @@ describe('Admin Audit Log View, Detail Modal & Formatters', () => {
           action: 'document.confirm-upload',
           tableName: 'documents',
           recordId: 'doc-33',
+          entity: 'ATA',
+          userId: 'usr-admin',
+          createdAt: '2026-03-29T10:00:00Z',
           details: { name: 'Permit.pdf' },
         })
       ).toEqual({
@@ -228,6 +245,9 @@ describe('Admin Audit Log View, Detail Modal & Formatters', () => {
           action: 'client.updated',
           tableName: 'clients',
           recordId: 'cli-44',
+          entity: 'ATA',
+          userId: 'usr-admin',
+          createdAt: '2026-03-29T10:00:00Z',
           details: { name: 'Acme Corp' },
         })
       ).toEqual({
@@ -360,6 +380,207 @@ describe('Admin Audit Log View, Detail Modal & Formatters', () => {
       await waitFor(() => {
         expect(mockNavigate).toHaveBeenCalledWith('/admin?tab=users&userId=usr-mgr');
       });
+    });
+
+    it('Regression: Filtering Audit Logs preserves persistent auditNumber (e.g. AUR-0005) and NEVER resets to AUR-0001', () => {
+      // Mock returns a filtered subset starting with the 5th record auditNumber: 'AUR-0005'
+      const FILTERED_LOGS: AuditLogEntry[] = [
+        {
+          id: 'aud-5',
+          auditNumber: 'AUR-0005',
+          userId: 'usr-mgr',
+          action: 'work_request.created',
+          tableName: 'work_requests',
+          recordId: 'wr-501',
+          entity: 'ATA',
+          details: {
+            workRequestNumber: 'WR-ATA-2026-0001',
+            title: 'Annual Tax Filing',
+          },
+          createdAt: '2026-03-29T11:00:00Z',
+          timestamp: '2026-03-29T11:00:00Z',
+        },
+      ];
+
+      mockUseAuditLogsList.mockReturnValue({
+        data: {
+          data: FILTERED_LOGS,
+          meta: { total: 1, page: 1, limit: 50, offset: 0, hasMore: false },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      render(
+        <QueryClientProvider client={queryClient}>
+          <AuditLogView />
+        </QueryClientProvider>
+      );
+
+      // Verify the row displays the persistent AUR-0005 and NOT positional AUR-001!
+      const row = screen.getByTestId('audit-row-aud-5');
+      expect(row).toBeInTheDocument();
+      expect(row).toHaveTextContent('AUR-0005');
+      expect(row).not.toHaveTextContent('AUR-001');
+
+      // Verify target record surfaces enriched cross-module identifier
+      expect(row).toHaveTextContent('WR-ATA-2026-0001 · Annual Tax Filing');
+    });
+
+    it('displays persistent auditNumber badge and surfaces attached item numbers in AuditLogDetailModal', () => {
+      const detailedLog: AuditLogEntry = {
+        id: 'aud-detail-test',
+        auditNumber: 'AUR-0042',
+        userId: 'usr-admin',
+        action: 'work_request.created',
+        tableName: 'work_requests',
+        recordId: 'wr-100',
+        entity: 'ATA',
+        details: {
+          workRequestNumber: 'WR-ATA-2026-0001',
+          clientNumber: 'CLI-ATA-0001',
+          title: 'Special Audit',
+        },
+        createdAt: '2026-03-29T12:00:00Z',
+      };
+
+      mockUseAuditLogsList.mockReturnValue({
+        data: {
+          data: [detailedLog],
+          meta: { total: 1, page: 1, limit: 50, offset: 0, hasMore: false },
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      render(
+        <QueryClientProvider client={queryClient}>
+          <AuditLogView />
+        </QueryClientProvider>
+      );
+
+      // Open detail modal
+      fireEvent.click(screen.getByTestId('audit-details-btn-aud-detail-test'));
+
+      expect(screen.getByTestId('audit-detail-modal')).toBeInTheDocument();
+      // Persistent auditNumber badge in header
+      expect(screen.getByTestId('audit-detail-aur-badge')).toHaveTextContent('AUR-0042');
+      // Attached item number surfaced
+      expect(screen.getByTestId('audit-detail-attached-number')).toHaveTextContent('WR-ATA-2026-0001');
+    });
+
+    it('formats cross-module persistent item numbers across all domains', () => {
+      const usersMap = new Map<string, AdminUser>([
+        [
+          'usr-4',
+          {
+            id: 'usr-4',
+            name: 'Maria Santos',
+            email: 'maria@firm.com',
+            role: 'Accounting',
+            userNumber: 'USR-04',
+            entities: ['ATA'],
+            departments: ['Accounting'],
+            isActive: true,
+            version: 1,
+            createdAt: '2026-01-01T00:00:00Z',
+            updatedAt: '2026-01-01T00:00:00Z',
+          },
+        ],
+      ]);
+
+      // WR
+      expect(
+        getAuditItemIdentifier(
+          {
+            id: '1',
+            action: 'work_request.created',
+            tableName: 'work_requests',
+            recordId: 'wr-1',
+            entity: 'ATA',
+            userId: 'usr-4',
+            createdAt: '2026-01-01T00:00:00Z',
+            details: { workRequestNumber: 'WR-ATA-2026-0001', title: 'Annual Tax Filing' },
+          },
+          usersMap
+        )
+      ).toBe('WR-ATA-2026-0001 · Annual Tax Filing');
+
+      // CLI
+      expect(
+        getAuditItemIdentifier(
+          {
+            id: '2',
+            action: 'client.created',
+            tableName: 'clients',
+            recordId: 'cli-1',
+            entity: 'ATA',
+            userId: 'usr-4',
+            createdAt: '2026-01-01T00:00:00Z',
+            details: { clientNumber: 'CLI-ATA-0001', name: 'Acme Corp' },
+          },
+          usersMap
+        )
+      ).toBe('CLI-ATA-0001 · Acme Corp');
+
+      // USR
+      expect(
+        getAuditItemIdentifier(
+          {
+            id: '3',
+            action: 'user.created',
+            tableName: 'users',
+            recordId: 'usr-4',
+            entity: 'ATA',
+            userId: 'usr-4',
+            createdAt: '2026-01-01T00:00:00Z',
+            details: { userNumber: 'USR-04', name: 'Maria Santos' },
+          },
+          usersMap
+        )
+      ).toBe('USR-04 · Maria Santos');
+
+      // DISB
+      expect(
+        getAuditItemIdentifier({
+          id: '4',
+          action: 'disbursement.released',
+          tableName: 'disbursements',
+          recordId: 'd-1',
+          entity: 'ATA',
+          userId: 'usr-4',
+          createdAt: '2026-01-01T00:00:00Z',
+          details: { disbursementNumber: 'DISB-ATA-20260418-0001' },
+        })
+      ).toBe('DISB-ATA-20260418-0001');
+
+      // SI
+      expect(
+        getAuditItemIdentifier({
+          id: '5',
+          action: 'invoice.created',
+          tableName: 'invoices',
+          recordId: 'i-1',
+          entity: 'ATA',
+          userId: 'usr-4',
+          createdAt: '2026-01-01T00:00:00Z',
+          details: { invoiceNumber: 'ATA-SI-2026-0001' },
+        })
+      ).toBe('ATA-SI-2026-0001');
+
+      // TR
+      expect(
+        getAuditItemIdentifier({
+          id: '6',
+          action: 'transmittal.sent',
+          tableName: 'transmittals',
+          recordId: 't-1',
+          entity: 'ATA',
+          userId: 'usr-4',
+          createdAt: '2026-01-01T00:00:00Z',
+          details: { trackingNumber: 'TR-ATA-2026-0001' },
+        })
+      ).toBe('TR-ATA-2026-0001');
     });
   });
 });

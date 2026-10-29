@@ -36,6 +36,8 @@ export interface AdminUser {
   avatarUrl?: string | null;
   createdAt: string;
   updatedAt: string;
+  userNumber?: string | null;
+  user_number?: string | null;
 }
 
 export interface CreateUserInput {
@@ -82,6 +84,8 @@ export interface AuditLogEntry {
   createdAt: string;
   created_at?: string;
   timestamp?: string;
+  auditNumber?: string | null;
+  audit_number?: string | null;
 }
 
 export interface AuditLogResponse {
@@ -101,6 +105,7 @@ export interface AuditLogFilterParams {
   module?: string;
   action?: string;
   table?: string;
+  tableName?: string;
   userId?: string;
   actor?: string;
   search?: string;
