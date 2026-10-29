@@ -610,7 +610,6 @@ const enrichDisbursementExtras = async (rows = []) => {
       .in('id', clientIds);
     clientMap = new Map((clients || []).map((c) => [c.id, c]));
   }
-  }
 
   // Fetch status history for lifecycle audit trail
   const { data: historyRows } = await supabaseAdmin
