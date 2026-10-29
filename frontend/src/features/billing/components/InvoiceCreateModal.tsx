@@ -151,9 +151,7 @@ export function InvoiceCreateModal({
         lastPrefillKeyRef.current = currentPrefillKey;
         setWorkRequestId(prefill?.workRequestId || '');
         setClientId(prefill?.clientId || '');
-        // When attached to a disbursement, don't blindly prefill the disbursement's task
-        // so that the user's assignable billing task can be auto-selected
-        setSelectedTaskId(prefill?.attachedDisbursement ? '' : prefill?.taskId || '');
+        setSelectedTaskId(prefill?.taskId || '');
         setLinkedTransmittalId(prefill?.linkedTransmittalId || '');
         if (prefill?.attachedDisbursement) {
           const ad = prefill.attachedDisbursement;
@@ -250,7 +248,7 @@ export function InvoiceCreateModal({
     recordType: 'invoice',
     isOpen,
     entity: effectiveEntity,
-    currentTaskId: prefill?.taskId || null,
+    currentTaskId: prefill?.attachedDisbursement ? null : prefill?.taskId || null,
     selectedTaskId,
     onSelectTask: (taskId) => setSelectedTaskId(taskId),
     isTaskLocked,

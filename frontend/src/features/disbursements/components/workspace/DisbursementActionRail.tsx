@@ -309,12 +309,19 @@ export function DisbursementActionRail({
     item.disbursementNumber ||
     `DISB-${item.id.slice(0, 8)}`;
 
+  const reimbursableTaskId =
+    item.linked_task_id ||
+    item.linkedTaskId ||
+    item.task_id ||
+    item.taskId ||
+    undefined;
+
   const createBillingPrefill =
     item && workRequestId
       ? {
           workRequestId,
           clientId: item.client_id || item.clientId || undefined,
-          taskId: undefined,
+          taskId: reimbursableTaskId,
           linkedTransmittalId:
             item.linked_transmittal_id || item.linkedTransmittalId || undefined,
           attachedDisbursement: {
