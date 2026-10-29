@@ -392,7 +392,7 @@ export function useDisbursementDetail(
         queryKey: disbursementKeys.lists(),
       })) {
         if (key[2] !== currentEntity) continue;
-        const hit = list?.data?.find((d) => d.id === id);
+        const hit = Array.isArray(list?.data) ? list.data.find((d) => d.id === id) : undefined;
         if (hit) return hit;
       }
       return undefined;

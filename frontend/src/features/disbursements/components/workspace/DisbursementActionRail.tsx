@@ -115,7 +115,57 @@ export function DisbursementActionRail({
     }
   );
 
-  const item: Disbursement | null = selectedDisbursement || fetchedItem || null;
+  const [cacheRevision, setCacheRevision] = useState(0);
+  useEffect(() => {
+    if (!effectiveId) return;
+    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+      if (event?.type !== 'updated') return;
+      const qKey = event?.query?.queryKey;
+      if (Array.isArray(qKey) && qKey[0] === 'disbursements') {
+        setCacheRevision((c) => c + 1);
+      }
+    });
+    return () => unsubscribe();
+  }, [queryClient, effectiveId]);
+
+  const item: Disbursement | null = (() => {
+    void cacheRevision;
+    let latestCached: Disbursement | undefined = fetchedItem;
+    if (effectiveId) {
+      const detailCached = queryClient.getQueryData<Disbursement>(
+        disbursementKeys.detail(effectiveId)
+      );
+      if (detailCached && typeof detailCached === 'object') {
+        latestCached = detailCached;
+      } else {
+        const listQueries = queryClient.getQueriesData<
+          { data?: Disbursement[] } | Disbursement[]
+        >({
+          queryKey: disbursementKeys.lists(),
+        });
+        for (const [, listData] of listQueries) {
+          const arr = Array.isArray(listData) ? listData : listData?.data;
+          const found = Array.isArray(arr)
+            ? arr.find((d) => d?.id === effectiveId)
+            : undefined;
+          if (found) {
+            latestCached = found;
+            break;
+          }
+        }
+      }
+    }
+
+    if (selectedDisbursement && latestCached) {
+      const propVersion = selectedDisbursement.version ?? 0;
+      const cachedVersion = latestCached.version ?? 0;
+      if (cachedVersion >= propVersion) {
+        return { ...selectedDisbursement, ...latestCached };
+      }
+      return selectedDisbursement;
+    }
+    return latestCached || selectedDisbursement || null;
+  })();
 
   // Live modal concurrency context
   const { captureContext } = useLiveModalContext({

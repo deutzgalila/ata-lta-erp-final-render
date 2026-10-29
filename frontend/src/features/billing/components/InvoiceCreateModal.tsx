@@ -497,7 +497,7 @@ export function InvoiceCreateModal({
         onCreated();
       }
     } catch (err: unknown) {
-      const apiErr = err as { code?: string; message?: string };
+      const apiErr = err as { code?: string; message?: string; status?: number };
       if (apiErr?.code === 'TASK_REQUIRED') {
         setFormError('A valid linked task is required.');
       } else if (apiErr?.code === 'TASK_WR_MISMATCH') {
@@ -509,6 +509,17 @@ export function InvoiceCreateModal({
         apiErr?.code === 'FORBIDDEN_TASK_ATTACHMENT'
       ) {
         setFormError('You must be assigned to this task.');
+      } else if (
+        apiErr?.status === 409 ||
+        apiErr?.code === 'DISBURSEMENT_ALREADY_BILLED' ||
+        apiErr?.code === 'CONCURRENCY_CONFLICT'
+      ) {
+        void queryClient.invalidateQueries({ queryKey: ['disbursements'] });
+        void queryClient.invalidateQueries({ queryKey: ['billing'] });
+        setFormError(
+          apiErr?.message ||
+            'One or more linked disbursements were already billed or modified by another user. Caches have been refreshed.'
+        );
       } else {
         setFormError(apiErr?.message || 'Failed to create invoice.');
       }

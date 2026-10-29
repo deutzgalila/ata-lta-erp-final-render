@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DisbursementDetailBody } from '../components/DisbursementDetailBody';
@@ -7,10 +7,21 @@ import { FundDisbursementModal } from '../components/FundDisbursementModal';
 import { ReleaseFundsModal } from '../components/FundsReleaseActions';
 import { DisbursementCodingGrid } from '../components/workspace/DisbursementCodingGrid';
 import { DisbursementActionRail } from '../components/workspace/DisbursementActionRail';
+import { LinkBillingTransmittalModal } from '../components/LinkBillingTransmittalModal';
 import { InvoiceDetailModal } from '@/features/billing/components/InvoiceDetailModal';
 import { TransmittalDetailModal } from '@/features/transmittals/components/TransmittalDetailModal';
 import { useBlockingModalStore } from '@/features/operations/components/BlockingActionModal';
 import { useSessionStore } from '@/lib/session';
+import {
+  handleRealtimePayload,
+  mergeCdcRecordPreservingEnrichedLinks,
+  getDefaultDetailQueryKey,
+  getDefaultListRootKey,
+} from '@/lib/realtime/useEntityRealtimeSync';
+import { handleIncomingTabSyncMessage } from '@/lib/tabSync';
+import { disbursementKeys } from '../api/queryKeys';
+import { billingKeys } from '@/features/billing/api/queryKeys';
+import { transmittalKeys } from '@/features/transmittals/api/queryKeys';
 import type { Disbursement } from '../api/types';
 import type { Invoice } from '@/features/billing/api/types';
 import type { Transmittal } from '@/features/transmittals/api/types';
@@ -31,6 +42,11 @@ function createHarness() {
 
 describe('Disbursement ↔ Invoice & Transmittal Cross-Module Connectivity', () => {
   beforeEach(() => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [] }),
+    } as Response);
     useBlockingModalStore.getState().reset();
     useSessionStore.getState().setSession({
       user: {
@@ -470,5 +486,296 @@ describe('Disbursement ↔ Invoice & Transmittal Cross-Module Connectivity', () 
     expect(createBillingBtn).toBeDisabled();
     expect(createBillingBtn).toHaveTextContent('Billing Linked');
     expect(screen.getByTestId('rail-link-billing-transmittal-btn')).toBeEnabled();
+  });
+
+  it('preserves enriched linked_invoice_summary on raw CDC UPDATE when FK is unchanged and invalidates when FK changes', () => {
+    const { queryClient } = createHarness();
+    const detailKey = disbursementKeys.detail('disb-cdc-1');
+    const listKey = disbursementKeys.list({ page: 1 });
+
+    const initialDisb: Disbursement = {
+      id: 'disb-cdc-1',
+      disbursement_number: 'DISB-ATA-20261029-401',
+      entity_id: 'ent-ata',
+      entity_code: 'ATA',
+      category: 'Filing Fee',
+      description: 'SEC Filing Fee',
+      amount: 5000,
+      fund_source: 'Client Fund',
+      status: 'Draft',
+      lifecycle_version: 2,
+      linked_invoice_id: 'inv-401',
+      linked_invoice_number: 'INV-ATA-202610-401',
+      linked_invoice_status: 'Sent',
+      linked_invoice_summary: {
+        id: 'inv-401',
+        invoice_number: 'INV-ATA-202610-401',
+        status: 'Sent',
+        total_amount: 5000,
+      },
+      version: 1,
+      created_at: '2026-10-29T08:00:00Z',
+      updated_at: '2026-10-29T08:00:00Z',
+    };
+
+    queryClient.setQueryData(detailKey, initialDisb);
+    queryClient.setQueryData(listKey, { data: [initialDisb] });
+
+    // 1. Raw PostgreSQL CDC UPDATE where status changes to Approved, linked_invoice_id is still 'inv-401',
+    // and raw payload omits API-joined linked_invoice_summary
+    handleRealtimePayload(
+      queryClient,
+      { table: 'disbursements', activeEntity: 'ATA' },
+      {
+        eventType: 'UPDATE',
+        new: {
+          id: 'disb-cdc-1',
+          entity_code: 'ATA',
+          status: 'Approved',
+          linked_invoice_id: 'inv-401',
+          version: 2,
+        },
+        old: {
+          id: 'disb-cdc-1',
+          status: 'Draft',
+          linked_invoice_id: 'inv-401',
+          version: 1,
+        },
+      }
+    );
+
+    const afterStatusUpdate = queryClient.getQueryData<Disbursement>(detailKey);
+    expect(afterStatusUpdate?.status).toBe('Approved');
+    expect(afterStatusUpdate?.version).toBe(2);
+    expect(afterStatusUpdate?.linked_invoice_summary?.invoice_number).toBe('INV-ATA-202610-401');
+    expect(afterStatusUpdate?.linked_invoice_status).toBe('Sent');
+
+    // 2. Raw PostgreSQL CDC UPDATE where linked_invoice_id is changed to 'inv-402'
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const mergeRes = mergeCdcRecordPreservingEnrichedLinks(
+      'disbursements',
+      afterStatusUpdate as unknown as Record<string, unknown>,
+      {
+        id: 'disb-cdc-1',
+        linked_invoice_id: 'inv-402',
+        version: 3,
+      }
+    );
+    expect(mergeRes.linksChanged).toBe(true);
+    expect(mergeRes.merged.linked_invoice_summary).toBeNull();
+
+    handleRealtimePayload(
+      queryClient,
+      { table: 'disbursements', activeEntity: 'ATA' },
+      {
+        eventType: 'UPDATE',
+        new: {
+          id: 'disb-cdc-1',
+          entity_code: 'ATA',
+          status: 'Approved',
+          linked_invoice_id: 'inv-402',
+          version: 3,
+        },
+        old: {
+          id: 'disb-cdc-1',
+          status: 'Approved',
+          linked_invoice_id: 'inv-401',
+          version: 2,
+        },
+      }
+    );
+
+    const afterFkChange = queryClient.getQueryData<Disbursement>(detailKey);
+    expect(afterFkChange?.linked_invoice_id).toBe('inv-402');
+    expect(afterFkChange?.linked_invoice_summary).toBeNull();
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: detailKey });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: disbursementKeys.lists() });
+  });
+
+  it('co-invalidates linked domains on Realtime CDC and BroadcastChannel tabSync events', () => {
+    const { queryClient } = createHarness();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    expect(getDefaultDetailQueryKey('transmittals', 'tr-99')).toEqual(
+      transmittalKeys.detail('tr-99')
+    );
+    expect(getDefaultListRootKey('transmittals')).toEqual(transmittalKeys.lists());
+
+    // 1. CDC event on invoices co-invalidates disbursements & transmittals
+    handleRealtimePayload(
+      queryClient,
+      { table: 'invoices', activeEntity: 'ATA' },
+      {
+        eventType: 'UPDATE',
+        new: {
+          id: 'inv-co-1',
+          entity_code: 'ATA',
+          status: 'Paid',
+          version: 4,
+        },
+      }
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: disbursementKeys.all });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: transmittalKeys.all });
+
+    invalidateSpy.mockClear();
+
+    // 1b. CDC event on disbursements co-invalidates billing & transmittals
+    handleRealtimePayload(
+      queryClient,
+      { table: 'disbursements', activeEntity: 'ATA' },
+      {
+        eventType: 'UPDATE',
+        new: {
+          id: 'disb-co-1',
+          entity_code: 'ATA',
+          status: 'Released',
+          version: 4,
+        },
+      }
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: billingKeys.all });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: transmittalKeys.all });
+
+    invalidateSpy.mockClear();
+
+    // 2. TabSync ENTITY_MUTATED on billing co-invalidates disbursements & transmittals
+    handleIncomingTabSyncMessage(queryClient, {
+      type: 'ENTITY_MUTATED',
+      domain: 'billing',
+      entityId: 'inv-co-1',
+      entityData: { id: 'inv-co-1', status: 'Paid', version: 4 },
+      originTabId: 'other-tab',
+      timestamp: Date.now(),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['disbursements'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['transmittals'] });
+
+    invalidateSpy.mockClear();
+
+    // 3. TabSync ENTITY_MUTATED on disbursements co-invalidates billing & transmittals
+    handleIncomingTabSyncMessage(queryClient, {
+      type: 'ENTITY_MUTATED',
+      domain: 'disbursements',
+      entityId: 'disb-co-1',
+      entityData: { id: 'disb-co-1', linked_invoice_id: 'inv-co-1', version: 5 },
+      originTabId: 'other-tab',
+      timestamp: Date.now(),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['billing'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['transmittals'] });
+  });
+
+  it('reactively updates DisbursementActionRail when TanStack Query cache is patched via CDC while selectedDisbursement prop is static', async () => {
+    const initialDisb: Disbursement = {
+      id: 'disb-rail-live',
+      disbursement_number: 'DISB-ATA-20261029-501',
+      entity_id: 'ent-ata',
+      entity_code: 'ATA',
+      category: 'Filing Fee',
+      description: 'SEC Filing Fee Live Sync',
+      amount: 4500,
+      fund_source: 'Client Fund',
+      status: 'Approved',
+      lifecycle_version: 2,
+      linked_work_request_id: 'wr-501',
+      linked_invoice_id: null,
+      version: 2,
+      created_at: '2026-10-29T08:00:00Z',
+      updated_at: '2026-10-29T08:00:00Z',
+    };
+
+    const { queryClient, wrapper } = createHarness();
+    queryClient.setQueryData(disbursementKeys.detail('disb-rail-live'), initialDisb);
+
+    render(<DisbursementActionRail selectedDisbursement={initialDisb} />, { wrapper });
+
+    expect(screen.getByTestId('rail-create-billing-btn')).toBeEnabled();
+    expect(screen.getByTestId('rail-create-billing-btn')).toHaveTextContent('Create Billing');
+
+    // Simulate another user linking an invoice via Realtime CDC UPDATE (version 2 -> 3)
+    act(() => {
+      handleRealtimePayload(
+        queryClient,
+        { table: 'disbursements', activeEntity: 'ATA' },
+        {
+          eventType: 'UPDATE',
+          new: {
+            id: 'disb-rail-live',
+            entity_code: 'ATA',
+            status: 'Approved',
+            linked_invoice_id: 'inv-live-501',
+            version: 3,
+          },
+          old: {
+            id: 'disb-rail-live',
+            status: 'Approved',
+            linked_invoice_id: null,
+            version: 2,
+          },
+        }
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('rail-create-billing-btn')).toBeDisabled();
+      expect(screen.getByTestId('rail-create-billing-btn')).toHaveTextContent('Billing Linked');
+    });
+  });
+
+  it('surfaces ConflictResolutionModal when LinkBillingTransmittalModal encounters a 409 Concurrency Conflict', async () => {
+    const disb: Disbursement = {
+      id: 'disb-occ-1',
+      disbursement_number: 'DISB-ATA-20261029-601',
+      entity_id: 'ent-ata',
+      entity_code: 'ATA',
+      category: 'Filing Fee',
+      description: 'OCC Conflict Voucher',
+      amount: 3200,
+      fund_source: 'Client Fund',
+      status: 'Approved',
+      lifecycle_version: 2,
+      linked_work_request_id: 'wr-601',
+      version: 2,
+      created_at: '2026-10-29T08:00:00Z',
+      updated_at: '2026-10-29T08:00:00Z',
+    };
+
+    window.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      const u = String(url);
+      if ((init?.method === 'PUT' || init?.method === 'PATCH') && u.includes('/disbursements/disb-occ-1')) {
+        return Promise.resolve({
+          ok: false,
+          status: 409,
+          json: async () => ({
+            error: {
+              code: 'CONCURRENCY_CONFLICT',
+              message: 'Disbursement was modified by another user (expected v2, current v3).',
+            },
+          }),
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [] }),
+      } as Response);
+    });
+
+    const { wrapper } = createHarness();
+    render(
+      <LinkBillingTransmittalModal
+        isOpen={true}
+        disbursement={disb}
+        onClose={vi.fn()}
+      />,
+      { wrapper }
+    );
+
+    fireEvent.click(screen.getByTestId('submit-link-billing-transmittal-btn'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('conflict-resolution-modal')).toBeInTheDocument();
+    });
   });
 });
