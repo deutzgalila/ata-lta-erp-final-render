@@ -178,7 +178,7 @@ export function AuditLogView() {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#475569]" />
             <Input
               type="text"
-              placeholder="Search action, table, record ID, or details..."
+              placeholder="Search by AUR ID, description, user, or item number..."
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
@@ -372,9 +372,11 @@ export function AuditLogView() {
                 </TableCell>
               </TableRow>
             ) : (
-              entries.map((entry, idx) => {
-                const seqNum = (page - 1) * currentLimit + idx + 1;
-                const aurCode = `AUR-${String(seqNum).padStart(3, '0')}`;
+              entries.map((entry) => {
+                const aurCode =
+                  entry.auditNumber ||
+                  entry.audit_number ||
+                  `AUR-${entry.id.slice(0, 8).toUpperCase()}`;
                 const ts = formatTableTimestamp(
                   entry.timestamp ?? entry.createdAt ?? entry.created_at
                 );

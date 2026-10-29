@@ -32,6 +32,7 @@ const mockUsers: AdminUser[] = [
     name: 'Admin Developer',
     email: 'dev-admin@ata-lta.ph',
     role: 'Admin',
+    userNumber: 'USR-01',
     departments: ['Management', 'Accounting', 'Operations', 'Documentation', 'HR'],
     entities: ['ATA', 'LTA'],
     isActive: true,
@@ -44,6 +45,7 @@ const mockUsers: AdminUser[] = [
     name: 'Doc Specialist',
     email: 'dev-docs@ata-lta.ph',
     role: 'Documentation',
+    userNumber: 'USR-02',
     departments: ['Documentation', 'Management'],
     entities: ['ATA', 'LTA'],
     isActive: true,
@@ -56,6 +58,7 @@ const mockUsers: AdminUser[] = [
     name: 'Old Staff',
     email: 'old-staff@ata-lta.ph',
     role: 'Accounting',
+    userNumber: 'USR-08',
     departments: ['Accounting'],
     entities: ['ATA'],
     isActive: false,
@@ -302,6 +305,35 @@ describe('Admin User Management Components (Parity, Re-enable, OCC & Brutalist-M
       fireEvent.click(screen.getByTestId('add-user-button'));
       expect(onAddUserMock).toHaveBeenCalledTimes(1);
     });
+
+    it('Regression: Filtering Users displays each user persistent userNumber and NEVER resets to USR-01', async () => {
+      const { wrapper } = createHarness();
+      render(<UserListTable />, { wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('user-row-user-admin')).toBeInTheDocument();
+        expect(screen.getByTestId('user-row-user-disabled')).toBeInTheDocument();
+      });
+
+      // Initially all 3 rendered: user-disabled is 3rd row, should have USR-08 (not USR-03)
+      expect(screen.getByTestId('user-id-user-admin')).toHaveTextContent('USR-01');
+      expect(screen.getByTestId('user-id-user-docs')).toHaveTextContent('USR-02');
+      expect(screen.getByTestId('user-id-user-disabled')).toHaveTextContent('USR-08');
+
+      // Filter by searching 'Old Staff'
+      const searchInput = screen.getByTestId('user-search-input');
+      fireEvent.change(searchInput, { target: { value: 'Old Staff' } });
+
+      // Only user-disabled is rendered. Its ID must remain USR-08 and NOT reset to USR-01!
+      expect(screen.getByTestId('user-row-user-disabled')).toBeInTheDocument();
+      expect(screen.queryByTestId('user-row-user-admin')).not.toBeInTheDocument();
+      expect(screen.getByTestId('user-id-user-disabled')).toHaveTextContent('USR-08');
+
+      // Also searching by 'USR-08' directly matches user-disabled
+      fireEvent.change(searchInput, { target: { value: 'USR-08' } });
+      expect(screen.getByTestId('user-row-user-disabled')).toBeInTheDocument();
+      expect(screen.getByTestId('user-id-user-disabled')).toHaveTextContent('USR-08');
+    });
   });
 
   describe('GuardedPasswordInput', () => {
@@ -546,6 +578,18 @@ describe('Admin User Management Components (Parity, Re-enable, OCC & Brutalist-M
 
       // Legacy Effective Permissions Inspector must NOT be rendered
       expect(screen.queryByText('Effective Permissions Inspector')).not.toBeInTheDocument();
+    });
+
+    it('renders persistent userNumber badge in identity header when present', () => {
+      render(
+        <UserDetailModal
+          user={mockUsers[2]!}
+          isOpen={true}
+          onClose={vi.fn()}
+        />
+      );
+
+      expect(screen.getByTestId('user-detail-code')).toHaveTextContent('USR-08');
     });
   });
 });

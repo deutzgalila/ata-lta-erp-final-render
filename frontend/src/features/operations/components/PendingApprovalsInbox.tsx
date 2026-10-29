@@ -184,10 +184,14 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
       const title = wr.title || '';
       const client = wr.clientName || wr.client?.name || '';
       const creator = wr.assignedToName || resolveName(wr.assignedTo);
+      const wrNum = wr.workRequestNumber || wr.work_request_number || '';
+      const clientNum = wr.clientNumber || wr.client_number || '';
       return (
         title.toLowerCase().includes(q) ||
         client.toLowerCase().includes(q) ||
-        creator.toLowerCase().includes(q)
+        creator.toLowerCase().includes(q) ||
+        wrNum.toLowerCase().includes(q) ||
+        clientNum.toLowerCase().includes(q)
       );
     });
   }, [creationApprovals, wrSearch, resolveName]);
@@ -1142,6 +1146,15 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
                   >
                     <div className="flex items-center justify-between gap-1.5 pb-1">
                       <div className="flex items-center gap-1.5">
+                        {(() => {
+                          const wrCode = wr.workRequestNumber || wr.work_request_number;
+                          if (!wrCode) return null;
+                          return (
+                            <span className="font-mono text-[11px] font-semibold text-[#475569] bg-[#F8FAFC] border border-[#E2E8F0] px-1.5 py-0.5 rounded-[4px] tabular-nums">
+                              {wrCode}
+                            </span>
+                          );
+                        })()}
                         <Badge
                           variant="secondary"
                           size="compact"
@@ -1223,6 +1236,15 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
                   <div className="p-4 border-b border-[#E2E8F0] bg-[#F8FAFC] space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
+                        {(() => {
+                          const wrCode = selectedWr.workRequestNumber || selectedWr.work_request_number;
+                          if (!wrCode) return null;
+                          return (
+                            <span className="font-mono text-xs font-semibold text-[#475569] bg-[#F8FAFC] border border-[#E2E8F0] px-2 py-0.5 rounded-[6px] tabular-nums">
+                              {wrCode}
+                            </span>
+                          );
+                        })()}
                         <Badge
                           variant="secondary"
                           size="compact"

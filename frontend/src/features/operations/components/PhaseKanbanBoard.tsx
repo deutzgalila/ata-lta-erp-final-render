@@ -512,17 +512,32 @@ function PhaseKanbanBoardInner({
                 <SelectValue placeholder="Choose a work request" />
               </SelectTrigger>
               <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
-                {workRequests.map((wr) => (
-                  <SelectItem key={wr.id} value={wr.id} className="text-xs">
-                    {wr.title} ({wr.entity})
-                  </SelectItem>
-                ))}
+                {workRequests.map((wr) => {
+                  const wrCode = wr.workRequestNumber || wr.work_request_number;
+                  return (
+                    <SelectItem key={wr.id} value={wr.id} className="text-xs">
+                      {wrCode ? `${wrCode} · ` : ''}{wr.title} ({wr.entity})
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
 
           {activeWr && (
             <div className="flex items-center gap-2 pt-4">
+              {(() => {
+                const wrCode = activeWr.workRequestNumber || activeWr.work_request_number;
+                if (!wrCode) return null;
+                return (
+                  <span
+                    className="font-mono text-xs font-semibold text-[#475569] bg-[#F8FAFC] border border-[#E2E8F0] px-2 py-0.5 rounded-[6px] tabular-nums"
+                    data-testid="kanban-wr-number"
+                  >
+                    {wrCode}
+                  </span>
+                );
+              })()}
               <Badge variant={activeWr.entity === 'LTA' ? 'lta' : 'ata'} size="compact">
                 {activeWr.entity}
               </Badge>
