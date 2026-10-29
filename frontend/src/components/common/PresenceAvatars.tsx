@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useSessionStore } from '@/lib/session';
 import { isFeatureEnabled } from '@/lib/flags';
 import { queryClient } from '@/lib/api';
+import { getAvatarColorStyle } from './UserAvatar';
 
 export interface ViewerPresence {
   userId: string;
@@ -393,6 +394,7 @@ export function PresenceAvatars({
         const tooltipText = `Viewing now: ${viewer.name} (${viewer.role})`;
         const initials = getInitials(viewer.name);
         const colorClass = getAvatarColorClass(viewer.userId || viewer.name);
+        const avatarStyle = getAvatarColorStyle(viewer.userId || viewer.name);
         const effectiveAvatarUrl = viewer.avatarUrl || getCachedUserAvatar(viewer.userId, viewer.email);
         const hasValidAvatar = Boolean(effectiveAvatarUrl && !failedAvatarIds[viewer.userId]);
 
@@ -410,7 +412,12 @@ export function PresenceAvatars({
             onBlur={() => setHoveredUserId(null)}
           >
             <div
-              className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-semibold border-2 border-white shadow-2xs cursor-pointer ${colorClass}`}
+              className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-semibold border-2 border-white shadow-2xs cursor-pointer overflow-hidden ${colorClass}`}
+              style={
+                !hasValidAvatar || !effectiveAvatarUrl
+                  ? { backgroundColor: avatarStyle.bg, color: '#FFFFFF' }
+                  : undefined
+              }
             >
               {hasValidAvatar && effectiveAvatarUrl ? (
                 <img

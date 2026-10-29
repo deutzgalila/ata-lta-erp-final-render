@@ -8,20 +8,28 @@ import { broadcastEntityChange } from '@/lib/tabSync';
 import { adminKeys } from './queryKeys';
 import type { AdminUser, CreateUserInput, UpdateUserInput } from './types';
 
-function normalizeAdminUser(u: AdminUser): AdminUser {
+export function normalizeAdminUser(u: AdminUser): AdminUser {
   const isActive =
     typeof u.isActive === 'boolean'
       ? u.isActive
       : u.status
         ? u.status === 'Active'
         : true;
+  const raw = u as unknown as Record<string, unknown>;
+  const avatarUrl =
+    (typeof raw.avatarUrl === 'string' && raw.avatarUrl.trim() !== '' ? raw.avatarUrl.trim() : null) ??
+    (typeof raw.avatar_url === 'string' && raw.avatar_url.trim() !== '' ? raw.avatar_url.trim() : null) ??
+    null;
   return {
     ...u,
     isActive,
     status: u.status ?? (isActive ? 'Active' : 'Disabled'),
     version: typeof u.version === 'number' ? u.version : 1,
+    avatarUrl: avatarUrl ?? u.avatarUrl ?? null,
   };
 }
+
+export const normalizeUser = normalizeAdminUser;
 
 // ============================================================================
 // 1. Query Hooks

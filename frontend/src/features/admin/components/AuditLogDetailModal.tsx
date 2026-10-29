@@ -31,19 +31,13 @@ import {
   type AuditItemRouteLink,
 } from '../utils/auditFormatters';
 import type { AdminUser, AuditLogEntry, EntityCode } from '../api/types';
+import { UserAvatar } from '@/components/common/UserAvatar';
 
 export interface AuditLogDetailModalProps {
   entry: AuditLogEntry | null;
   usersMap?: Map<string, AdminUser>;
   isOpen: boolean;
   onClose: () => void;
-}
-
-function getInitials(name: string): string {
-  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return 'SY';
-  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
-  return `${parts[0]![0] ?? ''}${parts[parts.length - 1]![0] ?? ''}`.toUpperCase();
 }
 
 function formatFullTimestamp(iso?: string): string {
@@ -81,10 +75,12 @@ export function AuditLogDetailModal({
 
   if (!entry) return null;
 
-  const actorId = entry.userId ?? entry.user_id ?? null;
+  const actorId = entry.userId ?? entry.user_id ?? (entry as { actor_id?: string }).actor_id ?? null;
   const actorUser = actorId && usersMap ? usersMap.get(actorId) : undefined;
-  const actorName = actorUser?.name ?? (actorId ? actorId : 'System');
+  const actorName = entry.actorName || actorUser?.name || (actorId ? actorId : 'System');
+  const actorEmail = entry.actorEmail || actorUser?.email || (entry as { actor_email?: string }).actor_email || null;
   const actorRole = actorUser?.role ?? (actorId ? 'User' : 'Automated');
+  const actorAvatarUrl = entry.actorAvatarUrl || (entry as { actor_avatar_url?: string }).actor_avatar_url || actorUser?.avatarUrl || null;
   const timestamp = entry.timestamp ?? entry.createdAt ?? entry.created_at;
   const entityLabel = entry.entity || 'System';
   const actionLabel = formatAuditAction(entry);
@@ -192,9 +188,15 @@ export function AuditLogDetailModal({
                   Performed By
                 </div>
                 <div className="mt-1 flex items-center gap-2">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] border border-[#BFDBFE] bg-[#EFF6FF] font-mono text-[11px] font-bold text-[#1D4ED8]">
-                    {getInitials(actorName)}
-                  </span>
+                  <UserAvatar
+                    userId={actorId}
+                    name={actorName}
+                    email={actorEmail}
+                    avatarUrl={actorAvatarUrl}
+                    size="sm"
+                    shape="rounded"
+                    className="h-8 w-8 rounded-[6px] text-[12px]"
+                  />
                   <div className="min-w-0">
                     <span
                       className="truncate text-xs font-semibold text-[#1E293B]"

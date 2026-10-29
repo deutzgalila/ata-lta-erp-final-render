@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { UserAvatar } from '@/components/common/UserAvatar';
 import type { AdminUser, EntityCode, UserRole } from '../api/types';
 
 export interface UserDetailModalProps {
@@ -37,15 +38,6 @@ const ENTITY_LABELS: Record<EntityCode, string> = {
   ATA: 'ATA (Asuncion & Tan Accountancy)',
   LTA: 'LTA (Lopez & Tan Advisory)',
 };
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return 'U';
-  if (parts.length === 1) return (parts[0] ?? 'U').slice(0, 2).toUpperCase();
-  const first = parts[0]?.[0] ?? '';
-  const last = parts[parts.length - 1]?.[0] ?? '';
-  return `${first}${last}`.toUpperCase() || 'U';
-}
 
 function formatTimestamp(iso?: string): string {
   if (!iso) return '—';
@@ -86,12 +78,16 @@ export function UserDetailModal({
         <DialogHeader className="border-b border-[#E2E8F0] pb-4">
           <div className="flex items-start justify-between gap-3 pr-6">
             <div className="flex items-center gap-3">
-              <div
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-[#BFDBFE] bg-[#EFF6FF] font-mono text-xs font-bold text-[#1D4ED8]"
-                data-testid="user-detail-initials"
-              >
-                {getInitials(user.name)}
-              </div>
+              <UserAvatar
+                userId={user.id}
+                name={user.name}
+                email={user.email}
+                avatarUrl={user.avatarUrl}
+                size="lg"
+                shape="rounded"
+                initialsTestId="user-detail-initials"
+                className="h-10 w-10 rounded-[8px] text-[14px]"
+              />
               <div>
                 <DialogTitle
                   className="text-lg font-semibold tracking-tight text-[#1E293B]"

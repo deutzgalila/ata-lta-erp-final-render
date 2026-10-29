@@ -23,6 +23,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PresenceAvatars } from '@/components/common/PresenceAvatars';
+import { UserAvatar } from '../../../components/common/UserAvatar';
 import {
   Download,
   Upload,
@@ -846,10 +847,16 @@ export function DocumentViewerModal({
                       data-testid={`comment-item-${commentId}`}
                     >
                       <div className="flex items-center justify-between text-xs text-[#475569]">
-                        <span className="font-semibold text-[#1E293B]">
-                          <span aria-hidden="true" className="mr-1 inline-flex h-5 w-5 items-center justify-center rounded-[6px] bg-[#F8FAFC] text-[#1E293B]">
-                            {sender.split(' ').map((part) => part[0]).slice(0, 2).join('')}
-                          </span>{sender}
+                        <span className="font-semibold text-[#1E293B] inline-flex items-center gap-1.5">
+                          <UserAvatar
+                            userId={comment.author_id || comment.userId || comment.user_id}
+                            name={comment.author_name || comment.userName || comment.user_name || sender}
+                            avatarUrl={comment.author_avatar_url || comment.authorAvatarUrl || comment.userAvatarUrl || comment.avatarUrl}
+                            size="sm"
+                            shape="rounded"
+                            className="h-7 w-7 rounded-[5px] text-[10px]"
+                          />
+                          <span>{sender}</span>
                         </span>
                         <span>
                           {comment.date || comment.created_at

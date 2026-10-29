@@ -11,6 +11,8 @@
  * - Zero `any` types
  */
 
+export type { TimeEntry, RawTimeEntryApi } from '@/features/dashboard/api/types';
+
 // ============================================================================
 // 1. Domain Enums and Union Types
 // ============================================================================

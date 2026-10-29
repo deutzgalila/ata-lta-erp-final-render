@@ -42,6 +42,7 @@ import { UserCreateModal } from './UserCreateModal';
 import { UserEditModal } from './UserEditModal';
 import { UserDisableModal } from './UserDisableModal';
 import { UserDetailModal } from './UserDetailModal';
+import { UserAvatar } from '@/components/common/UserAvatar';
 import type { AdminUser, DepartmentName, EntityCode } from '../api/types';
 
 export interface UserListTableProps {
@@ -446,9 +447,15 @@ export function UserListTable({
                     {/* Name + Self Indicator */}
                     <TableCell className="py-3">
                       <div className="flex items-center gap-2.5">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] border border-[#BFDBFE] bg-[#EFF6FF] font-mono text-xs font-bold text-[#1D4ED8]">
-                          {user.name.charAt(0).toUpperCase()}
-                        </div>
+                        <UserAvatar
+                          userId={user.id}
+                          name={user.name}
+                          email={user.email}
+                          avatarUrl={user.avatarUrl}
+                          size="sm"
+                          shape="rounded"
+                          className="h-7 w-7 rounded-[5px] text-[12px]"
+                        />
                         <div>
                           <div className="flex items-center gap-1.5">
                             <span

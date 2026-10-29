@@ -206,6 +206,8 @@ export interface DisbursementLifecycleEvent {
   actorName?: string | null;
   actor_role?: string | null;
   actorRole?: string | null;
+  actor_avatar_url?: string | null;
+  actorAvatarUrl?: string | null;
   reason?: string | null;
   details?: Record<string, unknown> | null;
   created_at: string;
@@ -215,6 +217,8 @@ export interface DisbursementLifecycleEvent {
   timestamp?: string | null;
   notes?: string | null;
 }
+
+export type DisbursementAuditEvent = DisbursementLifecycleEvent;
 
 export type DisbursementQueue =
   | 'initial_requests'

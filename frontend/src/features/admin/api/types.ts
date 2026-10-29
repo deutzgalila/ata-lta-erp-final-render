@@ -40,6 +40,8 @@ export interface AdminUser {
   user_number?: string | null;
 }
 
+export type UserRecord = AdminUser;
+
 export interface CreateUserInput {
   email: string;
   name: string;
@@ -78,6 +80,8 @@ export interface AuditLogEntry {
   user_id?: string | null;
   actorName?: string | null;
   actorEmail?: string | null;
+  actorAvatarUrl?: string | null;
+  actor_avatar_url?: string | null;
   ipAddress?: string | null;
   ip_address?: string | null;
   details: Record<string, unknown> | null;
