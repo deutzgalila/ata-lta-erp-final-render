@@ -40,7 +40,7 @@
  * -------------------------------------------------------------------------------------------------------------------------------------------------
  */
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   CheckCircle2,
   DollarSign,
@@ -309,23 +309,23 @@ export function DisbursementActionRail({
     item.disbursementNumber ||
     `DISB-${item.id.slice(0, 8)}`;
 
-  const createBillingPrefill = useMemo(() => {
-    if (!item || !workRequestId) return undefined;
-    return {
-      workRequestId,
-      clientId: item.client_id || item.clientId || undefined,
-      taskId: undefined,
-      linkedTransmittalId:
-        item.linked_transmittal_id || item.linkedTransmittalId || undefined,
-      attachedDisbursement: {
-        id: item.id,
-        disbursement_number: disbNumber,
-        description: item.description,
-        amount: item.amount,
-        category: item.category,
-      },
-    };
-  }, [item, workRequestId, disbNumber]);
+  const createBillingPrefill =
+    item && workRequestId
+      ? {
+          workRequestId,
+          clientId: item.client_id || item.clientId || undefined,
+          taskId: undefined,
+          linkedTransmittalId:
+            item.linked_transmittal_id || item.linkedTransmittalId || undefined,
+          attachedDisbursement: {
+            id: item.id,
+            disbursement_number: disbNumber,
+            description: item.description,
+            amount: item.amount,
+            category: item.category,
+          },
+        }
+      : undefined;
 
   // Mutation Handlers
   const handleResendDraft = async () => {
