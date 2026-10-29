@@ -58,11 +58,16 @@ export function ReleaseFundsModal({
 
   const isAdmin = currentUser?.role === 'Admin';
   const isClientFund =
-    (disbursement.fund_source || disbursement.fundSource) === 'Client Fund';
+    (disbursement.fund_source ||
+      disbursement.fundSource ||
+      disbursement.source_of_funds ||
+      disbursement.sourceOfFunds) === 'Client Fund';
   const linkedInvStatus =
-    disbursement.linked_invoice_status || disbursement.linked_invoice?.status || null;
-  const isClientFundPaid =
-    linkedInvStatus === 'Paid' || linkedInvStatus === 'Partially Paid';
+    disbursement.linked_invoice_summary?.status ||
+    disbursement.linked_invoice_status ||
+    disbursement.linked_invoice?.status ||
+    null;
+  const isClientFundPaid = linkedInvStatus === 'Paid';
   const requiresSopVerification = isClientFund && !isClientFundPaid;
 
   const canSubmit =

@@ -328,19 +328,43 @@ export function DisbursementDetailBody({
       (isV2 && isOwnRequest && item?.status === 'Draft' && !item?.archived));
   const isNeedsCorrection = item?.status === 'Draft' && item?.review_ready === false;
 
-  const linkedInvNumber = item?.linked_invoice_number || item?.linked_invoice?.invoice_number || null;
-  const linkedInvStatus = item?.linked_invoice_status || item?.linked_invoice?.status || null;
-  const linkedInvBalance = item?.linked_invoice_balance ?? item?.linked_invoice?.balance ?? null;
+  const linkedInvNumber =
+    item?.linked_invoice_summary?.invoice_number ||
+    item?.linked_invoice_number ||
+    item?.linked_invoice?.invoice_number ||
+    null;
+  const linkedInvStatus =
+    item?.linked_invoice_summary?.status ||
+    item?.linked_invoice_status ||
+    item?.linked_invoice?.status ||
+    null;
+  const linkedInvBalance =
+    item?.linked_invoice_summary?.balance ??
+    item?.linked_invoice_balance ??
+    item?.linked_invoice?.balance ??
+    null;
   const linkedTrNumber =
-    item?.linked_transmittal_tracking_number || item?.linked_transmittal?.tracking_number || null;
-  const linkedTrStatus = item?.linked_transmittal_status || item?.linked_transmittal?.status || null;
+    item?.linked_transmittal_summary?.tracking_number ||
+    item?.linked_transmittal_tracking_number ||
+    item?.linked_transmittal?.tracking_number ||
+    null;
+  const linkedTrStatus =
+    item?.linked_transmittal_summary?.status ||
+    item?.linked_transmittal_status ||
+    item?.linked_transmittal?.status ||
+    null;
   const linkedTrRecipient =
-    item?.linked_transmittal_recipient_name || item?.linked_transmittal?.recipient_name || null;
+    item?.linked_transmittal_summary?.recipient_name ||
+    item?.linked_transmittal_recipient_name ||
+    item?.linked_transmittal?.recipient_name ||
+    null;
 
-  const isClientFundVerified =
-    linkedInvStatus === 'Paid' || linkedInvStatus === 'Partially Paid';
+  const isClientFundVerified = linkedInvStatus === 'Paid';
   const showSopClientFundWarning =
-    (item?.fund_source || item?.fundSource) === 'Client Fund' &&
+    (item?.fund_source ||
+      item?.fundSource ||
+      item?.source_of_funds ||
+      item?.sourceOfFunds) === 'Client Fund' &&
     item?.status !== 'Rejected' &&
     item?.status !== 'Cancelled' &&
     !isClientFundVerified;

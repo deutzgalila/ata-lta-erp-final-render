@@ -378,19 +378,23 @@ export function InvoiceDetailModal({
                   </span>
                 </p>
               )}
-              {(invoice.linked_transmittal?.tracking_number ||
+              {(invoice.linked_transmittal_summary?.tracking_number ||
+                invoice.linked_transmittal?.tracking_number ||
                 invoice.linked_transmittal_tracking_number ||
                 invoice.linked_transmittal_id) && (
                 <p className="text-xs text-[#475569] mt-0.5" data-testid="invoice-linked-transmittal">
                   Linked Transmittal:{' '}
                   <span className="font-mono font-semibold text-[#1E293B]">
-                    {invoice.linked_transmittal?.tracking_number ||
+                    {invoice.linked_transmittal_summary?.tracking_number ||
+                      invoice.linked_transmittal?.tracking_number ||
                       invoice.linked_transmittal_tracking_number ||
                       invoice.linked_transmittal_id}
                   </span>
-                  {invoice.linked_transmittal?.status && (
+                  {(invoice.linked_transmittal_summary?.status ||
+                    invoice.linked_transmittal?.status) && (
                     <span className="ml-1.5 px-1.5 py-0.5 rounded bg-slate-100 text-[#1E293B] text-[10px] font-semibold">
-                      {invoice.linked_transmittal.status}
+                      {invoice.linked_transmittal_summary?.status ||
+                        invoice.linked_transmittal?.status}
                     </span>
                   )}
                 </p>
