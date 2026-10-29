@@ -34,6 +34,8 @@ const toApiUser = (row, departments = []) => {
     email: row.email,
     name: row.name,
     role: row.role,
+    avatarUrl: row.avatar_url || null,
+    avatar_url: row.avatar_url || null,
     departments,
     entities: row.entities || [],
     isActive,
@@ -1519,7 +1521,7 @@ const getAuditLogs = async (params = {}) => {
   if (userIds.length > 0) {
     const { data: usersData } = await supabaseAdmin
       .from('users')
-      .select('id, name, email, role, user_number')
+      .select('id, name, email, role, user_number, avatar_url')
       .in('id', userIds);
     (usersData || []).forEach((u) => userMap.set(u.id, u));
   }
@@ -1544,13 +1546,19 @@ const getAuditLogs = async (params = {}) => {
               role: user.role,
               userNumber: user.user_number || null,
               user_number: user.user_number || null,
+              avatarUrl: user.avatar_url || null,
+              avatar_url: user.avatar_url || null,
             }
           : row.user_id
           ? { id: row.user_id }
           : null,
         actorUserNumber: user?.user_number || null,
+        actorAvatarUrl: user?.avatar_url || null,
+        actor_avatar_url: user?.avatar_url || null,
         userName: user?.name || null,
         userEmail: user?.email || null,
+        userAvatarUrl: user?.avatar_url || null,
+        user_avatar_url: user?.avatar_url || null,
         details: row.details,
         createdAt: row.created_at,
       };
