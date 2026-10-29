@@ -40,8 +40,8 @@ const rejectPendingSchema = z.object({
 
 const createPendingSchema = z.object({
   tableName: z.string().min(1).max(100),
-  parentRecordId: z.string().uuid().optional().nullable(),
-  proposedData: z.record(z.any()),
+  parentRecordId: z.string().guid().optional().nullable(),
+  proposedData: z.record(z.string(), z.any()),
 });
 
 const listAuditQuerySchema = z.object({

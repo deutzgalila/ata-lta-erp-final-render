@@ -546,6 +546,7 @@ const enrichDisbursementExtras = async (rows = []) => {
   const taskIds = [
     ...new Set(rows.map((r) => r.linked_task_id || r.task_id).filter(Boolean)),
   ];
+  const clientIds = [...new Set(rows.map((r) => r.client_id).filter(Boolean))];
   const userIds = [
     ...new Set(
       rows
@@ -569,7 +570,7 @@ const enrichDisbursementExtras = async (rows = []) => {
   if (wrIds.length > 0) {
     const { data: wrs } = await supabaseAdmin
       .from('work_requests')
-      .select('id, title, work_order_number')
+      .select('id, title, work_order_number, work_request_number')
       .in('id', wrIds);
     wrMap = new Map((wrs || []).map((w) => [w.id, w]));
   }
@@ -599,6 +600,16 @@ const enrichDisbursementExtras = async (rows = []) => {
       .select('id, title, status')
       .in('id', taskIds);
     taskMap = new Map((tsks || []).map((t) => [t.id, t]));
+  }
+
+  let clientMap = new Map();
+  if (clientIds.length > 0) {
+    const { data: clients } = await supabaseAdmin
+      .from('clients')
+      .select('id, name, client_number')
+      .in('id', clientIds);
+    clientMap = new Map((clients || []).map((c) => [c.id, c]));
+  }
   }
 
   // Fetch status history for lifecycle audit trail
@@ -655,8 +666,16 @@ const enrichDisbursementExtras = async (rows = []) => {
       details: h.details || {},
     }));
 
+    const cli = row.client_id ? clientMap.get(row.client_id) : null;
+    const clientNumber = cli?.client_number || row.client_number || null;
+    const wrNumber = wr?.work_request_number || null;
+
     return {
       ...row,
+      clientNumber,
+      client_number: clientNumber,
+      workRequestNumber: wrNumber,
+      work_request_number: wrNumber,
       linked_work_request_name: wr?.title || null,
       linked_work_request_order_number: wr?.work_order_number || null,
       linked_task_title: task?.title || null,
