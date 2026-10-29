@@ -61,6 +61,7 @@ import {
   canResubmitTask,
 } from '../lib/taskScope';
 import { getPhaseBadgeInfo, getStatusBadgeInfo } from '../lib/statusBadges';
+import { TaskTypeBadge } from '../lib/taskTypes';
 import { TaskDetailModal } from './TaskDetailModal';
 import { DocumentViewerModal } from './DocumentViewerModal';
 import { RejectReasonModal } from './RejectReasonModal';
@@ -939,10 +940,13 @@ export function WorkRequestSidePeek({
                                 title="Click to view full task details, log time, and upload documents"
                               >
                                 <div className="flex items-start gap-2.5 min-w-0 w-full sm:flex-1">
-                                  <CheckCircle2
-                                    className={`h-4.5 w-4.5 shrink-0 mt-0.5 ${
-                                      isCompleted ? 'text-[#1E293B]' : 'text-[#94A3B8]'
-                                    }`}
+                                  <TaskTypeBadge
+                                    value={
+                                      task.requiredLinkType ??
+                                      (task as unknown as { required_link_type?: string | null }).required_link_type
+                                    }
+                                    className="mt-1"
+                                    data-testid={`side-peek-task-type-${task.id}`}
                                   />
                                   <div className="min-w-0 flex-1">
                                     <span
