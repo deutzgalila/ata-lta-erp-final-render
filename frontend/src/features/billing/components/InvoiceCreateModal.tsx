@@ -49,6 +49,13 @@ export interface FinancialPrefill {
   taskId?: string;
   clientId?: string;
   linkedTransmittalId?: string;
+  attachedDisbursement?: {
+    id: string;
+    disbursement_number?: string;
+    description: string;
+    amount: number;
+    category: string;
+  };
 }
 
 export interface InvoiceCreateModalProps {
@@ -126,7 +133,26 @@ export function InvoiceCreateModal({
       setClientId(prefill?.clientId || '');
       setSelectedTaskId(prefill?.taskId || '');
       setLinkedTransmittalId(prefill?.linkedTransmittalId || '');
-      setLinkedDisbursementIds([]);
+      if (prefill?.attachedDisbursement) {
+        const ad = prefill.attachedDisbursement;
+        const mappedType: LineItemType =
+          ad.category === 'Professional Fee'
+            ? 'Professional Fee'
+            : ad.category === 'Government Fee' || ad.category === 'Filing Fee'
+              ? 'Government Fee'
+              : 'Other';
+        setLinkedDisbursementIds([ad.id]);
+        setLineItems([
+          {
+            id: `item-disb-${ad.id}`,
+            description: `[${ad.disbursement_number || 'DISB'}] ${ad.description}`,
+            amount: String(ad.amount),
+            type: mappedType,
+          },
+        ]);
+      } else {
+        setLinkedDisbursementIds([]);
+      }
       setFormError(null);
     } else {
       setWorkRequestId('');
@@ -175,7 +201,7 @@ export function InvoiceCreateModal({
 
   const isClientLocked = Boolean(prefill?.clientId || prefill?.workRequestId);
   const isWrLocked = Boolean(prefill?.workRequestId);
-  const isTaskLocked = Boolean(prefill?.taskId);
+  const isTaskLocked = Boolean(prefill?.taskId && !prefill?.attachedDisbursement);
 
   const selectedWorkRequest = useMemo(
     () => workRequests.find((w) => w.id === workRequestId),
@@ -204,6 +230,35 @@ export function InvoiceCreateModal({
     onSelectTask: (taskId) => setSelectedTaskId(taskId),
     isTaskLocked,
   });
+
+  // When creating billing from a disbursement, if the disbursement's task belongs to another user
+  // (e.g. Liaison) and the current user is non-Admin (e.g. Accounting), auto-select the current user's
+  // own assignable task on the Work Request so they are not blocked by task assignment rules.
+  useEffect(() => {
+    if (
+      isOpen &&
+      prefill?.attachedDisbursement &&
+      !isAdmin &&
+      tasks.length > 0 &&
+      selectedTaskId &&
+      selectedTaskId === prefill.taskId
+    ) {
+      const prefillTask = tasks.find((t) => t.id === prefill.taskId);
+      if (prefillTask && !isTaskAssignee(currentUser, prefillTask)) {
+        const firstAssignable = taskOptions.find((opt) => !opt.disabled);
+        setSelectedTaskId(firstAssignable ? firstAssignable.id : '');
+      }
+    }
+  }, [
+    isOpen,
+    prefill?.attachedDisbursement,
+    prefill?.taskId,
+    isAdmin,
+    tasks,
+    selectedTaskId,
+    currentUser,
+    taskOptions,
+  ]);
 
   // Existing Invoices for sequential number calculation
   const { data: existingInvoicesData } = useInvoices({ limit: 100 }, { enabled: isOpen });
@@ -483,6 +538,22 @@ export function InvoiceCreateModal({
           >
             <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
             <span>{formError}</span>
+          </div>
+        )}
+
+        {prefill?.attachedDisbursement && (
+          <div
+            className="p-3 bg-blue-50 border border-blue-200 rounded-[6px] text-xs text-blue-800 flex items-center justify-between gap-2"
+            data-testid="attached-disbursement-banner"
+          >
+            <span>
+              Attached to Disbursement{' '}
+              <strong className="font-mono">
+                {prefill.attachedDisbursement.disbursement_number ||
+                  prefill.attachedDisbursement.id}
+              </strong>{' '}
+              — will auto-link upon invoice creation.
+            </span>
           </div>
         )}
 

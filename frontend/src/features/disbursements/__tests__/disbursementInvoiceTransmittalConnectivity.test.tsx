@@ -6,6 +6,7 @@ import { DisbursementDetailBody } from '../components/DisbursementDetailBody';
 import { FundDisbursementModal } from '../components/FundDisbursementModal';
 import { ReleaseFundsModal } from '../components/FundsReleaseActions';
 import { DisbursementCodingGrid } from '../components/workspace/DisbursementCodingGrid';
+import { DisbursementActionRail } from '../components/workspace/DisbursementActionRail';
 import { InvoiceDetailModal } from '@/features/billing/components/InvoiceDetailModal';
 import { TransmittalDetailModal } from '@/features/transmittals/components/TransmittalDetailModal';
 import { useBlockingModalStore } from '@/features/operations/components/BlockingActionModal';
@@ -387,5 +388,87 @@ describe('Disbursement ↔ Invoice & Transmittal Cross-Module Connectivity', () 
     expect(screen.getByTestId('transmittal-linked-disb-disb-200')).toHaveTextContent('DISB-ATA-20261029-200');
     expect(screen.getByTestId('transmittal-linked-invoice-inv-200')).toHaveTextContent('INV-ATA-202610-200');
     expect(screen.getByTestId('transmittal-request-disbursement-btn')).toBeInTheDocument();
+  });
+
+  it('renders Create Billing and Link Billing & Transmittal actions in DisbursementActionRail and opens prefilled InvoiceCreateModal / LinkBillingTransmittalModal', async () => {
+    const unbilledDisb: Disbursement = {
+      id: 'disb-rail-1',
+      disbursement_number: 'DISB-ATA-20261029-301',
+      entity_id: 'ent-ata',
+      entity_code: 'ATA',
+      category: 'Filing Fee',
+      description: 'SEC Amendment Filing Fee',
+      amount: 6500,
+      fund_source: 'Client Fund',
+      source_of_funds: 'Client Fund',
+      status: 'Approved',
+      lifecycle_version: 2,
+      linked_work_request_id: 'wr-301',
+      client_id: 'c-301',
+      linked_task_id: 'task-301',
+      version: 2,
+      created_at: '2026-10-29T08:00:00Z',
+      updated_at: '2026-10-29T08:00:00Z',
+    };
+
+    const { wrapper } = createHarness();
+    render(<DisbursementActionRail selectedDisbursement={unbilledDisb} />, { wrapper });
+
+    const createBillingBtn = screen.getByTestId('rail-create-billing-btn');
+    const linkRecordsBtn = screen.getByTestId('rail-link-billing-transmittal-btn');
+    expect(createBillingBtn).toBeInTheDocument();
+    expect(createBillingBtn).toBeEnabled();
+    expect(createBillingBtn).toHaveTextContent('Create Billing');
+    expect(linkRecordsBtn).toBeInTheDocument();
+
+    // Open Link Billing & Transmittal modal first
+    fireEvent.click(linkRecordsBtn);
+    await waitFor(() => {
+      expect(screen.getByTestId('link-billing-transmittal-modal')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('modal-select-linked-invoice')).toBeInTheDocument();
+    expect(screen.getByTestId('modal-select-linked-transmittal')).toBeInTheDocument();
+    expect(screen.getByTestId('modal-create-billing-shortcut-btn')).toBeInTheDocument();
+
+    // Click shortcut inside LinkBillingTransmittalModal to jump directly into Create Billing
+    fireEvent.click(screen.getByTestId('modal-create-billing-shortcut-btn'));
+    await waitFor(() => {
+      expect(screen.getByTestId('invoice-create-modal')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('attached-disbursement-banner')).toHaveTextContent(
+      'Attached to Disbursement DISB-ATA-20261029-301'
+    );
+    expect(screen.getByTestId('line-item-desc-0')).toHaveValue(
+      '[DISB-ATA-20261029-301] SEC Amendment Filing Fee'
+    );
+    expect(screen.getByTestId('line-item-amount-0')).toHaveValue(6500);
+  });
+
+  it('disables Create Billing button in DisbursementActionRail when voucher already has a linked invoice', () => {
+    const linkedDisb: Disbursement = {
+      id: 'disb-rail-2',
+      disbursement_number: 'DISB-ATA-20261029-302',
+      entity_id: 'ent-ata',
+      entity_code: 'ATA',
+      category: 'Filing Fee',
+      description: 'BIR Documentary Stamp Tax',
+      amount: 12000,
+      fund_source: 'Client Fund',
+      status: 'Approved',
+      lifecycle_version: 2,
+      linked_work_request_id: 'wr-301',
+      linked_invoice_id: 'inv-existing-301',
+      version: 2,
+      created_at: '2026-10-29T08:00:00Z',
+      updated_at: '2026-10-29T08:00:00Z',
+    };
+
+    const { wrapper } = createHarness();
+    render(<DisbursementActionRail selectedDisbursement={linkedDisb} />, { wrapper });
+
+    const createBillingBtn = screen.getByTestId('rail-create-billing-btn');
+    expect(createBillingBtn).toBeDisabled();
+    expect(createBillingBtn).toHaveTextContent('Billing Linked');
+    expect(screen.getByTestId('rail-link-billing-transmittal-btn')).toBeEnabled();
   });
 });
