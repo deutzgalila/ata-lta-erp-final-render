@@ -44,6 +44,7 @@ const validateDisbursementsForInvoice = async ({
   entityId,
   workRequestId,
   disbursementIds,
+  targetInvoiceId = null,
 }) => {
   if (!Array.isArray(disbursementIds) || disbursementIds.length === 0) return [];
   const uniqueIds = [...new Set(disbursementIds.filter(Boolean))];
@@ -51,7 +52,9 @@ const validateDisbursementsForInvoice = async ({
 
   const { data: rows, error } = await supabaseAdmin
     .from('disbursements')
-    .select('id, entity_id, linked_work_request_id, work_request_id, deleted_at')
+    .select(
+      'id, entity_id, linked_work_request_id, work_request_id, linked_invoice_id, version, status, status_history, deleted_at'
+    )
     .in('id', uniqueIds);
 
   if (error) {
@@ -82,27 +85,112 @@ const validateDisbursementsForInvoice = async ({
         detail: `Disbursement ${disbId} belongs to a different work request.`,
       });
     }
+    if (row.linked_invoice_id && (!targetInvoiceId || row.linked_invoice_id !== targetInvoiceId)) {
+      const { data: existingInv, error: invCheckErr } = await supabaseAdmin
+        .from('invoices')
+        .select('id, status, deleted_at')
+        .eq('id', row.linked_invoice_id)
+        .maybeSingle();
+
+      if (invCheckErr) {
+        throw new AppError({
+          statusCode: 500,
+          title: 'Database Error',
+          detail: 'Failed to verify existing invoice link for disbursement',
+        });
+      }
+
+      if (existingInv && !existingInv.deleted_at && existingInv.status !== 'Cancelled') {
+        throw new AppError({
+          statusCode: 409,
+          title: 'Conflict',
+          code: 'DISBURSEMENT_ALREADY_BILLED',
+          detail: `Disbursement ${disbId} is already linked to another active invoice.`,
+        });
+      }
+    }
   }
   return uniqueIds;
 };
 
-const applyDisbursementInvoiceLinks = async ({ invoiceId, disbursementIds, userId }) => {
+const applyDisbursementInvoiceLinks = async ({
+  invoiceId,
+  disbursementIds,
+  userId,
+  isCreate = false,
+}) => {
   if (!Array.isArray(disbursementIds) || disbursementIds.length === 0) return;
   const now = new Date().toISOString();
-  const { error: updateErr } = await supabaseAdmin
+
+  const { data: currentRows, error: fetchErr } = await supabaseAdmin
     .from('disbursements')
-    .update({
-      linked_invoice_id: invoiceId,
-      updated_by: userId,
-      updated_at: now,
-    })
+    .select('id, entity_id, version, status, linked_invoice_id, status_history')
     .in('id', disbursementIds);
 
-  if (updateErr) {
+  if (fetchErr) {
     throw new AppError({
       statusCode: 500,
       title: 'Database Error',
-      detail: 'Failed to link disbursements to invoice',
+      detail: 'Failed to fetch disbursements for invoice linking',
+    });
+  }
+
+  for (const row of currentRows || []) {
+    if (row.linked_invoice_id === invoiceId) continue;
+
+    const currentVersion = Number(row.version) || 1;
+    const nextVersion = currentVersion + 1;
+    const auditEntry = {
+      status: row.status,
+      by: userId,
+      at: now,
+      action: 'invoice_linked',
+      linked_invoice_id: invoiceId,
+    };
+    const nextHistory = [
+      ...(Array.isArray(row.status_history) ? row.status_history : []),
+      auditEntry,
+    ];
+
+    const { data: updatedRows, error: updateErr } = await supabaseAdmin
+      .from('disbursements')
+      .update({
+        linked_invoice_id: invoiceId,
+        version: nextVersion,
+        status_history: nextHistory,
+        updated_by: userId,
+        updated_at: now,
+      })
+      .eq('id', row.id)
+      .eq('version', currentVersion)
+      .select('id');
+
+    if (updateErr) {
+      throw new AppError({
+        statusCode: 500,
+        title: 'Database Error',
+        detail: 'Failed to link disbursements to invoice',
+      });
+    }
+
+    if (!updatedRows || updatedRows.length === 0) {
+      throw new AppError({
+        statusCode: 409,
+        title: 'Conflict',
+        code: isCreate ? 'DISBURSEMENT_ALREADY_BILLED' : 'CONCURRENCY_CONFLICT',
+        detail: `Disbursement ${row.id} was modified concurrently while linking to invoice.`,
+      });
+    }
+
+    await supabaseAdmin.from('status_history').insert({
+      table_name: 'disbursements',
+      record_id: row.id,
+      old_status: row.status,
+      new_status: row.status,
+      actor_id: userId,
+      entity_id: row.entity_id,
+      details: auditEntry,
+      created_at: now,
     });
   }
 };
@@ -319,6 +407,7 @@ const createInvoice = async ({ entityId, userId, user, data }) => {
     entityId,
     workRequestId: validatedWrId,
     disbursementIds: data.linkedDisbursementIds,
+    targetInvoiceId: null,
   });
 
   const normalizedLinkedTransmittalId =
@@ -385,6 +474,7 @@ const createInvoice = async ({ entityId, userId, user, data }) => {
       invoiceId: invoice.id,
       disbursementIds: validatedDisbursementIds,
       userId,
+      isCreate: true,
     });
   }
 
@@ -771,6 +861,7 @@ const updateInvoice = async ({ entityId, id, userId, data, user }) => {
     entityId: existing.entity_id || entityId,
     workRequestId: effectiveWrId,
     disbursementIds: data.linkedDisbursementIds,
+    targetInvoiceId: id,
   });
 
   // Atomic update (Spec 2.3 / R-11) with OCC guard (Spec 2.2 / R-10): field
@@ -956,6 +1047,7 @@ const updateInvoice = async ({ entityId, id, userId, data, user }) => {
       invoiceId: id,
       disbursementIds: validatedDisbursementIds,
       userId,
+      isCreate: false,
     });
   }
   return { ...updated, entity_code: entityCode };

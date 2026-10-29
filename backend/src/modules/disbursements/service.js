@@ -1265,10 +1265,30 @@ const updateDisbursement = async ({ entityId, id, userId, data, user, internal =
     }
 
     const nowIso = new Date().toISOString();
+    const linkAuditEntry = {
+      status: existing.status,
+      by: userId,
+      at: nowIso,
+      action: 'links_updated',
+      linked_invoice_id:
+        linkUpdates.linked_invoice_id !== undefined
+          ? linkUpdates.linked_invoice_id
+          : existing.linked_invoice_id || null,
+      linked_transmittal_id:
+        linkUpdates.linked_transmittal_id !== undefined
+          ? linkUpdates.linked_transmittal_id
+          : existing.linked_transmittal_id || null,
+    };
+    const nextStatusHistory = [
+      ...(Array.isArray(existing.status_history) ? existing.status_history : []),
+      linkAuditEntry,
+    ];
+
     const { data: linkRows, error: linkUpdateErr } = await supabaseAdmin
       .from('disbursements')
       .update({
         ...linkUpdates,
+        status_history: nextStatusHistory,
         version: (existing.version || 1) + 1,
         updated_by: userId,
         updated_at: nowIso,
@@ -1299,6 +1319,7 @@ const updateDisbursement = async ({ entityId, id, userId, data, user, internal =
       actor_id: userId,
       entity_id: existing.entity_id || entityId,
       details: {
+        ...linkAuditEntry,
         action: 'link_update',
         after: linkUpdates,
         previous_version: expectedVersion,
@@ -1412,6 +1433,26 @@ const updateDisbursement = async ({ entityId, id, userId, data, user, internal =
   }
   if (data.linkedTransmittalId !== undefined) {
     updates.linked_transmittal_id = data.linkedTransmittalId;
+  }
+  if (isUpdatingLinks) {
+    const nowIso = new Date().toISOString();
+    updates.status_history = [
+      ...(Array.isArray(existing.status_history) ? existing.status_history : []),
+      {
+        status: existing.status,
+        by: userId,
+        at: nowIso,
+        action: 'links_updated',
+        linked_invoice_id:
+          updates.linked_invoice_id !== undefined
+            ? updates.linked_invoice_id
+            : existing.linked_invoice_id || null,
+        linked_transmittal_id:
+          updates.linked_transmittal_id !== undefined
+            ? updates.linked_transmittal_id
+            : existing.linked_transmittal_id || null,
+      },
+    ];
   }
   if (data.dueDate !== undefined) updates.due_date = data.dueDate;
   if (data.notes !== undefined) updates.notes = data.notes;

@@ -157,40 +157,127 @@ const applyTransmittalRecordLinks = async ({
 }) => {
   const now = new Date().toISOString();
   if (Array.isArray(disbursementIds) && disbursementIds.length > 0) {
-    const { error: disbErr } = await supabaseAdmin
+    const { data: currentDisbs, error: fetchDisbErr } = await supabaseAdmin
       .from('disbursements')
-      .update({
-        linked_transmittal_id: transmittalId,
-        updated_by: userId,
-        updated_at: now,
-      })
+      .select('id, entity_id, version, status, linked_transmittal_id, status_history')
       .in('id', disbursementIds);
 
-    if (disbErr) {
+    if (fetchDisbErr) {
       throw new AppError({
         statusCode: 500,
         title: 'Database Error',
-        detail: 'Failed to link disbursements to transmittal',
+        detail: 'Failed to fetch disbursements for transmittal linking',
+      });
+    }
+
+    for (const row of currentDisbs || []) {
+      if (row.linked_transmittal_id === transmittalId) continue;
+
+      const currentVersion = Number(row.version) || 1;
+      const nextVersion = currentVersion + 1;
+      const auditEntry = {
+        status: row.status,
+        by: userId,
+        at: now,
+        action: 'transmittal_linked',
+        linked_transmittal_id: transmittalId,
+      };
+      const nextHistory = [
+        ...(Array.isArray(row.status_history) ? row.status_history : []),
+        auditEntry,
+      ];
+
+      const { data: updatedDisbRows, error: disbErr } = await supabaseAdmin
+        .from('disbursements')
+        .update({
+          linked_transmittal_id: transmittalId,
+          version: nextVersion,
+          status_history: nextHistory,
+          updated_by: userId,
+          updated_at: now,
+        })
+        .eq('id', row.id)
+        .eq('version', currentVersion)
+        .select('id');
+
+      if (disbErr) {
+        throw new AppError({
+          statusCode: 500,
+          title: 'Database Error',
+          detail: 'Failed to link disbursements to transmittal',
+        });
+      }
+
+      if (!updatedDisbRows || updatedDisbRows.length === 0) {
+        throw new AppError({
+          statusCode: 409,
+          title: 'Conflict',
+          code: 'CONCURRENCY_CONFLICT',
+          detail: `Disbursement ${row.id} was modified concurrently while linking to transmittal.`,
+        });
+      }
+
+      await supabaseAdmin.from('status_history').insert({
+        table_name: 'disbursements',
+        record_id: row.id,
+        old_status: row.status,
+        new_status: row.status,
+        actor_id: userId,
+        entity_id: row.entity_id,
+        details: auditEntry,
+        created_at: now,
       });
     }
   }
 
   if (Array.isArray(invoiceIds) && invoiceIds.length > 0) {
-    const { error: invErr } = await supabaseAdmin
+    const { data: currentInvs, error: fetchInvErr } = await supabaseAdmin
       .from('invoices')
-      .update({
-        linked_transmittal_id: transmittalId,
-        updated_by: userId,
-        updated_at: now,
-      })
+      .select('id, version, status, linked_transmittal_id')
       .in('id', invoiceIds);
 
-    if (invErr) {
+    if (fetchInvErr) {
       throw new AppError({
         statusCode: 500,
         title: 'Database Error',
-        detail: 'Failed to link invoices to transmittal',
+        detail: 'Failed to fetch invoices for transmittal linking',
       });
+    }
+
+    for (const row of currentInvs || []) {
+      if (row.linked_transmittal_id === transmittalId) continue;
+
+      const currentVersion = Number(row.version) || 1;
+      const nextVersion = currentVersion + 1;
+
+      const { data: updatedInvRows, error: invErr } = await supabaseAdmin
+        .from('invoices')
+        .update({
+          linked_transmittal_id: transmittalId,
+          version: nextVersion,
+          updated_by: userId,
+          updated_at: now,
+        })
+        .eq('id', row.id)
+        .eq('version', currentVersion)
+        .select('id');
+
+      if (invErr) {
+        throw new AppError({
+          statusCode: 500,
+          title: 'Database Error',
+          detail: 'Failed to link invoices to transmittal',
+        });
+      }
+
+      if (!updatedInvRows || updatedInvRows.length === 0) {
+        throw new AppError({
+          statusCode: 409,
+          title: 'Conflict',
+          code: 'CONCURRENCY_CONFLICT',
+          detail: `Invoice ${row.id} was modified concurrently while linking to transmittal.`,
+        });
+      }
     }
   }
 };
