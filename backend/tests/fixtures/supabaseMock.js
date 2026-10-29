@@ -60,6 +60,13 @@ const mockTables = {
 const mockStorageObjects = new Map();
 
 let sequence = 0;
+let auditLogSeq = 0;
+let userSeq = 0;
+let clientSeq = 0;
+let wrSeq = 0;
+let invoiceSeq = 0;
+let disbSeq = 0;
+let trkSeq = 0;
 const nextId = () => {
   sequence += 1;
   return `mock-${sequence}`;
@@ -125,8 +132,11 @@ const seedDefaults = () => {
 const registerUser = (user) => {
   const token = `token-${user.email}`;
   const id = user.id || nextId();
+  userSeq += 1;
+  const userNum = user.userNumber || user.user_number || `USR-${String(userSeq).padStart(2, '0')}`;
   const record = {
     id,
+    user_number: userNum,
     auth_user_id: user.authUserId || id,
     email: user.email,
     password: user.password || 'oldpass',
@@ -480,29 +490,87 @@ const tableQuery = (table) => {
     },
     insert: (records) => {
       op = 'insert';
-      insertRecords = Array.isArray(records) ? records : [records];
+      insertRecords = (Array.isArray(records) ? records : [records]).map((rec) => {
+        const copy = { ...rec };
+        if (table === 'audit_logs' && !copy.audit_number) {
+          auditLogSeq += 1;
+          copy.audit_number = `AUR-${String(auditLogSeq).padStart(4, '0')}`;
+        }
+        if (table === 'users' && !copy.user_number) {
+          userSeq += 1;
+          copy.user_number = `USR-${String(userSeq).padStart(2, '0')}`;
+        }
+        if (table === 'clients' && !copy.client_number) {
+          clientSeq += 1;
+          copy.client_number = `CLI-ATA-${String(clientSeq).padStart(4, '0')}`;
+        }
+        if (table === 'work_requests' && !copy.work_request_number) {
+          wrSeq += 1;
+          copy.work_request_number = `WR-ATA-${new Date().getFullYear()}-${String(wrSeq).padStart(4, '0')}`;
+        }
+        if (table === 'invoices' && !copy.invoice_number) {
+          invoiceSeq += 1;
+          copy.invoice_number = `ATA-SI-${new Date().getFullYear()}-${String(invoiceSeq).padStart(4, '0')}`;
+        }
+        if (table === 'disbursements' && !copy.disbursement_number) {
+          disbSeq += 1;
+          copy.disbursement_number = `DISB-ATA-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(disbSeq).padStart(4, '0')}`;
+        }
+        if (table === 'transmittals' && !copy.tracking_number) {
+          trkSeq += 1;
+          copy.tracking_number = `TR-ATA-${new Date().getFullYear()}-${String(trkSeq).padStart(4, '0')}`;
+        }
+        return copy;
+      });
 
-      for (const rec of insertRecords) {
-        const id = rec.id || nextId();
-        const stored = { ...rec, id };
+      for (const stored of insertRecords) {
+        if (!stored.id) {
+          stored.id = nextId();
+        }
 
-        // Simulate unique constraints for concurrency-safety tests.
-        if (table === 'clients' && stored.tin) {
-          const dup = Array.from(rows.values()).find(
-            (r) => r.entity_id === stored.entity_id && r.tin === stored.tin && !r.deleted_at
-          );
+        // Global uniqueness across ALL rows
+        if (table === 'audit_logs' && stored.audit_number) {
+          const dup = Array.from(rows.values()).find((r) => r.audit_number === stored.audit_number);
           if (dup) {
             builder._insertError = {
-              message: 'duplicate key value violates unique constraint "clients_entity_id_tin_key"',
+              message: 'duplicate key value violates unique constraint "uq_audit_logs_audit_number"',
+              code: '23505',
+            };
+            return builder;
+          }
+        }
+        if (table === 'users' && stored.user_number) {
+          const dup = Array.from(rows.values()).find((r) => r.user_number === stored.user_number);
+          if (dup) {
+            builder._insertError = {
+              message: 'duplicate key value violates unique constraint "uq_users_user_number"',
+              code: '23505',
+            };
+            return builder;
+          }
+        }
+        if (table === 'clients' && stored.client_number) {
+          const dup = Array.from(rows.values()).find((r) => r.client_number === stored.client_number);
+          if (dup) {
+            builder._insertError = {
+              message: 'duplicate key value violates unique constraint "uq_clients_client_number"',
+              code: '23505',
+            };
+            return builder;
+          }
+        }
+        if (table === 'work_requests' && stored.work_request_number) {
+          const dup = Array.from(rows.values()).find((r) => r.work_request_number === stored.work_request_number);
+          if (dup) {
+            builder._insertError = {
+              message: 'duplicate key value violates unique constraint "uq_work_requests_number"',
               code: '23505',
             };
             return builder;
           }
         }
         if (table === 'invoices' && stored.invoice_number) {
-          const dup = Array.from(rows.values()).find(
-            (r) => r.entity_id === stored.entity_id && r.invoice_number === stored.invoice_number
-          );
+          const dup = Array.from(rows.values()).find((r) => r.invoice_number === stored.invoice_number);
           if (dup) {
             builder._insertError = {
               message:
@@ -513,15 +581,35 @@ const tableQuery = (table) => {
           }
         }
         if (table === 'disbursements' && stored.disbursement_number) {
-          const dup = Array.from(rows.values()).find(
-            (r) =>
-              r.entity_id === stored.entity_id &&
-              r.disbursement_number === stored.disbursement_number
-          );
+          const dup = Array.from(rows.values()).find((r) => r.disbursement_number === stored.disbursement_number);
           if (dup) {
             builder._insertError = {
               message:
                 'duplicate key value violates unique constraint "disbursements_entity_id_disbursement_number_key"',
+              code: '23505',
+            };
+            return builder;
+          }
+        }
+        if (table === 'transmittals' && stored.tracking_number) {
+          const dup = Array.from(rows.values()).find((r) => r.tracking_number === stored.tracking_number);
+          if (dup) {
+            builder._insertError = {
+              message: 'duplicate key value violates unique constraint "uq_transmittals_tracking_number"',
+              code: '23505',
+            };
+            return builder;
+          }
+        }
+
+        // Simulate unique constraints for concurrency-safety tests.
+        if (table === 'clients' && stored.tin) {
+          const dup = Array.from(rows.values()).find(
+            (r) => r.entity_id === stored.entity_id && r.tin === stored.tin && !r.deleted_at
+          );
+          if (dup) {
+            builder._insertError = {
+              message: 'duplicate key value violates unique constraint "clients_entity_id_tin_key"',
               code: '23505',
             };
             return builder;
@@ -1471,13 +1559,20 @@ const rpcImpl = {
     row.current_val += 1;
     row.updated_at = nowIso();
     mockTables.document_sequences.set(prefix, row);
-    return { data: `${prefix}-${String(row.current_val).padStart(4, '0')}`, error: null };
+    const valStr = String(row.current_val);
+    const formatted = valStr.length < 4 ? valStr.padStart(4, '0') : valStr;
+    return { data: `${prefix}-${formatted}`, error: null };
   },
 
   // Atomic invoice create (migration 000047): invoice row + line items in one
   // step, mirroring invoice_create_transactional().
   invoice_create_transactional: (params) => {
     const d = params.p_invoice_data || {};
+    let invoiceNumber = d.invoiceNumber;
+    if (!invoiceNumber) {
+      invoiceSeq += 1;
+      invoiceNumber = `ATA-SI-${new Date().getFullYear()}-${String(invoiceSeq).padStart(4, '0')}`;
+    }
     const invoice = {
       id: d.id || nextId(),
       entity_id: params.p_entity_id,
@@ -1486,7 +1581,7 @@ const rpcImpl = {
       linked_task_id: d.linkedTaskId || null,
       task_id: d.taskId || d.task_id || d.linkedTaskId || null,
       linked_transmittal_id: d.linkedTransmittalId || null,
-      invoice_number: d.invoiceNumber,
+      invoice_number: invoiceNumber,
       issue_date: d.issueDate,
       due_date: d.dueDate,
       status: d.status || 'Draft',
@@ -1506,7 +1601,7 @@ const rpcImpl = {
     };
 
     const dup = Array.from(mockTables.invoices.values()).find(
-      (r) => r.entity_id === invoice.entity_id && r.invoice_number === invoice.invoice_number
+      (r) => r.invoice_number === invoice.invoice_number
     );
     if (dup) {
       return {
@@ -1803,6 +1898,13 @@ const resetMock = () => {
   mockStorageObjects.clear();
   Object.keys(mockTables).forEach((key) => mockTables[key].clear());
   sequence = 0;
+  auditLogSeq = 0;
+  userSeq = 0;
+  clientSeq = 0;
+  wrSeq = 0;
+  invoiceSeq = 0;
+  disbSeq = 0;
+  trkSeq = 0;
   try {
     const { clearProfileCache } = require('../../src/middleware/auth');
     clearProfileCache();

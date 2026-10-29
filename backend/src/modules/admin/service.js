@@ -29,6 +29,8 @@ const toApiUser = (row, departments = []) => {
   const isActive = row.is_active !== false;
   return {
     id: row.id,
+    userNumber: row.user_number || null,
+    user_number: row.user_number || null,
     email: row.email,
     name: row.name,
     role: row.role,
@@ -988,8 +990,8 @@ const resolveMatchingUserIdsForSearch = async (searchTerm) => {
   if (!searchTerm) return new Set();
   const { data: matchedUsers } = await supabaseAdmin
     .from('users')
-    .select('id, name, email')
-    .or(`email.ilike.%${searchTerm}%,name.ilike.%${searchTerm}%`);
+    .select('id, name, email, user_number')
+    .or(`email.ilike.%${searchTerm}%,name.ilike.%${searchTerm}%,user_number.ilike.%${searchTerm}%`);
   return new Set((matchedUsers || []).map((u) => u.id));
 };
 
@@ -999,6 +1001,7 @@ const matchesAuditSearch = (row, searchTerm, matchedUserIds) => {
   const tableRaw = String(row.table_name || '').toLowerCase();
   const tableHuman = tableRaw.replace(/[._-]+/g, ' ');
   const recordId = String(row.record_id || '').toLowerCase();
+  const auditNumber = String(row.audit_number || '').toLowerCase();
   const entity = String(row.entity || '').toLowerCase();
   const userId = String(row.user_id || '').toLowerCase();
   const detailsText =
@@ -1012,6 +1015,7 @@ const matchesAuditSearch = (row, searchTerm, matchedUserIds) => {
     tableRaw.includes(searchTerm) ||
     tableHuman.includes(searchTerm) ||
     recordId.includes(searchTerm) ||
+    auditNumber.includes(searchTerm) ||
     entity.includes(searchTerm) ||
     userId.includes(searchTerm) ||
     detailsText.includes(searchTerm) ||
@@ -1110,11 +1114,16 @@ const enrichAuditLogRows = async (rows = []) => {
     const clientIds = [];
     const templateIds = [];
     const opsReqIds = [];
+    const targetUserIds = [];
 
     for (const row of rows) {
       const d = row.details && typeof row.details === 'object' ? row.details : {};
       const recId = row.record_id || d.recordId || d.record_id || d.id;
       const table = String(row.table_name || '').toLowerCase();
+
+      if (table === 'users' && isUuidStr(recId)) targetUserIds.push(recId);
+      if (isUuidStr(d.userId || d.user_id)) targetUserIds.push(d.userId || d.user_id);
+      if (isUuidStr(d.targetUserId || d.target_user_id)) targetUserIds.push(d.targetUserId || d.target_user_id);
 
       if (table === 'tasks' && isUuidStr(recId)) taskIds.push(recId);
       if (isUuidStr(d.taskId || d.task_id)) taskIds.push(d.taskId || d.task_id);
@@ -1155,6 +1164,7 @@ const enrichAuditLogRows = async (rows = []) => {
       trkMap,
       tplMap,
       opsMap,
+      targetUsersMap,
     ] = await Promise.all([
       safeSelectByIds('tasks', taskIds),
       safeSelectByIds('documents', docIds),
@@ -1163,6 +1173,7 @@ const enrichAuditLogRows = async (rows = []) => {
       safeSelectByIds('transmittals', transmittalIds),
       safeSelectByIds('retainer_templates', templateIds),
       safeSelectByIds('operations_requests', opsReqIds),
+      safeSelectByIds('users', targetUserIds),
     ]);
 
     for (const t of tasksMap.values()) {
@@ -1209,6 +1220,16 @@ const enrichAuditLogRows = async (rows = []) => {
       const recId = row.record_id || rawDetails.recordId || rawDetails.record_id || rawDetails.id;
       const table = String(row.table_name || '').toLowerCase();
 
+      if (table === 'users' && recId && targetUsersMap.has(recId)) {
+        const targetUser = targetUsersMap.get(recId);
+        if (targetUser.user_number) {
+          if (!rawDetails.userNumber) rawDetails.userNumber = targetUser.user_number;
+          if (!rawDetails.user_number) rawDetails.user_number = targetUser.user_number;
+        }
+        if (!rawDetails.name && targetUser.name) rawDetails.name = targetUser.name;
+        if (!rawDetails.email && targetUser.email) rawDetails.email = targetUser.email;
+      }
+
       if (table === 'tasks' && recId && tasksMap.has(recId)) {
         const task = tasksMap.get(recId);
         if (!rawDetails.name && !rawDetails.title && task.title) rawDetails.name = task.title;
@@ -1228,6 +1249,11 @@ const enrichAuditLogRows = async (rows = []) => {
 
       if (table === 'work_requests' && recId && wrMap.has(recId)) {
         const wr = wrMap.get(recId);
+        if (wr.work_request_number) {
+          if (!rawDetails.workRequestNumber) rawDetails.workRequestNumber = wr.work_request_number;
+          if (!rawDetails.workRequestNo) rawDetails.workRequestNo = wr.work_request_number;
+          if (!rawDetails.work_request_number) rawDetails.work_request_number = wr.work_request_number;
+        }
         if (!rawDetails.title && !rawDetails.name && wr.title) rawDetails.title = wr.title;
         if (!rawDetails.workRequestTitle && wr.title) rawDetails.workRequestTitle = wr.title;
         if (!rawDetails.workRequestId) rawDetails.workRequestId = wr.id;
@@ -1271,8 +1297,11 @@ const enrichAuditLogRows = async (rows = []) => {
 
       if (table === 'disbursements' && recId && disbMap.has(recId)) {
         const disb = disbMap.get(recId);
-        if (!rawDetails.disbursementNumber && !rawDetails.disbursement_number && disb.disbursement_number) {
+        if (!rawDetails.disbursementNumber && disb.disbursement_number) {
           rawDetails.disbursementNumber = disb.disbursement_number;
+        }
+        if (!rawDetails.disbursement_number && disb.disbursement_number) {
+          rawDetails.disbursement_number = disb.disbursement_number;
         }
         if (!rawDetails.description && disb.description) rawDetails.description = disb.description;
         if (!rawDetails.category && disb.category) rawDetails.category = disb.category;
@@ -1292,8 +1321,11 @@ const enrichAuditLogRows = async (rows = []) => {
 
       if (table === 'invoices' && recId && invMap.has(recId)) {
         const inv = invMap.get(recId);
-        if (!rawDetails.invoiceNumber && !rawDetails.invoice_number && inv.invoice_number) {
+        if (!rawDetails.invoiceNumber && inv.invoice_number) {
           rawDetails.invoiceNumber = inv.invoice_number;
+        }
+        if (!rawDetails.invoice_number && inv.invoice_number) {
+          rawDetails.invoice_number = inv.invoice_number;
         }
         if (rawDetails.amount === undefined && (inv.total_amount !== undefined || inv.amount !== undefined)) {
           rawDetails.amount = inv.total_amount ?? inv.amount;
@@ -1308,8 +1340,11 @@ const enrichAuditLogRows = async (rows = []) => {
       if (table === 'transmittals' && recId && trkMap.has(recId)) {
         const trk = trkMap.get(recId);
         const trkNum = trk.tracking_number || trk.transmittal_number;
-        if (!rawDetails.trackingNumber && !rawDetails.tracking_number && trkNum) {
+        if (!rawDetails.trackingNumber && trkNum) {
           rawDetails.trackingNumber = trkNum;
+        }
+        if (!rawDetails.tracking_number && trkNum) {
+          rawDetails.tracking_number = trkNum;
         }
         if (!rawDetails.status && trk.status) rawDetails.status = trk.status;
         if (!rawDetails.workRequestId && trk.work_request_id) {
@@ -1320,6 +1355,10 @@ const enrichAuditLogRows = async (rows = []) => {
 
       if (table === 'clients' && recId && clientMap.has(recId)) {
         const cli = clientMap.get(recId);
+        if (cli.client_number) {
+          if (!rawDetails.clientNumber) rawDetails.clientNumber = cli.client_number;
+          if (!rawDetails.client_number) rawDetails.client_number = cli.client_number;
+        }
         if (!rawDetails.name && cli.name) rawDetails.name = cli.name;
         if (!rawDetails.clientName && cli.name) rawDetails.clientName = cli.name;
         if (!rawDetails.status && cli.status) rawDetails.status = cli.status;
@@ -1340,6 +1379,15 @@ const enrichAuditLogRows = async (rows = []) => {
         if (!rawDetails.status && ops.status) rawDetails.status = ops.status;
       }
 
+      const targetUid = rawDetails.targetUserId || rawDetails.target_user_id || rawDetails.userId || rawDetails.user_id;
+      if (targetUid && targetUsersMap.has(targetUid)) {
+        const tu = targetUsersMap.get(targetUid);
+        if (tu.user_number) {
+          if (!rawDetails.userNumber) rawDetails.userNumber = tu.user_number;
+          if (!rawDetails.user_number) rawDetails.user_number = tu.user_number;
+        }
+      }
+
       const resolvedWrId =
         rawDetails.workRequestId ||
         rawDetails.work_request_id ||
@@ -1347,6 +1395,11 @@ const enrichAuditLogRows = async (rows = []) => {
         rawDetails.linked_work_request_id;
       if (resolvedWrId && wrMap.has(resolvedWrId)) {
         const parentWr = wrMap.get(resolvedWrId);
+        if (parentWr.work_request_number) {
+          if (!rawDetails.workRequestNumber) rawDetails.workRequestNumber = parentWr.work_request_number;
+          if (!rawDetails.workRequestNo) rawDetails.workRequestNo = parentWr.work_request_number;
+          if (!rawDetails.work_request_number) rawDetails.work_request_number = parentWr.work_request_number;
+        }
         if (!rawDetails.workRequestTitle && !rawDetails.work_request_title && parentWr.title) {
           rawDetails.workRequestTitle = parentWr.title;
         }
@@ -1358,6 +1411,10 @@ const enrichAuditLogRows = async (rows = []) => {
       const resolvedClientId = rawDetails.clientId || rawDetails.client_id;
       if (resolvedClientId && clientMap.has(resolvedClientId)) {
         const cli = clientMap.get(resolvedClientId);
+        if (cli.client_number) {
+          if (!rawDetails.clientNumber) rawDetails.clientNumber = cli.client_number;
+          if (!rawDetails.client_number) rawDetails.client_number = cli.client_number;
+        }
         if (!rawDetails.clientName && !rawDetails.client_name && cli.name) {
           rawDetails.clientName = cli.name;
         }
@@ -1462,7 +1519,7 @@ const getAuditLogs = async (params = {}) => {
   if (userIds.length > 0) {
     const { data: usersData } = await supabaseAdmin
       .from('users')
-      .select('id, name, email, role')
+      .select('id, name, email, role, user_number')
       .in('id', userIds);
     (usersData || []).forEach((u) => userMap.set(u.id, u));
   }
@@ -1472,6 +1529,8 @@ const getAuditLogs = async (params = {}) => {
       const user = userMap.get(row.user_id) || null;
       return {
         id: row.id,
+        auditNumber: row.audit_number || null,
+        audit_number: row.audit_number || null,
         action: row.action,
         tableName: row.table_name,
         recordId: row.record_id,
@@ -1483,10 +1542,13 @@ const getAuditLogs = async (params = {}) => {
               name: user.name,
               email: user.email,
               role: user.role,
+              userNumber: user.user_number || null,
+              user_number: user.user_number || null,
             }
           : row.user_id
           ? { id: row.user_id }
           : null,
+        actorUserNumber: user?.user_number || null,
         userName: user?.name || null,
         userEmail: user?.email || null,
         details: row.details,

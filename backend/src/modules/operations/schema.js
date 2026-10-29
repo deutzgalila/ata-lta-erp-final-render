@@ -132,6 +132,7 @@ const WR_STATUSES = [
 ];
 
 const updateWorkRequestSchema = createWorkRequestSchema.partial().extend({
+  coAssignees: z.array(z.string()).optional(),
   dueDate: workRequestDueDateSchema.optional().nullable(),
   archived: z.boolean().optional(),
   status: z.enum(WR_STATUSES).optional(),

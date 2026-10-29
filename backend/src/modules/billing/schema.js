@@ -35,7 +35,7 @@ const createInvoiceSchema = z
     linkedTaskId: uuidOrEmptySchema,
     linked_task_id: uuidOrEmptySchema,
     linkedTransmittalId: z.string().guid().optional().nullable(),
-    invoiceNumber: z.string().min(1).max(50),
+    invoiceNumber: z.string().trim().max(50).optional(),
     issueDate: z.string().min(1),
     dueDate: z.string().min(1),
     status: z.string().max(50).optional(),
