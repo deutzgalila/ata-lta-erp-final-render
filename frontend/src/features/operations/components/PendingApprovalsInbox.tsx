@@ -39,6 +39,7 @@ import { operationsKeys } from '../api/queryKeys';
 import { useSessionStore } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
 import { isUserAdmin } from '../lib/taskScope';
+import { TaskTypeBadge } from '../lib/taskTypes';
 import { useEntityRealtimeSync } from '@/lib/realtime';
 import type { Phase, OperationsRequest, WorkRequest } from '../api/types';
 
@@ -929,9 +930,18 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
                         data-testid={`request-task-row-${task.id}`}
                       >
                         <div className="min-w-0">
-                          <span className={`font-medium block truncate ${task.status === 'Completed' ? 'line-through text-[#475569]' : 'text-[#1E293B]'}`}>
-                            {task.title}
-                          </span>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <TaskTypeBadge
+                              value={
+                                task.requiredLinkType ??
+                                (task as unknown as { required_link_type?: string | null }).required_link_type
+                              }
+                              data-testid={`request-task-type-${task.id}`}
+                            />
+                            <span className={`font-medium block truncate ${task.status === 'Completed' ? 'line-through text-[#475569]' : 'text-[#1E293B]'}`}>
+                              {task.title}
+                            </span>
+                          </div>
                           <div className="flex items-center gap-2 text-xs text-[#475569] pt-0.5">
                             <span className="capitalize">{task.phase.replace('_', ' ')}</span>
                             <span>•</span>
@@ -1356,6 +1366,13 @@ export function PendingApprovalsInbox({ onNavigateToWr }: PendingApprovalsInboxP
                                 <Badge variant="outline" size="compact" className="text-[11px] uppercase">
                                   {t.phase === 'processing' ? 'Processing' : 'Pre-processing'}
                                 </Badge>
+                                <TaskTypeBadge
+                                  value={
+                                    t.requiredLinkType ??
+                                    (t as unknown as { required_link_type?: string | null }).required_link_type
+                                  }
+                                  data-testid={`approval-task-type-${t.id || idx}`}
+                                />
                                 <span className="font-medium text-[#1E293B]">{t.title}</span>
                               </div>
                               <div className="flex items-center gap-3 text-[#64748B]">

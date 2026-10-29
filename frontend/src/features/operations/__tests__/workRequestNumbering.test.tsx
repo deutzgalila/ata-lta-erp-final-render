@@ -395,7 +395,7 @@ describe('Work Request Persistent Numbering & Linked Identifiers', () => {
   });
 
   describe('5. PhaseKanbanBoard Selector & Header Badge', () => {
-    it('renders WR-ATA-2026-0001 in header badge and select options', async () => {
+    it('renders single-line header toolbar with non-wrapping selector, badges, and actions', async () => {
       const { wrapper } = createHarness();
       render(<PhaseKanbanBoard initialWorkRequestId="wr-101" />, { wrapper });
 
@@ -403,11 +403,137 @@ describe('Work Request Persistent Numbering & Linked Identifiers', () => {
         expect(screen.getByTestId('kanban-wr-select')).toBeInTheDocument();
       });
 
-      // Header badge
-      await waitFor(() => {
-        expect(screen.getByTestId('kanban-wr-number')).toBeInTheDocument();
+      // 1. Header Toolbar Card
+      const toolbar = screen.getByTestId('kanban-header-toolbar');
+      expect(toolbar).toBeInTheDocument();
+      expect(toolbar.className).toContain('flex-nowrap');
+      expect(toolbar.className).toContain('overflow-x-auto');
+      expect(toolbar.className).not.toContain('flex-wrap');
+      expect(toolbar.className).not.toContain('flex-col');
+
+      // 2. Work Request Selector Wrapper
+      const selectWrapper = screen.getByTestId('kanban-wr-select-wrapper');
+      expect(selectWrapper).toBeInTheDocument();
+      expect(selectWrapper.className).toContain('w-64');
+      expect(selectWrapper.className).toContain('xl:w-72');
+      expect(selectWrapper.className).toContain('min-w-[170px]');
+      expect(selectWrapper.className).toContain('shrink');
+
+      // SelectTrigger classes and title
+      const selectTrigger = screen.getByTestId('kanban-wr-select');
+      expect(selectTrigger).toHaveAttribute(
+        'title',
+        'WR-ATA-2026-0001 · Annual Corporate Income Tax Return (ATA)'
+      );
+      expect(selectTrigger.className).toContain('overflow-hidden');
+      expect(selectTrigger.className).toContain('text-left');
+      expect(selectTrigger.className).toContain('[&>span]:truncate');
+
+      // 3. Header badge & inline metadata badges strip
+      const badgesContainer = screen.getByTestId('kanban-wr-badges');
+      expect(badgesContainer).toBeInTheDocument();
+      expect(badgesContainer.className).toContain('flex-nowrap');
+      expect(badgesContainer.className).toContain('h-9');
+      expect(badgesContainer.className).toContain('shrink-0');
+      expect(badgesContainer.className).not.toContain('flex-wrap');
+
+      // Check chips inside badges container
+      const numberBadge = screen.getByTestId('kanban-wr-number');
+      expect(numberBadge).toHaveTextContent('WR-ATA-2026-0001');
+      expect(badgesContainer).toHaveTextContent('ATA');
+      expect(badgesContainer).toHaveTextContent('Urgent Priority');
+      expect(badgesContainer).toHaveTextContent('Phase: Pre-processing');
+      expect(badgesContainer).toHaveTextContent('In Progress');
+      expect(badgesContainer).toHaveTextContent('Due:');
+
+      // 4. Header Actions
+      const headerActions = screen.getByTestId('kanban-header-actions');
+      expect(headerActions).toBeInTheDocument();
+      expect(headerActions.className).toContain('flex-nowrap');
+      expect(headerActions.className).toContain('h-9');
+      expect(headerActions.className).toContain('shrink-0');
+    });
+
+    it('sets title and responsive overflow-hidden layout for very long work request title', async () => {
+      const { wrapper } = createHarness();
+      const longTitleWr: WorkRequest = {
+        ...mockWorkRequests[0]!,
+        id: 'wr-103',
+        workRequestNumber: 'WR-ATA-2026-0003',
+        work_request_number: 'WR-ATA-2026-0003',
+        title: 'E2E Full Lifecycle Master Compliance & Regulatory Licensing (2026)',
+        entity: 'ATA',
+      };
+
+      vi.spyOn(global, 'fetch').mockImplementation(async (url: RequestInfo | URL) => {
+        const u = String(url);
+        if (u.includes('/tasks')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: [mockTask] }),
+          } as Response);
+        }
+        if (u.includes('/operations/work-requests/wr-103')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: longTitleWr }),
+          } as Response);
+        }
+        if (u.includes('/operations/work-requests')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: [longTitleWr], meta: { total: 1 } }),
+          } as Response);
+        }
+        if (u.includes('/clients')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: [] }),
+          } as Response);
+        }
+        if (u.includes('/me/team')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: [] }),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ data: {} }),
+        } as Response);
       });
-      expect(screen.getByTestId('kanban-wr-number')).toHaveTextContent('WR-ATA-2026-0001');
+
+      render(<PhaseKanbanBoard initialWorkRequestId="wr-103" />, { wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('kanban-wr-select')).toBeInTheDocument();
+      });
+
+      const selectTrigger = screen.getByTestId('kanban-wr-select');
+      expect(selectTrigger).toHaveAttribute(
+        'title',
+        'WR-ATA-2026-0003 · E2E Full Lifecycle Master Compliance & Regulatory Licensing (2026) (ATA)'
+      );
+      expect(selectTrigger.className).toContain('overflow-hidden');
+      expect(selectTrigger.className).toContain('text-left');
+      expect(selectTrigger.className).toContain('[&>span]:truncate');
+
+      const selectWrapper = screen.getByTestId('kanban-wr-select-wrapper');
+      expect(selectWrapper.className).toContain('w-64');
+      expect(selectWrapper.className).toContain('xl:w-72');
+      expect(selectWrapper.className).toContain('min-w-[170px]');
+      expect(selectWrapper.className).toContain('shrink');
+
+      const toolbar = screen.getByTestId('kanban-header-toolbar');
+      expect(toolbar.className).toContain('flex-nowrap');
+      expect(toolbar.className).toContain('overflow-x-auto');
+      expect(toolbar.className).not.toContain('flex-wrap');
     });
   });
 });
