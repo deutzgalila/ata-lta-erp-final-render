@@ -53,7 +53,7 @@ const validateDisbursementsForInvoice = async ({
   const { data: rows, error } = await supabaseAdmin
     .from('disbursements')
     .select(
-      'id, entity_id, linked_work_request_id, linked_invoice_id, version, status, status_history, deleted_at'
+      'id, entity_id, linked_work_request_id, linked_invoice_id, version, status, deleted_at'
     )
     .in('id', uniqueIds);
 
@@ -124,7 +124,7 @@ const applyDisbursementInvoiceLinks = async ({
 
   const { data: currentRows, error: fetchErr } = await supabaseAdmin
     .from('disbursements')
-    .select('id, entity_id, version, status, linked_invoice_id, status_history')
+    .select('id, entity_id, version, status, linked_invoice_id')
     .in('id', disbursementIds);
 
   if (fetchErr) {
@@ -147,17 +147,12 @@ const applyDisbursementInvoiceLinks = async ({
       action: 'invoice_linked',
       linked_invoice_id: invoiceId,
     };
-    const nextHistory = [
-      ...(Array.isArray(row.status_history) ? row.status_history : []),
-      auditEntry,
-    ];
 
     const { data: updatedRows, error: updateErr } = await supabaseAdmin
       .from('disbursements')
       .update({
         linked_invoice_id: invoiceId,
         version: nextVersion,
-        status_history: nextHistory,
         updated_by: userId,
         updated_at: now,
       })

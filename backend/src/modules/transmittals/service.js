@@ -159,7 +159,7 @@ const applyTransmittalRecordLinks = async ({
   if (Array.isArray(disbursementIds) && disbursementIds.length > 0) {
     const { data: currentDisbs, error: fetchDisbErr } = await supabaseAdmin
       .from('disbursements')
-      .select('id, entity_id, version, status, linked_transmittal_id, status_history')
+      .select('id, entity_id, version, status, linked_transmittal_id')
       .in('id', disbursementIds);
 
     if (fetchDisbErr) {
@@ -182,17 +182,12 @@ const applyTransmittalRecordLinks = async ({
         action: 'transmittal_linked',
         linked_transmittal_id: transmittalId,
       };
-      const nextHistory = [
-        ...(Array.isArray(row.status_history) ? row.status_history : []),
-        auditEntry,
-      ];
 
       const { data: updatedDisbRows, error: disbErr } = await supabaseAdmin
         .from('disbursements')
         .update({
           linked_transmittal_id: transmittalId,
           version: nextVersion,
-          status_history: nextHistory,
           updated_by: userId,
           updated_at: now,
         })

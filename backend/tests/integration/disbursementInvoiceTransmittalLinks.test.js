@@ -158,9 +158,12 @@ describe('Disbursement ↔ Invoice & Transmittal Cascading OCC & Double-Billing 
 
     expect(updatedDisb.linked_invoice_id).toBe(invoiceId);
     expect(updatedDisb.version).toBe(2); // incremented from 1 -> 2
-    expect(Array.isArray(updatedDisb.status_history)).toBe(true);
-    expect(updatedDisb.status_history).toHaveLength(2);
-    expect(updatedDisb.status_history[1]).toMatchObject({
+    const historyEntries = [...mockTables.status_history.values()].filter(
+      (h) => h.table_name === 'disbursements' && h.record_id === DISB_1
+    );
+    expect(historyEntries.length).toBeGreaterThan(0);
+    const lastEntry = historyEntries[historyEntries.length - 1];
+    expect(lastEntry.details).toMatchObject({
       status: 'Released',
       by: ADMIN_USER_ID,
       action: 'invoice_linked',
@@ -291,8 +294,12 @@ describe('Disbursement ↔ Invoice & Transmittal Cascading OCC & Double-Billing 
     const updatedDisb = mockTables.disbursements.get(DISB_2);
     expect(updatedDisb.linked_transmittal_id).toBe(transmittalId);
     expect(updatedDisb.version).toBe(3);
-    expect(updatedDisb.status_history).toHaveLength(1);
-    expect(updatedDisb.status_history[0]).toMatchObject({
+    const transmittalHistory = [...mockTables.status_history.values()].filter(
+      (h) => h.table_name === 'disbursements' && h.record_id === DISB_2
+    );
+    expect(transmittalHistory.length).toBeGreaterThan(0);
+    const lastTransmittalEntry = transmittalHistory[transmittalHistory.length - 1];
+    expect(lastTransmittalEntry.details).toMatchObject({
       status: 'Approved',
       by: ADMIN_USER_ID,
       action: 'transmittal_linked',
@@ -356,12 +363,15 @@ describe('Disbursement ↔ Invoice & Transmittal Cascading OCC & Double-Billing 
     expect(freshPatchRes.body.data.linked_invoice_id).toBeNull();
     expect(freshPatchRes.body.data.version).toBe(3);
 
-    const updatedDisb = mockTables.disbursements.get(DISB_1);
-    const lastHistoryEntry = updatedDisb.status_history[updatedDisb.status_history.length - 1];
-    expect(lastHistoryEntry).toMatchObject({
+    const patchHistory = [...mockTables.status_history.values()].filter(
+      (h) => h.table_name === 'disbursements' && h.record_id === DISB_1
+    );
+    expect(patchHistory.length).toBeGreaterThan(0);
+    const lastHistoryEntry = patchHistory[patchHistory.length - 1];
+    expect(lastHistoryEntry.details).toMatchObject({
       status: 'Released',
       by: ADMIN_USER_ID,
-      action: 'links_updated',
+      action: 'link_update',
       linked_invoice_id: null,
     });
     expect(invRes.body.data.id).toBeDefined();

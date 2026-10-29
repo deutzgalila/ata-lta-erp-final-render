@@ -1297,16 +1297,10 @@ const updateDisbursement = async ({ entityId, id, userId, data, user, internal =
           ? linkUpdates.linked_transmittal_id
           : existing.linked_transmittal_id || null,
     };
-    const nextStatusHistory = [
-      ...(Array.isArray(existing.status_history) ? existing.status_history : []),
-      linkAuditEntry,
-    ];
-
     const { data: linkRows, error: linkUpdateErr } = await supabaseAdmin
       .from('disbursements')
       .update({
         ...linkUpdates,
-        status_history: nextStatusHistory,
         version: (existing.version || 1) + 1,
         updated_by: userId,
         updated_at: nowIso,
@@ -1452,25 +1446,23 @@ const updateDisbursement = async ({ entityId, id, userId, data, user, internal =
   if (data.linkedTransmittalId !== undefined) {
     updates.linked_transmittal_id = data.linkedTransmittalId;
   }
+  let linkAuditEntry = null;
   if (isUpdatingLinks) {
     const nowIso = new Date().toISOString();
-    updates.status_history = [
-      ...(Array.isArray(existing.status_history) ? existing.status_history : []),
-      {
-        status: existing.status,
-        by: userId,
-        at: nowIso,
-        action: 'links_updated',
-        linked_invoice_id:
-          updates.linked_invoice_id !== undefined
-            ? updates.linked_invoice_id
-            : existing.linked_invoice_id || null,
-        linked_transmittal_id:
-          updates.linked_transmittal_id !== undefined
-            ? updates.linked_transmittal_id
-            : existing.linked_transmittal_id || null,
-      },
-    ];
+    linkAuditEntry = {
+      status: existing.status,
+      by: userId,
+      at: nowIso,
+      action: 'links_updated',
+      linked_invoice_id:
+        updates.linked_invoice_id !== undefined
+          ? updates.linked_invoice_id
+          : existing.linked_invoice_id || null,
+      linked_transmittal_id:
+        updates.linked_transmittal_id !== undefined
+          ? updates.linked_transmittal_id
+          : existing.linked_transmittal_id || null,
+    };
   }
   if (data.dueDate !== undefined) updates.due_date = data.dueDate;
   if (data.notes !== undefined) updates.notes = data.notes;
@@ -1576,6 +1568,18 @@ const updateDisbursement = async ({ entityId, id, userId, data, user, internal =
 
   const updated = rows[0];
   invalidateAnalytics(updated.entity_id);
+  if (linkAuditEntry) {
+    await supabaseAdmin.from('status_history').insert({
+      table_name: 'disbursements',
+      record_id: updated.id,
+      old_status: existing.status,
+      new_status: existing.status,
+      actor_id: userId,
+      entity_id: updated.entity_id || entityId,
+      details: linkAuditEntry,
+      created_at: linkAuditEntry.at,
+    });
+  }
   if (existing.review_ready === false && updated.review_ready === true) {
     await notifyLifecycle(updated, 'corrected', 'admin', userId);
   }
