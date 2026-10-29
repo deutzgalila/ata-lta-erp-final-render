@@ -1,5 +1,5 @@
 import { DateInput } from '@/components/ui/date-input';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Plus, Trash2, ArrowUp, ArrowDown, FileText, AlertCircle } from 'lucide-react';
 import {
   Dialog,
@@ -126,35 +126,59 @@ export function InvoiceCreateModal({
   const isAdmin = isRoleAdmin(currentUser);
   const effectiveEntity = activeEntity !== 'ALL' ? activeEntity : undefined;
 
+  const prevIsOpenRef = useRef(false);
+  const lastPrefillKeyRef = useRef<string>('');
+
+  const currentPrefillKey = useMemo(() => {
+    if (!prefill) return '';
+    return [
+      prefill.workRequestId || '',
+      prefill.clientId || '',
+      prefill.taskId || '',
+      prefill.linkedTransmittalId || '',
+      prefill.attachedDisbursement?.id || '',
+    ].join(':');
+  }, [prefill]);
+
   // Prefill contract synchronization (UAT2-7-contract-side)
   useEffect(() => {
     if (isOpen) {
-      setWorkRequestId(prefill?.workRequestId || '');
-      setClientId(prefill?.clientId || '');
-      setSelectedTaskId(prefill?.taskId || '');
-      setLinkedTransmittalId(prefill?.linkedTransmittalId || '');
-      if (prefill?.attachedDisbursement) {
-        const ad = prefill.attachedDisbursement;
-        const mappedType: LineItemType =
-          ad.category === 'Professional Fee'
-            ? 'Professional Fee'
-            : ad.category === 'Government Fee' || ad.category === 'Filing Fee'
-              ? 'Government Fee'
-              : 'Other';
-        setLinkedDisbursementIds([ad.id]);
-        setLineItems([
-          {
-            id: `item-disb-${ad.id}`,
-            description: `[${ad.disbursement_number || 'DISB'}] ${ad.description}`,
-            amount: String(ad.amount),
-            type: mappedType,
-          },
-        ]);
-      } else {
-        setLinkedDisbursementIds([]);
+      const isJustOpened = !prevIsOpenRef.current;
+      const isPrefillTargetChanged =
+        currentPrefillKey !== '' && currentPrefillKey !== lastPrefillKeyRef.current;
+
+      if (isJustOpened || isPrefillTargetChanged) {
+        lastPrefillKeyRef.current = currentPrefillKey;
+        setWorkRequestId(prefill?.workRequestId || '');
+        setClientId(prefill?.clientId || '');
+        // When attached to a disbursement, don't blindly prefill the disbursement's task
+        // so that the user's assignable billing task can be auto-selected
+        setSelectedTaskId(prefill?.attachedDisbursement ? '' : prefill?.taskId || '');
+        setLinkedTransmittalId(prefill?.linkedTransmittalId || '');
+        if (prefill?.attachedDisbursement) {
+          const ad = prefill.attachedDisbursement;
+          const mappedType: LineItemType =
+            ad.category === 'Professional Fee'
+              ? 'Professional Fee'
+              : ad.category === 'Government Fee' || ad.category === 'Filing Fee'
+                ? 'Government Fee'
+                : 'Other';
+          setLinkedDisbursementIds([ad.id]);
+          setLineItems([
+            {
+              id: `item-disb-${ad.id}`,
+              description: `[${ad.disbursement_number || 'DISB'}] ${ad.description}`,
+              amount: String(ad.amount),
+              type: mappedType,
+            },
+          ]);
+        } else {
+          setLinkedDisbursementIds([]);
+        }
+        setFormError(null);
       }
-      setFormError(null);
-    } else {
+    } else if (prevIsOpenRef.current) {
+      lastPrefillKeyRef.current = '';
       setWorkRequestId('');
       setClientId('');
       setSelectedTaskId('');
@@ -164,7 +188,8 @@ export function InvoiceCreateModal({
       setNotes('');
       setFormError(null);
     }
-  }, [isOpen, prefill]);
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen, currentPrefillKey, prefill]);
 
   // Auto-detect and populate associated client when work request is selected
   useEffect(() => {
@@ -240,13 +265,17 @@ export function InvoiceCreateModal({
       prefill?.attachedDisbursement &&
       !isAdmin &&
       tasks.length > 0 &&
-      selectedTaskId &&
-      selectedTaskId === prefill.taskId
+      (!selectedTaskId || (prefill.taskId && selectedTaskId === prefill.taskId))
     ) {
-      const prefillTask = tasks.find((t) => t.id === prefill.taskId);
-      if (prefillTask && !isTaskAssignee(currentUser, prefillTask)) {
+      const isCurrentSelectedAssigned = selectedTaskId
+        ? isTaskAssignee(currentUser, tasks.find((t) => t.id === selectedTaskId))
+        : false;
+
+      if (!isCurrentSelectedAssigned) {
         const firstAssignable = taskOptions.find((opt) => !opt.disabled);
-        setSelectedTaskId(firstAssignable ? firstAssignable.id : '');
+        if (firstAssignable && selectedTaskId !== firstAssignable.id) {
+          setSelectedTaskId(firstAssignable.id);
+        }
       }
     }
   }, [

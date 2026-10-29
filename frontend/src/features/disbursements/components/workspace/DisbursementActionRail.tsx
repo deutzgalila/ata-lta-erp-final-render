@@ -40,7 +40,7 @@
  * -------------------------------------------------------------------------------------------------------------------------------------------------
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import {
   CheckCircle2,
   DollarSign,
@@ -308,6 +308,24 @@ export function DisbursementActionRail({
     item.disbursement_number ||
     item.disbursementNumber ||
     `DISB-${item.id.slice(0, 8)}`;
+
+  const createBillingPrefill = useMemo(() => {
+    if (!item || !workRequestId) return undefined;
+    return {
+      workRequestId,
+      clientId: item.client_id || item.clientId || undefined,
+      taskId: undefined,
+      linkedTransmittalId:
+        item.linked_transmittal_id || item.linkedTransmittalId || undefined,
+      attachedDisbursement: {
+        id: item.id,
+        disbursement_number: disbNumber,
+        description: item.description,
+        amount: item.amount,
+        category: item.category,
+      },
+    };
+  }, [item, workRequestId, disbNumber]);
 
   // Mutation Handlers
   const handleResendDraft = async () => {
@@ -733,20 +751,7 @@ export function DisbursementActionRail({
             }
             void queryClient.invalidateQueries({ queryKey: disbursementKeys.lists() });
           }}
-          prefill={{
-            workRequestId,
-            clientId: item.client_id || item.clientId || undefined,
-            taskId: item.linked_task_id || item.linkedTaskId || item.task_id || undefined,
-            linkedTransmittalId:
-              item.linked_transmittal_id || item.linkedTransmittalId || undefined,
-            attachedDisbursement: {
-              id: item.id,
-              disbursement_number: disbNumber,
-              description: item.description,
-              amount: item.amount,
-              category: item.category,
-            },
-          }}
+          prefill={createBillingPrefill}
         />
       )}
 
