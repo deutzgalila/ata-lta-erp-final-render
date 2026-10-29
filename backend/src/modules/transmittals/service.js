@@ -68,7 +68,7 @@ const validateRecordsForTransmittal = async ({
   if (uniqueDisbIds.length > 0) {
     const { data: rows, error } = await supabaseAdmin
       .from('disbursements')
-      .select('id, entity_id, linked_work_request_id, work_request_id, deleted_at')
+      .select('id, entity_id, linked_work_request_id, deleted_at')
       .in('id', uniqueDisbIds);
 
     if (error) {

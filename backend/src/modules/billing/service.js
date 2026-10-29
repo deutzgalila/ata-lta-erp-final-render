@@ -53,7 +53,7 @@ const validateDisbursementsForInvoice = async ({
   const { data: rows, error } = await supabaseAdmin
     .from('disbursements')
     .select(
-      'id, entity_id, linked_work_request_id, work_request_id, linked_invoice_id, version, status, status_history, deleted_at'
+      'id, entity_id, linked_work_request_id, linked_invoice_id, version, status, status_history, deleted_at'
     )
     .in('id', uniqueIds);
 
