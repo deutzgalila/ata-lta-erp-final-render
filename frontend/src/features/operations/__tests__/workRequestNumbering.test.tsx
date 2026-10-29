@@ -395,7 +395,7 @@ describe('Work Request Persistent Numbering & Linked Identifiers', () => {
   });
 
   describe('5. PhaseKanbanBoard Selector & Header Badge', () => {
-    it('renders WR-ATA-2026-0001 in header badge and select options', async () => {
+    it('renders WR-ATA-2026-0001 in header badge and select options with title and hardening classes', async () => {
       const { wrapper } = createHarness();
       render(<PhaseKanbanBoard initialWorkRequestId="wr-101" />, { wrapper });
 
@@ -408,6 +408,102 @@ describe('Work Request Persistent Numbering & Linked Identifiers', () => {
         expect(screen.getByTestId('kanban-wr-number')).toBeInTheDocument();
       });
       expect(screen.getByTestId('kanban-wr-number')).toHaveTextContent('WR-ATA-2026-0001');
+
+      const selectTrigger = screen.getByTestId('kanban-wr-select');
+      expect(selectTrigger).toHaveAttribute(
+        'title',
+        'WR-ATA-2026-0001 · Annual Corporate Income Tax Return (ATA)'
+      );
+      expect(selectTrigger.className).toContain('overflow-hidden');
+      expect(selectTrigger.className).toContain('text-left');
+      expect(selectTrigger.className).toContain('[&>span]:truncate');
+
+      const container = selectTrigger.closest('.sm\\:w-80');
+      expect(container).toBeInTheDocument();
+      expect(container?.className).toContain('w-full');
+      expect(container?.className).toContain('sm:w-80');
+      expect(container?.className).toContain('lg:w-96');
+      expect(container?.className).toContain('max-w-full');
+      expect(container?.className).toContain('min-w-0');
+    });
+
+    it('sets title and responsive overflow-hidden layout for very long work request title', async () => {
+      const { wrapper } = createHarness();
+      const longTitleWr: WorkRequest = {
+        ...mockWorkRequests[0]!,
+        id: 'wr-103',
+        workRequestNumber: 'WR-ATA-2026-0003',
+        work_request_number: 'WR-ATA-2026-0003',
+        title: 'E2E Full Lifecycle Master Compliance & Regulatory Licensing (2026)',
+        entity: 'ATA',
+      };
+
+      vi.spyOn(global, 'fetch').mockImplementation(async (url: RequestInfo | URL) => {
+        const u = String(url);
+        if (u.includes('/tasks')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: [mockTask] }),
+          } as Response);
+        }
+        if (u.includes('/operations/work-requests/wr-103')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: longTitleWr }),
+          } as Response);
+        }
+        if (u.includes('/operations/work-requests')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: [longTitleWr], meta: { total: 1 } }),
+          } as Response);
+        }
+        if (u.includes('/clients')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: [] }),
+          } as Response);
+        }
+        if (u.includes('/me/team')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ data: [] }),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ data: {} }),
+        } as Response);
+      });
+
+      render(<PhaseKanbanBoard initialWorkRequestId="wr-103" />, { wrapper });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('kanban-wr-select')).toBeInTheDocument();
+      });
+
+      const selectTrigger = screen.getByTestId('kanban-wr-select');
+      expect(selectTrigger).toHaveAttribute(
+        'title',
+        'WR-ATA-2026-0003 · E2E Full Lifecycle Master Compliance & Regulatory Licensing (2026) (ATA)'
+      );
+      expect(selectTrigger.className).toContain('overflow-hidden');
+      expect(selectTrigger.className).toContain('text-left');
+      expect(selectTrigger.className).toContain('[&>span]:truncate');
+
+      const container = selectTrigger.closest('.sm\\:w-80');
+      expect(container).toBeInTheDocument();
+      expect(container?.className).toContain('w-full');
+      expect(container?.className).toContain('sm:w-80');
+      expect(container?.className).toContain('lg:w-96');
+      expect(container?.className).toContain('max-w-full');
+      expect(container?.className).toContain('min-w-0');
     });
   });
 });

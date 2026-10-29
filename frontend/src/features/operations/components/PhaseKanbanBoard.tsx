@@ -173,6 +173,12 @@ function PhaseKanbanBoardInner({
   // Active Work Request Details & Tasks
   const { data: currentWr } = useWorkRequestDetail(effectiveWrId);
   const activeWr = currentWr || workRequests.find((w) => w.id === effectiveWrId);
+  const activeWrCode = activeWr
+    ? activeWr.workRequestNumber || activeWr.work_request_number
+    : undefined;
+  const activeWrFullLabel = activeWr
+    ? `${activeWrCode ? `${activeWrCode} · ` : ''}${activeWr.title} (${activeWr.entity})`
+    : undefined;
   const { data: tasks = [] } = useWorkRequestTasks(effectiveWrId, {
     enabled: Boolean(effectiveWrId),
   });
@@ -499,8 +505,8 @@ function PhaseKanbanBoardInner({
     <div className="space-y-4" data-testid="phase-kanban-board">
       {/* 1. Header Toolbar & Work Request Selector */}
       <div className="p-4 bg-[#FFFFFF] border-[#E2E8F0] rounded-[8px] shadow-card flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="w-72">
+        <div className="flex flex-wrap items-center gap-3 min-w-0">
+          <div className="w-full sm:w-80 lg:w-96 max-w-full min-w-0">
             <label className="text-xs tracking-normal font-bold text-[#1E293B] block mb-1">
               Select Work Request
             </label>
@@ -508,10 +514,11 @@ function PhaseKanbanBoardInner({
               <SelectTrigger
                 className="h-9 text-xs rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF] text-[#1E293B]"
                 data-testid="kanban-wr-select"
+                title={activeWrFullLabel}
               >
                 <SelectValue placeholder="Choose a work request" />
               </SelectTrigger>
-              <SelectContent className="rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
+              <SelectContent className="max-w-[min(36rem,calc(100vw-2rem))] rounded-[8px] border-[#E2E8F0] bg-[#FFFFFF]">
                 {workRequests.map((wr) => {
                   const wrCode = wr.workRequestNumber || wr.work_request_number;
                   return (
@@ -526,18 +533,14 @@ function PhaseKanbanBoardInner({
 
           {activeWr && (
             <div className="flex items-center gap-2 pt-4">
-              {(() => {
-                const wrCode = activeWr.workRequestNumber || activeWr.work_request_number;
-                if (!wrCode) return null;
-                return (
-                  <span
-                    className="font-mono text-xs font-semibold text-[#475569] bg-[#F8FAFC] border border-[#E2E8F0] px-2 py-0.5 rounded-[6px] tabular-nums"
-                    data-testid="kanban-wr-number"
-                  >
-                    {wrCode}
-                  </span>
-                );
-              })()}
+              {activeWrCode && (
+                <span
+                  className="font-mono text-xs font-semibold text-[#475569] bg-[#F8FAFC] border border-[#E2E8F0] px-2 py-0.5 rounded-[6px] tabular-nums"
+                  data-testid="kanban-wr-number"
+                >
+                  {activeWrCode}
+                </span>
+              )}
               <Badge variant={activeWr.entity === 'LTA' ? 'lta' : 'ata'} size="compact">
                 {activeWr.entity}
               </Badge>
