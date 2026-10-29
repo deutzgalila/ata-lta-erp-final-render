@@ -36,7 +36,8 @@ describe('UserAvatar Component & Helpers', () => {
 
     it('extracts two letters from single names', () => {
       expect(getUserInitials('Jane')).toBe('JA');
-      expect(getUserInitials('A')).toBe('AA');
+      expect(getUserInitials('Admin')).toBe('AD');
+      expect(getUserInitials('A')).toBe('A');
     });
 
     it('extracts initials cleanly from email addresses', () => {
@@ -45,11 +46,11 @@ describe('UserAvatar Component & Helpers', () => {
     });
 
     it('handles null, undefined, empty, and question marks gracefully', () => {
-      expect(getUserInitials(null)).toBe('??');
-      expect(getUserInitials(undefined)).toBe('??');
-      expect(getUserInitials('')).toBe('??');
-      expect(getUserInitials('   ')).toBe('??');
-      expect(getUserInitials('?')).toBe('??');
+      expect(getUserInitials(null)).toBe('?');
+      expect(getUserInitials(undefined)).toBe('?');
+      expect(getUserInitials('')).toBe('?');
+      expect(getUserInitials('   ')).toBe('?');
+      expect(getUserInitials('?')).toBe('?');
     });
   });
 

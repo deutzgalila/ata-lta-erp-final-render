@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { queryClient as globalQueryClient } from '@/lib/api';
 import { useSessionStore } from '@/lib/session';
 import { cn } from '@/lib/utils';
 
@@ -48,23 +49,60 @@ export function getAvatarColorStyle(idOrKey: string): { bg: string; color: strin
 }
 
 export function getUserInitials(nameOrEmail?: string | null): string {
-  if (!nameOrEmail) return '??';
+  if (!nameOrEmail) return '?';
   const clean = nameOrEmail.trim();
-  if (!clean || clean === '?') return '??';
+  if (!clean || clean === '?') return '?';
 
-  const text = clean.includes('@') ? (clean.split('@')[0] || clean) : clean;
-  const parts = text.split(/[\s._-]+/).filter(Boolean);
+  const isEmail = clean.includes('@');
+  const text = isEmail ? (clean.split('@')[0] || clean) : clean;
+  const parts = text.split(isEmail ? /[\s._-]+/ : /\s+/).filter(Boolean);
 
-  if (parts.length === 0) return '??';
+  if (parts.length === 0) return '?';
   if (parts.length === 1) {
     const single = parts[0]!;
     if (single.length >= 2) return single.slice(0, 2).toUpperCase();
-    return (single + single).toUpperCase();
+    return single.toUpperCase();
   }
   const first = parts[0]?.[0] ?? '';
   const last = parts[parts.length - 1]?.[0] ?? '';
   const result = (first + last).toUpperCase();
-  return result.length === 2 ? result : result.padEnd(2, '?');
+  return result || '?';
+}
+
+function findAvatarInQueries(
+  queriesData: Array<[unknown, unknown]>,
+  userId?: string | null,
+  email?: string | null,
+  name?: string | null
+): string | null {
+  for (const [, queryData] of queriesData) {
+    if (!queryData) continue;
+    const list = Array.isArray(queryData)
+      ? queryData
+      : Array.isArray((queryData as { data?: unknown[] }).data)
+      ? (queryData as { data: unknown[] }).data
+      : [];
+
+    for (const item of list) {
+      if (!item || typeof item !== 'object') continue;
+      const rec = item as Record<string, unknown>;
+      const itemId = rec.id ? String(rec.id) : null;
+      const itemEmail = rec.email ? String(rec.email) : null;
+      const itemName = rec.name ? String(rec.name) : null;
+
+      const matchesId = Boolean(userId && itemId && itemId === userId);
+      const matchesEmail = Boolean(email && itemEmail && itemEmail.toLowerCase() === email.toLowerCase());
+      const matchesName = Boolean(name && itemName && itemName.trim().toLowerCase() === name.trim().toLowerCase());
+
+      if (matchesId || matchesEmail || matchesName) {
+        const rawUrl = rec.avatarUrl || rec.avatar_url;
+        if (typeof rawUrl === 'string' && rawUrl.trim() !== '') {
+          return rawUrl.trim();
+        }
+      }
+    }
+  }
+  return null;
 }
 
 export function useResolvedAvatarUrl({
@@ -94,47 +132,30 @@ export function useResolvedAvatarUrl({
     }
   }
 
-  // 3. Check QueryClient cache gracefully (wrap in try/catch if rendered outside QueryClientProvider)
-  let queryClient;
+  // 3. Check QueryClient cache: try useQueryClient() hook, then fallback to globalQueryClient
+  let hookQueryClient = null;
   try {
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    queryClient = useQueryClient();
+    hookQueryClient = useQueryClient();
   } catch {
-    queryClient = null;
+    hookQueryClient = null;
   }
 
-  if (queryClient) {
-    const candidateQueries = [
-      ...queryClient.getQueriesData<unknown>({ queryKey: ['me', 'team'] }),
-      ...queryClient.getQueriesData<unknown>({ queryKey: ['admin', 'users'] }),
-    ];
+  const clientsToCheck = [hookQueryClient, globalQueryClient].filter(Boolean);
 
-    for (const [, queryData] of candidateQueries) {
-      if (!queryData) continue;
-      const list = Array.isArray(queryData)
-        ? queryData
-        : Array.isArray((queryData as { data?: unknown[] }).data)
-        ? (queryData as { data: unknown[] }).data
-        : [];
-
-      for (const item of list) {
-        if (!item || typeof item !== 'object') continue;
-        const rec = item as Record<string, unknown>;
-        const itemId = rec.id ? String(rec.id) : null;
-        const itemEmail = rec.email ? String(rec.email) : null;
-        const itemName = rec.name ? String(rec.name) : null;
-
-        const matchesId = Boolean(userId && itemId && itemId === userId);
-        const matchesEmail = Boolean(email && itemEmail && itemEmail.toLowerCase() === email.toLowerCase());
-        const matchesName = Boolean(name && itemName && itemName.trim().toLowerCase() === name.trim().toLowerCase());
-
-        if (matchesId || matchesEmail || matchesName) {
-          const rawUrl = rec.avatarUrl || rec.avatar_url;
-          if (typeof rawUrl === 'string' && rawUrl.trim() !== '') {
-            return rawUrl.trim();
-          }
-        }
+  for (const qc of clientsToCheck) {
+    if (!qc) continue;
+    try {
+      const candidateQueries = [
+        ...qc.getQueriesData<unknown>({ queryKey: ['me', 'team'] }),
+        ...qc.getQueriesData<unknown>({ queryKey: ['admin', 'users'] }),
+      ];
+      const match = findAvatarInQueries(candidateQueries, userId, email, name);
+      if (match) {
+        return match;
       }
+    } catch {
+      // safe fallback
     }
   }
 
